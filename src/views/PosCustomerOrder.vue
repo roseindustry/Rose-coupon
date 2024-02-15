@@ -215,8 +215,8 @@ export default {
 				<!-- BEGIN logo -->
 				<div class="logo">
 					<RouterLink to="/">
-						<div class="logo-img"><i class="fa fa-bowl-rice"></i></div>
-						<div class="logo-text">Pine & Dine</div>
+						<div class="logo-img"><i class="fa fa-light fa-burger"></i></div>
+						<div class="logo-text">Restaurant</div>
 					</RouterLink>
 				</div>
 				<!-- END logo -->
