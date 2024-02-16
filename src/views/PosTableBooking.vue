@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router';
 import { Modal } from 'bootstrap';
 import axios from 'axios';
 import datepicker from '@/components/plugins/Datepicker.vue';
+import PosHeader from '@/components/app/PosHeader.vue'
 
 const appOption = useAppOptionStore();
 
@@ -17,7 +18,8 @@ export default {
 		}
 	},
 	components: {
-    datepicker: datepicker
+    datepicker: datepicker,
+	PosHeader
   },
 	mounted() {
 		appOption.appSidebarHide = true;
@@ -144,32 +146,7 @@ export default {
 		<!-- BEGIN pos-container -->
 		<div class="pos-container">
 			<!-- BEGIN pos-header -->
-			<div class="pos-header">
-				<div class="logo">
-					<RouterLink to="/pos/counter-checkout">
-						<div class="logo-img"><i class="fa fa-bowl-rice" style="font-size: 1.5rem;"></i></div>
-						<div class="logo-text">Pine & Dine</div>
-					</RouterLink>
-				</div>
-				<div class="time" id="time">{{ getTime() }}</div>
-				<div class="nav">
-					<div class="nav-item">
-						<RouterLink to="/pos/kitchen-order" class="nav-link">
-							<i class="far fa-clock nav-icon"></i>
-						</RouterLink>
-					</div>
-					<div class="nav-item">
-						<RouterLink to="/pos/table-booking" class="nav-link">
-							<i class="far fa-calendar-check nav-icon"></i>
-						</RouterLink>
-					</div>
-					<div class="nav-item">
-						<RouterLink to="/pos/menu-stock" class="nav-link">
-							<i class="fa fa-chart-pie nav-icon"></i>
-						</RouterLink>
-					</div>
-				</div>
-			</div>
+			<pos-header />
 			<!-- END pos-header -->
 		
 			<!-- BEGIN pos-content -->
