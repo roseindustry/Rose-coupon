@@ -5,6 +5,7 @@ import { RouterLink } from 'vue-router';
 
 const appOption = useAppOptionStore();
 const notificationData = [{
+	//ToDo Notificaciones
 	icon: 'fa fa-receipt fa-lg fa-fw text-success',
 	title: 'Your store has a new order for 2 items totaling $1,299.00',
 	time: 'just now'
@@ -12,15 +13,8 @@ const notificationData = [{
 	icon: 'far fa-user-circle fa-lg fa-fw text-body text-opacity-25',
 	title: '3 new customer account is created',
 	time: '2 minutes ago'
-},{
-	img: '/assets/img/icon/android.svg',
-	title: 'Your android application has been approved',
-	time: '5 minutes ago'
-},{
-	img: '/assets/img/icon/paypal.svg',
-	title: 'Paypal payment method has been enabled for your store',
-	time: '10 minutes ago'
-}];
+}
+];
 
 function toggleAppSidebarMinify() {
 	if (!(appOption.appTopNav && appOption.appSidebarHide)) {
@@ -35,18 +29,18 @@ function toggleAppSidebarMobileToggled() {
 		appOption.appSidebarMobileToggled = !appOption.appSidebarMobileToggled;
 	}
 }
-function toggleAppHeaderSearch(event) {
-	event.preventDefault();
+// function toggleAppHeaderSearch(event) {
+// 	event.preventDefault();
 	
-	appOption.appHeaderSearchToggled = !appOption.appHeaderSearchToggled;
-}
-function checkForm(event) {
-	event.preventDefault();
-	this.$router.push({ path: '/extra/search' })
-}
+// 	appOption.appHeaderSearchToggled = !appOption.appHeaderSearchToggled;
+// }
+// function checkForm(event) {
+// 	event.preventDefault();
+// 	this.$router.push({ path: '/extra/search' })
+// }
 </script>
 <template>
-	<div id="header" class="app-header">
+	<div id="header" class="row app-header">
 		<!-- BEGIN mobile-toggler -->
 		<div class="mobile-toggler">
 			<button type="button" class="menu-toggler" v-on:click="toggleAppSidebarMobileToggled">
@@ -57,7 +51,7 @@ function checkForm(event) {
 		<!-- END mobile-toggler -->
 		
 		<!-- BEGIN brand -->
-		<div class="brand">
+		<div class="col brand">
 			<div class="desktop-toggler">
 				<button type="button" class="menu-toggler" v-on:click="toggleAppSidebarMinify">
 					<span class="bar"></span>
@@ -66,19 +60,19 @@ function checkForm(event) {
 			</div>
 			
 			<a href="#" class="brand-logo">
-				<img src="/assets/img/logo.png" class="invert-dark" alt="" height="20">
+				<img src="/assets/img/logo.jpg" >
+				<span style="margin: 5px; color: azure;"><b>POS System</b></span>
 			</a>
 		</div>
 		<!-- END brand -->
+
+		<div class="col justify-content-left align-items-center brand">
+						<div><i class="fa fa-solid fa-burger" style="font-size: 1.5rem;"></i></div>
+						<span style="margin: 5px; color: azure;"><b>Restaurant</b></span>
+		</div>
 		
-		<!-- BEGIN menu -->
-		<div class="menu">
-			<form class="menu-search" name="header_search_form" v-on:submit="checkForm">
-				<div class="menu-search-icon"><i class="fa fa-search"></i></div>
-				<div class="menu-search-input">
-					<input type="text" class="form-control" placeholder="Search menu...">
-				</div>
-			</form>
+		<!-- BEGIN notifications menu -->
+		<div class="col menu">
 			<div class="menu-item dropdown">
 				<a href="#" data-bs-toggle="dropdown" data-display="static" class="menu-link">
 					<div class="menu-icon"><i class="fa fa-bell nav-icon"></i></div>
@@ -116,12 +110,10 @@ function checkForm(event) {
 					<div class="menu-img online">
 						<img src="/assets/img/user/user.jpg" alt="" class="ms-100 mh-100 rounded-circle">
 					</div>
-					<div class="menu-text">johnsmith@vuestudio.com</div>
+					<div class="menu-text">user</div>
 				</a>
 				<div class="dropdown-menu dropdown-menu-end me-lg-3">
 					<RouterLink to="/profile" class="dropdown-item d-flex align-items-center">Edit Profile <i class="fa fa-user-circle fa-fw ms-auto text-gray-400 fs-16px"></i></RouterLink>
-					<RouterLink to="/email/inbox" class="dropdown-item d-flex align-items-center">Inbox <i class="fa fa-envelope fa-fw ms-auto text-gray-400 fs-16px"></i></RouterLink>
-					<RouterLink to="/calendar" class="dropdown-item d-flex align-items-center">Calendar <i class="fa fa-calendar-alt fa-fw ms-auto text-gray-400 fs-16px"></i></RouterLink>
 					<RouterLink to="/settings" class="dropdown-item d-flex align-items-center">Setting <i class="fa fa-wrench fa-fw ms-auto text-gray-400 fs-16px"></i></RouterLink>
 					<div class="dropdown-divider"></div>
 					<RouterLink to="/page/login" class="dropdown-item d-flex align-items-center">Log Out <i class="fa fa-toggle-off fa-fw ms-auto text-gray-400 fs-16px"></i></RouterLink>

@@ -194,14 +194,6 @@ export default {
 								</div>
 							</div>
 							
-							<hr class="bg-white bg-opacity-75 mt-3 mb-3">
-							
-							<div class="mt-3 mb-2">
-								<a href="#" class="btn btn-yellow btn-rounded btn-sm ps-5 pe-5 pt-2 pb-2 fs-14px fw-600"><i class="fa fa-wallet me-2 ms-n2"></i> Withdraw money</a>
-							</div>
-							<p class="fs-12px">
-								It usually takes 3-5 business days for transferring the earning to your bank account.
-							</p>
 						</div>
 						<!-- END col-8 -->
 						

@@ -34,31 +34,16 @@ export default {
 		appOption.appContentFullHeight = false;
 	},
 	methods: {
-		checkTime(i) {
-			if (i < 10) {i = "0" + i};
-			return i;
-		},
-		getTime() {
-			var today = new Date();
-			var h = today.getHours();
-			var m = today.getMinutes();
-			var s = today.getSeconds();
-			var a;
-			m = this.checkTime(m);
-			s = this.checkTime(s);
-			a = (h > 11) ? 'pm' : 'am';
-			h = (h > 12) ? h - 12 : h;
-			
-			setTimeout(this.getTime, 500);
-			
-			return h + ":" + m + a;
-		}
+		
 	}
 }
 </script>
 <template>
 	<!-- BEGIN pos -->
 	<div class="pos pos-vertical pos-with-header" id="pos">
+
+		<!-- EditMenu -->
+
 		<!-- BEGIN pos-container -->
 		<div class="pos-container">
 			<!-- BEGIN pos-header -->
@@ -90,8 +75,8 @@ export default {
 										</div>
 									</div>
 									<div>
-										<a href="#" class="btn btn-theme d-block mb-2">Update</a>
-										<a href="#" class="btn btn-secondary d-block">Cancel</a>
+										<a href="#" class="btn btn-theme d-block mb-2">Update stock</a>
+										<!-- <a href="#" class="btn btn-secondary d-block">Cancelar</a> -->
 									</div>
 								</div>
 							</div>
@@ -102,6 +87,7 @@ export default {
 			<!-- END pos-content -->
 		</div>
 		<!-- END pos-container -->
+
 	</div>
 	<!-- END pos -->
 </template>

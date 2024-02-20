@@ -10,7 +10,7 @@ export default {
 <template>
 	<!-- BEGIN #footer -->
 	<div id="footer" class="app-footer">
-		&copy; {{ year }} seanTheme All Right Reserved
+		&copy; {{ year }} Rose Industry All Rights Reserved
 	</div>
 	<!-- END #footer -->
 </template>
