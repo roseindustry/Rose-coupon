@@ -1,5 +1,5 @@
 {
-	"tableNo": "01",
+	"tables": [1,2,3,4],
 	"orderNo": "#0029",
 	"category": [{
 		"icon": "fa fa-fw fa-utensils",

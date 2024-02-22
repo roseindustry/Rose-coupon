@@ -132,7 +132,7 @@ export default {
 </script>
 <template>
 	<h1 class="page-header mb-3">
-		Hi, User. <small>here's what's happening with your store today.</small>
+		Hola, Usuario. <small>aqui esta un resumen de tu establecimiento hoy.</small>
 	</h1>
 	
 	<!-- BEGIN row -->
@@ -162,10 +162,10 @@ export default {
 							<!-- stat-top -->
 							<div class="d-flex">
 								<div class="me-auto">
-									<h5 class="text-white text-opacity-80 mb-3">Weekly Earning</h5>
+									<h5 class="text-white text-opacity-80 mb-3">Ganancias semanales</h5>
 									<h3 class="text-white mt-n1 mb-1">$2,999.80</h3>
 									<p class="mb-1 text-white text-opacity-60 text-truncate">
-										<i class="fa fa-caret-up"></i> <b>32%</b> increase compare to last week
+										<i class="fa fa-caret-up"></i> <b>32%</b> Comparado a la semana anterior
 									</p>
 								</div>
 							</div>
@@ -179,17 +179,8 @@ export default {
 										<i class="fa fa-fw fa-shopping-bag fs-28px text-black text-opacity-50"></i>
 									</div>
 									<div class="mt-1">
-										<div>Store Sales</div>
+										<div>Ventas del local</div>
 										<div class="fw-600 text-white">$1,629.80</div>
-									</div>
-								</div>
-								<div class="col-6 col-lg-5">
-									<div class="mt-1">
-										<i class="fa fa-fw fa-retweet fs-28px text-black text-opacity-50"></i>
-									</div>
-									<div class="mt-1">
-										<div>Referral Sales</div>
-										<div class="fw-600 text-white">$700.00</div>
 									</div>
 								</div>
 							</div>
@@ -206,7 +197,33 @@ export default {
 			</card>
 		</div>
 		<!-- END col-6 -->
-		
+
+		<!-- BEGIN col-6 -->
+		<div class="col-xl-6 mb-3">
+			<!-- BEGIN card -->
+			<card class="h-100">
+				<!-- BEGIN card-body -->
+				<card-body>
+					<div class="d-flex mb-3">
+						<div class="flex-grow-1">
+							<h5 class="mb-1">Metricas de ventas</h5>
+							<div class="fs-13px">Grafico de ventales semanales</div>
+						</div>
+						<a href="#" data-bs-toggle="dropdown" class="text-muted"><i class="fa fa-redo"></i></a>
+					</div>
+					<apexchart :height="chart.height" :options="chart.options" :series="chart.series"></apexchart>
+				</card-body>
+				<!-- END card-body -->
+			</card>
+			<!-- END card -->
+		</div>	
+		<!-- END col-6 -->
+	</div>
+	<!-- END row -->
+	
+	<!-- BEGIN row -->
+	<div class="row">
+
 		<!-- BEGIN col-6 -->
 		<div class="col-xl-6">
 					<card class="mb-3 overflow-hidden fs-13px border-0 bg-gradient-custom-orange" style="min-height: 414px;">
@@ -215,24 +232,20 @@ export default {
 						</card-img-overlay>
 						
 						<card-body class="position-relative">
-							<h5 class="text-white text-opacity-80 mb-3 fs-16px">New Orders</h5>
+							<h5 class="text-white text-opacity-80 mb-3 fs-16px">Ordenes nuevas</h5>
 							<h3 class="text-white mt-n1">56</h3>
 							<div class="progress bg-black bg-opacity-50 mb-2" style="height: 6px">
 								<div class="progrss-bar progress-bar-striped bg-white" style="width: 80%"></div>
 							</div>
-							<div class="text-white text-opacity-80 mb-4"><i class="fa fa-caret-up"></i> 16% increase <br>compare to last week</div>
-							<div><a href="#" class="text-white d-flex align-items-center text-decoration-none">View report <i class="fa fa-chevron-right ms-2 text-white text-opacity-50"></i></a></div>
+							<div class="text-white text-opacity-80 mb-4"><i class="fa fa-caret-up"></i> 16% de incremento <br>comparado a la semana anterior</div>
+							<div><a href="#" class="text-white d-flex align-items-center text-decoration-none">Ver reporte <i class="fa fa-chevron-right ms-2 text-white text-opacity-50"></i></a></div>
 						</card-body>
 					</card>
 		</div>
 		<!-- END col-6 -->
-	</div>
-	<!-- END row -->
-	
-	<!-- BEGIN row -->
-	<div class="row">
+
 		<!-- BEGIN col-6 -->
-		<div class="col-xl-6 mb-3">
+		<!-- <div class="col-xl-6 mb-3">
 					<card class="h-100">
 						<card-body>
 							<div class="d-flex mb-3">
@@ -256,28 +269,7 @@ export default {
 							</div>
 						</card-body>
 					</card>
-		</div>
-		<!-- END col-6 -->
-		
-		<!-- BEGIN col-6 -->
-		<div class="col-xl-6 mb-3">
-			<!-- BEGIN card -->
-			<card class="h-100">
-				<!-- BEGIN card-body -->
-				<card-body>
-					<div class="d-flex mb-3">
-						<div class="flex-grow-1">
-							<h5 class="mb-1">Sales Analytics</h5>
-							<div class="fs-13px">Weekly sales performance chart</div>
-						</div>
-						<a href="#" data-bs-toggle="dropdown" class="text-muted"><i class="fa fa-redo"></i></a>
-					</div>
-					<apexchart :height="chart.height" :options="chart.options" :series="chart.series"></apexchart>
-				</card-body>
-				<!-- END card-body -->
-			</card>
-			<!-- END card -->
-		</div>	
+		</div> -->
 		<!-- END col-6 -->
 	</div>
 	<!-- END row -->

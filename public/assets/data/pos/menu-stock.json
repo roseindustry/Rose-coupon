@@ -5,7 +5,8 @@
 		"title": "Grill Chicken Chop®",
 		"description": "chicken, egg, mushroom, salad",
 		"stock": 20,
-		"available": true
+		"available": true,
+		"price": 12
 	},{
 		"id": "2",
 		"image": "/assets/img/pos/product-2.jpg",

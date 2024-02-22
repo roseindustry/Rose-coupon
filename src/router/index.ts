@@ -15,7 +15,6 @@ const router = createRouter({
 		{ path: '/pos/counter-checkout', component: () => import('../views/PosCounterCheckout.vue') },
 		{ path: '/pos/table-booking', component: () => import('../views/PosTableBooking.vue') },
 		{ path: '/pos/menu-stock', component: () => import('../views/PosMenuStock.vue') },
-		{ path: '/pos/edit-menu', component: () => import('../views/PosEditMenu.vue') },
 		{ path: '/ui/bootstrap', component: () => import('../views/UiBootstrap.vue') },
 		{ path: '/ui/buttons', component: () => import('../views/UiButtons.vue') },
 		{ path: '/ui/card', component: () => import('../views/UiCard.vue') },

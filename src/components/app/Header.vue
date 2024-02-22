@@ -40,7 +40,7 @@ function toggleAppSidebarMobileToggled() {
 // }
 </script>
 <template>
-	<div id="header" class="row app-header">
+	<div id="header" class="app-header">
 		<!-- BEGIN mobile-toggler -->
 		<div class="mobile-toggler">
 			<button type="button" class="menu-toggler" v-on:click="toggleAppSidebarMobileToggled">
@@ -68,11 +68,11 @@ function toggleAppSidebarMobileToggled() {
 
 		<div class="col justify-content-left align-items-center brand">
 						<div><i class="fa fa-solid fa-burger" style="font-size: 1.5rem;"></i></div>
-						<span style="margin: 5px; color: azure;"><b>Restaurant</b></span>
+						<span style="margin: 5px; color: azure;"><b>Restaurante</b></span>
 		</div>
 		
 		<!-- BEGIN notifications menu -->
-		<div class="col menu">
+		<div class="col justify_content_end menu">
 			<div class="menu-item dropdown">
 				<a href="#" data-bs-toggle="dropdown" data-display="static" class="menu-link">
 					<div class="menu-icon"><i class="fa fa-bell nav-icon"></i></div>
@@ -97,11 +97,11 @@ function toggleAppSidebarMobileToggled() {
 					</template>
 					<template v-else>
 						<div class="dropdown-notification-item">
-							No record found
+							No hay datos.
 						</div>
 					</template>
 					<div class="p-2 text-center mb-n1">
-						<a href="#" class="text-body-emphasis text-opacity-50 text-decoration-none">See all</a>
+						<a href="#" class="text-body-emphasis text-opacity-50 text-decoration-none">Mostrar mas</a>
 					</div>
 				</div>
 			</div>
@@ -113,10 +113,10 @@ function toggleAppSidebarMobileToggled() {
 					<div class="menu-text">user</div>
 				</a>
 				<div class="dropdown-menu dropdown-menu-end me-lg-3">
-					<RouterLink to="/profile" class="dropdown-item d-flex align-items-center">Edit Profile <i class="fa fa-user-circle fa-fw ms-auto text-gray-400 fs-16px"></i></RouterLink>
-					<RouterLink to="/settings" class="dropdown-item d-flex align-items-center">Setting <i class="fa fa-wrench fa-fw ms-auto text-gray-400 fs-16px"></i></RouterLink>
+					<RouterLink to="/profile" class="dropdown-item d-flex align-items-center">Editar perfil <i class="fa fa-user-circle fa-fw ms-auto text-gray-400 fs-16px"></i></RouterLink>
+					<RouterLink to="/settings" class="dropdown-item d-flex align-items-center">Ajustes <i class="fa fa-wrench fa-fw ms-auto text-gray-400 fs-16px"></i></RouterLink>
 					<div class="dropdown-divider"></div>
-					<RouterLink to="/page/login" class="dropdown-item d-flex align-items-center">Log Out <i class="fa fa-toggle-off fa-fw ms-auto text-gray-400 fs-16px"></i></RouterLink>
+					<RouterLink to="/page/login" class="dropdown-item d-flex align-items-center">Cerrar sesion <i class="fa fa-toggle-off fa-fw ms-auto text-gray-400 fs-16px"></i></RouterLink>
 				</div>
 			</div>
 		</div>

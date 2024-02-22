@@ -238,7 +238,7 @@ export default {
 <template>
 	<!-- BEGIN page-header -->
 	<h1 class="page-header">
-		Analytics <small>stats, overview & performance</small>
+		Metricas <small>estadisticas, resumen & desempeño</small>
 	</h1>
 	<!-- END page-header -->
 	
@@ -253,7 +253,7 @@ export default {
 				<i class="fa fa-fw fa-caret-down me-n1"></i>
 			</label>
 		</div>
-		<span class="ms-3">compared to {{ getPrevDay() }}</span>
+		<span class="ms-3">comparado con {{ getPrevDay() }}</span>
 	</div>
 	<!-- END daterangepicker -->
 
@@ -268,7 +268,7 @@ export default {
 				<card-body>
 					<!-- title -->
 					<div class="d-flex align-items-center mb-2">
-						<div class="flex-fill fw-bold fs-16px">Average order value</div>
+						<div class="flex-fill fw-bold fs-16px">VALOR DE ORDEN PROMEDIO</div>
 					</div>
 		
 					<!-- stats -->
@@ -279,7 +279,7 @@ export default {
 					
 					<!-- chart -->
 					<div>
-						<div class="fs-12px fw-bold mb-2 text-muted">ORDERS BY TIME</div>
+						<div class="fs-12px fw-bold mb-2 text-muted">HISTORIAL DE ORDENES</div>
 						<div class="chart mb-2" style="height: 190px">
 							<chartjs :type="chart4.type" :data="chart4.data" :options="chart4.options" class="w-100" height="190" />
 						</div>
@@ -303,7 +303,7 @@ export default {
 				<card-body>
 					<!-- title -->
 					<div class="d-flex align-items-center mb-3">
-						<div class="flex-fill fw-bold fs-16px">Top product by units sold</div>
+						<div class="flex-fill fw-bold fs-16px">PRODUCTO MAS VENDIDO</div>
 					</div>
 		
 					<!-- list -->
@@ -347,7 +347,7 @@ export default {
 				<card-body>
 					<!-- title -->
 					<div class="d-flex align-items-center mb-2">
-						<div class="flex-fill fs-16px fw-bold">Returning customer rate</div>
+						<div class="flex-fill fs-16px fw-bold">PORCENTAJE DE RECURRENCIA DE CLIENTES</div>
 					</div>
 		
 					<!-- stats -->
@@ -358,15 +358,15 @@ export default {
 					
 					<!-- chart -->
 					<div>
-						<div class="fs-12px fw-bold mb-2 text-muted">CUSTOMERS</div>
+						<div class="fs-12px fw-bold mb-2 text-muted">CLIENTES</div>
 						<div class="chart mb-2" style="height: 190px">
 							<chartjs :type="chart3.type" :data="chart3.data" :options="chart3.options" class="w-100" height="190" />
 						</div>
 						<div class="d-flex align-items-center justify-content-center text-muted fw-bold">
 							<i class="fa fa-square text-indigo me-2"></i> 
-							<span class="fs-12px me-4">First-time</span>
+							<span class="fs-12px me-4">Primera vez</span>
 							<i class="fa fa-square text-theme me-2"></i> 
-							<span class="fs-12px">Returning</span>
+							<span class="fs-12px">Recurrente</span>
 						</div>
 					</div>
 				</card-body>
@@ -382,7 +382,7 @@ export default {
 				<card-body>
 					<!-- title -->
 					<div class="d-flex align-items-center mb-2">
-						<div class="flex-fill fw-bold fs-16px">Total orders</div>
+						<div class="flex-fill fw-bold fs-16px">ORDENES TOTALES</div>
 					</div>
 		
 					<!-- stats -->
@@ -393,7 +393,7 @@ export default {
 					
 					<!-- chart -->
 					<div>
-						<div class="fs-12px fw-bold mb-2 text-muted">ORDERS OVER TIME</div>
+						<div class="fs-12px fw-bold mb-2 text-muted">HISTORIAL DE ORDENES</div>
 						<div class="chart mb-2">
 							<chartjs :type="chart5.type" :data="chart5.data" :options="chart5.options" class="w-100" height="190" />
 						</div>
@@ -417,8 +417,8 @@ export default {
 				<card-body>
 					<!-- title -->
 					<div class="d-flex align-items-center mb-2">
-						<div class="flex-fill fw-bold fs-16px">Total sales</div>
-						<a href="#" class="text-decoration-none text-muted">View report</a>
+						<div class="flex-fill fw-bold fs-16px">VENTALES TOTALES</div>
+						<a href="#" class="text-decoration-none text-muted">Ver reporte</a>
 					</div>
 		
 					<!-- stats -->
@@ -429,7 +429,7 @@ export default {
 					
 					<!-- chart -->
 					<div>
-						<div class="fs-12px fw-bold mb-2 text-muted">SALES OVER TIME</div>
+						<div class="fs-12px fw-bold mb-2 text-muted">HISTORIAL DE VENTAS</div>
 						<div class="chart mb-2" style="height: 190px">
 							<chartjs :type="chart1.type" :data="chart1.data" :options="chart1.options" class="w-100" height="190" />
 						</div>

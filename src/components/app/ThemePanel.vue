@@ -131,7 +131,7 @@ onMounted(() => {
 					<div>Dark Mode <span class="badge bg-theme text-theme-color ms-1 position-relative py-4px px-6px" style="top: -1px">NEW</span></div>
 					<div class="lh-14 fs-13px">
 						<small class="text-body opacity-50">
-							Adjust the appearance to reduce glare and give your eyes a break.
+							Ajusta la apariencia para reducir el brillo y darle descanso a tus ojos.
 						</small>
 					</div>
 				</div>

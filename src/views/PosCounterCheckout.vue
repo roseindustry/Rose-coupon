@@ -140,11 +140,11 @@ export default {
 											<a href="#" class="pos-checkout-table-container" v-on:click="(event) => toggleTable(event, table)">
 												<div class="pos-checkout-table-header">
 													<div class="status"><i class="bi bi-circle-fill"></i></div>
-													<div class="fw-bold">Table</div>
+													<div class="fw-bold">Mesa</div>
 													<div class="fw-bold display-6">{{ table.tableNo }}</div>
 													<div class="text-inverse text-opacity-50">
-														<span v-if="table.orders">{{ table.orders.length }} order</span>
-														<span v-if="table.status == 'Reserved'">Reserved for {{ table.reserveName }}</span>
+														<span v-if="table.orders">{{ table.orders.length }} pedidos</span>
+														<!-- <span v-if="table.status == 'Reserved'">Reserved for {{ table.reserveName }}</span> -->
 														<span v-if="!table.orders && table.status != 'Reserved'">max {{ table.totalPax }} pax</span>
 													</div>
 												</div>
@@ -179,7 +179,7 @@ export default {
 								</template>
 								<template v-else>
 									<div class="col-12 pb-3">
-										No records found
+										No hay ordenes
 									</div>
 								</template>
 							</div>
@@ -197,8 +197,8 @@ export default {
 								</button>
 							</div>
 							<div class="icon"><i class="fa fa-plate-wheat"></i></div>
-							<div class="title">Table {{ (selectedTable && selectedTable.tableNo) ? selectedTable.tableNo : '-' }}</div>
-							<div class="order">Order: <b class="text-theme">#{{ (selectedTable && selectedTable.orderNo) ? selectedTable.orderNo : '-' }}</b></div>
+							<div class="title">Mesa {{ (selectedTable && selectedTable.tableNo) ? selectedTable.tableNo : '-' }}</div>
+							<div class="order">Orden: <b class="text-theme">#{{ (selectedTable && selectedTable.orderNo) ? selectedTable.orderNo : '-' }}</b></div>
 						</div>
 						<!-- END pos-sidebar-header -->
 						<hr class="m-0 opacity-1">
@@ -223,7 +223,7 @@ export default {
 								</div>
 							</template>
 							<template v-else>
-								<div class="p-4">No records found</div>
+								<div class="p-4">No hay datos</div>
 							</template>
 							<!-- END pos-order -->
 						</perfect-scrollbar>
@@ -235,7 +235,7 @@ export default {
 								<div class="flex-1 text-end h6 mb-0">${{ getPrice(selectedTable.orders, 'subtotal') }}</div>
 							</div>
 							<div class="d-flex align-items-center">
-								<div>Taxes (6%)</div>
+								<div>impuestos (6%)</div>
 								<div class="flex-1 text-end h6 mb-0">${{ getPrice(selectedTable.orders, 'taxes') }}</div>
 							</div>
 							<hr class="opacity-1 my-10px">
@@ -245,7 +245,19 @@ export default {
 							</div>
 							<div class="mt-3">
 								<div class="d-flex">
-									<a href="#" class="btn btn-default w-70px me-10px px-0 d-flex align-items-center justify-content-center">
+									<a href="#" class="btn btn-theme flex-fill d-flex align-items-center justify-content-center" style="margin-right: 15px;">
+										<span>
+											<i class="fa fa-wallet fa-lg my-10px d-block"></i>
+											<span class="small fw-semibold">Pagado</span>
+										</span>
+									</a>
+									<a href="#" class="btn btn-theme flex-fill d-flex align-items-center justify-content-center">
+										<span>
+											<i class="fa fa-thumbs-down fa-lg my-10px d-block"></i>
+											<span class="small fw-semibold">Cancelar</span>
+										</span>
+									</a>
+									<!-- <a href="#" class="btn btn-default w-70px me-10px px-0 d-flex align-items-center justify-content-center">
 										<span>
 											<i class="fab fa-paypal fa-lg my-10px d-block"></i>
 											<span class="small fw-semibold">E-Wallet</span>
@@ -262,7 +274,7 @@ export default {
 											<i class="fa fa-wallet fa-lg my-10px d-block"></i>
 											<span class="small fw-semibold">Cash</span>
 										</span>
-									</a>
+									</a> -->
 								</div>
 							</div>
 						</div>

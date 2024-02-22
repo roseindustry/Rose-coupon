@@ -13,7 +13,8 @@ export default {
 			order: '',
 			orderHistory: '',
 			orderNo: '#0000',
-			tableNo: '0',
+			tables: [],
+			currentTable: null,
 			modal: '',
 			modalData: '',
 			modalQuantity: '',
@@ -27,13 +28,13 @@ export default {
 		appOption.appHeaderHide = true;
 		appOption.appContentClass = 'p-0';
 		appOption.appContentFullHeight = true;
-		
+
 		axios.get('/assets/data/pos/customer-order.json').then((response) => {
 			this.menu = response.data;
 			this.order = response.data.order;
 			this.orderNo = response.data.orderNo;
 			this.orderHistory = response.data.orderHistory;
-			this.tableNo = response.data.tableNo;
+			this.tables = response.data.tables;
 		});
 	},
 	beforeUnmount() {
@@ -43,30 +44,30 @@ export default {
 		appOption.appContentFullHeight = false;
 	},
 	methods: {
-		toggleMobileSidebar: function() {
+		toggleMobileSidebar: function () {
 			this.mobileSidebarToggled = !this.mobileSidebarToggled;
 		},
-		getOrderTotal: function() {
+		getOrderTotal: function () {
 			return (this.order) ? this.order.length : 0;
 		},
-		getOrderHistoryTotal: function() {
+		getOrderHistoryTotal: function () {
 			return (this.orderHistory) ? this.orderHistory.length : 0;
 		},
-		getSubTotalPrice: function() {
+		getSubTotalPrice: function () {
 			var value = 0;
 			for (var i = 0; i < this.order.length; i++) {
 				value += parseFloat(this.order[i].price) * parseInt(this.order[i].quantity);
 			}
 			return value.toFixed(2);
 		},
-		getTaxesPrice: function() {
+		getTaxesPrice: function () {
 			var value = 0;
 			for (var i = 0; i < this.order.length; i++) {
 				value += parseFloat(this.order[i].price) * parseInt(this.order[i].quantity) * .06;
 			}
 			return value.toFixed(2);
 		},
-		getTotalPrice: function() {
+		getTotalPrice: function () {
 			var value = 0;
 			for (var i = 0; i < this.order.length; i++) {
 				value += parseFloat(this.order[i].price) * parseInt(this.order[i].quantity);
@@ -74,12 +75,12 @@ export default {
 			}
 			return value.toFixed(2);
 		},
-		deductQty: function(event, id) {
+		deductQty: function (event, id) {
 			event.preventDefault();
 			for (var i = 0; i < this.order.length; i++) {
 				if (this.order[i].id == id) {
 					var newQty = parseInt(this.order[i].quantity) - 1;
-					
+
 					if (newQty < 1) {
 						newQty = 1;
 					}
@@ -87,20 +88,20 @@ export default {
 				}
 			}
 		},
-		addQty: function(event, id) {
+		addQty: function (event, id) {
 			event.preventDefault();
-			
+
 			for (var i = 0; i < this.order.length; i++) {
 				if (this.order[i].id == id) {
 					var newQty = parseInt(this.order[i].quantity) + 1;
-					
+
 					this.order[i].quantity = newQty;
 				}
 			}
 		},
-		showType: function(event, type) {
+		showType: function (event, type) {
 			event.preventDefault();
-			
+
 			for (var i = 0; i < this.menu.category.length; i++) {
 				if (this.menu.category[i].type == type) {
 					this.menu.category[i].active = true;
@@ -116,9 +117,9 @@ export default {
 				}
 			}
 		},
-		showFoodModal: function(event, id) {
+		showFoodModal: function (event, id) {
 			event.preventDefault();
-			
+
 			for (var i = 0; i < this.menu.food.length; i++) {
 				if (this.menu.food[i].id == id) {
 					this.modalData = this.menu.food[i];
@@ -132,26 +133,26 @@ export default {
 			this.modal = new Modal(this.$refs.modalPosItem);
 			this.modal.show();
 		},
-		addModalQty: function(event) {
+		addModalQty: function (event) {
 			event.preventDefault();
-			
+
 			this.modalQuantity = this.modalQuantity + 1;
 		},
-		deductModalQty: function(event) {
+		deductModalQty: function (event) {
 			event.preventDefault();
-			
+
 			var newQty = parseInt(this.modalQuantity) - 1;
-		
+
 			if (newQty < 1) {
 				newQty = 1;
 			}
 			this.modalQuantity = newQty;
 		},
-		addToCart: function(event) {
+		submitOrder: function (event) {
 			event.preventDefault();
-			
+
 			this.modal.hide();
-			
+
 			var options = [];
 			var extraPrice = 0;
 			if (this.modalSelectedSize) {
@@ -170,7 +171,7 @@ export default {
 					options.push(option);
 				}
 			}
-			
+
 			this.order.push({
 				"id": (this.order.length + 1),
 				"image": this.modalData.image,
@@ -179,29 +180,34 @@ export default {
 				"quantity": this.modalQuantity,
 				"options": options
 			});
-			
+
 			setTimeout(() => {
 				this.$refs.posSidebarBody.$el.scrollTop = 9999;
 				this.$refs.posSidebarBody.ps.update();
 			}, 500);
 		},
-		toggleConfirmation: function(event, id, value) {
+		toggleConfirmation: function (event, id, value) {
 			event.preventDefault();
-			
+
 			for (var i = 0; i < this.order.length; i++) {
 				if (this.order[i].id == id) {
 					this.order[i].confirmation = value;
 				}
 			}
 		},
-		removeOrder: function(event, id) {
+		removeOrder: function (event, id) {
 			event.preventDefault();
-			
+
 			for (var i = 0; i < this.order.length; i++) {
 				if (this.order[i].id == id) {
 					this.order.splice(i, 1);
 				}
 			}
+		},
+		selectTable(table) {
+			this.currentTable = table;
+			// Prevent the default link behavior
+			event.preventDefault();
 		}
 	}
 }
@@ -214,9 +220,9 @@ export default {
 			<div class="pos-menu">
 				<!-- BEGIN logo -->
 				<div class="logo">
-					<RouterLink to="/">
+					<RouterLink to="#">
 						<div class="logo-img"><i class="fa fa-light fa-burger"></i></div>
-						<div class="logo-text">Restaurant</div>
+						<div class="logo-text">Restaurante</div>
 					</RouterLink>
 				</div>
 				<!-- END logo -->
@@ -225,7 +231,8 @@ export default {
 					<perfect-scrollbar class="h-100">
 						<ul class="nav nav-tabs">
 							<li class="nav-item" v-for="category in menu.category">
-								<a class="nav-link" v-bind:class="{'active': category.active }" href="#" v-on:click="(event) => showType(event, category.type)">
+								<a class="nav-link" v-bind:class="{ 'active': category.active }" href="#"
+									v-on:click="(event) => showType(event, category.type)">
 									<i v-bind:class="category.icon"></i> {{ category.text }}
 								</a>
 							</li>
@@ -235,15 +242,16 @@ export default {
 				<!-- END nav-container -->
 			</div>
 			<!-- END pos-menu -->
-		
+
 			<!-- BEGIN pos-content -->
 			<div class="pos-content">
 				<div class="pos-content-container h-100">
 					<div class="row gx-4">
 						<template v-for="food in menu.food">
 							<div class="col-xxl-3 col-xl-4 col-lg-6 col-md-4 col-sm-6 pb-4" v-if="!food.hide">
-								<a href="#" class="pos-product" v-bind:class="{ 'not-available': !food.available }" v-on:click="(event) => showFoodModal(event, food.id)">
-									<div class="img" v-bind:style="{ backgroundImage: 'url('+ food.image +')' }"></div>
+								<a href="#" class="pos-product" v-bind:class="{ 'not-available': !food.available }"
+									v-on:click="(event) => showFoodModal(event, food.id)">
+									<div class="img" v-bind:style="{ backgroundImage: 'url(' + food.image + ')' }"></div>
 									<div class="info">
 										<div class="title">{{ food.title }}</div>
 										<div class="desc">{{ food.description }}</div>
@@ -259,7 +267,7 @@ export default {
 				</div>
 			</div>
 			<!-- END pos-content -->
-		
+
 			<!-- BEGIN pos-sidebar -->
 			<div class="pos-sidebar">
 				<div class="h-100 d-flex flex-column p-0">
@@ -270,25 +278,37 @@ export default {
 								<i class="bi bi-chevron-left"></i>
 							</button>
 						</div>
+						<div class="dropdown title">
+							<button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton1"
+								data-bs-toggle="dropdown" aria-expanded="false">
+								{{ 'Mesa No ' + currentTable || 'Selecciona la Mesa' }}
+							</button>
+							<ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+								<li v-for="table in tables"><a class="dropdown-item" href="#" @click="selectTable(table)">{{
+									table }}</a></li>
+							</ul>
+						</div>
 						<div class="icon"><i class="fa fa-plate-wheat"></i></div>
-						<div class="title">Table {{ tableNo }}</div>
-						<div class="order">Order: <b>{{ orderNo }}</b></div>
+						<div class="order">Orden: <b>{{ orderNo }}</b></div>
 					</div>
 					<!-- END pos-sidebar-header -->
-				
+
 					<!-- BEGIN pos-sidebar-nav -->
 					<div class="pos-sidebar-nav">
 						<ul class="nav nav-tabs nav-fill">
 							<li class="nav-item">
-								<a class="nav-link active" href="#" data-bs-toggle="tab" data-bs-target="#newOrderTab">New Order ({{ getOrderTotal() }})</a>
+								<a class="nav-link active" href="#" data-bs-toggle="tab" data-bs-target="#newOrderTab">Orden
+									nueva ({{ getOrderTotal() }})</a>
 							</li>
 							<li class="nav-item">
-								<a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#orderHistoryTab">Order History ({{ getOrderHistoryTotal() }})</a>
+								<a class="nav-link" href="#" data-bs-toggle="tab"
+									data-bs-target="#orderHistoryTab">Ordenes ({{ getOrderHistoryTotal()
+									}})</a>
 							</li>
 						</ul>
 					</div>
 					<!-- END pos-sidebar-nav -->
-				
+
 					<!-- BEGIN pos-sidebar-body -->
 					<perfect-scrollbar ref="posSidebarBody" class="pos-sidebar-body tab-content">
 						<!-- BEGIN #newOrderTab -->
@@ -296,33 +316,44 @@ export default {
 							<!-- BEGIN pos-order -->
 							<div class="pos-order" v-if="order.length > 0" v-for="order in order">
 								<div class="pos-order-product">
-									<div class="img" v-bind:style="{ backgroundImage: 'url('+ order.image +')' }"></div>
+									<div class="img" v-bind:style="{ backgroundImage: 'url(' + order.image + ')' }"></div>
 									<div class="flex-1">
 										<div class="h6 mb-1">{{ order.title }}</div>
 										<div class="small">${{ order.price }}</div>
 										<div class="small mb-2">
-											<div v-for="option in order.options">- {{ option.key }}: {{ option.value }}</div>
+											<div v-for="option in order.options">- {{ option.key }}: {{ option.value }}
+											</div>
 										</div>
 										<div class="d-flex">
-											<a href="#" class="btn btn-secondary btn-sm" v-on:click="(event) => deductQty(event, order.id)"><i class="fa fa-minus"></i></a>
-											<input type="text" v-model="order.quantity" class="form-control w-50px form-control-sm mx-2 bg-white bg-opacity-25 text-center" />
-											<a href="#" class="btn btn-secondary btn-sm" v-on:click="(event) => addQty(event, order.id)"><i class="fa fa-plus"></i></a>
+											<a href="#" class="btn btn-secondary btn-sm"
+												v-on:click="(event) => deductQty(event, order.id)"><i
+													class="fa fa-minus"></i></a>
+											<input type="text" v-model="order.quantity"
+												class="form-control w-50px form-control-sm mx-2 bg-white bg-opacity-25 text-center" />
+											<a href="#" class="btn btn-secondary btn-sm"
+												v-on:click="(event) => addQty(event, order.id)"><i
+													class="fa fa-plus"></i></a>
 										</div>
 									</div>
 								</div>
 								<div class="pos-order-price d-flex flex-column">
 									<div>${{ (order.price * order.quantity).toFixed(2) }}</div>
-									<div class="text-end mt-auto"><a href="#" v-on:click="(event) => toggleConfirmation(event, order.id, true)" class="btn btn-default btn-sm"><i class="fa fa-trash"></i></a></div>
+									<div class="text-end mt-auto"><a href="#"
+											v-on:click="(event) => toggleConfirmation(event, order.id, true)"
+											class="btn btn-default btn-sm"><i class="fa fa-trash"></i></a></div>
 								</div>
-								
-								<div class="pos-order-confirmation text-center d-flex flex-column justify-content-center" v-if="order.confirmation">
+
+								<div class="pos-order-confirmation text-center d-flex flex-column justify-content-center"
+									v-if="order.confirmation">
 									<div class="mb-1">
 										<i class="fa fa-trash fs-36px lh-1"></i>
 									</div>
-									<div class="mb-2">Remove this item?</div>
+									<div class="mb-2">¿Remover este item?</div>
 									<div>
-										<a href="#" v-on:click="(event) => toggleConfirmation(event, order.id, false)" class="btn btn-default btn-sm ms-auto me-2 width-100px">No</a>
-										<a href="#" v-on:click="(event) => removeOrder(event, order.id)" class="btn btn-theme btn-sm width-100px">Yes</a>
+										<a href="#" v-on:click="(event) => toggleConfirmation(event, order.id, false)"
+											class="btn btn-default btn-sm ms-auto me-2 width-100px">No</a>
+										<a href="#" v-on:click="(event) => removeOrder(event, order.id)"
+											class="btn btn-theme btn-sm width-100px">Si</a>
 									</div>
 								</div>
 							</div>
@@ -332,27 +363,35 @@ export default {
 									<div class="mb-3 mt-n5">
 										<i class="fa fa-utensils text-body text-opacity-25" style="font-size: 5em"></i>
 									</div>
-									<h5>No order found</h5>
+									<h5>No se encontraron ordenes</h5>
 								</div>
 							</div>
 						</div>
 						<!-- END #orderHistoryTab -->
-					
+
 						<!-- BEGIN #orderHistoryTab -->
 						<div class="tab-pane fade h-100" id="orderHistoryTab">
-							<div class="h-100 d-flex align-items-center justify-content-center text-center p-20">
+							<div v-if="orders && orders.length" class="content">
+								<!-- Replace the div below with your desired layout for displaying each order -->
+								<div v-for="order in orders" :key="order.id" class="order">
+									<p>Orden ID: {{ order.id }}</p>
+									<p>Fecha de orden: {{ order.date }}</p>
+									<!-- Add more order details here -->
+								</div>
+							</div>
+							<div v-else class="h-100 d-flex align-items-center justify-content-center text-center p-20">
 								<div>
 									<div class="mb-3 mt-n5">
 										<i class="fa fa-shopping-bag text-body text-opacity-25" style="font-size: 5em"></i>
 									</div>
-									<h5>No order history found</h5>
+									<h5>No hay datos</h5>
 								</div>
 							</div>
 						</div>
 						<!-- END #orderHistoryTab -->
 					</perfect-scrollbar>
 					<!-- END pos-sidebar-body -->
-				
+
 					<!-- BEGIN pos-sidebar-footer -->
 					<div class="pos-sidebar-footer">
 						<div class="d-flex align-items-center mb-2">
@@ -360,7 +399,7 @@ export default {
 							<div class="flex-1 text-end h6 mb-0">${{ getSubTotalPrice() }}</div>
 						</div>
 						<div class="d-flex align-items-center">
-							<div>Taxes (6%)</div>
+							<div>Impuesto (6%)</div>
 							<div class="flex-1 text-end h6 mb-0">${{ getTaxesPrice() }}</div>
 						</div>
 						<hr />
@@ -370,19 +409,22 @@ export default {
 						</div>
 						<div class="mt-3">
 							<div class="d-flex">
-								<a href="#" class="btn btn-default w-70px me-10px d-flex align-items-center justify-content-center">
+								<!-- <a href="#"
+									class="btn btn-default w-70px me-10px d-flex align-items-center justify-content-center">
 									<span>
 										<i class="fa fa-bell fa-lg my-10px d-block"></i>
 										<span class="small fw-semibold">Service</span>
 									</span>
 								</a>
-								<a href="#" class="btn btn-default w-70px me-10px d-flex align-items-center justify-content-center">
+								<a href="#"
+									class="btn btn-default w-70px me-10px d-flex align-items-center justify-content-center">
 									<span>
 										<i class="fa fa-receipt fa-fw fa-lg my-10px d-block"></i>
 										<span class="small fw-semibold">Bill</span>
 									</span>
-								</a>
-								<a href="#" class="btn btn-theme flex-fill d-flex align-items-center justify-content-center">
+								</a> -->
+								<a href="#"
+									class="btn btn-theme flex-fill d-flex align-items-center justify-content-center">
 									<span>
 										<i class="fa fa-cash-register fa-lg my-10px d-block"></i>
 										<span class="small fw-semibold">Submit Order</span>
@@ -398,24 +440,26 @@ export default {
 		</div>
 	</div>
 	<!-- END pos -->
-	
+
 	<!-- BEGIN pos-mobile-sidebar-toggler -->
 	<a href="#" class="pos-mobile-sidebar-toggler" v-on:click="toggleMobileSidebar()">
 		<i class="bi bi-bag"></i>
 		<span class="badge">{{ getOrderTotal() }}</span>
 	</a>
 	<!-- END pos-mobile-sidebar-toggler -->
-	
+
+	<!-- Modal to select a food item -->
 	<div class="modal modal-pos fade" ref="modalPosItem">
 		<div class="modal-dialog modal-lg">
 			<div class="modal-content border-0">
-				<form v-on:submit.prevent="addToCart">
+				<form v-on:submit.prevent="submitOrder">
 					<card v-if="modalData">
 						<card-body class="p-0">
 							<a href="#" data-bs-dismiss="modal" class="btn-close position-absolute top-0 end-0 m-4"></a>
 							<div class="modal-pos-product">
 								<div class="modal-pos-product-img">
-									<div class="img" v-bind:style="{ backgroundImage: 'url('+ modalData.image +')' }"></div>
+									<div class="img" v-bind:style="{ backgroundImage: 'url(' + modalData.image + ')' }">
+									</div>
 								</div>
 								<div class="modal-pos-product-info d-flex flex-column">
 									<div class="h4 mb-2">{{ modalData.title }}</div>
@@ -424,18 +468,23 @@ export default {
 									</div>
 									<div class="h4 mb-3">${{ modalData.price }}</div>
 									<div class="d-flex mb-3">
-										<a href="#" class="btn btn-secondary" v-on:click="(event) => deductModalQty(event)"><i class="fa fa-minus"></i></a>
-										<input type="text" class="form-control w-50px fw-bold mx-2 text-center" name="qty" v-bind:value="modalQuantity" />
-										<a href="#" class="btn btn-secondary" v-on:click="(event) => addModalQty(event)"><i class="fa fa-plus"></i></a>
+										<a href="#" class="btn btn-secondary"
+											v-on:click="(event) => deductModalQty(event)"><i class="fa fa-minus"></i></a>
+										<input type="text" class="form-control w-50px fw-bold mx-2 text-center" name="qty"
+											v-bind:value="modalQuantity" />
+										<a href="#" class="btn btn-secondary" v-on:click="(event) => addModalQty(event)"><i
+												class="fa fa-plus"></i></a>
 									</div>
 									<template v-if="modalData.options">
 										<hr class="opacity-1">
 										<div class="mb-2" v-if="modalData.options.size">
-											<div class="fw-bold">Size:</div>
+											<div class="fw-bold">Tamaño:</div>
 											<div class="option-list">
 												<div class="option" v-for="(size, index) in modalData.options.size">
-													<input type="radio" v-bind:id="'size['+ index +']'" name="size" class="option-input" v-model="modalSelectedSize" v-bind:value="size.text" />
-													<label class="option-label" v-bind:for="'size['+ index +']'">
+													<input type="radio" v-bind:id="'size[' + index + ']'" name="size"
+														class="option-input" v-model="modalSelectedSize"
+														v-bind:value="size.text" />
+													<label class="option-label" v-bind:for="'size[' + index + ']'">
 														<span class="option-text">{{ size.text }}</span>
 														<span class="option-price">+{{ size.price }}</span>
 													</label>
@@ -443,11 +492,13 @@ export default {
 											</div>
 										</div>
 										<div class="mb-2" v-if="modalData.options.addon">
-											<div class="fw-bold">Add On:</div>
+											<div class="fw-bold">Adicionales:</div>
 											<div class="option-list">
 												<div class="option" v-for="(addon, index) in modalData.options.addon">
-													<input type="checkbox" v-bind:name="'addon['+ index +']'" v-bind:value="addon.text" v-model="modalSelectedAddon" class="option-input" v-bind:id="'addon['+ index +']'" />
-													<label class="option-label" v-bind:for="'addon['+ index +']'">
+													<input type="checkbox" v-bind:name="'addon[' + index + ']'"
+														v-bind:value="addon.text" v-model="modalSelectedAddon"
+														class="option-input" v-bind:id="'addon[' + index + ']'" />
+													<label class="option-label" v-bind:for="'addon[' + index + ']'">
 														<span class="option-text">{{ addon.text }}</span>
 														<span class="option-price">+{{ addon.price }}</span>
 													</label>
@@ -458,10 +509,13 @@ export default {
 									<hr class="opacity-1">
 									<div class="row">
 										<div class="col-4">
-											<a href="#" class="btn btn-default fw-semibold mb-0 d-block py-3 w-100" data-bs-dismiss="modal">Cancel</a>
+											<a href="#" class="btn btn-default fw-semibold mb-0 d-block py-3 w-100"
+												data-bs-dismiss="modal">Cancelar</a>
 										</div>
 										<div class="col-8">
-											<button type="submit" class="btn btn-theme fw-semibold d-flex justify-content-center align-items-center py-3 m-0 w-100">Add to cart <i class="fa fa-plus ms-2 my-n3"></i></button>
+											<button type="submit"
+												class="btn btn-theme fw-semibold d-flex justify-content-center align-items-center py-3 m-0 w-100">Agregar
+												al carrito <i class="fa fa-plus ms-2 my-n3"></i></button>
 										</div>
 									</div>
 								</div>
@@ -469,6 +523,25 @@ export default {
 						</card-body>
 					</card>
 				</form>
+			</div>
+		</div>
+	</div>
+
+	<!-- Modal for order submit success -->
+	<div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true"
+		ref="successModal">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="modalLabel">Listo!</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					Orden en camino!
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+				</div>
 			</div>
 		</div>
 	</div>

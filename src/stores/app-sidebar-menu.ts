@@ -5,7 +5,7 @@ export const useAppSidebarMenuStore = defineStore({
   state: () => {
     return [
     {
-			text: 'Navigation',
+			text: 'Navegacion',
 			is_header: true
 		},
 		{
@@ -16,13 +16,13 @@ export const useAppSidebarMenuStore = defineStore({
 		{
 			url: '/analytics',
 			icon: 'fa fa-chart-pie',
-			text: 'Analytics'
+			text: 'Metricas'
 		},
 		{
 			is_divider: true
 		},
 		{
-			text: 'POS System',
+			text: 'Sistema POS',
 			is_header: true
 		},
 		{
@@ -54,18 +54,18 @@ export const useAppSidebarMenuStore = defineStore({
 			is_divider: true
 		},
 		{
-			text: 'Users',
+			text: 'Usuario',
 			is_header: true
 		},
 		{
 			url: '/profile',
 			icon: 'fa fa-user-circle',
-			text: 'Profile'
+			text: 'Perfil'
 		},
 		{
 			url: '/settings',
 			icon: 'fa fa-cog',
-			text: 'Settings'
+			text: 'Ajustes'
 		}
 	]}
 });
