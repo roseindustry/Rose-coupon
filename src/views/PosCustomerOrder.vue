@@ -2,6 +2,8 @@
 import { useAppOptionStore } from '@/stores/app-option';
 import { RouterLink } from 'vue-router';
 import { Modal } from 'bootstrap';
+import Toastify from 'toastify-js'
+import 'toastify-js/src/toastify.css'
 import axios from 'axios';
 
 const appOption = useAppOptionStore();
@@ -208,7 +210,52 @@ export default {
 			this.currentTable = table;
 			// Prevent the default link behavior
 			event.preventDefault();
-		}
+		},
+		submitOrderToKitchen() {
+			try {
+				// Form submission logic
+				console.log('Form submitted:', this.order);
+
+				// Assuming the form submission logic above can throw errors, 
+				// which will be caught by the catch block below.
+
+				// Success toast
+				Toastify({
+					text: "Orden creada con éxito!",
+					duration: 3000,
+					close: true,
+					gravity: "top", // `top` or `bottom`
+					position: "right", // `left`, `center` or `right`
+					stopOnFocus: true, // Prevents dismissing of toast on hover
+					style: {
+						background: "linear-gradient(to right, #00b09b, #96c93d)",
+					},
+				}).showToast();
+
+				// Clear selections after successful submission
+				this.clearOrderSelections();
+			} catch (error) {
+				// Log the error or handle it as needed
+				console.error('An error occurred during form submission:', error);
+
+				// Error toast
+				Toastify({
+					text: "Error al crear la orden. Por favor, inténtelo de nuevo.",
+					duration: 3000,
+					close: true,
+					gravity: "top", // `top` or `bottom`
+					position: "right", // `left`, `center` or `right`
+					stopOnFocus: true, // Prevents dismissing of toast on hover
+					style: {
+						background: "linear-gradient(to right, #ff416c, #ff4b2b)",
+					},
+				}).showToast();
+			}
+		},
+		clearOrderSelections() {
+			// clear order sumary
+			this.order = '';
+		},
 	}
 }
 </script>
@@ -281,7 +328,7 @@ export default {
 						<div class="dropdown title">
 							<button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton1"
 								data-bs-toggle="dropdown" aria-expanded="false">
-								{{ 'Mesa No ' + currentTable || 'Selecciona la Mesa' }}
+								{{ currentTable ? 'Mesa No ' + currentTable : 'Selecciona la Mesa' }}
 							</button>
 							<ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
 								<li v-for="table in tables"><a class="dropdown-item" href="#" @click="selectTable(table)">{{
@@ -289,7 +336,7 @@ export default {
 							</ul>
 						</div>
 						<div class="icon"><i class="fa fa-plate-wheat"></i></div>
-						<div class="order">Orden: <b>{{ orderNo }}</b></div>
+						<div class="order"><b>{{ orderNo ? 'Orden: #' + orderNo : '#0000' }}</b></div>
 					</div>
 					<!-- END pos-sidebar-header -->
 
@@ -301,8 +348,8 @@ export default {
 									nueva ({{ getOrderTotal() }})</a>
 							</li>
 							<li class="nav-item">
-								<a class="nav-link" href="#" data-bs-toggle="tab"
-									data-bs-target="#orderHistoryTab">Ordenes ({{ getOrderHistoryTotal()
+								<a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#orderHistoryTab">Ordenes
+									({{ getOrderHistoryTotal()
 									}})</a>
 							</li>
 						</ul>
@@ -370,13 +417,13 @@ export default {
 						<!-- END #orderHistoryTab -->
 
 						<!-- BEGIN #orderHistoryTab -->
-						<div class="tab-pane fade h-100" id="orderHistoryTab">
+						<!-- <div class="tab-pane fade h-100" id="orderHistoryTab">
 							<div v-if="orders && orders.length" class="content">
-								<!-- Replace the div below with your desired layout for displaying each order -->
+								Replace the div below with your desired layout for displaying each order
 								<div v-for="order in orders" :key="order.id" class="order">
-									<p>Orden ID: {{ order.id }}</p>
+									<p>Orden: #{{ order.orderNo }}</p>
 									<p>Fecha de orden: {{ order.date }}</p>
-									<!-- Add more order details here -->
+									Add more order details here
 								</div>
 							</div>
 							<div v-else class="h-100 d-flex align-items-center justify-content-center text-center p-20">
@@ -387,7 +434,7 @@ export default {
 									<h5>No hay datos</h5>
 								</div>
 							</div>
-						</div>
+						</div> -->
 						<!-- END #orderHistoryTab -->
 					</perfect-scrollbar>
 					<!-- END pos-sidebar-body -->
@@ -409,25 +456,17 @@ export default {
 						</div>
 						<div class="mt-3">
 							<div class="d-flex">
-								<!-- <a href="#"
+								<a href="#" @click.prevent="clearOrderSelections"
 									class="btn btn-default w-70px me-10px d-flex align-items-center justify-content-center">
 									<span>
-										<i class="fa fa-bell fa-lg my-10px d-block"></i>
-										<span class="small fw-semibold">Service</span>
+										<span class="small fw-semibold">Cancelar</span>
 									</span>
 								</a>
-								<a href="#"
-									class="btn btn-default w-70px me-10px d-flex align-items-center justify-content-center">
-									<span>
-										<i class="fa fa-receipt fa-fw fa-lg my-10px d-block"></i>
-										<span class="small fw-semibold">Bill</span>
-									</span>
-								</a> -->
-								<a href="#"
+								<a href="#" @click.prevent="submitOrderToKitchen"
 									class="btn btn-theme flex-fill d-flex align-items-center justify-content-center">
 									<span>
 										<i class="fa fa-cash-register fa-lg my-10px d-block"></i>
-										<span class="small fw-semibold">Submit Order</span>
+										<span class="small fw-semibold">Enviar Orden</span>
 									</span>
 								</a>
 							</div>
@@ -523,25 +562,6 @@ export default {
 						</card-body>
 					</card>
 				</form>
-			</div>
-		</div>
-	</div>
-
-	<!-- Modal for order submit success -->
-	<div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true"
-		ref="successModal">
-		<div class="modal-dialog">
-			<div class="modal-content">
-				<div class="modal-header">
-					<h5 class="modal-title" id="modalLabel">Listo!</h5>
-					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-				</div>
-				<div class="modal-body">
-					Orden en camino!
-				</div>
-				<div class="modal-footer">
-					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-				</div>
 			</div>
 		</div>
 	</div>

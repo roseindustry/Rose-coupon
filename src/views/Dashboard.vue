@@ -139,7 +139,7 @@ export default {
 	<div class="row">
 		<!-- BEGIN col-6 -->
 		<!-- Ganancias semanales -->
-		<div class="col-xl-6 mb-3">
+		<div class="col-lg-4 mb-3">
 			<card class="h-100 overflow-hidden">
 				<card-img-overlay class="d-block d-lg-none bg-blue rounded"></card-img-overlay>
 				
@@ -199,7 +199,7 @@ export default {
 		<!-- END col-6 -->
 
 		<!-- BEGIN col-6 -->
-		<div class="col-xl-6 mb-3">
+		<div class="col-lg-4 mb-3">
 			<!-- BEGIN card -->
 			<card class="h-100">
 				<!-- BEGIN card-body -->
@@ -218,14 +218,8 @@ export default {
 			<!-- END card -->
 		</div>	
 		<!-- END col-6 -->
-	</div>
-	<!-- END row -->
-	
-	<!-- BEGIN row -->
-	<div class="row">
-
 		<!-- BEGIN col-6 -->
-		<div class="col-xl-6">
+		<div class="col-lg-4">
 					<card class="mb-3 overflow-hidden fs-13px border-0 bg-gradient-custom-orange" style="min-height: 414px;">
 						<card-img-overlay class="mb-n4 me-n4 d-flex" style="bottom: 0; top: auto;">
 							<img src="/assets/img/icon/order.svg" alt="" class="ms-auto d-block mb-n3" style="max-height: 105px">
@@ -243,7 +237,11 @@ export default {
 					</card>
 		</div>
 		<!-- END col-6 -->
-
+	</div>
+	<!-- END row -->
+	
+	<!-- BEGIN row -->
+	<div class="row">
 		<!-- BEGIN col-6 -->
 		<!-- <div class="col-xl-6 mb-3">
 					<card class="h-100">

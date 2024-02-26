@@ -25,6 +25,11 @@ import CardGroup from '@/components/bootstrap/CardGroup.vue';
 import CardImgOverlay from '@/components/bootstrap/CardImgOverlay.vue';
 import CardExpandToggler from '@/components/bootstrap/CardExpandToggler.vue';
 
+import { Amplify } from "aws-amplify";
+import amplifyconfig from './amplifyconfiguration.json';
+
+Amplify.configure(amplifyconfig);
+
 const emitter = mitt();
 const app = createApp(App);
 

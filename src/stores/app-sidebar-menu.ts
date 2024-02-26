@@ -26,6 +26,11 @@ export const useAppSidebarMenuStore = defineStore({
 			is_header: true
 		},
 		{
+			url: '/pos/customer-order',
+			icon: 'fa-solid fa-pencil',
+			text: 'Nueva orden'
+		},
+		{
 			url: '/pos/menu-stock',
 			icon: 'fa-solid fa-book',
 			text: 'Menu'
@@ -54,13 +59,30 @@ export const useAppSidebarMenuStore = defineStore({
 			is_divider: true
 		},
 		{
+			text: 'Reportes',
+			is_header: true
+		},
+		{
+			url: '/',
+			icon: 'fa fa-clipboard',
+			text: 'Semanales'
+		},
+		{
+			url: '/',
+			icon: 'fa fa-clipboard',
+			text: 'Mensuales'
+		},
+		{
+			is_divider: true
+		},
+		{
 			text: 'Usuario',
 			is_header: true
 		},
 		{
 			url: '/profile',
 			icon: 'fa fa-user-circle',
-			text: 'Perfil'
+			text: 'Admin'
 		},
 		{
 			url: '/settings',

@@ -2,6 +2,8 @@
 import { useAppOptionStore } from '@/stores/app-option';
 import { RouterLink } from 'vue-router';
 import { Modal } from 'bootstrap';
+import Toastify from 'toastify-js'
+import 'toastify-js/src/toastify.css'
 import axios from 'axios';
 import PosHeader from '@/components/app/PosHeader.vue'
 
@@ -17,10 +19,11 @@ export default {
 				description: '',
 				stock: 0,
 				availability: false,
-				price: 0
+				price: 0,
+				category: ''
 			},
 			imagePreview: '',
-			successModal: null,
+			// successModal: null,
 		}
 	},
 	components: {
@@ -35,9 +38,6 @@ export default {
 		axios.get('/assets/data/pos/menu-stock.json').then((response) => {
 			this.menu = response.data.menu;
 		});
-
-		// Show successful Modal upon form submit
-		this.successModal = this.$refs.successModal;
 	},
 	beforeUnmount() {
 		appOption.appSidebarHide = false;
@@ -58,9 +58,17 @@ export default {
 			this.resetMenuItemData(); // reset form
 			this.resetFileInputAndPreview(); // Manually reset the file input and image preview
 
-			// Show the success modal after form submission
-			let modal = new Modal(this.successModal);
-			modal.show();
+			Toastify({
+				text: "Item guardado con exito!",
+				duration: 3000,
+				close: true,
+				gravity: "top", // `top` or `bottom`
+				position: "right", // `left`, `center` or `right`
+				stopOnFocus: true, // Prevents dismissing of toast on hover
+				style: {
+					background: "linear-gradient(to right, #00b09b, #96c93d)",
+				},
+			}).showToast();
 		},
 
 		resetMenuItemData() {
@@ -70,8 +78,9 @@ export default {
 				stock: 0,
 				price: 0,
 				availability: false,
+				category: ''
 			};
-			this.imagePreview = ''; 
+			this.imagePreview = '';
 		},
 
 		resetFileInputAndPreview() {
@@ -87,7 +96,19 @@ export default {
 			// Placeholder for update logic
 			console.log("Update logic goes here");
 
-			// Optionally, toggle edit mode off after update
+			Toastify({
+				text: "Item modificado con exito!",
+				duration: 3000,
+				close: true,
+				gravity: "top", // `top` or `bottom`
+				position: "right", // `left`, `center` or `right`
+				stopOnFocus: true, // Prevents dismissing of toast on hover
+				style: {
+					background: "linear-gradient(to right, #00b09b, #96c93d)",
+				},
+			}).showToast();
+
+			// Toggle edit mode off after update
 			item.isEditing = false;
 		},
 	}
@@ -125,7 +146,7 @@ export default {
 										</div>
 									</div>
 									<div class="d-flex align-items-center mb-3">
-										<div class="w-100px">Precio:</div>
+										<div class="w-100px">Precio de venta:</div>
 										<div class="flex-1">
 											<input type="number" class="form-control" v-bind:value="menu.price"
 												:disabled="!menu.isEditing" />
@@ -136,8 +157,8 @@ export default {
 										<div class="flex-1">
 											<div class="form-check form-switch">
 												<input class="form-check-input" type="checkbox" name="qty"
-													v-bind:id="'product' + index" v-bind:checked="menu.available"
-													value="1" :disabled="!menu.isEditing" />
+													v-bind:id="'product' + index" v-bind:checked="menu.available" value="1"
+													:disabled="!menu.isEditing" />
 												<label class="form-check-label" v-bind:for="'product' + index"></label>
 											</div>
 										</div>
@@ -173,31 +194,60 @@ export default {
 				<div class="modal-body">
 					<div class="container mt-4">
 						<form v-on:submit.prevent="submitForm" id="addMenuItem">
+							<!-- Categoria -->
+							<div class="mb-3">
+								<div class="dropdown">
+									<button class="btn btn-secondary dropdown-toggle" type="button"
+										id="dropdownMenuCategory" data-bs-toggle="dropdown" aria-expanded="false">
+										Categoria
+										<!-- {{  categories : 'Categorias' }} -->
+									</button>
+									<ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+										<!-- <li v-for="category in categories"><a class="dropdown-item" href="#" @click="selectCategory(category)">{{
+									table }}</a></li> -->
+									</ul>
+								</div>
+							</div>
+							<!-- Nombre -->
 							<div class="mb-3">
 								<label for="menuItemTitle" class="form-label">Titulo</label>
 								<input type="text" class="form-control" id="menuItemTitle" v-model="menuItem.title"
 									required>
 							</div>
+							<!-- Descripcion -->
 							<div class="mb-3">
 								<label for="menuItemDescription" class="form-label">Descripcion</label>
 								<textarea class="form-control" id="menuItemDescription" rows="3"
 									v-model="menuItem.description"></textarea>
 							</div>
+							<!-- Inventario -->
 							<div class="mb-3">
 								<label for="menuItemStock" class="form-label">Inventario</label>
 								<input type="number" class="form-control" id="menuItemStock" v-model.number="menuItem.stock"
 									required>
 							</div>
-							<div class="mb-3">
-								<label for="menuItemPrice" class="form-label">Precio</label>
-								<input type="number" class="form-control" id="menuItemPrice" v-model.number="menuItem.price"
-									required>
+							<!-- costos -->
+							<div class="row mb-3">
+								<!-- Precio de venta-->
+								<div class=" col mb-3">
+									<label for="menuItemPrice" class="form-label">Precio de compra</label>
+									<input type="number" class="form-control" id="menuItemPrice"
+										v-model.number="menuItem.price" required>
+								</div>
+								<!-- Precio de venta-->
+								<div class="col mb-3">
+									<label for="menuItemPrice" class="form-label">Precio de venta</label>
+									<input type="number" class="form-control" id="menuItemPrice"
+										v-model.number="menuItem.price" required>
+								</div>
 							</div>
+							<!-- Disponibilidad -->
 							<div class="mb-3 form-check">
 								<input type="checkbox" class="form-check-input" id="menuItemAvailability"
 									v-model="menuItem.availability">
 								<label class="form-check-label" for="menuItemAvailability">Disponible</label>
 							</div>
+							<!-- Imagen -->
 							<div class="mb-3">
 								<label for="menuItemImg" class="form-label">Imagen</label>
 								<input type="file" class="form-control" id="menuItemImg" @change="previewImage"
@@ -212,25 +262,6 @@ export default {
 				<div class="modal-footer">
 					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
 					<button class="btn btn-primary" v-on:click="submitForm()">Guardar</button>
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Modal for sucessful form submit-->
-	<div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true"
-		ref="successModal">
-		<div class="modal-dialog">
-			<div class="modal-content">
-				<div class="modal-header">
-					<h5 class="modal-title" id="modalLabel">Exito!</h5>
-					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-				</div>
-				<div class="modal-body">
-					Nuevo item guardado con exito!
-				</div>
-				<div class="modal-footer">
-					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
 				</div>
 			</div>
 		</div>

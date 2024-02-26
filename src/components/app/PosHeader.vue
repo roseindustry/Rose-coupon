@@ -37,22 +37,27 @@ export default {
 		</div>
 
 		<div class="col nav" id="navigation">
+			<!-- ADD ROLES -->
+			<!-- meseros -->
 			<div class="nav-item">
 				<RouterLink to="/pos/customer-order" class="nav-link">
 					<i class="fa fa-pencil nav-icon" data-bs-toggle="tooltip" data-bs-placement="bottom"
 						title="Nueva orden"></i>
 				</RouterLink>
 			</div>
+			<!-- meseros y cajeros -->
 			<div class="nav-item">
 				<RouterLink to="/pos/kitchen-order" class="nav-link">
 					<i class="fa fa-kitchen-set nav-icon" title="Ordenes de cocina"></i>
 				</RouterLink>
 			</div>
+			<!-- solo admins -->
 			<div class="nav-item">
 				<RouterLink to="/pos/menu-stock" class="nav-link">
 					<i class="fa fa-book nav-icon" title="Menu"></i>
 				</RouterLink>
 			</div>
+			<!-- cajeros -->
 			<div class="nav-item">
 				<RouterLink to="/pos/counter-checkout" class="nav-link">
 					<i class="fa fa-cart-shopping nav-icon" title="Checkout"></i>
