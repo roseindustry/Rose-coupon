@@ -60,10 +60,22 @@ type MenuItems @model @auth(rules: [{allow: public}]) {
   purchasePrice: Float
   sellingPrice: Float
   status: Boolean
+  rating_id: Int
   category_id: Int
   ordersID: ID! @index(name: "byOrders")
+  Ratings: Ratings @hasOne
   Categories: Categories @hasOne
   Tenants: Tenants @hasOne
+}
+
+type Ratings @model (rules: [{allow: public}]) {
+  id: ID!
+  comment: String
+  ratingValue: Int (rules: 1 - 5)
+  menuItem_id: Int 
+  customer_id: Int
+  Customers: Customers @hasOne
+  MenuItems: MenuItems @hasOne
 }
 
 type Tenants @model @auth(rules: [{allow: public}]) {

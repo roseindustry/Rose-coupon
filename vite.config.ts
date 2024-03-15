@@ -14,5 +14,8 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['vue-demi']
-	}
+	},
+  server: {
+    host: '0.0.0.0', // Listen on all local IPs
+  }
 });

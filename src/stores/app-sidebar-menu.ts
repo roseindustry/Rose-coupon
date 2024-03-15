@@ -26,24 +26,31 @@ export const useAppSidebarMenuStore = defineStore({
 			is_header: true
 		},
 		{
-			url: '/pos/customer-order',
-			icon: 'fa-solid fa-pencil',
-			text: 'Nueva orden'
+			url: '#',
+			icon: 'fa-solid fa-book',
+			text: 'Ordenes',
+			children: [
+				{
+					url: '/pos/customer-order',
+					icon: 'fa-solid fa-pencil',
+					text: 'Nueva orden'
+				},
+				{
+					url: '/page/orders',
+					icon: 'fa-solid fa-list',
+					text: 'Lista de ordenes'
+				}
+			]
 		},
 		{
 			url: '/pos/menu-stock',
 			icon: 'fa-solid fa-book',
-			text: 'Menu'
+			text: 'Inventario / Menu'
 		},
 		{
 			url: '/pos/table-booking',
 			icon: 'fa-solid fa-chair',
 			text: 'Mesas'
-		},
-		{
-			url: '/pos/customer-order',
-			icon: 'fa-solid fa-book-open',
-			text: 'Ordenes'
 		},
 		{
 			url: '/pos/kitchen-order',
@@ -63,14 +70,9 @@ export const useAppSidebarMenuStore = defineStore({
 			is_header: true
 		},
 		{
-			url: '/',
+			url: '/page/reports',
 			icon: 'fa fa-clipboard',
-			text: 'Semanales'
-		},
-		{
-			url: '/',
-			icon: 'fa fa-clipboard',
-			text: 'Mensuales'
+			text: 'Por cliente'
 		},
 		{
 			is_divider: true
@@ -82,7 +84,7 @@ export const useAppSidebarMenuStore = defineStore({
 		{
 			url: '/profile',
 			icon: 'fa fa-user-circle',
-			text: 'Admin'
+			text: 'Perfil'
 		},
 		{
 			url: '/settings',

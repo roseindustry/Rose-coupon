@@ -2,6 +2,7 @@
 import { getCurrentInstance, onMounted } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
 import { useAppOptionStore } from '@/stores/app-option';
+import { useUserStore } from '@/stores/user-role';
 import { ProgressFinisher, useProgress } from '@marcoschulte/vue3-progress';
 import AppSidebar from '@/components/app/Sidebar.vue';
 import AppHeader from '@/components/app/Header.vue';
@@ -11,9 +12,14 @@ import AppThemePanel from '@/components/app/ThemePanel.vue';
 import router from './router';
 
 const appOption = useAppOptionStore();
+const userStore = useUserStore();
 const internalInstance = getCurrentInstance();
 
 const progresses = [] as ProgressFinisher[];
+
+onMounted(() => {
+  userStore.fetchUser();
+});
 
 router.beforeEach(async (to, from) => {
 	progresses.push(useProgress().start());
@@ -51,8 +57,8 @@ document.querySelector('body').classList.add('app-init');
 		<vue3-progress-bar />
 		<app-header v-if="!appOption.appHeaderHide" />
 		<app-top-nav v-if="appOption.appTopNav" />
-		<app-sidebar v-if="!appOption.appSidebarHide" />
-		<div class="app-content" v-bind:class="appOption.appContentClass">
+		<app-sidebar v-if="!appOption.appSidebarHide && userStore.role !== 'cliente'" />
+		<div class="app-content" v-bind:class="appOption.appContentClass, {'no-sidebar': userStore.role === 'cliente' || appOption.appSidebarHide}">
 			<router-view></router-view>
 		</div>
 		<app-footer v-if="appOption.appFooter" />

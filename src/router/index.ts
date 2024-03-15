@@ -1,65 +1,165 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { db } from '@/firebase/init';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { ref, get } from 'firebase/database';
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    { path: '/', component: () => import('../views/Dashboard.vue') },
-		{ path: '/analytics', component: () => import('../views/Analytics.vue') },
-		{ path: '/email/inbox', component: () => import('../views/EmailInbox.vue') },
-		{ path: '/email/compose', component: () => import('../views/EmailCompose.vue') },
-		{ path: '/email/detail/:id', component: () => import('../views/EmailDetail.vue') },
-		{ path: '/email/detail', component: () => import('../views/EmailDetail.vue') },
-		{ path: '/widgets', component: () => import('../views/Widgets.vue') },
-		{ path: '/pos/customer-order', component: () => import('../views/PosCustomerOrder.vue') },
-		{ path: '/pos/kitchen-order', component: () => import('../views/PosKitchenOrder.vue') },
-		{ path: '/pos/counter-checkout', component: () => import('../views/PosCounterCheckout.vue') },
-		{ path: '/pos/table-booking', component: () => import('../views/PosTableBooking.vue') },
-		{ path: '/pos/menu-stock', component: () => import('../views/PosMenuStock.vue') },
-		{ path: '/ui/bootstrap', component: () => import('../views/UiBootstrap.vue') },
-		{ path: '/ui/buttons', component: () => import('../views/UiButtons.vue') },
-		{ path: '/ui/card', component: () => import('../views/UiCard.vue') },
-		{ path: '/ui/icons', component: () => import('../views/UiIcons.vue') },
-		{ path: '/ui/modal-notifications', component: () => import('../views/UiModalNotifications.vue') },
-		{ path: '/ui/typography', component: () => import('../views/UiTypography.vue') },
-		{ path: '/ui/tabs-accordions', component: () => import('../views/UiTabsAccordions.vue') },
-		{ path: '/form/elements', component: () => import('../views/FormElements.vue') },
-		{ path: '/form/plugins', component: () => import('../views/FormPlugins.vue') },
-		{ path: '/form/wizards', component: () => import('../views/FormWizards.vue') },
-		{ path: '/table/elements', component: () => import('../views/TableElements.vue') },
-		{ path: '/table/plugins', component: () => import('../views/TablePlugins.vue') },
-		{ path: '/chart/chart-js', component: () => import('../views/ChartJs.vue') },
-		{ path: '/chart/chart-apex', component: () => import('../views/ChartApex.vue') },
-		{ path: '/map', component: () => import('../views/Map.vue') },
-		{ path: '/layout/starter-page', component: () => import('../views/LayoutStarterPage.vue') },
-		{ path: '/layout/fixed-footer', component: () => import('../views/LayoutFixedFooter.vue') },
-		{ path: '/layout/full-height', component: () => import('../views/LayoutFullHeight.vue') },
-		{ path: '/layout/full-width', component: () => import('../views/LayoutFullWidth.vue') },
-		{ path: '/layout/boxed-layout', component: () => import('../views/LayoutBoxedLayout.vue') },
-		{ path: '/layout/minified-sidebar', component: () => import('../views/LayoutMinifiedSidebar.vue') },
-		{ path: '/layout/top-nav', component: () => import('../views/LayoutTopNav.vue') },
-		{ path: '/layout/mixed-nav', component: () => import('../views/LayoutMixedNav.vue') },
-		{ path: '/layout/mixed-nav-boxed-layout', component: () => import('../views/LayoutMixedNavBoxedLayout.vue') },
-		{ path: '/page/scrum-board', component: () => import('../views/PageScrumBoard.vue') },
-		{ path: '/page/product', component: () => import('../views/PageProduct.vue') },
-		{ path: '/page/product-details', component: () => import('../views/PageProductDetails.vue') },
-		{ path: '/page/order', component: () => import('../views/PageOrder.vue') },
-		{ path: '/page/order-details', component: () => import('../views/PageOrderDetails.vue') },
-		{ path: '/page/gallery', component: () => import('../views/PageGallery.vue') },
-		{ path: '/page/search-results', component: () => import('../views/PageSearchResults.vue') },
-		{ path: '/page/coming-soon', component: () => import('../views/PageComingSoon.vue') },
-		{ path: '/page/error', component: () => import('../views/PageError.vue') },
-		{ path: '/page/login', component: () => import('../views/PageLogin.vue') },
-		{ path: '/page/register', component: () => import('../views/PageRegister.vue') },
-		{ path: '/page/messenger', component: () => import('../views/PageMessenger.vue') },
-		{ path: '/page/data-management', component: () => import('../views/PageDataManagement.vue') },
-		{ path: '/page/file-manager', component: () => import('../views/PageFileManager.vue') },
-		{ path: '/page/pricing', component: () => import('../views/PagePricing.vue') },
-		{ path: '/profile', component: () => import('../views/Profile.vue') },
-		{ path: '/calendar', component: () => import('../views/Calendar.vue') },
-		{ path: '/settings', component: () => import('../views/Settings.vue') },
-		{ path: '/helper', component: () => import('../views/Helper.vue') },
-		{ path: '/:pathMatch(.*)*', component: () => import('../views/PageError.vue') }
-  ],
+	history: createWebHistory(import.meta.env.BASE_URL),
+	routes: [
+		{
+			path: '/',
+			name: 'Dashboard',
+			component: () => import('../views/Dashboard.vue'),
+			meta: { roles: ['admin', 'superadmin'] }
+		},
+		{
+			path: '/analytics',
+			name: 'Metricas',
+			component: () => import('../views/Analytics.vue'),
+			meta: { roles: ['admin', 'superadmin'] }
+		},
+		{
+			path: '/pos/customer-order',
+			name: 'Nueva orden',
+			component: () => import('../views/PosCustomerOrder.vue'),
+			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		},
+		{
+			path: '/pos/kitchen-order',
+			name: 'Ordenes de cocina',
+			component: () => import('../views/PosKitchenOrder.vue'),
+			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		},
+		{
+			path: '/pos/counter-checkout',
+			name: 'Checkout',
+			component: () => import('../views/PosCounterCheckout.vue'),
+			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		},
+		{
+			path: '/pos/table-booking',
+			name: 'Control de mesas',
+			component: () => import('../views/PosTableBooking.vue'),
+			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		},
+		{
+			path: '/pos/menu-stock',
+			name: 'Menu',
+			component: () => import('../views/PosMenuStock.vue'),
+			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		},
+		{
+			path: '/page/client-portal',
+			name: 'Portal de Cliente',
+			component: () => import('../views/PageClientPortal.vue'),
+			meta: { roles: ['cliente'] }
+		},
+		{
+			path: '/page/customer-survey',
+			name: 'Encuesta de satisfaccion',
+			component: () => import('../views/Survey.vue'),
+			meta: { roles: ['cliente'] }
+		},
+		{
+			path: '/page/clients-ratings',
+			name: 'Reseñas del cliente',
+			component: () => import('../views/PageRatings.vue'),
+			meta: { roles: ['cliente'] }
+		},
+		{
+			path: '/page/orders',
+			name: 'Ordenes del cliente',
+			component: () => import('../views/PageOrder.vue'),
+			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		},
+		{
+			path: '/page/order-details',
+			name: 'Detalles de orden',
+			component: () => import('../views/PageOrderDetails.vue'),
+			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		},
+		{
+			path: '/page/reports',
+			name: 'Reportes por cliente',
+			component: () => import('../views/Reports.vue'),
+			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		},
+		{
+			path: '/page/coming-soon',
+			name: 'Coming soon',
+			component: () => import('../views/PageComingSoon.vue')
+		},
+		{
+			path: '/page/error',
+			component: () => import('../views/PageError.vue')
+		},
+		{
+			path: '/page/login',
+			name: 'Login',
+			component: () => import('../views/PageLogin.vue')
+		},
+		{
+			path: '/page/register',
+			name: 'Registro',
+			component: () => import('../views/PageRegister.vue')
+		},
+		{
+			path: '/control-panel',
+			name: 'Panel de control',
+			component: () => import('../views/ControlPanel.vue'),
+			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		},
+		{
+			path: '/profile',
+			name: 'Perfil',
+			component: () => import('../views/Profile.vue'),
+			meta: { roles: ['admin', 'superadmin', 'gerente', 'cliente'] }
+		},
+		{
+			path: '/:pathMatch(.*)*',
+			component: () => import('../views/PageError.vue')
+		}
+	],
 });
+
+// Navigation guard to check user role against route meta
+router.beforeEach((to, from, next) => {
+	new Promise((resolve, reject) => {
+	  const auth = getAuth();
+	  onAuthStateChanged(auth, (user) => {
+		if (user) {
+		  // User is signed in, fetch the role
+		  const userRoleRef = ref(db, `Users/${user.uid}/role`);
+		  get(userRoleRef).then((snapshot) => {
+			if (snapshot.exists()) {
+			  const userRole = snapshot.val();
+			  const routeAllowedRoles = to.meta.roles as string[];
+			  if (!routeAllowedRoles || routeAllowedRoles.includes(userRole)) {
+				resolve(); 
+			  } else {
+				// User role not allowed for this route
+				resolve('/page/login'); // Resolve with redirect route
+			  }
+			} else {
+			  resolve('/page/login'); // No role assigned, redirect to login
+			}
+		  }).catch((error) => {
+			resolve('/page/error'); // Error occurred, redirect to an error page
+		  });
+		} else {
+		  // No user signed in
+		  if (to.path === '/page/register' || to.path === '/page/login') {
+			resolve(); // Allow access to login or register page
+		  } else {
+			resolve('/page/login'); // Redirect to login page
+		  }
+		}
+	  });
+	}).then((route) => {
+		next(route);
+	}).catch(() => {
+	  next('/page/error'); // In case of promise rejection, navigate to error page
+	});
+  });
 
 export default router;

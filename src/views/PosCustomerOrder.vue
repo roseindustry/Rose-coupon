@@ -1,6 +1,8 @@
 <script>
 import { useAppOptionStore } from '@/stores/app-option';
 import { RouterLink } from 'vue-router';
+import { db } from '@/firebase/init';
+import { ref as dataRef, get, child } from 'firebase/database';
 import { Modal } from 'bootstrap';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
@@ -11,11 +13,14 @@ const appOption = useAppOptionStore();
 export default {
 	data() {
 		return {
-			menu: '',
+			menu: {
+				// food: [],
+			},
+			menuItems: [],
+			categories: [],
 			order: '',
 			orderHistory: '',
 			orderNo: '#0000',
-			tables: [],
 			currentTable: null,
 			modal: '',
 			modalData: '',
@@ -38,6 +43,9 @@ export default {
 			this.orderHistory = response.data.orderHistory;
 			this.tables = response.data.tables;
 		});
+
+		this.fetchCategories();
+		//this.fetchMenuItems();
 	},
 	beforeUnmount() {
 		appOption.appSidebarHide = false;
@@ -101,23 +109,42 @@ export default {
 				}
 			}
 		},
-		showType: function (event, type) {
-			event.preventDefault();
+		async fetchCategories() {
+			const categoriesRef = dataRef(db, 'Categories');
+			const categorySnapshot = await get(categoriesRef);
+			if (categorySnapshot.exists()) {
+				categorySnapshot.forEach((childSnapshot) => {
+					const categoryData = childSnapshot.val();
+					this.categories.push({
+						id: childSnapshot.key,
+						name: categoryData.name,
+						active: false,
+					});
+					// Set the first category as active
+					if (this.categories.length > 0) {
+						this.categories[0].active = true;
+					}
+				});
+			} else {
+				console.log("No data available");
+			}
+		},
+		setActiveCategory(index) {
+			// Set all categories to inactive
+			this.categories.forEach(category => {
+				category.active = false;
+			});
+			// Set the clicked category to active
+			this.categories[index].active = true;
 
-			for (var i = 0; i < this.menu.category.length; i++) {
-				if (this.menu.category[i].type == type) {
-					this.menu.category[i].active = true;
-				} else {
-					this.menu.category[i].active = false;
-				}
+			// Implement logic to filter menu.food based on the active category, if necessary
+		},
+		generateStars(rating) {
+			let stars = [];
+			for (let i = 1; i <= 5; i++) {
+				stars.push({ filled: i <= rating });
 			}
-			for (var i = 0; i < this.menu.food.length; i++) {
-				if (this.menu.food[i].type == type || type == 'all') {
-					this.menu.food[i].hide = false;
-				} else {
-					this.menu.food[i].hide = true;
-				}
-			}
+			return stars;
 		},
 		showFoodModal: function (event, id) {
 			event.preventDefault();
@@ -213,11 +240,8 @@ export default {
 		},
 		submitOrderToKitchen() {
 			try {
-				// Form submission logic
+				// Form submission logic here
 				console.log('Form submitted:', this.order);
-
-				// Assuming the form submission logic above can throw errors, 
-				// which will be caught by the catch block below.
 
 				// Success toast
 				Toastify({
@@ -233,7 +257,7 @@ export default {
 				}).showToast();
 
 				// Clear selections after successful submission
-				this.clearOrderSelections();
+				// this.clearOrderSelections();
 			} catch (error) {
 				// Log the error or handle it as needed
 				console.error('An error occurred during form submission:', error);
@@ -252,16 +276,33 @@ export default {
 				}).showToast();
 			}
 		},
-		clearOrderSelections() {
-			// clear order sumary
-			this.order = '';
-		},
+		// clearOrderSelections() {
+		// 	// clear order sumary
+		// 	this.order = '';
+		// },
+		// createOrder: function (event, id){
+		// 	await DataStore.save(
+		// 		new Orders({
+		// 			"customer_id": 1020,
+		// 			"tenant_id": 1020,
+		// 			"orderNumber": 1020,
+		// 			"tableNumber": 3,
+		// 			"type": "Para llevar",
+		// 			"status": true,
+		// 			"orderDate": "1970-01-01Z",
+		// 			"Customers": /* Provide a Customers instance here */,
+		// 			"MenuItems": [],
+		// 			"Tenants": /* Provide a Tenants instance here */
+		// 		})
+		// 	);
+		// }
 	}
 }
 </script>
 <template>
 	<!-- BEGIN pos -->
-	<div class="pos pos-with-menu pos-with-sidebar" v-bind:class="{ 'pos-mobile-sidebar-toggled': mobileSidebarToggled }">
+	<div class="pos pos-with-menu pos-with-sidebar"
+		v-bind:class="{ 'pos-mobile-sidebar-toggled': mobileSidebarToggled }">
 		<div class="pos-container">
 			<!-- BEGIN pos-menu -->
 			<div class="pos-menu">
@@ -277,10 +318,10 @@ export default {
 				<div class="nav-container">
 					<perfect-scrollbar class="h-100">
 						<ul class="nav nav-tabs">
-							<li class="nav-item" v-for="category in menu.category">
-								<a class="nav-link" v-bind:class="{ 'active': category.active }" href="#"
-									v-on:click="(event) => showType(event, category.type)">
-									<i v-bind:class="category.icon"></i> {{ category.text }}
+							<li class="nav-item" v-for="(category, index) in categories" :key="category.name">
+								<a class="nav-link" :class="{ 'active': category.active }" href="#"
+									@click.prevent="setActiveCategory(index)">
+									{{ category.name }}
 								</a>
 							</li>
 						</ul>
@@ -298,14 +339,26 @@ export default {
 							<div class="col-xxl-3 col-xl-4 col-lg-6 col-md-4 col-sm-6 pb-4" v-if="!food.hide">
 								<a href="#" class="pos-product" v-bind:class="{ 'not-available': !food.available }"
 									v-on:click="(event) => showFoodModal(event, food.id)">
-									<div class="img" v-bind:style="{ backgroundImage: 'url(' + food.image + ')' }"></div>
+									<div class="img" v-bind:style="{ backgroundImage: 'url(' + food.image + ')' }">
+									</div>
 									<div class="info">
 										<div class="title">{{ food.title }}</div>
 										<div class="desc">{{ food.description }}</div>
 										<div class="price">${{ food.price }}</div>
+										<div class="rating">
+											<template v-if="food.rating && food.rating > 0">
+												<font-awesome-icon v-for="(star, index) in generateStars(food.rating)"
+													:key="index" icon="star"
+													:class="{ 'active': star.filled, 'filled': star.filled }" />
+											</template>
+											<template v-else>
+												Sin reviews
+											</template>
+											<!-- <a href="#"><small>({{ food.ratings.length }} reviews)</small></a> -->
+										</div>
 									</div>
 									<div class="not-available-text" v-if="!food.available">
-										<div>Not Available</div>
+										<div>No disponible</div>
 									</div>
 								</a>
 							</div>
@@ -325,18 +378,31 @@ export default {
 								<i class="bi bi-chevron-left"></i>
 							</button>
 						</div>
-						<div class="dropdown title">
-							<button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton1"
-								data-bs-toggle="dropdown" aria-expanded="false">
-								{{ currentTable ? 'Mesa No ' + currentTable : 'Selecciona la Mesa' }}
-							</button>
-							<ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
-								<li v-for="table in tables"><a class="dropdown-item" href="#" @click="selectTable(table)">{{
-									table }}</a></li>
-							</ul>
+						<div class="container">
+							<div class="row justify-content-between">
+								<div class="col">
+									<div class="input-group" id="table-number">
+										<div class="input-group-prepend">
+											<span class="input-group-text" id="mesa-addon"><i class="fa fa-chair"
+													style="margin-right: 3px;"></i><b>Mesa</b></span>
+										</div>
+										<input type="text" class="form-control" aria-label="mesa"
+											aria-describedby="mesa-addon">
+									</div>
+								</div>
+								<div class="col" id="order-number">
+									<div class="input-group">
+										<div class="input-group-prepend">
+											<span class="input-group-text" id="order-addon"><i class="fa fa-plate-wheat"
+													style="margin-right: 3px;"></i><b># de Orden</b></span>
+										</div>
+										<input type="text" class="form-control" aria-label="order"
+											aria-describedby="order-addon" v-model="orderNo">
+										<!-- {{ orderNo ? order.orderNo + 1 : 0000 }} -->
+									</div>
+								</div>
+							</div>
 						</div>
-						<div class="icon"><i class="fa fa-plate-wheat"></i></div>
-						<div class="order"><b>{{ orderNo ? 'Orden: #' + orderNo : '#0000' }}</b></div>
 					</div>
 					<!-- END pos-sidebar-header -->
 
@@ -344,11 +410,13 @@ export default {
 					<div class="pos-sidebar-nav">
 						<ul class="nav nav-tabs nav-fill">
 							<li class="nav-item">
-								<a class="nav-link active" href="#" data-bs-toggle="tab" data-bs-target="#newOrderTab">Orden
+								<a class="nav-link active" href="#" data-bs-toggle="tab"
+									data-bs-target="#newOrderTab">Orden
 									nueva ({{ getOrderTotal() }})</a>
 							</li>
 							<li class="nav-item">
-								<a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#orderHistoryTab">Ordenes
+								<a class="nav-link" href="#" data-bs-toggle="tab"
+									data-bs-target="#orderHistoryTab">Ordenes
 									({{ getOrderHistoryTotal()
 									}})</a>
 							</li>
@@ -363,7 +431,8 @@ export default {
 							<!-- BEGIN pos-order -->
 							<div class="pos-order" v-if="order.length > 0" v-for="order in order">
 								<div class="pos-order-product">
-									<div class="img" v-bind:style="{ backgroundImage: 'url(' + order.image + ')' }"></div>
+									<div class="img" v-bind:style="{ backgroundImage: 'url(' + order.image + ')' }">
+									</div>
 									<div class="flex-1">
 										<div class="h6 mb-1">{{ order.title }}</div>
 										<div class="small">${{ order.price }}</div>
@@ -414,10 +483,9 @@ export default {
 								</div>
 							</div>
 						</div>
-						<!-- END #orderHistoryTab -->
 
 						<!-- BEGIN #orderHistoryTab -->
-						<!-- <div class="tab-pane fade h-100" id="orderHistoryTab">
+						<div class="tab-pane fade h-100" id="orderHistoryTab">
 							<div v-if="orders && orders.length" class="content">
 								Replace the div below with your desired layout for displaying each order
 								<div v-for="order in orders" :key="order.id" class="order">
@@ -429,12 +497,13 @@ export default {
 							<div v-else class="h-100 d-flex align-items-center justify-content-center text-center p-20">
 								<div>
 									<div class="mb-3 mt-n5">
-										<i class="fa fa-shopping-bag text-body text-opacity-25" style="font-size: 5em"></i>
+										<i class="fa fa-shopping-bag text-body text-opacity-25"
+											style="font-size: 5em"></i>
 									</div>
 									<h5>No hay datos</h5>
 								</div>
 							</div>
-						</div> -->
+						</div>
 						<!-- END #orderHistoryTab -->
 					</perfect-scrollbar>
 					<!-- END pos-sidebar-body -->
@@ -456,12 +525,24 @@ export default {
 						</div>
 						<div class="mt-3">
 							<div class="d-flex">
+								<router-link to="/"
+									class="btn btn-default w-70px me-10px d-flex align-items-center justify-content-center">
+									<span>
+										<span class="small fw-semibold">Volver</span>
+									</span>
+								</router-link>
 								<a href="#" @click.prevent="clearOrderSelections"
 									class="btn btn-default w-70px me-10px d-flex align-items-center justify-content-center">
 									<span>
 										<span class="small fw-semibold">Cancelar</span>
 									</span>
 								</a>
+								<router-link to="/pos/kitchen-order"
+									class="btn btn-default w-70px me-10px d-flex align-items-center justify-content-center">
+									<span>
+										<span class="small fw-semibold">Ver ordenes de cocina</span>
+									</span>
+								</router-link>
 								<a href="#" @click.prevent="submitOrderToKitchen"
 									class="btn btn-theme flex-fill d-flex align-items-center justify-content-center">
 									<span>
@@ -508,11 +589,12 @@ export default {
 									<div class="h4 mb-3">${{ modalData.price }}</div>
 									<div class="d-flex mb-3">
 										<a href="#" class="btn btn-secondary"
-											v-on:click="(event) => deductModalQty(event)"><i class="fa fa-minus"></i></a>
-										<input type="text" class="form-control w-50px fw-bold mx-2 text-center" name="qty"
-											v-bind:value="modalQuantity" />
-										<a href="#" class="btn btn-secondary" v-on:click="(event) => addModalQty(event)"><i
-												class="fa fa-plus"></i></a>
+											v-on:click="(event) => deductModalQty(event)"><i
+												class="fa fa-minus"></i></a>
+										<input type="text" class="form-control w-50px fw-bold mx-2 text-center"
+											name="qty" v-bind:value="modalQuantity" />
+										<a href="#" class="btn btn-secondary"
+											v-on:click="(event) => addModalQty(event)"><i class="fa fa-plus"></i></a>
 									</div>
 									<template v-if="modalData.options">
 										<hr class="opacity-1">
@@ -566,3 +648,8 @@ export default {
 		</div>
 	</div>
 </template>
+<style scoped>
+.filled {
+	color: gold;
+}
+</style>

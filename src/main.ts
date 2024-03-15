@@ -10,12 +10,19 @@ import '@fortawesome/fontawesome-free/scss/regular.scss';
 import '@fortawesome/fontawesome-free/scss/solid.scss';
 import '@fortawesome/fontawesome-free/scss/brands.scss';
 import '@fortawesome/fontawesome-free/scss/v4-shims.scss';
+import { library } from '@fortawesome/fontawesome-svg-core';
+import { faStar } from '@fortawesome/free-solid-svg-icons';
+import { faStarHalfAlt } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import 'bootstrap';
 import './scss/styles.scss';
 
 import App from './App.vue';
 import router from './router';
+
+import { surveyPlugin } from "survey-vue3-ui";
+import "survey-core/defaultV2.min.css";
 
 import Card from '@/components/bootstrap/Card.vue';
 import CardBody from '@/components/bootstrap/CardBody.vue';
@@ -25,14 +32,11 @@ import CardGroup from '@/components/bootstrap/CardGroup.vue';
 import CardImgOverlay from '@/components/bootstrap/CardImgOverlay.vue';
 import CardExpandToggler from '@/components/bootstrap/CardExpandToggler.vue';
 
-import { Amplify } from "aws-amplify";
-import amplifyconfig from './amplifyconfiguration.json';
-
-Amplify.configure(amplifyconfig);
-
+library.add(faStar, faStarHalfAlt)
 const emitter = mitt();
 const app = createApp(App);
 
+app.component('font-awesome-icon', FontAwesomeIcon);
 app.component('Card', Card);
 app.component('CardBody', CardBody);
 app.component('CardHeader', CardHeader);
@@ -45,6 +49,7 @@ app.use(createPinia());
 app.use(router);
 app.use(Vue3ProgressPlugin);
 app.use(PerfectScrollbar);
+app.use(surveyPlugin);
 
 app.config.globalProperties.emitter = emitter;
 app.mount('#app');
