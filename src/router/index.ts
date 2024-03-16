@@ -79,9 +79,15 @@ const router = createRouter({
 			meta: { roles: ['admin', 'superadmin', 'gerente'] }
 		},
 		{
-			path: '/page/reports',
+			path: '/page/reports-by-client',
 			name: 'Reportes por cliente',
-			component: () => import('../views/Reports.vue'),
+			component: () => import('../views/ReportsByClient.vue'),
+			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		},
+		{
+			path: '/page/reports-by-rating',
+			name: 'Reportes por actividad',
+			component: () => import('../views/ReportsByActivity.vue'),
 			meta: { roles: ['admin', 'superadmin', 'gerente'] }
 		},
 		{

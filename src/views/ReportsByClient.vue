@@ -261,6 +261,8 @@ export default {
                                     <tr>
                                         <th>Fecha de visita</th>
                                         <th>Orden</th>
+                                        <th>Puntuacion</th>
+                                        <th>Comentarios</th>
                                         <th>Total pagado</th>
                                     </tr>
                                 </thead>
@@ -268,17 +270,20 @@ export default {
                                     <tr v-for="rating in filteredRatings" :key="rating.id">
                                         <td>{{ rating.date }}</td>
                                         <td>
-                                            <a href="#" @click.prevent="openOrderModal(rating)">Orden completa</a>
+                                            <a href="#" @click.prevent="openOrderModal(rating)">Ver orden</a>
                                         </td>
+                                        <td><i class="fa fa-star" v-for="n in parseInt(rating.ratingValue)" :key="n"
+                                                aria-hidden="true"></i></td>
+                                        <td>{{ rating.comment }}</td>
                                         <td>{{ rating.totalPaid.toFixed(2) }}</td>
                                     </tr>
                                     <tr v-if="ratings.length === 0">
-                                        <td colspan="3">No hay datos disponibles</td>
+                                        <td colspan="5">No hay datos disponibles</td>
                                     </tr>
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <th colspan="2">Total pagado en tienda</th>
+                                        <th colspan="4">Total pagado en tienda</th>
                                         <th>{{ totalPaidOnStore }}</th>
                                     </tr>
                                 </tfoot>
@@ -338,6 +343,14 @@ export default {
 </template>
 
 <style scoped>
+
+.fa-star {
+    color: gold;
+}
+
+.fa-star-o {
+    color: grey;
+}
 .actions-column {
     width: 120px;
     min-width: 120px;
@@ -366,21 +379,18 @@ export default {
 }
 
 .datepicker-icon {
-    font-size: 0.8rem; /* Adjust the size of the icon */
-    margin-right: 8px; /* Space between the icon and the input */
+    font-size: 0.8rem;
+    margin-right: 8px;
 }
 
 .custom-datepicker {
     flex-grow: 1;
-    /* Apply any specific styles for the datepicker input here */
 }
 
-/* If you want to adjust the input to align better with the icon */
 .custom-datepicker {
-    height: calc(1.5em + 0.75rem + 2px); /* This is Bootstrap's default height for input elements, adjust as necessary */
+    height: calc(1.5em + 0.75rem + 2px);
 }
 
-/* Adjusting icon color and background if necessary */
 .input-group-text {
     background-color: transparent;
     border: none;

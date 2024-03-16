@@ -69,10 +69,15 @@ export const useAppSidebarMenuStore = defineStore({
 			text: 'Reportes',
 			is_header: true
 		},
+		// {
+		// 	url: '/page/reports-by-client',
+		// 	icon: 'fa fa-clipboard',
+		// 	text: 'Por cliente'
+		// },
 		{
-			url: '/page/reports',
+			url: '/page/reports-by-rating',
 			icon: 'fa fa-clipboard',
-			text: 'Por cliente'
+			text: 'Consumo de clientes'
 		},
 		{
 			is_divider: true
