@@ -16,7 +16,7 @@ export const useUserStore = defineStore('user-role', {
     
   }),
   actions: {
-    async searchUsers(query) {
+    async searchUsers() {
       const tenancyStore = useTenancyStore();
       const tenantId = tenancyStore.tenant.key;
       const dbRef = databaseRef(db, `Users`);

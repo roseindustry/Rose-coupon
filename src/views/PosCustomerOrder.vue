@@ -1,51 +1,88 @@
-<script>
-import { useAppOptionStore } from '@/stores/app-option';
+<script lang="ts">
 import { RouterLink } from 'vue-router';
-import { db } from '@/firebase/init';
-import { ref as dataRef, get, child } from 'firebase/database';
+import { db, auth, functions } from '@/firebase/init';
+import { httpsCallable } from 'firebase/functions';
+import { signOut } from 'firebase/auth';
+import { ref as dbRef, query, orderByChild, equalTo, push, set, get } from 'firebase/database';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { useAppOptionStore } from '@/stores/app-option';
+import { useTenancyStore } from '@/stores/tenancy';
+import { useUserStore } from '@/stores/user-role';
+import { getSubdomain } from '@/utils/subdomain';
 import { Modal } from 'bootstrap';
-import Toastify from 'toastify-js'
-import 'toastify-js/src/toastify.css'
-import axios from 'axios';
+import Toastify from 'toastify-js';
+import 'toastify-js/src/toastify.css';
+import moment from 'moment';
 
 const appOption = useAppOptionStore();
 
 export default {
 	data() {
 		return {
-			menu: {
-				// food: [],
-			},
-			menuItems: [],
+			menu: [],
+			filteredMenuItems: [],
 			categories: [],
-			order: '',
-			orderHistory: '',
-			orderNo: '#0000',
-			currentTable: null,
-			modal: '',
-			modalData: '',
-			modalQuantity: '',
+			order: [],
+			orderSumary: [],
+			orderHistory: [],
+			nextOrderNumber: null,
+			tableNumber: '',
+			modal: null,
+			modalData: null,
+			modalQuantity: 1,
 			modalSelectedSize: '',
 			modalSelectedAddon: [],
-			mobileSidebarToggled: false
+			mobileSidebarToggled: false,
+			addTip: false,
+			tip: null,
+			isTakeaway: false,
+			today: '',
+			selectedMenuItems: [],
+			tenantId: null,
+			searchQuery: '',
+			selectedClient: '',
+			searchResults: [],
+			addNewClient: false,
+			// In case of new client
+			firstName: '',
+			lastName: '',
+			identification: '',
+			email: '',
+			phoneNumber: '',
+			password: '',
+			role: 'cliente'
 		}
 	},
-	mounted() {
+	async created() {
+		await this.initializeTenant();
+		await Promise.all([this.fetchCategories(), this.fetchMenuItems()]);
+		this.fetchOrderHistory();
+		this.fetchLastOrderNumber();
+	},
+	watch: {
+		addTip(newValue) {
+			if (!newValue) {
+				this.tip = 0;
+			}
+		},
+	},
+	computed: {
+		userRole() {
+			const userStore = useUserStore();
+			return userStore.role;
+		},
+	},
+	async mounted() {
 		appOption.appSidebarHide = true;
 		appOption.appHeaderHide = true;
 		appOption.appContentClass = 'p-0';
 		appOption.appContentFullHeight = true;
 
-		axios.get('/assets/data/pos/customer-order.json').then((response) => {
-			this.menu = response.data;
-			this.order = response.data.order;
-			this.orderNo = response.data.orderNo;
-			this.orderHistory = response.data.orderHistory;
-			this.tables = response.data.tables;
-		});
+		const now = moment();
+		this.today = now.format('DD/MM/YYYY');
 
-		this.fetchCategories();
-		//this.fetchMenuItems();
+		const userStore = useUserStore();
+		userStore.fetchUser();
 	},
 	beforeUnmount() {
 		appOption.appSidebarHide = false;
@@ -54,14 +91,37 @@ export default {
 		appOption.appContentFullHeight = false;
 	},
 	methods: {
+		async initializeTenant() {
+			const tenancyStore = useTenancyStore();
+			this.subdomain = getSubdomain();
+			await tenancyStore.findOrCreateTenant(this.subdomain);
+			if (tenancyStore.tenant) {
+				this.tenantId = tenancyStore.tenant.key;
+				this.tenantName = tenancyStore.tenant.name;
+			} else {
+				console.error("Tenant could not be found or created");
+			}
+		},
+		async fetchLastOrderNumber() {
+			if (!this.tenantId) return;
+
+			const ordersRef = query(dbRef(db, 'Orders'), orderByChild('tenant_id'), equalTo(this.tenantId));
+			const snapshot = await get(ordersRef);
+			let lastOrderNumber = 0; // set to 0 if no orders exist
+
+			snapshot.forEach((childSnapshot) => {
+				const order = childSnapshot.val();
+				if ('orderNumber' in order && order.tenant_id === this.tenantId) {
+					lastOrderNumber = Math.max(lastOrderNumber, order.orderNumber);
+				}
+			});
+			this.nextOrderNumber = lastOrderNumber + 1; // Prepare for the next order number
+		},
 		toggleMobileSidebar: function () {
 			this.mobileSidebarToggled = !this.mobileSidebarToggled;
 		},
 		getOrderTotal: function () {
 			return (this.order) ? this.order.length : 0;
-		},
-		getOrderHistoryTotal: function () {
-			return (this.orderHistory) ? this.orderHistory.length : 0;
 		},
 		getSubTotalPrice: function () {
 			var value = 0;
@@ -83,7 +143,13 @@ export default {
 				value += parseFloat(this.order[i].price) * parseInt(this.order[i].quantity);
 				value += parseFloat(this.order[i].price) * parseInt(this.order[i].quantity) * .06;
 			}
+			if (this.tip) {
+				value += this.tip;
+			}
 			return value.toFixed(2);
+		},
+		getOrderHistoryTotal: function () {
+			return (this.orderHistory) ? this.orderHistory.length : 0;
 		},
 		deductQty: function (event, id) {
 			event.preventDefault();
@@ -109,24 +175,108 @@ export default {
 				}
 			}
 		},
+		async fetchMenuItems() {
+			const menuItemRef = query(dbRef(db, 'MenuItems'), orderByChild('tenant_id'), equalTo(this.tenantId));
+			const menuItemSnapshot = await get(menuItemRef);
+
+			if (menuItemSnapshot.exists()) {
+				this.menu = [];
+				menuItemSnapshot.forEach((childSnapshot) => {
+					const menuItemData = childSnapshot.val();
+					this.menu.push({
+						id: childSnapshot.key,
+						category_id: menuItemData.category_id,
+						image: menuItemData.image,
+						name: menuItemData.name,
+						description: menuItemData.description,
+						sellingPrice: menuItemData.sellingPrice,
+						status: menuItemData.status
+					});
+				});
+				// Filter menu items based on the active category after fetching
+				if (this.categories.length > 0) {
+					const activeCategory = this.categories.find(c => c.active);
+					if (activeCategory) {
+						this.filterMenuItemsByCategory(activeCategory.id);
+					}
+				}
+			} else {
+				console.log("No data available");
+			}
+		},
 		async fetchCategories() {
-			const categoriesRef = dataRef(db, 'Categories');
+			const categoriesRef = query(dbRef(db, 'Categories'), orderByChild('tenant_id'), equalTo(this.tenantId));
 			const categorySnapshot = await get(categoriesRef);
+
 			if (categorySnapshot.exists()) {
+				this.categories = [];
 				categorySnapshot.forEach((childSnapshot) => {
 					const categoryData = childSnapshot.val();
 					this.categories.push({
 						id: childSnapshot.key,
 						name: categoryData.name,
-						active: false,
+						active: false, // Initially set all to inactive
 					});
-					// Set the first category as active
-					if (this.categories.length > 0) {
-						this.categories[0].active = true;
-					}
 				});
+				// Set the first category as active
+				if (this.categories.length > 0) {
+					this.categories[0].active = true;
+				}
 			} else {
 				console.log("No data available");
+			}
+
+		},
+		async fetchOrderHistory() {
+			const ordersRef = query(dbRef(db, 'Orders'), orderByChild('tenant_id'), equalTo(this.tenantId));
+			const ordersSnapshot = await get(ordersRef);
+
+			const today = moment().format('DD/MM/YYYY');
+
+			if (ordersSnapshot.exists()) {
+				const orderPromises = [];
+				this.orderHistory = [];
+				ordersSnapshot.forEach((childSnapshot) => {
+					const orderData = childSnapshot.val();
+
+					const orderDateFormat = "DD/MM/YYYY";
+					const orderDate = moment(orderData.orderDate, orderDateFormat).format("DD/MM/YYYY");
+
+					if (orderDate === today) {
+						const clientDetailsPromise = get(dbRef(db, `Users/${orderData.client_id}`)).then(clientSnapshot => {
+							let clientName = 'Unknown';
+							let clientCedula = '';
+							if (clientSnapshot.exists()) {
+								const clientData = clientSnapshot.val();
+								clientName = `${clientData.firstName} ${clientData.lastName}`;
+								clientCedula = clientData.identification;
+							}
+							return {
+								...orderData,
+								clientName,
+								clientCedula,
+								id: childSnapshot.key,
+							};
+						});
+						orderPromises.push(clientDetailsPromise);
+					}
+				});
+
+				const enrichedOrders = await Promise.all(orderPromises);
+				this.orderHistory = enrichedOrders.map(order => ({
+					id: order.id,
+					orderNumber: order.orderNumber,
+					tableNumber: order.tableNumber,
+					date: order.orderDate,
+					type: order.type,
+					totalPricePaid: order.totalPricePaid,
+					menuItems: order.menuItems,
+					clientName: order.clientName,
+					clientCedula: order.clientCedula,
+				}));
+			} else {
+				console.log("No data available");
+				this.orderHistory = [];
 			}
 		},
 		setActiveCategory(index) {
@@ -137,7 +287,11 @@ export default {
 			// Set the clicked category to active
 			this.categories[index].active = true;
 
-			// Implement logic to filter menu.food based on the active category, if necessary
+			// Filter the menu items based on the active category
+			this.filterMenuItemsByCategory(this.categories[index].id);
+		},
+		filterMenuItemsByCategory(categoryId) {
+			this.filteredMenuItems = this.menu.filter(menuItem => menuItem.category_id === categoryId);
 		},
 		generateStars(rating) {
 			let stars = [];
@@ -149,18 +303,18 @@ export default {
 		showFoodModal: function (event, id) {
 			event.preventDefault();
 
-			for (var i = 0; i < this.menu.food.length; i++) {
-				if (this.menu.food[i].id == id) {
-					this.modalData = this.menu.food[i];
+			const menuItem = this.menu.find(item => item.id == id);
+			if (menuItem) {
+				this.modalData = menuItem;
+
+				if (this.modalData.options && this.modalData.options.size) {
+					this.modalSelectedSize = this.modalData.options.size[0].text;
 				}
+				this.modalQuantity = 1;
+				this.modalSelectedAddon = [];
+				this.modal = new Modal(this.$refs.modalPosItem);
+				this.modal.show();
 			}
-			if (this.modalData.options && this.modalData.options.size) {
-				this.modalSelectedSize = this.modalData.options.size[0].text;
-			}
-			this.modalQuantity = 1;
-			this.modalSelectedAddon = [];
-			this.modal = new Modal(this.$refs.modalPosItem);
-			this.modal.show();
 		},
 		addModalQty: function (event) {
 			event.preventDefault();
@@ -177,42 +331,58 @@ export default {
 			}
 			this.modalQuantity = newQty;
 		},
-		submitOrder: function (event) {
+		addToOrder: function (event) {
 			event.preventDefault();
-
 			this.modal.hide();
 
-			var options = [];
-			var extraPrice = 0;
-			if (this.modalSelectedSize) {
-				var option = {
-					"key": "size",
-					"value": this.modalSelectedSize
-				};
-				options.push(option);
-			}
-			if (this.modalSelectedAddon) {
-				for (var i = 0; i < this.modalSelectedAddon.length; i++) {
-					var option = {
-						"key": "addon",
-						"value": this.modalSelectedAddon[i]
-					};
-					options.push(option);
-				}
+			if (!this.modalData.status) {
+				Toastify({
+					text: "No disponible",
+					duration: 3000,
+					close: true,
+					gravity: "top",
+					position: "right",
+					stopOnFocus: true,
+					style: {
+						background: "linear-gradient(to right, #D32E0B, #FFDBD3)",
+					},
+				}).showToast();
+				return;
 			}
 
+			//USE THIS LOGIC IN CASE OF MENU SIZE AND ADD-ON OPTIONS 
+			// var options = [];
+			// var extraPrice = 0;
+			// if (this.modalSelectedSize) {
+			// 	var option = {
+			// 		"key": "size",
+			// 		"value": this.modalSelectedSize
+			// 	};
+			// 	options.push(option);
+			// }
+			// if (this.modalSelectedAddon) {
+			// 	for (var i = 0; i < this.modalSelectedAddon.length; i++) {
+			// 		var option = {
+			// 			"key": "addon",
+			// 			"value": this.modalSelectedAddon[i]
+			// 		};
+			// 		options.push(option);
+			// 	}
+			// }
+
 			this.order.push({
-				"id": (this.order.length + 1),
+				"id": this.modalData.id,
 				"image": this.modalData.image,
-				"title": this.modalData.title,
-				"price": this.modalData.price,
-				"quantity": this.modalQuantity,
-				"options": options
+				"title": this.modalData.name,
+				"price": this.modalData.sellingPrice,
+				"quantity": this.modalQuantity
 			});
 
 			setTimeout(() => {
-				this.$refs.posSidebarBody.$el.scrollTop = 9999;
-				this.$refs.posSidebarBody.ps.update();
+				this.$refs.posSidebarBody.$el.scrollTop = this.$refs.posSidebarBody.$el.scrollHeight;
+				if (this.$refs.posSidebarBody.ps) {
+					this.$refs.posSidebarBody.ps.update();
+				}
 			}, 500);
 		},
 		toggleConfirmation: function (event, id, value) {
@@ -233,88 +403,221 @@ export default {
 				}
 			}
 		},
-		selectTable(table) {
-			this.currentTable = table;
-			// Prevent the default link behavior
-			event.preventDefault();
-		},
 		submitOrderToKitchen() {
-			try {
-				// Form submission logic here
-				console.log('Form submitted:', this.order);
+			// const userStore = useUserStore(); // Access the user store for user_id
 
-				// Success toast
+			// Check if the order array is empty and show a toast if true
+			if (this.order.length === 0) {
 				Toastify({
-					text: "Orden creada con éxito!",
+					text: "La orden está vacía",
 					duration: 3000,
 					close: true,
-					gravity: "top", // `top` or `bottom`
-					position: "right", // `left`, `center` or `right`
-					stopOnFocus: true, // Prevents dismissing of toast on hover
+					gravity: "top",
+					position: "right",
+					stopOnFocus: true,
 					style: {
-						background: "linear-gradient(to right, #00b09b, #96c93d)",
+						background: "linear-gradient(to right, #ff5f6d, #ffc371)",
 					},
 				}).showToast();
+				return; // Stop execution if validation fails
+			}
 
-				// Clear selections after successful submission
-				// this.clearOrderSelections();
-			} catch (error) {
-				// Log the error or handle it as needed
-				console.error('An error occurred during form submission:', error);
+			const orderDate = this.today;
+			const orderNumber = this.nextOrderNumber;
+			const tableNumber = this.tableNumber;
+			const totalPricePaid = parseFloat(this.getTotalPrice());
+			const status = 'Pending'; // Example status
+			const type = this.isTakeaway ? 'Takeaway' : 'DineIn';
+			const tip = this.tip;
 
-				// Error toast
+			// Prepare the order object
+			const submission = {
+				tenant_id: this.tenantId,
+				// client_id: clientId, // Uncomment and set accordingly
+				orderDate,
+				orderNumber,
+				tableNumber,
+				status,
+				type,
+				menuItems: this.order.map(item => ({
+					id: item.id,
+					title: item.title,
+					price: item.price,
+					quantity: item.quantity,
+					totalPricePerItem: item.price * item.quantity,
+				})),
+				totalPricePaid,
+				tip
+			};
+
+			if (!this.nextOrderNumber) {
 				Toastify({
-					text: "Error al crear la orden. Por favor, inténtelo de nuevo.",
+					text: "Debe ingresar un numero de orden",
 					duration: 3000,
 					close: true,
-					gravity: "top", // `top` or `bottom`
-					position: "right", // `left`, `center` or `right`
-					stopOnFocus: true, // Prevents dismissing of toast on hover
+					gravity: "top",
+					position: "right",
+					stopOnFocus: true,
 					style: {
-						background: "linear-gradient(to right, #ff416c, #ff4b2b)",
+						background: "linear-gradient(to right, #000232, #96c93d)",
 					},
 				}).showToast();
+				return; // Stop execution if validation fails
+			}
+
+			this.orderSumary = submission;
+			this.showConfirmationModal();
+		},
+		showConfirmationModal() {
+			const confirmationModal = new Modal(this.$refs.confirmationModal);
+			confirmationModal.show();
+		},
+		confirmOrder() {
+			// Submit the order after confirmation to Firebase
+			const newOrderRef = push(dbRef(db, 'Orders'));
+			set(newOrderRef, {
+				id: newOrderRef.key,
+				client_id: this.selectedClient.uid,
+				...this.orderSumary
+			})
+				.then(() => {
+					console.log('Order submitted successfully');
+					//Toast to show Success form Submission
+					Toastify({
+						text: "Orden creada con exito!",
+						duration: 3000,
+						close: true,
+						gravity: "top",
+						position: "right",
+						stopOnFocus: true,
+						style: {
+							background: "linear-gradient(to right, #00b09b, #96c93d)",
+						},
+					}).showToast();
+
+					// Clear selections after successful submission
+					this.clearOrderSelections();
+					// Set new order number incremented
+					this.fetchLastOrderNumber();
+					// Close the modal after confirmation
+					const confirmationModal = Modal.getInstance(this.$refs.confirmationModal);
+					confirmationModal.hide();
+				})
+				.catch((error) => console.error('Error submitting data:', error));
+		},
+		async searchClients() {
+			if (this.searchQuery.length > 1) {
+				const userStore = useUserStore();
+				let clientes = await userStore.searchUsers(this.searchQuery);
+
+				this.searchResults = clientes.filter(user => user.role === 'cliente');
+
+			} else {
+				this.searchResults = [];
 			}
 		},
-		// clearOrderSelections() {
-		// 	// clear order sumary
-		// 	this.order = '';
-		// },
-		// createOrder: function (event, id){
-		// 	await DataStore.save(
-		// 		new Orders({
-		// 			"customer_id": 1020,
-		// 			"tenant_id": 1020,
-		// 			"orderNumber": 1020,
-		// 			"tableNumber": 3,
-		// 			"type": "Para llevar",
-		// 			"status": true,
-		// 			"orderDate": "1970-01-01Z",
-		// 			"Customers": /* Provide a Customers instance here */,
-		// 			"MenuItems": [],
-		// 			"Tenants": /* Provide a Tenants instance here */
-		// 		})
-		// 	);
-		// }
+		async registerNewClient(email: String, password: string) {
+			const createUser = httpsCallable(functions, 'createUser');
+			try {
+
+				const result = await createUser({ email, password });
+				const newClient = result.user;
+
+				if (result.data.uid) {
+					console.log('User created successfully', result.data.uid);
+
+					// Now that the user is created, let's save their additional info
+					const clientRef = dbRef(db, `Users/${user.uid}`);
+					await set(clientRef, {
+						email: newClient.email,
+						firstName: this.firstName,
+						lastName: this.lastName,
+						identification: this.identification,
+						phoneNumber: this.phoneNumber,
+						role: this.role,
+						tenant_id: this.tenantId // Linking user to tenant by tenant's Firebase-generated key
+					});
+
+					//Toastify
+					Toastify({
+						text: "Nuevo cliente registrado con exito!",
+						duration: 3000,
+						close: true,
+						gravity: "top", // `top` or `bottom`
+						position: "right", // `left`, `center` or `right`
+						stopOnFocus: true, // Prevents dismissing of toast on hover
+						style: {
+							background: "linear-gradient(to right, #00b09b, #96c93d)",
+						},
+					}).showToast();
+
+					// After successful signup assign new client to order
+					this.selectedClient = result;
+
+					this.addNewClient = false;
+					this.firstName = '';
+					this.lastName = '';
+					this.identification = '';
+					this.email = '';
+					this.phoneNumber = '';
+					this.password = '';
+
+				} else if (result.data.error) {
+					console.error('Error creating user', result.data.error);
+					Toastify({
+						text: "Error al registrar nuevo cliente.",
+						duration: 3000,
+						close: true,
+						gravity: "top", // `top` or `bottom`
+						position: "right", // `left`, `center` or `right`
+						stopOnFocus: true, // Prevents dismissing of toast on hover
+						style: {
+							background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+						},
+					}).showToast();
+				}
+			} catch (error) {
+				console.error('Error calling createUser function', error);
+			}
+		},
+		selectUser(client) {
+			this.selectedClient = client;
+			this.searchQuery = '';
+			this.searchResults = [];
+		},
+		clearOrderSelections() {
+			// clear order sumary
+			this.order = [];
+			this.orderSumary = [],
+				this.tableNumber = '';
+			this.tip = null;
+			this.addTip = false;
+			this.isTakeaway = false;
+		},
+		async logOut() {
+			try {
+				await signOut(auth);
+				this.$router.push('/page/login'); // Redirect to login after sign out
+			} catch (error) {
+				console.error('Error signing out:', error.message);
+			}
+
+		}
 	}
 }
 </script>
 <template>
-	<!-- BEGIN pos -->
 	<div class="pos pos-with-menu pos-with-sidebar"
 		v-bind:class="{ 'pos-mobile-sidebar-toggled': mobileSidebarToggled }">
 		<div class="pos-container">
-			<!-- BEGIN pos-menu -->
 			<div class="pos-menu">
-				<!-- BEGIN logo -->
 				<div class="logo">
 					<RouterLink to="#">
 						<div class="logo-img"><i class="fa fa-light fa-burger"></i></div>
 						<div class="logo-text">Restaurante</div>
 					</RouterLink>
 				</div>
-				<!-- END logo -->
-				<!-- BEGIN nav-container -->
+
 				<div class="nav-container">
 					<perfect-scrollbar class="h-100">
 						<ul class="nav nav-tabs">
@@ -327,37 +630,28 @@ export default {
 						</ul>
 					</perfect-scrollbar>
 				</div>
-				<!-- END nav-container -->
-			</div>
-			<!-- END pos-menu -->
 
-			<!-- BEGIN pos-content -->
+				<a href="#" class="floating-logout-btn" @click="logOut">
+					<i class="fa-solid fa-right-from-bracket"></i>
+				</a>
+
+			</div>
+
 			<div class="pos-content">
 				<div class="pos-content-container h-100">
 					<div class="row gx-4">
-						<template v-for="food in menu.food">
+						<template v-for="food in filteredMenuItems">
 							<div class="col-xxl-3 col-xl-4 col-lg-6 col-md-4 col-sm-6 pb-4" v-if="!food.hide">
-								<a href="#" class="pos-product" v-bind:class="{ 'not-available': !food.available }"
+								<a href="#" class="pos-product" v-bind:class="{ 'not-available': !food.status }"
 									v-on:click="(event) => showFoodModal(event, food.id)">
 									<div class="img" v-bind:style="{ backgroundImage: 'url(' + food.image + ')' }">
 									</div>
 									<div class="info">
-										<div class="title">{{ food.title }}</div>
+										<div class="title">{{ food.name }}</div>
 										<div class="desc">{{ food.description }}</div>
-										<div class="price">${{ food.price }}</div>
-										<div class="rating">
-											<template v-if="food.rating && food.rating > 0">
-												<font-awesome-icon v-for="(star, index) in generateStars(food.rating)"
-													:key="index" icon="star"
-													:class="{ 'active': star.filled, 'filled': star.filled }" />
-											</template>
-											<template v-else>
-												Sin reviews
-											</template>
-											<!-- <a href="#"><small>({{ food.ratings.length }} reviews)</small></a> -->
-										</div>
+										<div class="price">${{ food.sellingPrice }}</div>
 									</div>
-									<div class="not-available-text" v-if="!food.available">
+									<div class="not-available-text" v-if="!food.status">
 										<div>No disponible</div>
 									</div>
 								</a>
@@ -366,7 +660,6 @@ export default {
 					</div>
 				</div>
 			</div>
-			<!-- END pos-content -->
 
 			<!-- BEGIN pos-sidebar -->
 			<div class="pos-sidebar">
@@ -378,28 +671,21 @@ export default {
 								<i class="bi bi-chevron-left"></i>
 							</button>
 						</div>
-						<div class="container">
-							<div class="row justify-content-between">
-								<div class="col">
-									<div class="input-group" id="table-number">
-										<div class="input-group-prepend">
-											<span class="input-group-text" id="mesa-addon"><i class="fa fa-chair"
-													style="margin-right: 3px;"></i><b>Mesa</b></span>
-										</div>
-										<input type="text" class="form-control" aria-label="mesa"
-											aria-describedby="mesa-addon">
-									</div>
+						<div class="row">
+							<div class="col-6 d-flex justify-content-end">
+								<div class="input-group" id="order-number">
+									<span class="input-group-text" id="order-addon"><i class="fa fa-plate-wheat"></i>
+									</span>
+									<input type="number" class="form-control" placeholder="Orden #" aria-label="order"
+										aria-describedby="order-addon" v-model="nextOrderNumber">
 								</div>
-								<div class="col" id="order-number">
-									<div class="input-group">
-										<div class="input-group-prepend">
-											<span class="input-group-text" id="order-addon"><i class="fa fa-plate-wheat"
-													style="margin-right: 3px;"></i><b># de Orden</b></span>
-										</div>
-										<input type="text" class="form-control" aria-label="order"
-											aria-describedby="order-addon" v-model="orderNo">
-										<!-- {{ orderNo ? order.orderNo + 1 : 0000 }} -->
-									</div>
+							</div>
+							<div class="col-6 d-flex justify-content-start">
+								<div class="input-group" id="table-number">
+									<span class="input-group-text" id="mesa-addon"><i class="fa fa-chair"></i>
+									</span>
+									<input type="number" class="form-control" placeholder="Mesa #" aria-label="mesa"
+										aria-describedby="mesa-addon" v-model="tableNumber">
 								</div>
 							</div>
 						</div>
@@ -416,7 +702,7 @@ export default {
 							</li>
 							<li class="nav-item">
 								<a class="nav-link" href="#" data-bs-toggle="tab"
-									data-bs-target="#orderHistoryTab">Ordenes
+									data-bs-target="#orderHistoryTab">Ordenes de Hoy
 									({{ getOrderHistoryTotal()
 									}})</a>
 							</li>
@@ -436,10 +722,10 @@ export default {
 									<div class="flex-1">
 										<div class="h6 mb-1">{{ order.title }}</div>
 										<div class="small">${{ order.price }}</div>
-										<div class="small mb-2">
+										<!-- <div class="small mb-2">
 											<div v-for="option in order.options">- {{ option.key }}: {{ option.value }}
 											</div>
-										</div>
+										</div> -->
 										<div class="d-flex">
 											<a href="#" class="btn btn-secondary btn-sm"
 												v-on:click="(event) => deductQty(event, order.id)"><i
@@ -479,26 +765,64 @@ export default {
 									<div class="mb-3 mt-n5">
 										<i class="fa fa-utensils text-body text-opacity-25" style="font-size: 5em"></i>
 									</div>
-									<h5>No se encontraron ordenes</h5>
+									<h5>Sin pedidos aún.</h5>
 								</div>
 							</div>
 						</div>
 
 						<!-- BEGIN #orderHistoryTab -->
 						<div class="tab-pane fade h-100" id="orderHistoryTab">
-							<div v-if="orders && orders.length" class="content">
-								Replace the div below with your desired layout for displaying each order
-								<div v-for="order in orders" :key="order.id" class="order">
-									<p>Orden: #{{ order.orderNo }}</p>
-									<p>Fecha de orden: {{ order.date }}</p>
-									Add more order details here
+							<div v-if="orderHistory && orderHistory.length" class="tab-pane active p-3"
+								id="orderHistory" role="tabpanel">
+								<div class="accordion" id="orderHistoryAccordion">
+									<div v-for="(order, index) in orderHistory" :key="order.id" class="accordion-item">
+										<h2 class="accordion-header" :id="'heading' + index">
+											<button class="accordion-button collapsed" type="button"
+												data-bs-toggle="collapse" :data-bs-target="'#collapse' + index"
+												aria-expanded="false" :aria-controls="'collapse' + index"
+												style="font-size: 1rem;">
+												<span class="text-muted me-1">Orden:</span>
+												<span class="fw-bold me-3">#{{ order.orderNumber }}</span>
+												<span class="text-muted me-1">Mesa:</span>
+												<span class="fw-bold me-3">#{{ order.tableNumber }}</span>
+												<span class="text-muted me-1">Fecha:</span>
+												<span class="fw-bold me-3">{{ order.date }}</span>
+												<span class="text-muted me-1">Cliente:</span>
+												<span class="fw-bold me-2">{{ order.clientName }}</span>
+												<span class="fst-italic">{{ order.clientCedula }}</span>
+											</button>
+										</h2>
+
+
+										<div :id="'collapse' + index" class="accordion-collapse collapse"
+											:aria-labelledby="'heading' + index"
+											data-bs-parent="#orderHistoryAccordion">
+											<div class="accordion-body">
+												<p><strong>Mesa:</strong> #{{ order.tableNumber }}</p>
+												<p><strong>Fecha de orden:</strong> {{ order.date }}</p>
+												<!-- Add more order details here -->
+												<div>
+													<p><strong>Detalles de la Orden:</strong></p>
+													<ul>
+														<li v-for="item in order.menuItems" :key="item.id">
+															{{ item.title }} - Cantidad: {{ item.quantity }} - Subtotal:
+															${{
+			item.totalPricePerItem.toFixed(2) }}
+														</li>
+													</ul>
+													<p><strong>Total a pagar:</strong> ${{
+			order.totalPricePaid.toFixed(2) }}</p>
+												</div>
+											</div>
+										</div>
+									</div>
 								</div>
 							</div>
 							<div v-else class="h-100 d-flex align-items-center justify-content-center text-center p-20">
 								<div>
 									<div class="mb-3 mt-n5">
 										<i class="fa fa-shopping-bag text-body text-opacity-25"
-											style="font-size: 5em"></i>
+											style="font-size: 5em;"></i>
 									</div>
 									<h5>No hay datos</h5>
 								</div>
@@ -518,6 +842,21 @@ export default {
 							<div>Impuesto (6%)</div>
 							<div class="flex-1 text-end h6 mb-0">${{ getTaxesPrice() }}</div>
 						</div>
+						<div class="mb-3 form-check" style="margin-top: 10px;">
+							<input type="checkbox" class="form-check-input" id="tipCheckbox" v-model="addTip">
+							<label class="form-check-label" for="tipCheckbox">Agregar propina</label>
+						</div>
+						<div v-if="addTip" class="d-flex align-items-center">
+							<div>Propina</div>
+							<div class="flex-1 text-end h6 mb-0">
+								$<input type="number" class="form-control" v-model="tip"
+									style="width: 100px; display: inline-block;" />
+							</div>
+						</div>
+						<div class="mb-3 form-check" style="margin-top: 10px;">
+							<input type="checkbox" class="form-check-input" id="typeCheckbox" v-model="isTakeaway">
+							<label class="form-check-label" for="typeCheckbox">Para llevar</label>
+						</div>
 						<hr />
 						<div class="d-flex align-items-center mb-2">
 							<div>Total</div>
@@ -525,7 +864,7 @@ export default {
 						</div>
 						<div class="mt-3">
 							<div class="d-flex">
-								<router-link to="/"
+								<router-link to="/" v-if="userRole === 'admin'"
 									class="btn btn-default w-70px me-10px d-flex align-items-center justify-content-center">
 									<span>
 										<span class="small fw-semibold">Volver</span>
@@ -534,15 +873,15 @@ export default {
 								<a href="#" @click.prevent="clearOrderSelections"
 									class="btn btn-default w-70px me-10px d-flex align-items-center justify-content-center">
 									<span>
-										<span class="small fw-semibold">Cancelar</span>
+										<span class="small fw-semibold">Cancelar Orden</span>
 									</span>
 								</a>
-								<router-link to="/pos/kitchen-order"
+								<!-- <router-link to="/pos/kitchen-order"
 									class="btn btn-default w-70px me-10px d-flex align-items-center justify-content-center">
 									<span>
 										<span class="small fw-semibold">Ver ordenes de cocina</span>
 									</span>
-								</router-link>
+								</router-link> -->
 								<a href="#" @click.prevent="submitOrderToKitchen"
 									class="btn btn-theme flex-fill d-flex align-items-center justify-content-center">
 									<span>
@@ -572,7 +911,7 @@ export default {
 	<div class="modal modal-pos fade" ref="modalPosItem">
 		<div class="modal-dialog modal-lg">
 			<div class="modal-content border-0">
-				<form v-on:submit.prevent="submitOrder">
+				<form v-on:submit.prevent="addToOrder">
 					<card v-if="modalData">
 						<card-body class="p-0">
 							<a href="#" data-bs-dismiss="modal" class="btn-close position-absolute top-0 end-0 m-4"></a>
@@ -582,11 +921,11 @@ export default {
 									</div>
 								</div>
 								<div class="modal-pos-product-info d-flex flex-column">
-									<div class="h4 mb-2">{{ modalData.title }}</div>
+									<div class="h4 mb-2">{{ modalData.name }}</div>
 									<div class="text-body text-opacity-50 mb-2">
 										{{ modalData.description }}
 									</div>
-									<div class="h4 mb-3">${{ modalData.price }}</div>
+									<div class="h4 mb-3">${{ modalData.sellingPrice }}</div>
 									<div class="d-flex mb-3">
 										<a href="#" class="btn btn-secondary"
 											v-on:click="(event) => deductModalQty(event)"><i
@@ -596,7 +935,7 @@ export default {
 										<a href="#" class="btn btn-secondary"
 											v-on:click="(event) => addModalQty(event)"><i class="fa fa-plus"></i></a>
 									</div>
-									<template v-if="modalData.options">
+									<!-- <template v-if="modalData.options">
 										<hr class="opacity-1">
 										<div class="mb-2" v-if="modalData.options.size">
 											<div class="fw-bold">Tamaño:</div>
@@ -627,7 +966,7 @@ export default {
 											</div>
 										</div>
 									</template>
-									<hr class="opacity-1">
+									<hr class="opacity-1"> -->
 									<div class="row">
 										<div class="col-4">
 											<a href="#" class="btn btn-default fw-semibold mb-0 d-block py-3 w-100"
@@ -647,9 +986,206 @@ export default {
 			</div>
 		</div>
 	</div>
+
+	<!-- Confirm order Modal -->
+	<div class="modal fade" id="confirmationModal" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true"
+		ref="confirmationModal">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="modalLabel">Confirmar Orden</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<div class="container" id="searchClient">
+						<div class="position-relative">
+							<label for="clientSearch" class="form-label">Buscar Cliente:</label>
+							<input type="text" class="form-control" id="clientSearch" v-model="searchQuery"
+								@input="searchClients" autocomplete="off">
+
+							<div class="dropdown-menu" v-show="searchResults.length > 0 || searchQuery.length > 0"
+								style="display: block; width: 100%;"
+								:class="{ 'show': searchResults.length > 0 || searchQuery }">
+								<i class="dropdown-item text-muted" v-if="searchResults.length === 0">No se encontraron
+									resultados</i>
+								<button type="button" class="dropdown-item" v-for="client in searchResults"
+									:key="client.uid" @click.prevent="selectUser(client)">
+									{{ client.identification }} - {{ client.firstName }} {{ client.lastName }}
+								</button>
+							</div>
+							<div class="mb-3 form-check" style="margin-top: 10px;">
+								<input type="checkbox" class="form-check-input" id="newClientCheckbox"
+									v-model="addNewClient">
+								<label class="form-check-label" for="newClientCheckbox">Agregar cliente nuevo</label>
+							</div>
+						</div>
+					</div>
+
+					<div v-if="addNewClient">
+						<div class="card">
+							<div class="card-header">
+								<h4 class="text-center">Agregar nuevo cliente</h4>
+							</div>
+							<div class="card-body">
+								<div class="mb-3">
+									<label class="form-label">Nombre <span class="text-danger">*</span></label>
+									<input v-model="firstName" type="text" class="form-control form-control-lg fs-15px"
+										placeholder="e.g John" value="" required />
+								</div>
+								<div class="mb-3">
+									<label class="form-label">Apellido <span class="text-danger">*</span></label>
+									<input v-model="lastName" type="text" class="form-control form-control-lg fs-15px"
+										placeholder="e.g Smith" value="" required />
+								</div>
+								<div class="mb-3">
+									<label class="form-label">Cedula / Identificacion <span
+											class="text-danger">*</span></label>
+									<input v-model="identification" type="number"
+										class="form-control form-control-lg fs-15px" placeholder="e.g 20555444" value=""
+										required />
+								</div>
+								<div class="mb-3">
+									<label class="form-label">Correo electronico <span
+											class="text-danger">*</span></label>
+									<input v-model="email" type="text" class="form-control form-control-lg fs-15px"
+										placeholder="username@address.com" value="" required />
+								</div>
+								<div class="mb-3">
+									<label class="form-label">Telefono </label>
+									<input type="tel" v-model="phoneNumber" class="form-control form-control-lg fs-15px"
+										placeholder="0414-5555555" value="" pattern="[0-9]{4}-[0-9]{7}" />
+									<small>Formato: 0424-xxxxxxx</small>
+								</div>
+								<div class="mb-3">
+									<label class="form-label">Contraseña <span class="text-danger">*</span></label>
+									<input v-model="password" type="password"
+										class="form-control form-control-lg fs-15px" value="" required />
+								</div>
+							</div>
+							<div class="card-footer text-end">
+								<button type="button" class="btn btn-primary"
+									@click="registerNewClient">Registrar</button>
+							</div>
+						</div>
+					</div>
+
+					<div v-if="selectedClient" class="selected-user-details mt-3">
+						<div class="card">
+							<div class="card-header">
+								<h5 class="text-center">Cliente</h5>
+							</div>
+							<div class="card-body">
+								<ul>
+									<li><b>Nombre: </b>{{ selectedClient.firstName }} {{ selectedClient.lastName }}</li>
+									<li><b>C.I: </b>{{ selectedClient.identification }}</li>
+									<li><b>Teléfono: </b>{{ selectedClient.phoneNumber }}</li>
+								</ul>
+							</div>
+						</div>
+					</div>
+					<hr>
+					<div class="card">
+						<div class="card-header">
+							<h5 class="card-text text-center">¿Seguro que desea realizar este pedido?</h5>
+
+						</div>
+						<div class="card-body">
+							<div style="margin-top: 20px;">
+								<p><b>Tipo de orden: </b>
+									<span class="badge bg-primary">{{ orderSumary && orderSumary.type === 'Takeaway'
+			?
+			'Para llevar' : 'Local' }}</span>
+								</p>
+							</div>
+
+							<div>
+								<b>Resumen de Orden:</b>
+								<ul class="list-group list-group-flush">
+									<li v-for="item in orderSumary.menuItems" :key="item.id" class="list-group-item">
+										{{ item.title }} - Cantidad: <span class="badge bg-primary">{{
+			item.quantity
+		}}</span>
+									</li>
+								</ul>
+							</div>
+
+							<h5 class="text-end mt-3">Total a cancelar: <span class="badge bg-success">${{
+			orderSumary.totalPricePaid }}</span></h5>
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+					<button type="button" class="btn btn-primary" @click="confirmOrder">Confirmar</button>
+				</div>
+			</div>
+		</div>
+	</div>
 </template>
 <style scoped>
 .filled {
 	color: gold;
+}
+
+.nav-tabs {
+	display: flex;
+	flex-wrap: nowrap;
+	overflow-x: auto;
+	white-space: nowrap;
+}
+
+.nav-link {
+	flex-grow: 1;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	display: block;
+}
+
+.floating-logout-btn {
+	position: fixed;
+	left: 20px;
+	bottom: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 50px;
+	height: 50px;
+	background-color: #007bff;
+	/* Change the background color as needed */
+	color: white;
+	border-radius: 50%;
+	text-decoration: none;
+	box-shadow: 0 2px 5px rgba(0, 0, 0, .3);
+	z-index: 1000;
+	/* Ensure it's above other content */
+}
+
+.floating-logout-btn:hover {
+	background-color: #0056b3;
+	/* Darker shade for hover effect */
+	color: white;
+	text-decoration: none;
+	/* Prevent underlining the icon on hover */
+}
+
+.floating-logout-btn i {
+	font-size: 20px;
+	/* Adjust icon size */
+}
+
+.list-autocomplete {
+	padding: 0;
+}
+
+.list-autocomplete em {
+	font-style: normal;
+	background-color: #e1f2f9;
+}
+
+.hasNoResults {
+	color: #aaa;
+	display: block;
+	padding: 10px;
+	color: #aaa;
 }
 </style>

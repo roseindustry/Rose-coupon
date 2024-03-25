@@ -1,13 +1,13 @@
 <script>
-import { ref, computed } from 'vue';
-import { useRoute } from 'vue-router';
 import 'survey-core/defaultV2.min.css';
 import { Model } from 'survey-core';
 import { BorderlessDarkPanelless } from "survey-core/themes/borderless-dark-panelless";
 import { db } from '../firebase/init';
-import { ref as dbRef, onValue, off, push, set } from 'firebase/database';
+import { ref as dbRef, onValue, query, orderByChild, equalTo, push, set, get } from 'firebase/database';
 import { useUserStore } from '@/stores/user-role';
 import { useTenancyStore } from '@/stores/tenancy';
+import { getSubdomain } from '@/utils/subdomain';
+import { Collapse } from 'bootstrap';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 import moment from 'moment';
@@ -17,6 +17,8 @@ export default {
     data() {
         return {
             menuItems: [],
+            categories: [],
+            categoriesWithItems: [],
             selectedMenuItem: null,
             survey: null,
             today: '',
@@ -29,7 +31,10 @@ export default {
     },
     methods: {
         async fetchMenuItems() {
-            const itemsRef = dbRef(db, 'MenuItems');
+            const tenancyStore = useTenancyStore();
+            const tenantId = tenancyStore.tenant.key;
+
+            const itemsRef = query(dbRef(db, 'MenuItems'), orderByChild('tenant_id'), equalTo(tenantId));
             onValue(itemsRef, (snapshot) => {
                 const data = snapshot.val();
                 this.menuItems = data ? Object.keys(data).map(key => ({
@@ -43,6 +48,33 @@ export default {
             }, {
                 onlyOnce: true
             });
+        },
+        async fetchMenuCategories() {
+            const tenancyStore = useTenancyStore();
+            const tenantId = tenancyStore.tenant.key;
+
+            const categoryRef = query(dbRef(db, 'Categories'), orderByChild('tenant_id'), equalTo(tenantId));
+            const categorySnapshot = await get(categoryRef);
+
+            if (categorySnapshot.exists()) {
+                categorySnapshot.forEach((childSnapshot) => {
+                    const categoryData = childSnapshot.val();
+                    this.categories.push({
+                        id: childSnapshot.key,
+                        name: categoryData.name
+                    });
+                });
+            } else {
+                console.log("No data available");
+            }
+            this.structureMenuItemsByCategory();
+        },
+        structureMenuItemsByCategory() {
+            const structured = this.categories.map(category => ({
+                ...category,
+                menuItems: this.menuItems.filter(item => item.category_id === category.id),
+            }));
+            this.categoriesWithItems = structured;
         },
         selectItem(itemName) {
             const selectedItem = this.menuItems.find(item => item.name === itemName);
@@ -76,7 +108,7 @@ export default {
             const userStore = useUserStore(); // Access the user store for user_id
             const tenancyStore = useTenancyStore(); // Access the tenancy store for tenant_id
 
-            // Ensure tenant data is ready, especially useful if tenant_id is critical for the submission
+            // Ensure tenant data is ready
             await tenancyStore.findOrCreateTenant();
 
             const userId = userStore.userId;
@@ -129,10 +161,8 @@ export default {
                     }).showToast();
 
                     this.resetMenuSelections();
+                    this.collapseAllAccordions();
                     this.initializeSurvey();
-
-                    // Reset the selectedMenuItem after successful submission
-                    // this.selectedMenuItem = null;
                 })
                 .catch((error) => console.error('Error submitting data:', error));
         },
@@ -143,22 +173,34 @@ export default {
                 quantity: 0,
             }));
         },
+        collapseAllAccordions() {
+            const accordionItems = document.querySelectorAll('.accordion-collapse');
+            accordionItems.forEach((item) => {
+                new Collapse(item, { toggle: false }).hide();
+            });
+        },
     },
-    created() {
-        this.fetchMenuItems();
-    },
-    mounted() {
+    async mounted() {
         const userStore = useUserStore();
         const tenancyStore = useTenancyStore();
         const now = moment();
         this.today = now.format('DD/MM/YYYY');
 
-        (async () => {
-            await userStore.fetchUser();
-            await tenancyStore.findOrCreateTenant();
-        })();
+        this.subdomain = getSubdomain();
+
+        // Automatically find or create tenant upon component mount
+        await tenancyStore.findOrCreateTenant(this.subdomain);
+        await userStore.fetchUser();
+
+        if (tenancyStore.tenant) {
+            this.tenantName = tenancyStore.tenant.name;
+        } else {
+            console.error("Tenant could not be found or created");
+        }
 
         this.initializeSurvey();
+        this.fetchMenuItems();
+        this.fetchMenuCategories();
     }
 }
 </script>
@@ -176,16 +218,49 @@ export default {
                 <!-- PRODUCT DROPDOWN CARD -->
                 <div class="card shadow-lg">
                     <div class="card-body">
-                        <h5 class="card-title">Seleccione los productos</h5>
-                        <div v-for="item in menuItems" :key="item.id" class="form-check">
-                            <input class="form-check-input" type="checkbox" :id="`check-${item.id}`"
-                                v-model="item.selected">
-                            <label class="form-check-label" :for="`check-${item.id}`">
-                                {{ item.name }}
-                            </label>
-                            <input v-if="item.selected" type="number" class="form-control ms-2"
-                                placeholder="Cantidad" v-model="item.quantity" min="1" style="width: 100px;">
+                        <h5 class="card-title text-center" style="margin-bottom: 20px;">Seleccione los productos</h5>
+                        <div id="menuCategoriesAccordion" class="accordion accordion-flush">
+                            <div class="accordion-item" v-for="(category, cIndex) in categories" :key="category.id">
+                                <h2 class="accordion-header" :id="`heading${category.id}`">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                                        :data-bs-target="`#collapse${category.id}`" aria-expanded="true"
+                                        :aria-controls="`collapse${category.id}`">
+                                        {{ category.name }}
+                                    </button>
+                                </h2>
+                                <div :id="`collapse${category.id}`" class="accordion-collapse collapse"
+                                    :class="{ 'show': cIndex === 0 }" aria-labelledby="`heading${category.id}`">
+                                    <div class="accordion-body">
+                                        <div class="row">
+                                            <div class="col-md-6"
+                                                v-for="item in menuItems.filter(item => item.category_id === category.id)"
+                                                :key="item.id">
+                                                <div class="card mb-4">
+                                                    <div class="card-body">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox"
+                                                                :id="`check-${item.id}`" :value="item.id"
+                                                                v-model="item.selected">
+                                                            <label class="form-check-label" :for="`check-${item.id}`">
+                                                                <b>{{ item.name }}</b>
+                                                            </label>
+                                                            <input v-if="item.selected" type="number"
+                                                                class="form-control ms-2" placeholder="Cantidad"
+                                                                v-model="item.quantity" min="1" style="width: 100px;">
+                                                        </div>
+                                                        <img :src="item.image || '/assets/img/Image_not_available.png'"
+                                                            class="card-img-top" :alt="item.name"
+                                                            style="height: 180px; object-fit: cover;">
+                                                        <p class="card-text">{{ item.description }}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+
                     </div>
                 </div>
 

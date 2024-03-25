@@ -95,7 +95,6 @@ export default {
             }
         },
         selectUser(user) {
-            console.log(user);
             this.selectedUser = user;
             this.searchQuery = '';
             this.searchResults = [];

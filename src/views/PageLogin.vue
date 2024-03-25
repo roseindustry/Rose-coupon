@@ -44,7 +44,7 @@ export default {
 					if (tenantSnapshot.exists()) {
 						// Success Toastify
 						Toastify({
-							text: "Bienvenido!",
+							text: "Bienvenido "+ userData.firstName +"!",
 							duration: 3000,
 							close: true,
 							gravity: "top", // `top` or `bottom`
@@ -54,11 +54,14 @@ export default {
 								background: "linear-gradient(to right, #00b09b, #96c93d)",
 							},
 						}).showToast();
+						
 						// Tenant exists, proceed with redirection based on role
 						if (userData.role === 'admin') {
 							this.$router.push('/');
 						} else if (userData.role === 'cliente') {
 							this.$router.push('/page/client-portal');
+						} else if (userData.role === 'mesero') {
+							this.$router.push('/pos/customer-order');
 						} else {
 							console.log('User role is not defined or user is not authorized for access.');
 						}
@@ -69,6 +72,18 @@ export default {
 					console.log('No user data found in the database.');
 				}
 			} catch (error) {
+				// Error Toastify
+				Toastify({
+							text: "Correo o Contraseña incorrecta!",
+							duration: 3000,
+							close: true,
+							gravity: "top", // `top` or `bottom`
+							position: "right", // `left`, `center` or `right`
+							stopOnFocus: true, // Prevents dismissing of toast on hover
+							style: {
+								background: "linear-gradient(to right, #00b09b, #96c93d)",
+							},
+						}).showToast();
 				console.error('Error during login or tenant verification:', error);
 			}
 		},

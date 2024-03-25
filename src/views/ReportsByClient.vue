@@ -1,10 +1,9 @@
 <script>
-import { ref, computed } from 'vue';
 import { useUserStore } from '@/stores/user-role';
 import { useTenancyStore } from '@/stores/tenancy';
 import { getSubdomain } from '@/utils/subdomain';
 import { db } from '@/firebase/init';
-import { ref as dbRef, get, child, query, orderByChild, equalTo } from 'firebase/database';
+import { ref as dbRef, get, query, orderByChild, equalTo } from 'firebase/database';
 import { Modal } from 'bootstrap';
 import datepicker from 'vue3-datepicker';
 import 'vue-datepicker-next/index.css';
@@ -19,18 +18,27 @@ export default {
             users: [],
             ratings: [],
             selectedRatingMenuItems: [],
-            displayedUsers: [],
+            // displayedUsers: [],
             searchQuery: null,
             currentUser: null,
             picked: new Date(),
             today: '',
-            // For filtering based on dates
             filterByDate: false,
             startDate: null,
             endDate: null,
         };
     },
     computed: {
+        filteredUsers() {
+            const trimmedSearchQuery = this.searchQuery?.trim().toString().toLowerCase();
+            if (!trimmedSearchQuery) {
+                return this.users;
+            }
+            return this.users.filter(user =>
+                // Assuming 'identification' is a string; adjust if it's not
+                user.identification.toString().toLowerCase().includes(trimmedSearchQuery)
+            );
+        },
         filteredRatings() {
             if (!this.filterByDate || !this.startDate || !this.endDate) return this.ratings;
 
@@ -59,21 +67,6 @@ export default {
             // Filter users to include only those with the role 'cliente'
             this.users = allUsers.filter(user => user.role === 'cliente');
 
-        },
-        filterUsers() {
-            const trimmedSearchQuery = this.searchQuery.trim().toLowerCase();
-            if (trimmedSearchQuery) {
-                this.displayedUsers = this.users.filter(user =>
-                    user.identification.toLowerCase().includes(trimmedSearchQuery)
-                );
-            } else {
-                // If search query is empty, show all users again
-                this.displayedUsers = this.users;
-            }
-        },
-        clearFilter() {
-            this.searchQuery = '';
-            this.displayedUsers = this.users;
         },
         clearDateFilter() {
             this.startDate = null;
@@ -177,15 +170,13 @@ export default {
 };
 </script>
 <template>
-    <div class="container py-5">
-        <h2 class="mb-5 text-center">Apartado de gastos por Cliente</h2>
+    <div class="container">
+
+        <h2 class="mb-5 text-center">Apartado de consumo por Cliente</h2>
+
         <div class="shadow-lg p-3 mb-5 bg-body rounded">
             <div class="search-box mb-3">
-                <input v-model="searchQuery" placeholder="Buscar cliente por cedula..." class="form-control">
-                <button class="btn btn-outline-secondary" type="button" @click="filterUsers">
-                    <i class="fa-solid fa-search"></i>
-                </button>
-                <button class="btn btn-outline-secondary" @click="clearFilter">Limpiar filtro</button>
+                <input v-model="searchQuery" placeholder="Filtrar cliente por cedula..." class="form-control">
             </div>
             <div class="table-responsive">
                 <table class="table table-bordered table-hover shadow-sm">
@@ -197,7 +188,7 @@ export default {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="user in displayedUsers" :key="user.uid">
+                        <tr v-for="user in filteredUsers" :key="user.uid">
                             <td>{{ user.firstName + " " + user.lastName }}</td>
                             <td>{{ user.identification }}</td>
                             <td class="actions-column text-center">
@@ -206,8 +197,6 @@ export default {
                         </tr>
                     </tbody>
                 </table>
-                <button type="button" class="btn btn-primary" @click="exportUsers">Descargar reporte</button>
-
             </div>
         </div>
 
@@ -227,9 +216,9 @@ export default {
                     </div>
                     <div class="modal-body">
                         <div v-if="filterByDate">
-                            <div class="row g-3 align-items-center justify-content-center">
+                            <div class="row g-3 align-items-center">
                                 <!-- Start Date Picker Column -->
-                                <div class="col-4">
+                                <div class="col-4 d-flex justify-content-center">
                                     <div class="datepicker-wrapper">
                                         <div class="datepicker-icon">
                                             <i class="fa fa-fw fa-calendar"></i>
@@ -239,7 +228,7 @@ export default {
                                     </div>
                                 </div>
                                 <!-- End Date Picker Column -->
-                                <div class="col-4">
+                                <div class="col-4 d-flex justify-content-center">
                                     <div class="datepicker-wrapper">
                                         <div class="datepicker-icon">
                                             <i class="fa fa-fw fa-calendar"></i>
@@ -249,7 +238,7 @@ export default {
                                     </div>
                                 </div>
                                 <!-- Clear Filter Button Column -->
-                                <div class="col-4">
+                                <div class="col-4 d-flex justify-content-center">
                                     <button type="button" class="btn btn-warning btn-block"
                                         @click="clearDateFilter">Limpiar filtro</button>
                                 </div>
@@ -291,7 +280,7 @@ export default {
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-primary">Descargar reporte</button>
+                        <button type="button" class="btn btn-theme btn-primary">Descargar reporte</button>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                     </div>
                 </div>
@@ -343,7 +332,6 @@ export default {
 </template>
 
 <style scoped>
-
 .fa-star {
     color: gold;
 }
@@ -351,6 +339,7 @@ export default {
 .fa-star-o {
     color: grey;
 }
+
 .actions-column {
     width: 120px;
     min-width: 120px;

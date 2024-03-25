@@ -98,6 +98,8 @@ export default defineComponent({
 					this.$router.push('/page/client-portal');
 				} else if (this.role === 'admin') {
 					this.$router.push('/');
+				} else if (this.role === 'mesero') {
+					this.$router.push('/pos/customer-order');
 				}
 
 			} catch (error) {
@@ -140,8 +142,8 @@ export default defineComponent({
 				</div>
 				<div class="mb-3">
 					<label class="form-label">Cedula / Identificacion <span class="text-danger">*</span></label>
-					<input v-model="identification" type="text" class="form-control form-control-lg fs-15px"
-						placeholder="e.g V20555444" value="" required />
+					<input v-model="identification" type="number" class="form-control form-control-lg fs-15px"
+						placeholder="e.g 20555444" value="" required />
 				</div>
 				<div class="mb-3">
 					<label class="form-label">Correo electronico <span class="text-danger">*</span></label>
@@ -150,8 +152,9 @@ export default defineComponent({
 				</div>
 				<div class="mb-3">
 					<label class="form-label">Telefono </label>
-					<input v-model="phoneNumber" type="text" class="form-control form-control-lg fs-15px"
-						placeholder="0414-5555555" value="" />
+					<input type="tel" v-model="phoneNumber" class="form-control form-control-lg fs-15px"
+						placeholder="0414-5555555" value="" pattern="[0-9]{4}-[0-9]{7}" />
+						<small>Formato: 0424-xxxxxxx</small>
 				</div>
 				<div class="mb-3">
 					<label class="form-label">Contraseña <span class="text-danger">*</span></label>
@@ -170,6 +173,8 @@ export default defineComponent({
 						<option value="super_admin">Super Admin</option>
 						<option value="cliente">Cliente</option>
 						<option value="gerente">Gerente</option>
+						<option value="mesero">Mesero</option>
+						<option value="cajero">Cajero</option>
 					</select>
 				</div>
 				<div class="mb-3">
