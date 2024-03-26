@@ -1,5 +1,4 @@
 <script>
-import { ref } from 'vue';
 import { db, storage } from '../firebase/init';
 import { ref as dbRef, push, update } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';

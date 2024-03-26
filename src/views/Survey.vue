@@ -115,11 +115,14 @@ export default {
             const tenantId = tenancyStore.tenant.key;
             const results = sender.data;
 
-            // Collect selected menu items and their quantities
-            const selectedMenuItems = this.menuItems.filter(item => item.selected).map(item => ({
-                MenuItem_id: item.id,
+            // Collect and prepare selected menu items
+            const selectedMenuItems = this.menuItems
+            .filter(item => item.selected)
+            .map(item => ({
+                id: item.id,
                 quantity: item.quantity,
-                price: item.sellingPrice
+                price: item.sellingPrice,
+                totalPricePerItem: item.sellingPrice * item.quantity
             }));
 
             // Ensure there's at least one selected item
@@ -128,22 +131,48 @@ export default {
                 return;
             }
 
+            // Calculate totalPricePaid
+            const totalPricePaid = selectedMenuItems.reduce((acc, item) => acc + item.totalPricePerItem, 0);
+
             // Prepare the data for submission
-            const submission = {
+
+            // RatingsData
+            const ratingsSubmission = {
                 ratingValue: results.ratingValue,
                 comment: results.comment,
                 date: this.today,
                 user_id: userId,
                 tenant_id: tenantId,
-                // Include the array of selected items and their quantities
-                order: selectedMenuItems,
             };
 
-            // Submit the data to Firebase
+            // OrderData
+            const OrderSubmission = {
+				tenant_id: tenantId,
+				client_id: userId,
+				orderDate: this.today,
+				orderNumber: 0,
+				tableNumber: 0,
+				status: 'pending',
+				type: 'DineIn',
+				menuItems: selectedMenuItems,
+				totalPricePaid,
+				tip: 0
+			};
+
+            // Submit the order to Firebase
+			const newOrderRef = push(dbRef(db, 'Orders'));
+            const newOrderId = newOrderRef.key;
+			await set(newOrderRef, {
+				id: newOrderId,
+				...OrderSubmission
+			});
+
+            // Submit rating's data to Firebase
             const newRatingRef = push(dbRef(db, 'Ratings'));
-            set(newRatingRef, {
+            await set(newRatingRef, {
                 id: newRatingRef.key,
-                ...submission
+                order_id: newOrderId,
+                ...ratingsSubmission
             })
                 .then(() => {
                     console.log('Data submitted successfully');
@@ -160,6 +189,7 @@ export default {
                         },
                     }).showToast();
 
+                    // Reset selections and UI states
                     this.resetMenuSelections();
                     this.collapseAllAccordions();
                     this.initializeSurvey();

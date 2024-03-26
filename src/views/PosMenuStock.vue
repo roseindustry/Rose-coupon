@@ -22,6 +22,7 @@ export default {
 				status: '',
 				purchasePrice: '',
 				sellingPrice: '',
+				iva: 16
 			},
 			menuItems: [],
 			categories: [],
@@ -204,6 +205,7 @@ export default {
 				purchasePrice: this.menu.purchasePrice,
 				sellingPrice: this.menu.sellingPrice,
 				status: this.menu.status,
+				iva: this.menu.iva,
 				image: imageUrl,
 				tenant_id: tenantId
 			};
@@ -404,6 +406,13 @@ export default {
 										</div>
 									</div>
 									<div class="d-flex align-items-center mb-3">
+										<div class="w-100px">IVA:</div>
+										<div class="flex-1">
+											<input type="number" class="form-control" v-model="menu.iva"
+												:disabled="!menu.isEditing" />
+										</div>
+									</div>
+									<div class="d-flex align-items-center mb-3">
 										<div class="w-100px">Disponible:</div>
 										<div class="flex-1">
 											<div class="form-check form-switch">
@@ -480,16 +489,34 @@ export default {
 							<!-- costos -->
 							<div class="row mb-3">
 								<!-- Precio de venta-->
-								<div class=" col mb-3">
+								<div class="col mb-3">
 									<label for="menuItemPrice" class="form-label">Precio de compra</label>
-									<input type="number" class="form-control" id="menuItemPrice"
-										v-model.number="menu.purchasePrice" required>
+									<div class="input-group">
+										<span class="input-group-text">$</span>
+										<input type="number" class="form-control" id="menuItemPrice"
+											v-model.number="menu.purchasePrice" required>
+									</div>
 								</div>
 								<!-- Precio de venta-->
 								<div class="col mb-3">
 									<label for="menuItemPrice" class="form-label">Precio de venta</label>
-									<input type="number" class="form-control" id="menuItemPrice"
-										v-model.number="menu.sellingPrice" required>
+									<div class="input-group">
+										<span class="input-group-text">$</span>
+										<input type="number" class="form-control" id="menuItemPrice"
+											v-model.number="menu.sellingPrice" required>
+									</div>
+								</div>
+							</div>
+							<!-- IVA -->
+							<div class="row mb-3">
+								<div class=" col mb-3">
+									<label for="menuItemIva" class="form-label">IVA</label>
+									<div class="input-group" style="width: 30%;">
+										<span class="input-group-text">$</span>
+										<input type="number" class="form-control" id="menuItemIva"
+											v-model.number="menu.iva" required>
+									</div>
+
 								</div>
 							</div>
 							<!-- Disponibilidad -->

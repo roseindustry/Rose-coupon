@@ -404,12 +404,10 @@ export default {
 			}
 		},
 		submitOrderToKitchen() {
-			// const userStore = useUserStore(); // Access the user store for user_id
-
 			// Check if the order array is empty and show a toast if true
 			if (this.order.length === 0) {
 				Toastify({
-					text: "La orden está vacía",
+					text: "Orden vacía",
 					duration: 3000,
 					close: true,
 					gravity: "top",
@@ -426,7 +424,7 @@ export default {
 			const orderNumber = this.nextOrderNumber;
 			const tableNumber = this.tableNumber;
 			const totalPricePaid = parseFloat(this.getTotalPrice());
-			const status = 'Pending'; // Example status
+			const status = 'Pending';
 			const type = this.isTakeaway ? 'Takeaway' : 'DineIn';
 			const tip = this.tip;
 
@@ -441,7 +439,6 @@ export default {
 				type,
 				menuItems: this.order.map(item => ({
 					id: item.id,
-					title: item.title,
 					price: item.price,
 					quantity: item.quantity,
 					totalPricePerItem: item.price * item.quantity,

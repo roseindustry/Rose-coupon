@@ -111,32 +111,26 @@ export default {
                     let cedula = '';
                     if (userSnapshot.exists()) {
                         const user = userSnapshot.val();
-                        userName = `${user.firstName} ${user.lastName}`; // Assuming these fields exist
+                        userName = `${user.firstName} ${user.lastName}`;
                         cedula = user.identification;
                     }
 
                     let totalPaid = 0;
+                    let orderItemsDetails = [];
 
-                    // Fetch MenuItem details
-                    const menuItemsDetails = await Promise.all(rating.order.map(async (orderItem) => {
-                        totalPaid += orderItem.price * orderItem.quantity;
-                        const menuItemSnapshot = await get(dbRef(db, `MenuItems/${orderItem.MenuItem_id}`));
-                        if (menuItemSnapshot.exists()) {
-                            return {
-                                ...menuItemSnapshot.val(),
-                                quantity: orderItem.quantity,
-                                price: orderItem.price
-                            };
+                    if (rating.order_id) {
+                        const orderSnapshot = await get(dbRef(db, `Orders/${rating.order_id}`));
+                        if (orderSnapshot.exists()) {
+                            const order = orderSnapshot.val();
+                            orderItemsDetails = order.menuItems || [];
+                            totalPaid = order.totalPricePaid || 0;
                         }
-                        return null;
-                    }));
-
-                    const filteredMenuItems = menuItemsDetails.filter(item => item !== null);
+                    }
 
                     return {
                         ...rating,
                         id: ratingId,
-                        menuItems: filteredMenuItems,
+                        orderItems: orderItemsDetails,
                         userName,
                         cedula,
                         totalPaid,
@@ -146,6 +140,7 @@ export default {
                 this.ratings = await Promise.all(ratingsPromises);
             }
         },
+
         formatTotalPaid(value) {
             return isNaN(value) || value === undefined ? 0 : value;
         },
@@ -154,7 +149,7 @@ export default {
             this.endDate = null;
         },
         openOrderModal(rating) {
-            this.selectedRatingMenuItems = rating.menuItems;
+            this.selectedRatingMenuItems = rating.orderItems;
             new Modal(document.getElementById('orderModal')).show();
         },
         toggleSortOrder() {
@@ -208,137 +203,135 @@ export default {
 };
 </script>
 <template>
-    <div class="container">
-        <div class="pos-content-container d-flex justify-content-end align-items-center">
-            <button type="button" class="btn btn-theme btn-primary" @click="exportToExcel">Descargar reporte</button>
+    <div class="mb-md-4 mb-3 d-md-flex">
+        <div class="mt-md-0 mt-2"><a href="#" class="text-body text-decoration-none" @click="exportToExcel">
+                <i class="fa fa-download fa-fw me-1 text-muted"></i> Exportar</a>
         </div>
-
-        <h2 class="mb-5 text-center">Apartado de consumo por Encuesta</h2>
-        <div class="shadow-lg p-3 mb-5 bg-body rounded">
-            <div class="search-box mb-3">
-                <input v-model="searchQuery" placeholder="Buscar cliente por cedula..." class="form-control">
-            </div>
-            <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="flexSwitchCheckDefault" v-model="filterByDate">
-                <label class="form-check-label" for="flexSwitchCheckDefault">Filtrar por fecha</label>
-            </div>
-            <div v-if="filterByDate" style="margin-bottom: 20px;">
-                <div class="row g-3 align-items-center">
-                    <!-- Start Date Picker Column -->
-                    <div class="col-4 d-flex justify-content-center">
-                        <div class="datepicker-wrapper">
-                            <div class="datepicker-icon">
-                                <i class="fa fa-fw fa-calendar"></i>
-                            </div>
-                            <datepicker id="datepicker1" class="form-control custom-datepicker" v-model="startDate"
-                                aria-describedby="datepicker1-addon1"></datepicker>
+    </div>
+    <div class="shadow-lg p-3 mb-5 bg-body rounded">
+        <div class="search-box mb-3">
+            <input v-model="searchQuery" placeholder="Buscar cliente por cedula..." class="form-control">
+        </div>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="flexSwitchCheckDefault" v-model="filterByDate">
+            <label class="form-check-label" for="flexSwitchCheckDefault">Filtrar por fecha</label>
+        </div>
+        <div v-if="filterByDate" style="margin-bottom: 20px;">
+            <div class="row g-3 align-items-center">
+                <!-- Start Date Picker Column -->
+                <div class="col-4 d-flex justify-content-center">
+                    <div class="datepicker-wrapper">
+                        <div class="datepicker-icon">
+                            <i class="fa fa-fw fa-calendar"></i>
                         </div>
-                    </div>
-                    <!-- End Date Picker Column -->
-                    <div class="col-4 d-flex justify-content-center">
-                        <div class="datepicker-wrapper">
-                            <div class="datepicker-icon">
-                                <i class="fa fa-fw fa-calendar"></i>
-                            </div>
-                            <datepicker id="datepicker2" class="form-control custom-datepicker" v-model="endDate"
-                                aria-describedby="datepicker2-addon2"></datepicker>
-                        </div>
-                    </div>
-                    <!-- Clear Filter Button Column -->
-                    <div class="col-4 d-flex justify-content-center">
-                        <button type="button" class="btn btn-theme btn-block" @click="clearDateFilter">Limpiar
-                            filtro</button>
+                        <datepicker id="datepicker1" class="form-control custom-datepicker" v-model="startDate"
+                            aria-describedby="datepicker1-addon1"></datepicker>
                     </div>
                 </div>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-bordered table-hover shadow-sm text-center">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Fecha de Visita</th>
-                            <th>Puntuacion</th>
-                            <th>Comentarios</th>
-                            <th>Cliente</th>
-                            <th>Cedula</th>
-                            <th>Total gastado en el negocio <a href="#" class="btn" data-toggle="tooltip"
-                                    data-placement="top" title="Ordenar" @click.prevent="toggleSortOrder"><i
-                                        class="fa-solid fa-sort"></i></a></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="rating in paginatedRatings" :key="rating.id">
-                            <td>{{ rating.date }}</td>
-                            <td><i class="fa fa-star" v-for="n in parseInt(rating.ratingValue)" :key="n"
-                                    aria-hidden="true"></i><a href="#" @click="openOrderModal(rating)"><i
-                                        class="fa-solid fa-magnifying-glass" style="margin-left: 5px;"></i></a></td>
-                            <td>{{ rating.comment }}</td>
-                            <td>{{ rating.userName }}</td>
-                            <td>{{ rating.cedula }}</td>
-                            <td>${{ formatTotalPaid(rating.totalPaid).toFixed(2) }}</td>
-                        </tr>
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <th colspan="5">Total</th>
-                            <th>${{ totalPaidOnStore }}</th>
-                        </tr>
-                    </tfoot>
-                </table>
-                <nav aria-label="Page navigation">
-                    <ul class="pagination">
-                        <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                            <a class="page-link" href="#" @click.prevent="currentPage--" aria-label="Previous">
-                                <span aria-hidden="true">&laquo;</span>
-                            </a>
-                        </li>
-                        <!-- Dynamic page links could go here -->
-                        <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                            <a class="page-link" href="#" @click.prevent="currentPage++" aria-label="Next">
-                                <span aria-hidden="true">&raquo;</span>
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
+                <!-- End Date Picker Column -->
+                <div class="col-4 d-flex justify-content-center">
+                    <div class="datepicker-wrapper">
+                        <div class="datepicker-icon">
+                            <i class="fa fa-fw fa-calendar"></i>
+                        </div>
+                        <datepicker id="datepicker2" class="form-control custom-datepicker" v-model="endDate"
+                            aria-describedby="datepicker2-addon2"></datepicker>
+                    </div>
+                </div>
+                <!-- Clear Filter Button Column -->
+                <div class="col-4 d-flex justify-content-center">
+                    <button type="button" class="btn btn-theme btn-block" @click="clearDateFilter">Limpiar
+                        filtro</button>
+                </div>
             </div>
         </div>
+        <div class="table-responsive">
+            <table class="table table-hover text-nowrap">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Fecha de Visita</th>
+                        <th>Puntuacion</th>
+                        <th>Comentarios</th>
+                        <th>Cliente</th>
+                        <th>Cedula</th>
+                        <th>Total pagado <a href="#" class="btn" data-toggle="tooltip"
+                                data-placement="top" title="Ordenar" @click.prevent="toggleSortOrder"><i
+                                    class="fa-solid fa-sort"></i></a></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="rating in paginatedRatings" :key="rating.id">
+                        <td>{{ rating.date }}</td>
+                        <td><i class="fa fa-star" v-for="n in parseInt(rating.ratingValue)" :key="n"
+                                aria-hidden="true"></i><a href="#" @click.prevent="openOrderModal(rating)"><i
+                                    class="fa-solid fa-magnifying-glass" style="margin-left: 5px;"></i></a></td>
+                        <td>{{ rating.comment }}</td>
+                        <td>{{ rating.userName }}</td>
+                        <td>{{ rating.cedula }}</td>
+                        <td>${{ formatTotalPaid(rating.totalPaid).toFixed(2) }}</td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="5">Total</th>
+                        <th>${{ totalPaidOnStore }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+            <nav aria-label="Page navigation">
+                <ul class="pagination">
+                    <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                        <a class="page-link" href="#" @click.prevent="currentPage--" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    <!-- Dynamic page links could go here -->
+                    <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                        <a class="page-link" href="#" @click.prevent="currentPage++" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
 
-        <!-- Order Modal -->
-        <div class="modal fade" id="orderModal" tabindex="-1" aria-labelledby="orderModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="orderModalLabel">Orden Completa</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Nombre</th>
-                                    <th>Cantidad</th>
-                                    <th>Precio por unidad</th>
-                                    <th>Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="menuItem in selectedRatingMenuItems" :key="menuItem.id">
-                                    <td>{{ menuItem.name }}</td>
-                                    <td>{{ menuItem.quantity }}</td>
-                                    <td>{{ menuItem.price.toFixed(2) }}</td>
-                                    <td>{{ (menuItem.quantity * menuItem.price).toFixed(2) }}</td>
-                                </tr>
-                            </tbody>
-                            <tfoot>
-                                <tr>
-                                    <th colspan="3">Total pagado en factura</th>
-                                    <th>{{ totalInvoice }}</th>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                    </div>
+    <!-- Order Modal -->
+    <div class="modal fade" id="orderModal" tabindex="-1" aria-labelledby="orderModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="orderModalLabel">Orden Completa</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Cantidad</th>
+                                <th>Precio por unidad</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="menuItem in selectedRatingMenuItems" :key="menuItem.id">
+                                <td>{{ menuItem.title }}</td>
+                                <td>{{ menuItem.quantity }}</td>
+                                <td>{{ menuItem.price.toFixed(2) }}</td>
+                                <td>{{ (menuItem.quantity * menuItem.price).toFixed(2) }}</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th colspan="3">Total pagado en factura</th>
+                                <th>{{ totalInvoice }}</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>

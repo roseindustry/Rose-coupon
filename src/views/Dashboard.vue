@@ -1,9 +1,11 @@
 <script>
+import { RouterLink } from 'vue-router';
 import { useAppVariableStore } from '@/stores/app-variable';
 import { useUserStore } from '@/stores/user-role';
 import { useTenancyStore } from '@/stores/tenancy';
 import { getSubdomain } from '@/utils/subdomain';
 import apexchart from '@/components/plugins/Apexcharts.vue';
+import moment from 'moment';
 import { db } from '@/firebase/init';
 import { ref as dbRef, get, child, query, orderByChild, equalTo } from 'firebase/database';
 
@@ -13,12 +15,15 @@ const tenancyStore = useTenancyStore();
 
 export default {
 	components: {
-		apexchart: apexchart
+		apexchart
 	},
 	data() {
 		return {
 			userName: '',
-			ratingsData: [],
+			incomeArray: [],
+			weeklyOrders: [],
+			weeklyIncome: 0,
+			maxWeeklyOrders: 40,
 			clients: [],
 			renderComponent: true,
 			chart: {
@@ -34,13 +39,17 @@ export default {
 		}
 	},
 	computed: {
-		weeklyIncome() {
-			return this.getThisWeeksRatings().reduce((acc, curr) => {
-				return acc + parseFloat(curr.totalPaid);
-			}, 0);
+		weeklyOrdersProgress() {
+			const progress = (this.weeklyOrders.length / this.maxWeeklyOrders) * 100;
+			return Math.min(progress, 100);
 		},
 	},
 	methods: {
+		async initializeData() {
+			await this.fetchUserData();
+			await this.fetchIncomeData();
+			await this.fetchClients();
+		},
 		fetchUserData() {
 			const userId = userStore.userId;
 			const userRef = dbRef(db);
@@ -56,42 +65,26 @@ export default {
 					console.error(error);
 				});
 		},
-		async fetchRatingsData() {
+		async fetchIncomeData() {
 			const tenantId = tenancyStore.tenant.key;
 
-			const ratingsRef = query(dbRef(db, 'Ratings'), orderByChild('tenant_id'), equalTo(tenantId));
-			const ratingsSnapshot = await get(ratingsRef);
+			const incomeRef = query(dbRef(db, 'Orders'), orderByChild('tenant_id'), equalTo(tenantId));
+			const incomeSnapshot = await get(incomeRef);
 
-			if (ratingsSnapshot.exists()) {
-				const ratingsData = ratingsSnapshot.val();
+			if (incomeSnapshot.exists()) {
+				const incomeData = incomeSnapshot.val();
 
-				const ratingsPromises = Object.keys(ratingsData).map(async (ratingId) => {
-					const rating = ratingsData[ratingId];
-
-					let totalPaid = 0;
-
-					// Fetch MenuItem details
-					const menuItemsDetails = await Promise.all(rating.order.map(async (orderItem) => {
-						totalPaid += orderItem.price * orderItem.quantity;
-						const menuItemSnapshot = await get(dbRef(db, `MenuItems/${orderItem.MenuItem_id}`));
-						if (menuItemSnapshot.exists()) {
-							return {
-								...menuItemSnapshot.val(),
-								quantity: orderItem.quantity,
-								price: orderItem.price
-							};
-						}
-						return null;
-					}));
-
+				const incomePromises = Object.entries(incomeData).map(async ([orderId, order]) => {
 					return {
-						...rating,
-						id: ratingId,
-						totalPaid
+						...order,
+						id: orderId,
 					};
 				});
 
-				this.ratingsData = await Promise.all(ratingsPromises);
+				this.incomeArray = await Promise.all(incomePromises);
+			} else {
+				// Handle the case where no ratings are found
+				this.incomeArray = [];
 			}
 		},
 		async fetchClients() {
@@ -101,14 +94,34 @@ export default {
 			// Filter users to include only those with the role 'cliente'
 			this.clients = allUsers.filter(user => user.role === 'cliente');
 		},
-		getThisWeeksRatings() {
-			const startOfWeek = this.getStartOfWeek(new Date());
-			const endOfWeek = new Date(startOfWeek.getTime() + (6 * 24 * 60 * 60 * 1000)); // 6 days later
+		async calculateWeeklyIncome() {
+			await this.fetchIncomeData();
 
-			return this.ratingsData.filter(rating => {
-				const ratingDate = new Date(rating.date);
-				return ratingDate >= startOfWeek && ratingDate <= endOfWeek;
+			let chartLabels = [];
+			let chartSeriesData = [];
+
+			const startOfWeek = moment().startOf('isoWeek');
+			const endOfWeek = moment().endOf('isoWeek');
+
+			const weeklyOrders = this.incomeArray.filter(order => {
+				const orderDate = moment(order.orderDate, 'DD/MM/YYYY');
+				return orderDate >= startOfWeek && orderDate <= endOfWeek;
 			});
+
+			this.weeklyOrders = weeklyOrders;
+
+			let dailyIncome = {};
+
+			weeklyOrders.forEach(order => {
+				const orderDate = moment(order.orderDate, 'DD/MM/YYYY').format('DD/MM/YYYY'); // Format date as needed
+				if (!dailyIncome[orderDate]) {
+					dailyIncome[orderDate] = 0;
+				}
+				dailyIncome[orderDate] += parseFloat(order.totalPricePaid || 0);
+			});
+
+			this.weeklyIncome = weeklyOrders.reduce((acc, order) => acc + parseFloat(order.totalPricePaid || 0), 0);
+
 		},
 		getStartOfWeek(d) {
 			const date = new Date(d);
@@ -219,8 +232,6 @@ export default {
 				this.chart.options = this.getChartOptions();
 			});
 		})
-
-		this.fetchUserData();
 	},
 	async mounted() {
 		const tenancyStore = useTenancyStore();
@@ -235,148 +246,129 @@ export default {
 			console.error("Tenant could not be found or created");
 		}
 
-		await this.fetchRatingsData();
-		await this.fetchClients();
+		await this.initializeData();
+		await this.calculateWeeklyIncome();
 	}
 }
 </script>
 <template>
-	<h1 class="page-header mb-3">
-		Hola, {{ this.userName }}. <small>Aquí esta un resumen de tu establecimiento hoy.</small>
-	</h1>
+	<div class="container py-4">
+		<h1 class="page-header mb-4">Hola, {{ this.userName }}. <small>Aquí está un resumen de tu establecimiento
+				hoy.</small></h1>
+		<div class="row g-4">
+			<div class="col-lg-4">
+				<!-- Métricas de ventas -->
+				<div class="card custom-card">
+					<div class="card-body">
+						<h5 class="mb-3">Métricas de ventas</h5>
+						<p>Grafico de ventas semanales</p>
+						<apexchart :height="chart.height" :options="chart.options" :series="chart.series"></apexchart>
+					</div>
+				</div>
+			</div>
 
-	<!-- BEGIN row -->
-	<div class="row">
-		<!-- BEGIN col-6 -->
-		<!-- Ganancias semanales -->
-		<div class="col-lg-4 mb-3">
-			<card class="h-100 overflow-hidden">
-				<card-img-overlay class="d-block d-lg-none bg-blue rounded"></card-img-overlay>
-
-				<card-img-overlay class="d-none d-md-block bg-blue rounded mb-n1 mx-n1"
-					style="background-image: url(/assets/img/bg/wave-bg.png); background-position: right bottom; background-repeat: no-repeat; background-size: 100%;"></card-img-overlay>
-
-				<card-img-overlay class="d-none d-md-block bottom-0 top-auto">
-					<div class="row">
-						<div class="col-md-8 col-xl-6"></div>
-						<div class="col-md-4 col-xl-6 mb-n2">
-							<img src="/assets/img/page/dashboard.svg" alt="" class="d-block ms-n3 mb-5"
-								style="max-height: 310px">
+			<div class="col-lg-8">
+				<div class="row g-4">
+					<div class="col-md-6">
+						<!-- Ganancias semanales -->
+						<div class="card custom-card overflow-hidden" style="min-height: 230px;">
+							<div class="card-img-overlay card-img-overlay-enhanced"
+								style="background-image: url('/assets/img/bg/wave-bg.png');"></div>
+							<div class="card-img-overlay d-flex align-items-end justify-content-end p-3">
+								<img src="/assets/img/page/dashboard.svg" alt="" class="custom-overlay-icon">
+							</div>
+							<div class="card-body text-white" style="background: rgba(0,0,0,0.5);">
+								<h5 class="text-white mb-3">Ganancias de la semana</h5>
+								<h3 class="text-white">${{ weeklyIncome.toFixed(2) }}</h3>
+								<div><i class="fa fa-fw fa-shopping-bag icon-large text-white"></i></div>
+							</div>
 						</div>
 					</div>
-				</card-img-overlay>
 
-				<card-body class="position-relative text-white text-opacity-70">
-					<!-- BEGIN row -->
-					<div class="row">
-						<!-- BEGIN col-8 -->
-						<div class="col-md-8">
+					<div class="col-md-6">
+						<!-- Ordenes nuevas -->
+						<div class="card custom-card overflow-hidden fs-13px bg-gradient-custom-orange text-white"
+							style="min-height: 230px;">
+							<div class="card-img-overlay d-flex align-items-end justify-content-end p-3">
+								<img src="/assets/img/icon/order.svg" alt="" class="custom-overlay-icon">
+							</div>
+							<div class="card-body">
+								<h5 class="text-white mb-3 fs-16px">Ordenes de esta semana</h5>
+								<h3>{{ this.weeklyOrders.length }}</h3>
+								<p class="goal-description">Meta de la semana: 40 ordenes</p>
+								<div class="progress bg-black bg-opacity-50 mb-2 custom-progress-bar"
+									style="height: 6px; position: relative;">
+									<div class="progress-bar" :style="{ width: weeklyOrdersProgress + '%' }"></div>
+								</div>
+								<!-- <RouterLink to="/page/orders" class="text-white text-decoration-none">
+									Ver ordenes
+									<i class="fa fa-chevron-right ms-2"></i>
+								</RouterLink> -->
+							</div>
+						</div>
+					</div>
 
-							<div class="d-flex">
-								<div class="me-auto">
-									<h5 class="text-white text-opacity-80 mb-3">Ganancias semanales</h5>
-									<h3 class="text-white mt-n1 mb-1">${{ weeklyIncome.toFixed(2) }}</h3>
-									<div class="mt-1">
-										<i class="fa fa-fw fa-shopping-bag fs-28px text-black text-opacity-50"></i>
+					<!-- Clientes registrados -->
+					<div class="col-12">
+						<div class="card custom-card h-100">
+							<div class="card-body">
+								<h5 class="mb-3">Clientes registrados</h5>
+								<div class="d-flex align-items-center">
+									<div class="flex-grow-1">
+										<h3>{{ this.clients ? this.clients.length : 0 }}</h3>
+									</div>
+									<div class="bg-primary bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center"
+										style="width: 50px; height: 50px;">
+										<i class="fa fa-user fa-lg text-primary"></i>
 									</div>
 								</div>
 							</div>
-
-							<!-- <hr class="bg-white bg-opacity-75 mt-3 mb-3">
-
-							<div class="row">
-								<div class="col-6 col-lg-5">
-									<div class="mt-1">
-										<i class="fa fa-fw fa-shopping-bag fs-28px text-black text-opacity-50"></i>
-									</div>
-									<div class="mt-1">
-										<div>Ventas del local</div>
-										<div class="fw-600 text-white">$1,629.80</div>
-									</div>
-								</div>
-							</div> -->
-
 						</div>
-						<!-- END col-8 -->
 					</div>
-					<!-- END row -->
-				</card-body>
-			</card>
+				</div>
+			</div>
 		</div>
-		<!-- END col-6 -->
-
-		<!-- BEGIN col-6 -->
-		<div class="col-lg-4 mb-3">
-			<!-- BEGIN card -->
-			<card class="h-100">
-				<!-- BEGIN card-body -->
-				<card-body>
-					<div class="d-flex mb-3">
-						<div class="flex-grow-1">
-							<h5 class="mb-1">Metricas de ventas</h5>
-							<div class="fs-13px">Grafico de ventales semanales</div>
-						</div>
-						<a href="#" data-bs-toggle="dropdown" class="text-muted"><i class="fa fa-redo"></i></a>
-					</div>
-					<apexchart :height="chart.height" :options="chart.options" :series="chart.series"></apexchart>
-				</card-body>
-				<!-- END card-body -->
-			</card>
-			<!-- END card -->
-		</div>
-		<!-- END col-6 -->
-		<!-- BEGIN col-6 -->
-		<div class="col-lg-4">
-			<card class="mb-3 overflow-hidden fs-13px border-0 bg-gradient-custom-orange" style="min-height: 414px;">
-				<card-img-overlay class="mb-n4 me-n4 d-flex" style="bottom: 0; top: auto;">
-					<img src="/assets/img/icon/order.svg" alt="" class="ms-auto d-block mb-n3"
-						style="max-height: 105px">
-				</card-img-overlay>
-
-				<card-body class="position-relative">
-					<h5 class="text-white text-opacity-80 mb-3 fs-16px">Ordenes nuevas</h5>
-					<h3 class="text-white mt-n1">56</h3>
-					<div class="progress bg-black bg-opacity-50 mb-2" style="height: 6px">
-						<div class="progrss-bar progress-bar-striped bg-white" style="width: 80%"></div>
-					</div>
-					<div class="text-white text-opacity-80 mb-4"><i class="fa fa-caret-up"></i> 16% de incremento
-						<br>comparado a la semana anterior
-					</div>
-					<div><a href="#" class="text-white d-flex align-items-center text-decoration-none">Ver reporte <i
-								class="fa fa-chevron-right ms-2 text-white text-opacity-50"></i></a></div>
-				</card-body>
-			</card>
-		</div>
-		<!-- END col-6 -->
 	</div>
-	<!-- END row -->
-
-	<!-- BEGIN row -->
-	<div class="row justify-content-center">
-		<!-- BEGIN col-6 -->
-		<div class="col-xl-6 mb-3">
-			<card class="h-100">
-				<card-body>
-					<div class="d-flex mb-3">
-						<div class="flex-grow-1">
-							<h5 class="mb-1">Clientes registrados</h5>
-						</div>
-						<a href="javascript:;" class="text-secondary"><i class="fa fa-redo"></i></a>
-					</div>
-
-					<div class="d-flex">
-						<div class="flex-grow-1">
-							<h3 class="mb-1">{{ this.clients ? this.clients.length : 0 }}</h3>
-						</div>
-						<div
-							class="w-50px h-50px bg-primary bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center">
-							<i class="fa fa-user fa-lg text-primary"></i>
-						</div>
-					</div>
-				</card-body>
-			</card>
-		</div>
-		<!-- END col-6 -->
-	</div>
-	<!-- END row -->
 </template>
+
+
+<style scoped>
+.custom-card {
+	transition: transform .3s ease-in-out, box-shadow .3s ease-in-out;
+}
+
+.custom-card:hover {
+	transform: translateY(-5px);
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.bg-gradient-custom-orange {
+	background-image: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+}
+
+.custom-progress-bar {
+	background-color: #fff;
+}
+
+.icon-large {
+	font-size: 2rem;
+}
+
+.text-shadow {
+	text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.card-img-overlay-enhanced {
+	background-size: cover;
+	background-position: center;
+}
+
+.custom-overlay-icon {
+	max-height: 70px;
+	transition: transform .3s ease-in-out;
+}
+
+.custom-overlay-icon:hover {
+	transform: scale(1.1);
+}
+</style>

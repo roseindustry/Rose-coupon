@@ -28,33 +28,53 @@ export default {
 
             if (ratingsSnapshot.exists()) {
                 const ratingsData = ratingsSnapshot.val();
+
                 for (const ratingId in ratingsData) {
                     const rating = ratingsData[ratingId];
 
-                    // Fetch MenuItem details
-                    const menuItemsDetails = await Promise.all(rating.order.map(async (orderItem) => {
-                        const menuItemSnapshot = await get(dbRef(db, `MenuItems/${orderItem.MenuItem_id}`));
-                        if (menuItemSnapshot.exists()) {
-                            return {
-                                ...menuItemSnapshot.val(),
-                                quantity: orderItem.quantity
-                            };
+                    let menuItemsDetails = [];
+
+                    // Check if the rating has an order array directly
+                    if (rating.order && Array.isArray(rating.order)) {
+                        menuItemsDetails = await this.fetchMenuItemsDetails(rating.order);
+                    }
+                    // If the rating references an order_id, fetch the order and then the menu item details
+                    else if (rating.order_id) {
+                        const orderRef = dbRef(db, `Orders/${rating.order_id}`);
+                        const orderSnapshot = await get(orderRef);
+                        if (orderSnapshot.exists()) {
+                            const orderData = orderSnapshot.val();
+                            // Assuming orderData.menuItems is the array of menu item details
+                            menuItemsDetails = await this.fetchMenuItemsDetails(orderData.menuItems);
                         }
-                        return null;
-                    }));
+                    }
 
                     const filteredMenuItems = menuItemsDetails.filter(item => item !== null);
 
+                    // Push the assembled data into your ratings array
                     this.ratings.push({
                         id: ratingId,
                         menuItems: filteredMenuItems,
                         comment: rating.comment,
                         ratingValue: rating.ratingValue,
                         date: rating.date,
+                        // Add more rating details if needed
                     });
                 }
             }
         },
+        async fetchMenuItemsDetails(menuItems) {
+            return await Promise.all(menuItems.map(async (orderItem) => {
+                const menuItemSnapshot = await get(dbRef(db, `MenuItems/${orderItem.id}`));
+                if (menuItemSnapshot.exists()) {
+                    return {
+                        ...menuItemSnapshot.val(),
+                        quantity: orderItem.quantity
+                    };
+                }
+                return null;
+            }));
+        }
     },
 };
 </script>
