@@ -116,21 +116,37 @@ export default {
                     }
 
                     let totalPaid = 0;
-                    let orderItemsDetails = [];
+                    let menuItemsWithDetails = [];
 
                     if (rating.order_id) {
                         const orderSnapshot = await get(dbRef(db, `Orders/${rating.order_id}`));
                         if (orderSnapshot.exists()) {
                             const order = orderSnapshot.val();
-                            orderItemsDetails = order.menuItems || [];
                             totalPaid = order.totalPricePaid || 0;
+
+                            // Fetch the menuItem's details
+                            const menuItemDetailsPromises = order.menuItems.map(async (menuItem) => {
+                                const menuItemRef = dbRef(db, `MenuItems/${menuItem.id}`);
+                                const snapshot = await get(menuItemRef);
+                                if (snapshot.exists()) {
+                                    const menuItemDetails = snapshot.val();
+                                    return {
+                                        ...menuItem, // id, price, quantity from the order
+                                        name: menuItemDetails.name,
+                                        image: menuItemDetails.image,
+                                    };
+                                }
+                                return menuItem; // Return original menuItem if details not found
+                            });
+
+                            menuItemsWithDetails = await Promise.all(menuItemDetailsPromises);
                         }
                     }
 
                     return {
                         ...rating,
                         id: ratingId,
-                        orderItems: orderItemsDetails,
+                        orderItems: menuItemsWithDetails,
                         userName,
                         cedula,
                         totalPaid,
@@ -254,9 +270,9 @@ export default {
                         <th>Comentarios</th>
                         <th>Cliente</th>
                         <th>Cedula</th>
-                        <th>Total pagado <a href="#" class="btn" data-toggle="tooltip"
-                                data-placement="top" title="Ordenar" @click.prevent="toggleSortOrder"><i
-                                    class="fa-solid fa-sort"></i></a></th>
+                        <th>Total pagado <a href="#" class="btn" data-toggle="tooltip" data-placement="top"
+                                title="Ordenar" @click.prevent="toggleSortOrder"><i class="fa-solid fa-sort"></i></a>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -316,7 +332,7 @@ export default {
                         </thead>
                         <tbody>
                             <tr v-for="menuItem in selectedRatingMenuItems" :key="menuItem.id">
-                                <td>{{ menuItem.title }}</td>
+                                <td>{{ menuItem.name }}</td>
                                 <td>{{ menuItem.quantity }}</td>
                                 <td>{{ menuItem.price.toFixed(2) }}</td>
                                 <td>{{ (menuItem.quantity * menuItem.price).toFixed(2) }}</td>

@@ -253,15 +253,14 @@ export default {
 </script>
 <template>
 	<div class="container py-4">
-		<h1 class="page-header mb-4">Hola, {{ this.userName }}. <small>Aquí está un resumen de tu establecimiento
-				hoy.</small></h1>
+		<h1 class="page-header mb-4">Hola, {{ this.userName }}. <small>Aquí está un resumen de tu establecimiento esta semana.</small></h1>
 		<div class="row g-4">
 			<div class="col-lg-4">
 				<!-- Métricas de ventas -->
 				<div class="card custom-card">
 					<div class="card-body">
 						<h5 class="mb-3">Métricas de ventas</h5>
-						<p>Grafico de ventas semanales</p>
+						<p>Gráfico de ventas semanales</p>
 						<apexchart :height="chart.height" :options="chart.options" :series="chart.series"></apexchart>
 					</div>
 				</div>
@@ -293,7 +292,7 @@ export default {
 								<img src="/assets/img/icon/order.svg" alt="" class="custom-overlay-icon">
 							</div>
 							<div class="card-body">
-								<h5 class="text-white mb-3 fs-16px">Ordenes de esta semana</h5>
+								<h5 class="text-white mb-3 fs-16px">Órdenes de esta semana</h5>
 								<h3>{{ this.weeklyOrders.length }}</h3>
 								<p class="goal-description">Meta de la semana: 40 ordenes</p>
 								<div class="progress bg-black bg-opacity-50 mb-2 custom-progress-bar"

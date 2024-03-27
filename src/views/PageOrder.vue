@@ -19,6 +19,8 @@ export default {
 			modalOrder: '',
 			activeTab: 'allTab',
 			rating: null,
+			searchQuery: null,
+			selectedOrderMenuItems: []
 		}
 	},
 	watch: {
@@ -33,17 +35,25 @@ export default {
 	computed: {
 		filteredOrders() {
 			let filtered = this.orders;
+			// Filter orders by the search input
+			const searchQueryString = this.searchQuery?.toString().trim();
+			if (searchQueryString) {
+				filtered = filtered.filter(order =>
+					order.clientName.toString().includes(searchQueryString)
+				);
+			}
+
+			// Tab filter
 			switch (this.activeTab) {
 				case 'allTab':
-					return this.orders;
+					return filtered;
 				case 'pendingTab':
-					return this.orders.filter(order => order.status === 'Pending');
+					return filtered.filter(order => order.status === 'Pending');
 				case 'completedTab':
-					return this.orders.filter(order => order.status === 'Completed');
+					return filtered.filter(order => order.status === 'Completed');
 				default:
-					return this.orders;
+					return filtered;
 			}
-			return filtered;
 		},
 		paginatedRatings() {
 			let start = (this.currentPage - 1) * this.pageSize;
@@ -52,6 +62,9 @@ export default {
 		},
 		totalPages() {
 			return Math.ceil(this.filteredOrders.length / this.pageSize);
+		},
+		totalInvoice() {
+			return this.selectedOrderMenuItems.reduce((total, item) => total + item.quantity * item.price, 0).toFixed(2);
 		},
 	},
 	methods: {
@@ -104,11 +117,28 @@ export default {
 							});
 						}
 
+						// Fetch the menuItem's details
+						const menuItemDetailsPromises = order.menuItems.map(async (menuItem) => {
+							const menuItemRef = dbRef(db, `MenuItems/${menuItem.id}`);
+							const snapshot = await get(menuItemRef);
+							if (snapshot.exists()) {
+								const menuItemDetails = snapshot.val();
+								return {
+									...menuItem, // id, price, quantity from the order
+									name: menuItemDetails.name,
+								};
+							}
+							return menuItem; // Return original menuItem if details not found
+						});
+
+						const menuItemsWithDetails = await Promise.all(menuItemDetailsPromises);
+
 						return {
 							id: key,
 							...order,
 							clientName,
 							itemsCount,
+							menuItems: menuItemsWithDetails,
 						};
 					});
 
@@ -180,6 +210,11 @@ export default {
 				console.error("Error fetching rating: ", error);
 			}
 		},
+		openOrderModal(order) {
+			this.selectedOrderMenuItems = order.menuItems;
+			console.log(this.selectedOrderMenuItems);
+			new Modal(document.getElementById('orderModal')).show();
+		},
 		setActiveTab(tabId) {
 			this.activeTab = tabId;
 		},
@@ -238,7 +273,8 @@ export default {
 				<div class="input-group mb-4">
 					<div class="flex-fill position-relative">
 						<div class="input-group">
-							<input type="text" class="form-control ps-35px" placeholder="Filter orders" />
+							<input type="text" v-model="searchQuery" class="form-control ps-35px"
+								placeholder="Filter orders" />
 							<div class="input-group-text position-absolute top-0 bottom-0 bg-none border-0"
 								style="z-index: 1020;">
 								<i class="fa fa-search opacity-5"></i>
@@ -263,7 +299,7 @@ export default {
 					<table class="table table-hover text-nowrap">
 						<thead>
 							<tr>
-								<th class="border-top-0 pt-0 pb-2">Orden</th>
+								<th class="border-top-0 pt-0 pb-2">Orden #</th>
 								<th class="border-top-0 pt-0 pb-2">Fecha</th>
 								<th class="border-top-0 pt-0 pb-2">Cliente</th>
 								<th class="border-top-0 pt-0 pb-2">Total</th>
@@ -276,8 +312,8 @@ export default {
 						<tbody>
 							<tr v-for="(order, index) in filteredOrders" :key="index">
 								<td class="align-middle">
-									<RouterLink :to="`/page/order-details/${order.id}`">#{{ order.orderNumber }}
-									</RouterLink>
+									<a href="#" @click.prevent="openOrderModal(order)">#{{ order.orderNumber }}
+									</a>
 								</td>
 								<td class="align-middle">{{ order.orderDate }}</td>
 								<td class="align-middle">{{ order.clientName }}</td>
@@ -347,7 +383,7 @@ export default {
 					<table class="table table-hover text-nowrap">
 						<thead>
 							<tr>
-								<th class="border-top-0 pt-0 pb-2">Orden</th>
+								<th class="border-top-0 pt-0 pb-2">Orden #</th>
 								<th class="border-top-0 pt-0 pb-2">Fecha</th>
 								<th class="border-top-0 pt-0 pb-2">Cliente</th>
 								<th class="border-top-0 pt-0 pb-2">Total</th>
@@ -431,7 +467,7 @@ export default {
 					<table class="table table-hover text-nowrap">
 						<thead>
 							<tr>
-								<th class="border-top-0 pt-0 pb-2">Orden</th>
+								<th class="border-top-0 pt-0 pb-2">Orden #</th>
 								<th class="border-top-0 pt-0 pb-2">Fecha</th>
 								<th class="border-top-0 pt-0 pb-2">Cliente</th>
 								<th class="border-top-0 pt-0 pb-2">Total</th>
@@ -488,6 +524,7 @@ export default {
 		</div>
 	</div>
 
+	<!-- Feedback modal -->
 	<div class="modal fade" id="ratingModal" tabindex="-1" aria-labelledby="ratingModalLabel" aria-hidden="true">
 		<div class="modal-dialog modal-dialog-centered">
 			<div class="modal-content">
@@ -535,5 +572,44 @@ export default {
 		</div>
 	</div>
 
-
+	<!-- Order Modal -->
+	<div class="modal fade" id="orderModal" tabindex="-1" aria-labelledby="orderModalLabel" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="orderModalLabel">Orden Completa</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<table class="table">
+						<thead>
+							<tr>
+								<th>Nombre</th>
+								<th>Cantidad</th>
+								<th>Precio por unidad</th>
+								<th>Total</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr v-for="menuItem in selectedOrderMenuItems" :key="menuItem.id">
+								<td>{{ menuItem.name }}</td>
+								<td>{{ menuItem.quantity }}</td>
+								<td>{{ menuItem.price.toFixed(2) }}</td>
+								<td>{{ (menuItem.quantity * menuItem.price).toFixed(2) }}</td>
+							</tr>
+						</tbody>
+						<tfoot>
+							<tr>
+								<th colspan="3">Total pagado en factura</th>
+								<th>{{ totalInvoice }}</th>
+							</tr>
+						</tfoot>
+					</table>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+				</div>
+			</div>
+		</div>
+	</div>
 </template>
