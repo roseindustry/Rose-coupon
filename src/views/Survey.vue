@@ -16,12 +16,14 @@ export default {
     name: 'DropdownMenu',
     data() {
         return {
+            tenantId: null,
             menuItems: [],
             categories: [],
             categoriesWithItems: [],
             selectedMenuItem: null,
             survey: null,
             today: '',
+            nextOrderNumber: null,
         };
     },
     computed: {
@@ -29,12 +31,33 @@ export default {
             return this.$route.name;
         }
     },
-    methods: {
-        async fetchMenuItems() {
-            const tenancyStore = useTenancyStore();
-            const tenantId = tenancyStore.tenant.key;
+    async mounted() {
+        
+        const now = moment();
+        this.today = now.toISOString();
 
-            const itemsRef = query(dbRef(db, 'MenuItems'), orderByChild('tenant_id'), equalTo(tenantId));
+        const userStore = useUserStore();
+        await userStore.fetchUser();
+
+        await this.initializeTenant();
+        this.initializeSurvey();
+        this.fetchLastOrderNumber();
+        this.fetchMenuItems();
+        this.fetchMenuCategories();
+    },
+    methods: {
+        async initializeTenant() {
+			const tenancyStore = useTenancyStore();
+			this.subdomain = getSubdomain();
+			await tenancyStore.findOrCreateTenant(this.subdomain);
+			if (tenancyStore.tenant) {
+				this.tenantId = tenancyStore.tenant.key;
+			} else {
+				console.error("Tenant could not be found or created");
+			}
+		},
+        async fetchMenuItems() {
+            const itemsRef = query(dbRef(db, 'MenuItems'), orderByChild('tenant_id'), equalTo(this.tenantId));
             onValue(itemsRef, (snapshot) => {
                 const data = snapshot.val();
                 this.menuItems = data ? Object.keys(data).map(key => ({
@@ -50,10 +73,7 @@ export default {
             });
         },
         async fetchMenuCategories() {
-            const tenancyStore = useTenancyStore();
-            const tenantId = tenancyStore.tenant.key;
-
-            const categoryRef = query(dbRef(db, 'Categories'), orderByChild('tenant_id'), equalTo(tenantId));
+            const categoryRef = query(dbRef(db, 'Categories'), orderByChild('tenant_id'), equalTo(this.tenantId));
             const categorySnapshot = await get(categoryRef);
 
             if (categorySnapshot.exists()) {
@@ -104,15 +124,24 @@ export default {
             this.survey.applyTheme(BorderlessDarkPanelless);
             this.survey.onComplete.add(this.submitResults);
         },
+        async fetchLastOrderNumber() {
+			if (!this.tenantId) return;
+
+			const ordersRef = query(dbRef(db, 'Orders'), orderByChild('tenant_id'), equalTo(this.tenantId));
+			const snapshot = await get(ordersRef);
+			let lastOrderNumber = 0;
+
+			snapshot.forEach((childSnapshot) => {
+				const order = childSnapshot.val();
+				if ('orderNumber' in order && order.tenant_id === this.tenantId) {
+					lastOrderNumber = Math.max(lastOrderNumber, order.orderNumber);
+				}
+			});
+			this.nextOrderNumber = lastOrderNumber + 1; 
+		},
         async submitResults(sender) {
             const userStore = useUserStore(); // Access the user store for user_id
-            const tenancyStore = useTenancyStore(); // Access the tenancy store for tenant_id
-
-            // Ensure tenant data is ready
-            await tenancyStore.findOrCreateTenant();
-
             const userId = userStore.userId;
-            const tenantId = tenancyStore.tenant.key;
             const results = sender.data;
 
             // Collect and prepare selected menu items
@@ -142,15 +171,15 @@ export default {
                 comment: results.comment,
                 date: this.today,
                 user_id: userId,
-                tenant_id: tenantId,
+                tenant_id: this.tenantId,
             };
 
             // OrderData
             const OrderSubmission = {
-				tenant_id: tenantId,
+				tenant_id: this.tenantId,
 				client_id: userId,
 				orderDate: this.today,
-				orderNumber: 0,
+				orderNumber: this.nextOrderNumber,
 				tableNumber: 0,
 				status: 'pending',
 				type: 'DineIn',
@@ -192,6 +221,7 @@ export default {
                     // Reset selections and UI states
                     this.resetMenuSelections();
                     this.collapseAllAccordions();
+                    this.fetchLastOrderNumber();
                     this.initializeSurvey();
                 })
                 .catch((error) => console.error('Error submitting data:', error));
@@ -209,28 +239,6 @@ export default {
                 new Collapse(item, { toggle: false }).hide();
             });
         },
-    },
-    async mounted() {
-        const userStore = useUserStore();
-        const tenancyStore = useTenancyStore();
-        const now = moment();
-        this.today = now.format('DD/MM/YYYY');
-
-        this.subdomain = getSubdomain();
-
-        // Automatically find or create tenant upon component mount
-        await tenancyStore.findOrCreateTenant(this.subdomain);
-        await userStore.fetchUser();
-
-        if (tenancyStore.tenant) {
-            this.tenantName = tenancyStore.tenant.name;
-        } else {
-            console.error("Tenant could not be found or created");
-        }
-
-        this.initializeSurvey();
-        this.fetchMenuItems();
-        this.fetchMenuCategories();
     }
 }
 </script>

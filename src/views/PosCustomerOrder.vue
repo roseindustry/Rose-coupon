@@ -1,10 +1,9 @@
-<script lang="ts">
+<script>
 import { RouterLink } from 'vue-router';
 import { db, auth, functions } from '@/firebase/init';
 import { httpsCallable } from 'firebase/functions';
 import { signOut } from 'firebase/auth';
 import { ref as dbRef, query, orderByChild, equalTo, push, set, get } from 'firebase/database';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { useAppOptionStore } from '@/stores/app-option';
 import { useTenancyStore } from '@/stores/tenancy';
 import { useUserStore } from '@/stores/user-role';
@@ -15,6 +14,11 @@ import 'toastify-js/src/toastify.css';
 import moment from 'moment';
 
 const appOption = useAppOptionStore();
+
+// Helper function defined outside the component export
+function isISODateString(dateString) {
+	return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(dateString);
+}
 
 export default {
 	data() {
@@ -79,7 +83,7 @@ export default {
 		appOption.appContentFullHeight = true;
 
 		const now = moment();
-		this.today = now.format('DD/MM/YYYY');
+		this.today = now.toISOString();
 
 		const userStore = useUserStore();
 		userStore.fetchUser();
@@ -231,18 +235,27 @@ export default {
 			const ordersRef = query(dbRef(db, 'Orders'), orderByChild('tenant_id'), equalTo(this.tenantId));
 			const ordersSnapshot = await get(ordersRef);
 
-			const today = moment().format('DD/MM/YYYY');
-
 			if (ordersSnapshot.exists()) {
 				const orderPromises = [];
 				this.orderHistory = [];
+
+				const startOfDay = moment().startOf('day');
+				const endOfDay = moment().endOf('day');
+
 				ordersSnapshot.forEach((childSnapshot) => {
 					const orderData = childSnapshot.val();
 
-					const orderDateFormat = "DD/MM/YYYY";
-					const orderDate = moment(orderData.orderDate, orderDateFormat).format("DD/MM/YYYY");
+					// Format date
+					let orderDate;
+					if (isISODateString(orderData.orderDate)) {
+						// ISO string format
+						orderDate = moment(orderData.orderDate);
+					} else {
+						// 'DD/MM/YYYY' format or other non-ISO string
+						orderDate = moment(orderData.orderDate, 'DD/MM/YYYY');
+					}
 
-					if (orderDate === today) {
+					if (orderDate.isBetween(startOfDay, endOfDay, null, '[]')) {
 						const clientDetailsPromise = get(dbRef(db, `Users/${orderData.client_id}`)).then(clientSnapshot => {
 							let clientName = 'Unknown';
 							let clientCedula = '';
@@ -253,6 +266,7 @@ export default {
 							}
 							return {
 								...orderData,
+								orderDate,
 								clientName,
 								clientCedula,
 								id: childSnapshot.key,
@@ -267,7 +281,7 @@ export default {
 					id: order.id,
 					orderNumber: order.orderNumber,
 					tableNumber: order.tableNumber,
-					date: order.orderDate,
+					date: moment(order.orderDate).format('DD/MM/YYYY'),
 					type: order.type,
 					totalPricePaid: order.totalPricePaid,
 					menuItems: order.menuItems,
@@ -513,70 +527,70 @@ export default {
 				this.searchResults = [];
 			}
 		},
-		async registerNewClient(email: String, password: string) {
-			const createUser = httpsCallable(functions, 'createUser');
-			try {
+		// async registerNewClient(email: String, password: string) {
+		// 	const createUser = httpsCallable(functions, 'createUser');
+		// 	try {
 
-				const result = await createUser({ email, password });
-				const newClient = result.user;
+		// 		const result = await createUser({ email, password });
+		// 		const newClient = result.user;
 
-				if (result.data.uid) {
-					console.log('User created successfully', result.data.uid);
+		// 		if (result.data.uid) {
+		// 			console.log('User created successfully', result.data.uid);
 
-					// Now that the user is created, let's save their additional info
-					const clientRef = dbRef(db, `Users/${user.uid}`);
-					await set(clientRef, {
-						email: newClient.email,
-						firstName: this.firstName,
-						lastName: this.lastName,
-						identification: this.identification,
-						phoneNumber: this.phoneNumber,
-						role: this.role,
-						tenant_id: this.tenantId // Linking user to tenant by tenant's Firebase-generated key
-					});
+		// 			// Now that the user is created, let's save their additional info
+		// 			const clientRef = dbRef(db, `Users/${user.uid}`);
+		// 			await set(clientRef, {
+		// 				email: newClient.email,
+		// 				firstName: this.firstName,
+		// 				lastName: this.lastName,
+		// 				identification: this.identification,
+		// 				phoneNumber: this.phoneNumber,
+		// 				role: this.role,
+		// 				tenant_id: this.tenantId // Linking user to tenant by tenant's Firebase-generated key
+		// 			});
 
-					//Toastify
-					Toastify({
-						text: "Nuevo cliente registrado con exito!",
-						duration: 3000,
-						close: true,
-						gravity: "top", // `top` or `bottom`
-						position: "right", // `left`, `center` or `right`
-						stopOnFocus: true, // Prevents dismissing of toast on hover
-						style: {
-							background: "linear-gradient(to right, #00b09b, #96c93d)",
-						},
-					}).showToast();
+		// 			//Toastify
+		// 			Toastify({
+		// 				text: "Nuevo cliente registrado con exito!",
+		// 				duration: 3000,
+		// 				close: true,
+		// 				gravity: "top", // `top` or `bottom`
+		// 				position: "right", // `left`, `center` or `right`
+		// 				stopOnFocus: true, // Prevents dismissing of toast on hover
+		// 				style: {
+		// 					background: "linear-gradient(to right, #00b09b, #96c93d)",
+		// 				},
+		// 			}).showToast();
 
-					// After successful signup assign new client to order
-					this.selectedClient = result;
+		// 			// After successful signup assign new client to order
+		// 			this.selectedClient = result;
 
-					this.addNewClient = false;
-					this.firstName = '';
-					this.lastName = '';
-					this.identification = '';
-					this.email = '';
-					this.phoneNumber = '';
-					this.password = '';
+		// 			this.addNewClient = false;
+		// 			this.firstName = '';
+		// 			this.lastName = '';
+		// 			this.identification = '';
+		// 			this.email = '';
+		// 			this.phoneNumber = '';
+		// 			this.password = '';
 
-				} else if (result.data.error) {
-					console.error('Error creating user', result.data.error);
-					Toastify({
-						text: "Error al registrar nuevo cliente.",
-						duration: 3000,
-						close: true,
-						gravity: "top", // `top` or `bottom`
-						position: "right", // `left`, `center` or `right`
-						stopOnFocus: true, // Prevents dismissing of toast on hover
-						style: {
-							background: "linear-gradient(to right, #ff5f6d, #ffc371)",
-						},
-					}).showToast();
-				}
-			} catch (error) {
-				console.error('Error calling createUser function', error);
-			}
-		},
+		// 		} else if (result.data.error) {
+		// 			console.error('Error creating user', result.data.error);
+		// 			Toastify({
+		// 				text: "Error al registrar nuevo cliente.",
+		// 				duration: 3000,
+		// 				close: true,
+		// 				gravity: "top", // `top` or `bottom`
+		// 				position: "right", // `left`, `center` or `right`
+		// 				stopOnFocus: true, // Prevents dismissing of toast on hover
+		// 				style: {
+		// 					background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+		// 				},
+		// 			}).showToast();
+		// 		}
+		// 	} catch (error) {
+		// 		console.error('Error calling createUser function', error);
+		// 	}
+		// },
 		selectUser(client) {
 			this.selectedClient = client;
 			this.searchQuery = '';
@@ -1107,7 +1121,7 @@ export default {
 							</div>
 
 							<h5 class="text-end mt-3">Total a cancelar: <span class="badge bg-success">${{
-			orderSumary.totalPricePaid }}</span></h5>
+									orderSumary.totalPricePaid }}</span></h5>
 						</div>
 					</div>
 				</div>

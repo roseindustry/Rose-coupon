@@ -7,6 +7,12 @@ import { Modal } from 'bootstrap';
 import datepicker from 'vue3-datepicker';
 import 'vue-datepicker-next/index.css';
 import * as XLSX from 'xlsx';
+import moment from 'moment';
+
+// Helper function defined outside the component export
+function isISODateString(dateString) {
+	return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(dateString);
+}
 
 export default {
     components: {
@@ -105,6 +111,15 @@ export default {
                 const ratingsPromises = Object.keys(ratingsData).map(async (ratingId) => {
                     const rating = ratingsData[ratingId];
 
+                    let ratingDate;
+					if (isISODateString(rating.date)) {
+						// ISO string format
+						ratingDate = moment(rating.date).format('DD/MM/YYYY');
+					} else {
+						// 'DD/MM/YYYY' format or other non-ISO string
+						ratingDate = moment(rating.date, 'DD/MM/YYYY').format('DD/MM/YYYY');
+					}
+
                     // Fetch related user details
                     const userSnapshot = await get(dbRef(db, `Users/${rating.user_id}`));
                     let userName = 'Unknown';
@@ -146,6 +161,7 @@ export default {
                     return {
                         ...rating,
                         id: ratingId,
+                        date: ratingDate,
                         orderItems: menuItemsWithDetails,
                         userName,
                         cedula,
@@ -192,12 +208,12 @@ export default {
             });
 
             // Convert the data to a worksheet
-            const worksheet = XLSX.utils.json_to_sheet(worksheet_data, { skipHeader: true });
+            const worksheet = XLSX.utils.json_to_sheet(worksheet_data, { skipHeader: false });
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
 
             // Export the workbook
-            XLSX.writeFile(workbook, 'report.xlsx');
+            XLSX.writeFile(workbook, 'reporte-por-encuesta.xlsx');
         },
 
     },

@@ -1,8 +1,13 @@
 <script>
-import { computed } from 'vue';
 import { useUserStore } from '@/stores/user-role';
 import { ref as dbRef, query, orderByChild, equalTo, get } from 'firebase/database';
 import { db } from '@/firebase/init';
+import moment from 'moment';
+
+// Helper function defined outside the component export
+function isISODateString(dateString) {
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(dateString);
+}
 
 export default {
     data() {
@@ -32,6 +37,16 @@ export default {
                 for (const ratingId in ratingsData) {
                     const rating = ratingsData[ratingId];
 
+                    // Format date
+                    let ratingDate;
+                    if (isISODateString(rating.date)) {
+                        // ISO string format
+                        ratingDate = moment(rating.date).format('DD/MM/YYYY');
+                    } else {
+                        // 'DD/MM/YYYY' format or other non-ISO string
+                        ratingDate = moment(rating.date, 'DD/MM/YYYY').format('DD/MM/YYYY');
+                    }
+
                     let menuItemsDetails = [];
 
                     // Check if the rating has an order array directly
@@ -57,8 +72,7 @@ export default {
                         menuItems: filteredMenuItems,
                         comment: rating.comment,
                         ratingValue: rating.ratingValue,
-                        date: rating.date,
-                        // Add more rating details if needed
+                        date: ratingDate,
                     });
                 }
             }
