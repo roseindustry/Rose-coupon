@@ -24,7 +24,15 @@ export default {
 				sellingPrice: '',
 				iva: 16
 			},
+			stock: {
+				name: '',
+				status: '',
+				purchasePrice: '',
+				sellingPrice: '',
+				stock: 0,
+			},
 			menuItems: [],
+			stockItems: [],
 			categories: [],
 			selectedCategory: null,
 			categoryName: '',
@@ -52,6 +60,7 @@ export default {
 		}
 
 		this.fetchMenuItems();
+		this.fetchStockItems();
 		this.fetchMenuCategories();
 
 		appOption.appSidebarHide = true;
@@ -83,6 +92,29 @@ export default {
 						description: menuItemData.description,
 						sellingPrice: menuItemData.sellingPrice,
 						status: menuItemData.status
+					});
+				});
+			} else {
+				console.log("No data available");
+			}
+		},
+
+		async fetchStockItems() {
+			const tenancyStore = useTenancyStore();
+			const tenantId = tenancyStore.tenant.key;
+
+			const stockItemRef = query(dbRef(db, 'Ingredients'), orderByChild('tenant_id'), equalTo(tenantId));
+			const stockItemSnapshot = await get(stockItemRef);
+
+			if (stockItemSnapshot.exists()) {
+				stockItemSnapshot.forEach((childSnapshot) => {
+					const stockItemData = childSnapshot.val();
+					this.stockItems.push({
+						id: childSnapshot.key,
+						name: stockItemData.name,
+						sellingPrice: stockItemData.sellingPrice,
+						status: stockItemData.status,
+						stock: stockItemData.stock
 					});
 				});
 			} else {
@@ -178,6 +210,7 @@ export default {
 				item.updatedImagePreview = updatedImagePreviewUrl;
 			}
 		},
+
 		async createMenuItem() {
 			// Tenant id
 			const tenancyStore = useTenancyStore();
@@ -245,6 +278,54 @@ export default {
 			this.resetFileInputAndPreview();
 		},
 
+		async createIngredient() {
+			// Tenant id
+			const tenancyStore = useTenancyStore();
+			await tenancyStore.findOrCreateTenant();
+			const tenantId = tenancyStore.tenant.key;
+
+			// Prepare the data for submission
+			const submission = {
+				name: this.stock.name,
+				purchasePrice: this.stock.purchasePrice,
+				sellingPrice: this.stock.sellingPrice,
+				status: this.stock.status,
+				stock: this.stock.stock,
+				tenant_id: tenantId
+			};
+
+			// Submit the data to Firebase
+			const newStockItemRef = push(dbRef(db, 'Ingredients'));
+			set(newStockItemRef, {
+				id: newStockItemRef.key,
+				...submission
+			})
+				.then(() => {
+					console.log('Ingrediente fue agregado al menu.');
+
+					// Update the UI to display new menuItem
+					const newStockItem = { id: newStockItemRef.key, ...submission };
+					this.stockItems.push(newStockItem);
+
+					//Toast to show Success form Submission
+					Toastify({
+						text: "Nuevo Ingrediente registrado con exito!",
+						duration: 3000,
+						close: true,
+						gravity: "top",
+						position: "right",
+						stopOnFocus: true,
+						style: {
+							background: "linear-gradient(to right, #00b09b, #96c93d)",
+						},
+					}).showToast();
+				})
+				.catch((error) => console.error('Error submitting data:', error));
+
+			// Reset form
+			this.resetStockItemData();
+		},
+
 		resetMenuItemData() {
 			this.menu = {
 				name: '',
@@ -256,6 +337,16 @@ export default {
 			this.toggleCreateCategory();
 		},
 
+		resetStockItemData() {
+			this.stock = {
+				name: '',
+				status: '',
+				purchasePrice: '',
+				sellingPrice: '',
+				stock: 0,
+			};
+		},
+
 		resetFileInputAndPreview() {
 			const fileInput = document.getElementById('menuItemImg');
 			fileInput.value = '';
@@ -265,9 +356,11 @@ export default {
 		toggleEdit(item) {
 			item.isEditing = !item.isEditing;
 		},
+
 		toggleCreateCategory() {
 			this.newCategory = !this.newCategory;
 		},
+
 		async updateMenuItem(item) {
 			const menuItemRef = dbRef(db, `MenuItems/${item.id}`);
 
@@ -319,6 +412,7 @@ export default {
 				console.error("Error updating menu item:", error);
 			}
 		},
+
 		deleteItem(menu, index) {
 			// Confirmation dialog
 			if (confirm("¿Desea borrar este producto?")) {
@@ -354,94 +448,207 @@ export default {
 </script>
 <template>
 	<div class="pos pos-vertical pos-with-header" id="pos">
+		<!-- BEGIN pos-header -->
+		<pos-header />
+		<!-- END pos-header -->
 
-		<div class="pos-content-container d-flex justify-content-end align-items-center">
-			<a href="#" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#addMenuItemModal"
-				style="margin: 14px;"><i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Item al Menu</a>
+		<div>
+			<ul class="nav nav-tabs nav-fill">
+				<li class="nav-item">
+					<a class="nav-link active" href="#" data-bs-toggle="tab" data-bs-target="#menu">
+						Menú
+					</a>
+				</li>
+				<li class="nav-item">
+					<a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#stock">
+						Ingredientes
+					</a>
+				</li>
+			</ul>
 		</div>
 
-		<div class="pos-container">
-			<!-- BEGIN pos-header -->
-			<pos-header />
-			<!-- END pos-header -->
-			<!-- BEGIN pos-content -->
-			<div class="pos-content">
-				<div class="pos-content-container p-3">
-					<div class="row gx-3">
-						<div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 pb-3" v-for="(menu, index) in menuItems"
-							:key="menu.id">
-							<div class="pos-product">
-								<div class="img-container position-relative">
-									<!-- Image Display -->
-									<div v-if="!updatedImagePreview" class="img"
-										v-bind:style="{ backgroundImage: 'url(' + menu.image + ')' }">
-									</div>
+		<div class="tab-content">
 
-									<!-- Image Edit: File Input -->
-									<div v-if="menu.isEditing">
-										<div v-if="updatedImagePreview" class="mt-2">
-											<img :src="updatedImagePreview" class="img-thumbnail" alt="preview"
-												style="max-height: 200px;">
-										</div>
-										<input type="file" @change="event => previewUpdatedImage(event, menu)"
-											class="form-control" />
-									</div>
+			<!-- Menu items -->
+			<div class="tab-pane fade h-100 show active" id="menu">
+				<div class="pos-content-container d-flex justify-content-end align-items-center">
+					<a href="#" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#addMenuItemModal"
+						style="margin: 14px;"><i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Item al Menu</a>
+				</div>
 
-									<button class="btn btn-danger position-absolute top-0 end-0"
-										@click.prevent="deleteItem(menu, index)">
-										<i class="fa-solid fa-trash"></i>
-									</button>
-								</div>
-								<div class="info">
-									<div v-if="!menu.isEditing" class="title text-truncate">{{ menu.name }}</div>
-									<input v-if="menu.isEditing" type="text" class="form-control" v-model="menu.name" />
-									<div v-if="!menu.isEditing" class="desc text-truncate">{{ menu.description }}</div>
-									<input v-if="menu.isEditing" type="text" class="form-control"
-										v-model="menu.description" />
-									<div class="d-flex align-items-center mb-3">
-										<div class="w-100px">Precio de venta:</div>
-										<div class="flex-1">
-											<input type="number" class="form-control" v-model="menu.sellingPrice"
-												:disabled="!menu.isEditing" />
+				<div class="pos-container">
+					<!-- BEGIN pos-content -->
+					<div class="pos-content">
+						<div class="pos-content-container p-3">
+							<div class="row gx-3">
+								<div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 pb-3" v-if="menuItems"
+									v-for="(menu, index) in menuItems" :key="menu.id">
+									<div class="pos-product">
+										<div class="img-container position-relative">
+											<!-- Image Display -->
+											<div v-if="!updatedImagePreview" class="img"
+												v-bind:style="{ backgroundImage: 'url(' + menu.image + ')' }">
+											</div>
+
+											<!-- Image Edit: File Input -->
+											<div v-if="menu.isEditing">
+												<div v-if="updatedImagePreview" class="mt-2">
+													<img :src="updatedImagePreview" class="img-thumbnail" alt="preview"
+														style="max-height: 200px;">
+												</div>
+												<input type="file" @change="event => previewUpdatedImage(event, menu)"
+													class="form-control" />
+											</div>
+
+											<button class="btn btn-danger position-absolute top-0 end-0"
+												@click.prevent="deleteItem(menu, index)">
+												<i class="fa-solid fa-trash"></i>
+											</button>
 										</div>
-									</div>
-									<div class="d-flex align-items-center mb-3">
-										<div class="w-100px">IVA:</div>
-										<div class="flex-1">
-											<input type="number" class="form-control" v-model="menu.iva"
-												:disabled="!menu.isEditing" />
-										</div>
-									</div>
-									<div class="d-flex align-items-center mb-3">
-										<div class="w-100px">Disponible:</div>
-										<div class="flex-1">
-											<div class="form-check form-switch">
-												<input class="form-check-input" type="checkbox"
-													v-bind:id="'product' + index" v-model="menu.status"
-													:disabled="!menu.isEditing" />
-												<label class="form-check-label" v-bind:for="'product' + index"></label>
+										<div class="info">
+											<div v-if="!menu.isEditing" class="title text-truncate">{{ menu.name }}
+											</div>
+											<input v-if="menu.isEditing" type="text" class="form-control"
+												v-model="menu.name" />
+											<div v-if="!menu.isEditing" class="desc text-truncate">{{ menu.description
+												}}
+											</div>
+											<input v-if="menu.isEditing" type="text" class="form-control"
+												v-model="menu.description" />
+											<!-- Selling Price Input Group -->
+											<div class="mb-3">
+												<div class="input-group">
+													<span class="input-group-text w-100px text-wrap"
+														id="sellingPrice-addon">Precio de venta $</span>
+													<input type="number" class="form-control"
+														v-model="menu.sellingPrice" :disabled="!menu.isEditing"
+														aria-label="Precio de venta"
+														aria-describedby="sellingPrice-addon">
+												</div>
+											</div>
+
+											<!-- IVA Input Group -->
+											<div class="mb-3">
+												<div class="input-group">
+													<span class="input-group-text w-100px" id="iva-addon">IVA %</span>
+													<input type="number" class="form-control" v-model="menu.iva"
+														:disabled="!menu.isEditing" aria-label="IVA"
+														aria-describedby="iva-addon">
+												</div>
+											</div>
+
+											<div class="d-flex align-items-center mb-3">
+												<div class="w-100px">Disponible:</div>
+												<div class="flex-1">
+													<div class="form-check form-switch">
+														<input class="form-check-input" type="checkbox"
+															v-bind:id="'product' + index" v-model="menu.status"
+															:disabled="!menu.isEditing" />
+														<label class="form-check-label"
+															v-bind:for="'product' + index"></label>
+													</div>
+												</div>
+											</div>
+											<div>
+												<!-- Add editing logic -->
+												<a href="#" class="btn btn-theme d-block mb-2"
+													@click.prevent="toggleEdit(menu)">Editar</a>
+												<a href="#" class="btn btn-success d-block mb-2" v-if="menu.isEditing"
+													@click.prevent="updateMenuItem(menu)">Actualizar</a>
 											</div>
 										</div>
 									</div>
-									<div>
-										<!-- Add editing logic -->
-										<a href="#" class="btn btn-theme d-block mb-2"
-											@click.prevent="toggleEdit(menu)">Editar</a>
-										<a href="#" class="btn btn-success d-block mb-2" v-if="menu.isEditing"
-											@click.prevent="updateMenuItem(menu)">Actualizar</a>
-									</div>
+								</div>
+								<div v-else>
+									<p>No hay datos aún.</p>
 								</div>
 							</div>
 						</div>
 					</div>
+					<!-- END pos-content -->
 				</div>
 			</div>
-			<!-- END pos-content -->
+
+			<!-- Stock items -->
+			<div class="tab-pane fade h-100" id="stock">
+				<div class="pos-content-container d-flex justify-content-end align-items-center">
+					<a href="#" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#addStockItemModal"
+						style="margin: 14px;"><i class="fa fa-plus-circle fa-fw me-1"></i> Agregar ingrediente</a>
+				</div>
+
+				<div class="pos-container">
+					<!-- BEGIN pos-content -->
+					<div class="pos-content">
+						<div class="pos-content-container p-3">
+							<div class="row gx-3">
+								<div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 pb-3" v-if="stockItems.length > 0"
+									v-for="(stock, index) in stockItems" :key="menu.id">
+									<div class="pos-product">
+										<div class="info">
+											<div v-if="!stock.isEditing" class="title text-truncate text-center mb-3">{{ stock.name }}
+											</div>
+											<input v-if="stock.isEditing" type="text" class="form-control"
+												v-model="stock.name" />
+
+											<!-- Selling Price Input Group -->
+											<div class="mb-3">
+												<div class="input-group">
+													<span class="input-group-text text-wrap" id="sellingPrice-addon">Precio de
+														venta:</span>
+													<input type="number" class="form-control"
+														v-model="stock.sellingPrice" :disabled="!stock.isEditing"
+														aria-label="Precio de venta"
+														aria-describedby="sellingPrice-addon">
+												</div>
+											</div>
+
+											<!-- Inventory Input Group -->
+											<div class="mb-3">
+												<div class="input-group">
+													<span class="input-group-text text-wrap"
+														id="inventory-addon">Inventario:</span>
+													<input type="number" class="form-control" v-model="stock.stock"
+														:disabled="!stock.isEditing" aria-label="Inventario"
+														aria-describedby="inventory-addon">
+												</div>
+											</div>
+
+											<div class="d-flex align-items-center mb-3">
+												<div class="w-100px">Disponible:</div>
+												<div class="flex-1">
+													<div class="form-check form-switch">
+														<input class="form-check-input" type="checkbox"
+															v-bind:id="'product' + index" v-model="stock.status"
+															:disabled="!stock.isEditing" />
+														<label class="form-check-label"
+															v-bind:for="'product' + index"></label>
+													</div>
+												</div>
+											</div>
+											<div>
+												<!-- Add editing logic -->
+												<a href="#" class="btn btn-theme d-block mb-2"
+													@click.prevent="toggleEdit(stock)">Editar</a>
+												<a href="#" class="btn btn-success d-block mb-2" v-if="stock.isEditing"
+													@click.prevent="updateMenuItem(stock)">Actualizar</a>
+											</div>
+										</div>
+									</div>
+								</div>
+								<div v-else>
+									<p class="text-center">No hay datos aún.</p>
+								</div>
+							</div>
+						</div>
+					</div>
+					<!-- END pos-content -->
+				</div>
+			</div>
 		</div>
 
 	</div>
 
-	<!-- MODAL -->
+	<!-- MenuItems MODAL -->
 	<div class="modal modal-pos fade" tabindex="-1" id="addMenuItemModal" aria-labelledby="addMenuItemModalLabel"
 		aria-hidden="true">
 		<div class="modal-dialog">
@@ -512,7 +719,7 @@ export default {
 								<div class=" col mb-3">
 									<label for="menuItemIva" class="form-label">IVA</label>
 									<div class="input-group" style="width: 30%;">
-										<span class="input-group-text">$</span>
+										<span class="input-group-text">%</span>
 										<input type="number" class="form-control" id="menuItemIva"
 											v-model.number="menu.iva" required>
 									</div>
@@ -547,7 +754,75 @@ export default {
 				<div class="modal-footer">
 					<button type="button" class="btn btn-secondary" v-on:click="resetMenuItemData()"
 						data-bs-dismiss="modal">Cerrar</button>
-					<button class="btn btn-primary" v-on:click="createMenuItem()">Guardar</button>
+					<button class="btn btn-theme" v-on:click="createMenuItem()">Guardar</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- StockItems MODAL -->
+	<div class="modal modal-pos fade" tabindex="-1" id="addStockItemModal" aria-labelledby="addMenuItemModalLabel"
+		aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content border-0">
+				<div class="modal-header">
+					<h5 class="modal-title" id="addMenuItemModalLabel">Agregar item al Inventario</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<div class="container mt-4">
+						<form v-on:submit.prevent="createStockItem" id="addStockItem">
+							<!-- Nombre -->
+							<div class="mb-3">
+								<label for="stockItemName" class="form-label">Nombre</label>
+								<input type="text" class="form-control" id="stockItemName" v-model="stock.name"
+									required>
+							</div>
+							<!-- costos -->
+							<div class="row mb-3">
+								<!-- Precio de venta-->
+								<div class="col mb-3">
+									<label for="stockItemPrice" class="form-label">Precio de compra</label>
+									<div class="input-group">
+										<span class="input-group-text">$</span>
+										<input type="number" class="form-control" id="stockItemPrice"
+											v-model.number="stock.purchasePrice" required>
+									</div>
+								</div>
+								<!-- Precio de venta-->
+								<div class="col mb-3">
+									<label for="stockItemPrice" class="form-label">Precio de venta</label>
+									<div class="input-group">
+										<span class="input-group-text">$</span>
+										<input type="number" class="form-control" id="stockItemPrice"
+											v-model.number="stock.sellingPrice" required>
+									</div>
+								</div>
+							</div>
+							<!-- Inventario -->
+							<div class="row mb-3">
+								<div class=" col mb-3">
+									<label for="stockItemStock" class="form-label">Inventario</label>
+									<div class="input-group" style="width: 30%;">
+										<span class="input-group-text"><i class="fa-solid fa-cubes-stacked"></i></span>
+										<input type="number" class="form-control" id="stockItemStock"
+											v-model.number="stock.stock" required>
+									</div>
+
+								</div>
+							</div>
+							<!-- Disponibilidad -->
+							<div class="mb-3 form-check">
+								<input type="checkbox" class="form-check-input" id="stockItemAvailability"
+									v-model="stock.status">
+								<label class="form-check-label" for="stockItemAvailability">Disponible</label>
+							</div>
+						</form>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+					<button class="btn btn-theme" v-on:click="createIngredient()">Guardar</button>
 				</div>
 			</div>
 		</div>

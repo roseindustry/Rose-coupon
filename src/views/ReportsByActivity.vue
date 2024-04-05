@@ -172,7 +172,6 @@ export default {
                 this.ratings = await Promise.all(ratingsPromises);
             }
         },
-
         formatTotalPaid(value) {
             return isNaN(value) || value === undefined ? 0 : value;
         },

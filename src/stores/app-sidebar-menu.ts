@@ -16,13 +16,13 @@ export const useAppSidebarMenuStore = defineStore({
 			{
 				url: '/analytics',
 				icon: 'fa fa-chart-pie',
-				text: 'Metricas'
+				text: 'Metricas del día'
 			},
 			{
 				is_divider: true
 			},
 			{
-				text: 'POS',
+				text: 'POS para Restaurantes',
 				icon: 'fa-solid fa-cash-register',
 				is_header: false,
 				collapsed: true,
@@ -40,7 +40,7 @@ export const useAppSidebarMenuStore = defineStore({
 					{
 						url: '/pos/table-booking',
 						icon: 'fa-solid fa-chair',
-						text: 'Mesas'
+						text: 'Reserva de Mesas'
 					},
 					{
 						url: '/pos/kitchen-order',
@@ -55,7 +55,7 @@ export const useAppSidebarMenuStore = defineStore({
 					{
 						url: '/pos/menu-stock',
 						icon: 'fa-solid fa-burger',
-						text: 'Inventario / Menu'
+						text: 'Menú / Inventario'
 					},
 				]
 			},

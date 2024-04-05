@@ -19,36 +19,86 @@ export default {
 	},
 	data() {
 		return {
+			selectedPeriod: 'esta semana',
+			selectedColor: '#0069d9',
 			userName: '',
 			incomeArray: [],
-			weeklyOrders: [],
-			weeklyIncome: 0,
-			maxWeeklyOrders: 40,
+			orders: 0,
+			openOrders: 0,
+			completedOrders: 0,
+			soldOutIngredients: 0,
+			income: 0,
+			maxOrders: 40,
 			clients: [],
+			regularClients: [],
 			renderComponent: true,
 			chart: {
-				height: 256,
-				series: [{
-					data: [
-						8107, 8128, 8122, 8165, 8340, 8423, 8423, 8514, 8481, 8487,
-						8506, 8626, 8668, 8602, 8607, 8512, 8496, 8600, 8881, 9340
-					]
-				}],
-				options: this.getChartOptions()
+				options: {
+					chart: {
+						type: 'bar',
+						zoom: {
+							enabled: false
+						}
+					},
+					xaxis: {
+						categories: [],
+					},
+					stroke: {
+						curve: 'smooth'
+					},
+					title: {
+						text: 'Ventas',
+						align: 'left'
+					},
+					grid: {
+						borderColor: '#e7e7e7',
+						row: {
+							colors: ['#f3f3f3', 'transparent'],
+							opacity: 0.5
+						},
+					},
+					markers: {
+						size: 1
+					},
+				},
+				series: [
+					{
+						name: 'Data',
+						data: []
+					}
+				],
+				height: 290
 			},
 		}
 	},
 	computed: {
 		weeklyOrdersProgress() {
-			const progress = (this.weeklyOrders.length / this.maxWeeklyOrders) * 100;
-			return Math.min(progress, 100);
+			return Math.min((this.orders / this.maxOrders) * 100, 100);
 		},
 	},
 	methods: {
 		async initializeData() {
 			await this.fetchUserData();
-			await this.fetchIncomeData();
 			await this.fetchClients();
+		},
+		normalizeDate(date) {
+			if (!date) return null;
+			// Check if date is already in ISO format (YYYY-MM-DD)
+			if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+				return date;
+			}
+			// Convert DD/MM/YYYY to ISO format
+			if (date.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+				return moment(date, "DD/MM/YYYY").format("YYYY-MM-DD");
+			}
+			return date; // Return the original date if it doesn't match expected formats
+		},
+		updateContent(period, color) {
+			this.selectedPeriod = period; // This assignment seems redundant since it's updated below
+			this.selectedColor = color;
+
+			// Call calculateIncomeAndOrders with the updated period
+			this.calculateIncomeAndOrders(period);
 		},
 		fetchUserData() {
 			const userId = userStore.userId;
@@ -74,7 +124,15 @@ export default {
 			if (incomeSnapshot.exists()) {
 				const incomeData = incomeSnapshot.val();
 
+				// Initialize an object to count orders per client
+				const orderCountsPerClient = {};
+
 				const incomePromises = Object.entries(incomeData).map(async ([orderId, order]) => {
+					// Count the orders for each client
+					if (order.client_id) {
+						orderCountsPerClient[order.client_id] = (orderCountsPerClient[order.client_id] || 0) + 1;
+					}
+
 					return {
 						...order,
 						id: orderId,
@@ -82,9 +140,13 @@ export default {
 				});
 
 				this.incomeArray = await Promise.all(incomePromises);
+				const regularThreshold = 5;
+				const regularClientIds = Object.keys(orderCountsPerClient).filter(clientId => orderCountsPerClient[clientId] > regularThreshold);
+				this.regularClients = this.clients.filter(client => regularClientIds.includes(client.id));
+
 			} else {
-				// Handle the case where no ratings are found
 				this.incomeArray = [];
+				this.regularClients = [];
 			}
 		},
 		async fetchClients() {
@@ -94,34 +156,95 @@ export default {
 			// Filter users to include only those with the role 'cliente'
 			this.clients = allUsers.filter(user => user.role === 'cliente');
 		},
-		async calculateWeeklyIncome() {
+		async calculateIncomeAndOrders(period = this.selectedPeriod) {
 			await this.fetchIncomeData();
 
 			let chartLabels = [];
 			let chartSeriesData = [];
+			let income = 0;
+			let orderCount = 0;
+			let pendingOrdersCount = 0;
+			let completedOrdersCount = 0;
 
-			const startOfWeek = moment().startOf('isoWeek');
-			const endOfWeek = moment().endOf('isoWeek');
+			let startOfPeriod, endOfPeriod;
 
-			const weeklyOrders = this.incomeArray.filter(order => {
-				const orderDate = moment(order.orderDate, 'DD/MM/YYYY');
-				return orderDate >= startOfWeek && orderDate <= endOfWeek;
-			});
-
-			this.weeklyOrders = weeklyOrders;
-
-			let dailyIncome = {};
-
-			weeklyOrders.forEach(order => {
-				const orderDate = moment(order.orderDate, 'DD/MM/YYYY').format('DD/MM/YYYY'); // Format date as needed
-				if (!dailyIncome[orderDate]) {
-					dailyIncome[orderDate] = 0;
+			if (this.selectedPeriod === 'el día de hoy') {
+				startOfPeriod = moment().startOf('day');
+				endOfPeriod = moment().endOf('day');
+				chartLabels.push(moment().format('ddd, MMM Do'));
+				chartSeriesData = [0];
+			} else if (this.selectedPeriod === 'esta semana') {
+				startOfPeriod = moment().startOf('isoWeek');
+				endOfPeriod = moment().endOf('isoWeek');
+				for (let date = moment(startOfPeriod); date.isBefore(endOfPeriod); date.add(1, 'days')) {
+					chartLabels.push(date.format('MMM D'));
 				}
-				dailyIncome[orderDate] += parseFloat(order.totalPricePaid || 0);
+			} else if (this.selectedPeriod === 'este mes') {
+				startOfPeriod = moment().startOf('month');
+				endOfPeriod = moment().endOf('month');
+				let dayCount = endOfPeriod.diff(startOfPeriod, 'days');
+				for (let i = 0; i <= dayCount; i++) {
+					chartLabels.push(moment(startOfPeriod).add(i, 'days').format('MMM D'));
+				}
+			} else if (this.selectedPeriod === 'este año') {
+				startOfPeriod = moment().startOf('year');
+				endOfPeriod = moment().endOf('year');
+				for (let i = 0; i < 12; i++) {
+					chartLabels.push(moment().month(i).format('MMM'));
+				}
+			}
+
+			const filteredOrders = this.incomeArray.filter(order => {
+				const normalizedOrderDate = this.normalizeDate(order.orderDate);
+				const orderMoment = moment(normalizedOrderDate, 'YYYY-MM-DD');
+				return orderMoment.isBetween(startOfPeriod, endOfPeriod, undefined, '[]');
 			});
 
-			this.weeklyIncome = weeklyOrders.reduce((acc, order) => acc + parseFloat(order.totalPricePaid || 0), 0);
 
+			// Initialize chartSeriesData based on chartLabels length
+			chartSeriesData = new Array(chartLabels.length).fill(0);
+
+			filteredOrders.forEach(order => {
+				const totalPricePaid = parseFloat(order.totalPricePaid || 0);
+				income += totalPricePaid;
+				orderCount++;
+
+				const normalizedOrderDate = this.normalizeDate(order.orderDate);
+				const orderMoment = moment(normalizedOrderDate, 'YYYY-MM-DD');
+				let index;
+				if (this.selectedPeriod === 'el día de hoy') {
+					index = 0; // Since there's only one label for "today"
+				} else {
+					index = chartLabels.findIndex(label => label === orderMoment.format(this.selectedPeriod === 'este año' ? 'MMM' : 'MMM D'));
+				}
+
+				if (index !== -1) {
+					chartSeriesData[index] += totalPricePaid;
+				}
+
+				if (order.status === 'Pending') {
+					pendingOrdersCount++;
+				} else if (order.status === 'Completed') {
+					completedOrdersCount++;
+				}
+			});
+
+			chartSeriesData = chartSeriesData.map(value => parseFloat(value.toFixed(2)));
+			console.log(chartSeriesData);
+			this.updateChartData(chartLabels, chartSeriesData);
+
+			this.income = income;
+			this.orders = orderCount;
+			this.openOrders = pendingOrdersCount;
+			this.completedOrders = completedOrdersCount;
+
+		},
+		updateChartData(chartLabels, chartSeriesData) {
+			this.chart.options.xaxis.categories = [...chartLabels];
+			this.chart.series = [{
+				name: 'Ganancia',
+				data: [...chartSeriesData]
+			}];
 		},
 		getStartOfWeek(d) {
 			const date = new Date(d);
@@ -129,109 +252,6 @@ export default {
 			const diff = date.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
 			return new Date(date.setDate(diff));
 		},
-		getChartOptions() {
-			return {
-				labels: [
-					'13 Nov 2021', '14 Nov 2021', '15 Nov 2021', '16 Nov 2021',
-					'17 Nov 2021', '20 Nov 2021', '21 Nov 2021', '22 Nov 2021',
-					'23 Nov 2021', '24 Nov 2021', '27 Nov 2021', '28 Nov 2021',
-					'29 Nov 2021', '30 Nov 2021', '01 Dec 2021', '04 Dec 2021',
-					'05 Dec 2021', '06 Dec 2021', '07 Dec 2021', '08 Dec 2021'
-				],
-				colors: [appVariable.color.primary],
-				chart: { type: 'line', toolbar: { show: false } },
-				annotations: {
-					yaxis: [{
-						y: 8200,
-						borderColor: appVariable.color.indigo,
-						label: {
-							borderColor: appVariable.color.indigo,
-							style: {
-								color: appVariable.color.white,
-								background: appVariable.color.indigo,
-							},
-							text: 'Support',
-						}
-					}, {
-						y: 8600,
-						y2: 9000,
-						borderColor: appVariable.color.orange,
-						fillColor: appVariable.color.orange,
-						opacity: 0.1,
-						label: {
-							borderColor: appVariable.color.yellow,
-							style: {
-								fontSize: '10px',
-								color: appVariable.color.gray900,
-								background: appVariable.color.yellow,
-							},
-							text: 'Earning',
-						}
-					}],
-					xaxis: [{
-						x: new Date('23 Nov 2021').getTime(),
-						strokeDashArray: 0,
-						borderColor: appVariable.color.borderColor,
-						label: {
-							borderColor: appVariable.color.grayborderColor900,
-							style: {
-								color: appVariable.color.componentBg,
-								background: appVariable.color.bodyColor,
-							},
-							text: 'Anno Test',
-						}
-					}, {
-						x: new Date('26 Nov 2021').getTime(),
-						x2: new Date('28 Nov 2021').getTime(),
-						fillColor: appVariable.color.teal,
-						opacity: 0.4,
-						label: {
-							borderColor: appVariable.color.teal,
-							style: {
-								fontSize: '10px',
-								color: '#fff',
-								background: appVariable.color.teal,
-							},
-							offsetY: -7,
-							text: 'X-axis range',
-						}
-					}],
-					points: [{
-						x: new Date('01 Dec 2021').getTime(),
-						y: 8607.55,
-						marker: {
-							size: 8,
-							fillColor: appVariable.color.white,
-							strokeColor: appVariable.color.pink,
-							radius: 2
-						},
-						label: {
-							borderColor: appVariable.color.pink,
-							offsetY: 0,
-							style: {
-								color: appVariable.color.white,
-								background: appVariable.color.pink,
-							},
-
-							text: 'Point Annotation',
-						}
-					}]
-				},
-				dataLabels: { enabled: false },
-				stroke: { curve: 'straight' },
-				grid: { padding: { right: 30, left: 20 } },
-				xaxis: { type: 'datetime' }
-			};
-		}
-	},
-	created() {
-		this.emitter.on('theme-reload', (evt) => {
-			this.renderComponent = false;
-
-			this.$nextTick(() => {
-				this.chart.options = this.getChartOptions();
-			});
-		})
 	},
 	async mounted() {
 		const tenancyStore = useTenancyStore();
@@ -247,20 +267,46 @@ export default {
 		}
 
 		await this.initializeData();
-		await this.calculateWeeklyIncome();
+		await this.calculateIncomeAndOrders();
 	}
 }
 </script>
 <template>
-	<div class="container py-4">
-		<h1 class="page-header mb-4">Hola, {{ this.userName }}. <small>Aquí está un resumen de tu establecimiento esta semana.</small></h1>
+	<div class="container">
+
+		<div class="card mb-4 shadow-sm">
+			<div class="card-body">
+				<div class="row">
+					<div class="col-12 col-md-8">
+						<h1 class="h4 mb-2 mb-md-0">Hola, {{ userName }} 🎉</h1>
+						<h5 class="text-muted">Aquí está un resumen de tu establecimiento
+							<span :style="{ color: selectedColor }">{{ selectedPeriod }}</span>.
+						</h5>
+					</div>
+					<div class="col-12 col-md-4 text-center text-md-end mt-3 mt-md-0">
+						<button class="btn"
+							:class="{ 'btn-success': selectedPeriod === 'el día de hoy', 'me-2': true, 'mb-2': true, 'mb-md-0': true }"
+							@click="updateContent('el día de hoy', '#28a745')">Hoy</button>
+						<button class="btn"
+							:class="{ 'btn-primary': selectedPeriod === 'esta semana', 'me-2': true, 'mb-2': true, 'mb-md-0': true }"
+							@click="updateContent('esta semana', '#0069d9')">Semana</button>
+						<button class="btn"
+							:class="{ 'btn-info': selectedPeriod === 'este mes', 'me-2': true, 'mb-2': true, 'mb-md-0': true }"
+							@click="updateContent('este mes', '#17a2b8')">Mes</button>
+						<button class="btn"
+							:class="{ 'btn-warning': selectedPeriod === 'este año', 'me-2': true, 'mb-2': true, 'mb-md-0': true }"
+							@click="updateContent('este año', '#ffc107')">Año</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
 		<div class="row g-4">
 			<div class="col-lg-4">
 				<!-- Métricas de ventas -->
 				<div class="card custom-card">
 					<div class="card-body">
 						<h5 class="mb-3">Métricas de ventas</h5>
-						<p>Gráfico de ventas semanales</p>
 						<apexchart :height="chart.height" :options="chart.options" :series="chart.series"></apexchart>
 					</div>
 				</div>
@@ -277,8 +323,8 @@ export default {
 								<img src="/assets/img/page/dashboard.svg" alt="" class="custom-overlay-icon">
 							</div>
 							<div class="card-body text-white" style="background: rgba(0,0,0,0.5);">
-								<h5 class="text-white mb-3">Ganancias de la semana</h5>
-								<h3 class="text-white">${{ weeklyIncome.toFixed(2) }}</h3>
+								<h5 class="text-white mb-3">Ganancias</h5>
+								<h3 class="text-white">${{ this.income.toFixed(2) }}</h3>
 								<div><i class="fa fa-fw fa-shopping-bag icon-large text-white"></i></div>
 							</div>
 						</div>
@@ -293,7 +339,7 @@ export default {
 							</div>
 							<div class="card-body">
 								<h5 class="text-white mb-3 fs-16px">Órdenes de esta semana</h5>
-								<h3>{{ this.weeklyOrders.length }}</h3>
+								<h3>{{ this.orders }}</h3>
 								<p class="goal-description">Meta de la semana: 40 ordenes</p>
 								<div class="progress bg-black bg-opacity-50 mb-2 custom-progress-bar"
 									style="height: 6px; position: relative;">
@@ -308,7 +354,7 @@ export default {
 					</div>
 
 					<!-- Clientes registrados -->
-					<div class="col-12">
+					<div class="col-6">
 						<div class="card custom-card h-100">
 							<div class="card-body">
 								<h5 class="mb-3">Clientes registrados</h5>
@@ -321,6 +367,74 @@ export default {
 										<i class="fa fa-user fa-lg text-primary"></i>
 									</div>
 								</div>
+							</div>
+						</div>
+					</div>
+					<!-- Clientes regulares -->
+					<div class="col-6">
+						<div class="card custom-card h-100">
+							<div class="card-body">
+								<h5 class="mb-3">Clientes recurrentes</h5>
+								<div class="d-flex align-items-center">
+									<div class="flex-grow-1">
+										<h3>{{ this.regularClients.length }}</h3>
+									</div>
+									<div class="bg-primary bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center"
+										style="width: 50px; height: 50px;">
+										<i class="fa fa-user fa-lg text-primary"></i>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="row mt-0 g-4">
+			<div class="col-lg-4">
+				<div class="card custom-card">
+					<div class="card-body">
+						<h5 class="mb-3">Órdenes pendientes</h5>
+						<div class="d-flex align-items-center">
+							<div class="flex-grow-1">
+								<h3>{{ this.openOrders }}</h3>
+							</div>
+							<div class="bg-primary bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center"
+								style="width: 50px; height: 50px;">
+								<i class="fa-regular fa-hourglass-half fa-lg text-primary"></i>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="col-lg-4">
+				<div class="card custom-card">
+					<div class="card-body">
+						<h5 class="mb-3">Órdenes completadas</h5>
+						<div class="d-flex align-items-center">
+							<div class="flex-grow-1">
+								<h3>{{ this.completedOrders }}</h3>
+							</div>
+							<div class="bg-primary bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center"
+								style="width: 50px; height: 50px;">
+								<i class="fa-solid fa-circle-check fa-lg text-primary"></i>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="col-lg-4">
+				<div class="card custom-card">
+					<div class="card-body">
+						<h5 class="mb-3">Ingredientes agotados</h5>
+						<div class="d-flex align-items-center">
+							<div class="flex-grow-1">
+								<h3>{{ this.soldOutIngredients }}</h3>
+							</div>
+							<div class="bg-primary bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center"
+								style="width: 50px; height: 50px;">
+								<i class="fa-solid fa-store-slash fa-lg text-primary"></i>
 							</div>
 						</div>
 					</div>

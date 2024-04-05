@@ -1,13 +1,12 @@
 <script>
 import { defineComponent } from 'vue';
-import { storeToRefs } from 'pinia'
 import { useAppOptionStore } from '@/stores/app-option';
 import { useTenancyStore } from '@/stores/tenancy';
 import { getSubdomain } from '@/utils/subdomain';
-import { useRouter, RouterLink } from 'vue-router';
+import { RouterLink } from 'vue-router';
 import { auth, db } from '@/firebase/init';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { ref as dbRef, set, get, child, push } from 'firebase/database';
+import { ref as dbRef, set } from 'firebase/database';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 

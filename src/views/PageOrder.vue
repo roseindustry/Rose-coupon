@@ -205,9 +205,21 @@ export default {
 
 				if (snapshot.exists()) {
 					let ratingData = null;
+					let ratingDate = null;
 					snapshot.forEach((childSnapshot) => {
 						if (!ratingData) {
 							ratingData = childSnapshot.val();
+
+							// Format date
+							if (isISODateString(ratingData.date)) {
+								// ISO string format
+								ratingDate = moment(ratingData.date).format('DD/MM/YYYY');
+							} else {
+								// 'DD/MM/YYYY' format or other non-ISO string
+								ratingDate = moment(ratingData.date, 'DD/MM/YYYY').format('DD/MM/YYYY');
+							}
+
+							ratingData.date = ratingDate;
 							ratingData.id = childSnapshot.key;
 						}
 					});
@@ -247,24 +259,24 @@ export default {
 			this.activeTab = tabId;
 		},
 		exportToExcel() {
-            let worksheet_data = this.orders.map(order => ({
-                '# de Orden': order.orderNumber,
-                'Fecha': order.orderDate,
-                'Cliente': order.clientName,
-                'Total': order.totalPricePaid.toFixed(2),
-                'Estado de pago': order.status === 'Completed' ? 'Completada' : order.status === 'Pending' ? 'Pendiente' : order.status,
-                'Cantidad': order.itemsCount,
+			let worksheet_data = this.orders.map(order => ({
+				'# de Orden': order.orderNumber,
+				'Fecha': order.orderDate,
+				'Cliente': order.clientName,
+				'Total': order.totalPricePaid.toFixed(2),
+				'Estado de pago': order.status === 'Completed' ? 'Completada' : order.status === 'Pending' ? 'Pendiente' : order.status,
+				'Cantidad': order.itemsCount,
 				'Tipo de pedido': order.type === 'DineIn' ? 'Local' : order.type === 'Takeaway' ? 'Para llevar' : order.type
-            }));
+			}));
 
-            // Convert the data to a worksheet
-            const worksheet = XLSX.utils.json_to_sheet(worksheet_data, { skipHeader: false });
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte-ordenes');
+			// Convert the data to a worksheet
+			const worksheet = XLSX.utils.json_to_sheet(worksheet_data, { skipHeader: false });
+			const workbook = XLSX.utils.book_new();
+			XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte-ordenes');
 
-            // Export the workbook
-            XLSX.writeFile(workbook, 'reporte-ordenes-de-hoy.xlsx');
-        },
+			// Export the workbook
+			XLSX.writeFile(workbook, 'reporte-ordenes-de-hoy.xlsx');
+		},
 	},
 	async mounted() {
 		const tenancyStore = useTenancyStore();
@@ -370,12 +382,13 @@ export default {
 										:class="`badge ${order.status === 'Completed' ? 'bg-teal' : 'bg-danger'} text-white-800 bg-opacity-25 px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center`">
 										<i class="fa fa-circle text-white fs-9px fa-fw me-5px"></i>
 										{{ order.status === 'Completed' ? 'Completada' : order.status === 'Pending' ?
-						'Pendiente' : order.status }}
+				'Pendiente' : order.status }}
 									</span>
 								</td>
 								<td class="align-middle">{{ order.itemsCount }} items</td>
-								<td class="align-middle">{{ order.type === 'DineIn' ? 'Local' : order.type === 'Takeaway' ? 'Para llevar' :
-						'' }}</td>
+								<td class="align-middle">{{ order.type === 'DineIn' ? 'Local' : order.type ===
+				'Takeaway' ? 'Para llevar' :
+				'' }}</td>
 								<td class="align-middle">
 									<a href="#" class="btn btn-theme" @click.prevent="openRating(order.id)"><i
 											class="fa-solid fa-comment"></i> Ver reseña</a>
@@ -456,12 +469,13 @@ export default {
 										:class="`badge ${order.status === 'Completed' ? 'bg-teal' : 'bg-danger'} text-white-800 bg-opacity-25 px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center`">
 										<i class="fa fa-circle text-white fs-9px fa-fw me-5px"></i>
 										{{ order.status === 'Completed' ? 'Completada' : order.status === 'Pending' ?
-						'Pendiente' : order.status }}
+				'Pendiente' : order.status }}
 									</span>
 								</td>
 								<td class="align-middle">{{ order.itemsCount }} items</td>
-								<td class="align-middle">{{ order.type === 'DineIn' ? 'Local' : order.type === 'Takeaway' ? 'Para llevar' :
-						'' }}</td>
+								<td class="align-middle">{{ order.type === 'DineIn' ? 'Local' : order.type ===
+				'Takeaway' ? 'Para llevar' :
+				'' }}</td>
 								<td class="align-middle">
 									<a href="#" class="btn btn-theme" @click.prevent="openRating(order.id)"><i
 											class="fa-solid fa-comment"></i> Ver reseña</a>
@@ -542,12 +556,13 @@ export default {
 										:class="`badge ${order.status === 'Completed' ? 'bg-teal' : 'bg-danger'} text-white-800 bg-opacity-25 px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center`">
 										<i class="fa fa-circle text-white fs-9px fa-fw me-5px"></i>
 										{{ order.status === 'Completed' ? 'Completada' : order.status === 'Pending' ?
-						'Pendiente' : order.status }}
+				'Pendiente' : order.status }}
 									</span>
 								</td>
 								<td class="align-middle">{{ order.itemsCount }} items</td>
-								<td class="align-middle">{{ order.type === 'DineIn' ? 'Local' : order.type === 'Takeaway' ? 'Para llevar' :
-						'' }}</td>
+								<td class="align-middle">{{ order.type === 'DineIn' ? 'Local' : order.type ===
+				'Takeaway' ? 'Para llevar' :
+				'' }}</td>
 								<td class="align-middle">
 									<a href="#" class="btn btn-theme" @click.prevent="openRating(order.id)"><i
 											class="fa-solid fa-comment"></i> Ver reseña</a>

@@ -206,7 +206,7 @@ export default {
 						</div>
 					</div>
 					<div class="px-3 py-5 text-center" v-else>
-						No se encontraron ordenes
+						No hay ordenes el dia de hoy.
 					</div>
 				</perfect-scrollbar>
 			</div>

@@ -1,5 +1,5 @@
-<script lang="ts">
-import { defineComponent, ref, onMounted } from 'vue';
+<script>
+import { defineComponent } from 'vue';
 
 export default defineComponent({
     components: {

@@ -1,7 +1,8 @@
 <script>
-import { defineComponent } from 'vue';
+import { computed, defineComponent } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useUserStore } from '@/stores/user-role';
+import { useTenancyStore } from '@/stores/tenancy';
 
 export default defineComponent({
 	name: 'PosHeader',
@@ -10,7 +11,7 @@ export default defineComponent({
 			const routeNameToPageName = {
 				'/pos/customer-order': 'Orden nueva',
 				'/pos/kitchen-order': 'Orden de Cocina',
-				'/pos/menu-stock': 'Menu',
+				'/pos/menu-stock': 'Menú / Inventario',
 				'/pos/counter-checkout': 'Checkout',
 				'/': 'Dashboard',
 			};
@@ -20,34 +21,43 @@ export default defineComponent({
 			const userStore = useUserStore();
 			return userStore.role;
 		},
+		// tenant() {
+		//     const tenancyStore = useTenancyStore();
+		//     return tenancyStore.tenant;
+		// },
 	},
 	mounted() {
-    const userStore = useUserStore();
-    userStore.fetchUser();
-  },
+		const userStore = useUserStore();
+
+		userStore.fetchUser();
+	},
 });
 </script>
 
 <template>
 	<div class="pos-header">
-		<nav class="navbar bg-body-tertiary fixed-top">
+		<nav class="navbar bg-body-primary fixed-top">
 			<div class="container-fluid">
 				<!-- Restaurant branding -->
-				<div class="col brand">
-					<div><i class="fa fa-solid fa-burger" style="font-size: 1.5rem;"></i></div>
-					<span style=" color: azure;"><b>Restaurante</b></span>
+				<div class="col-4 d-flex justify-content-start">
+					<div class="brand">
+						<i class="fa fa-solid fa-utensils fa-2x"></i>
+					</div>
 				</div>
 
 				<!-- Display current Page Name -->
-				<div class="col">
+				<div class="col-4 d-flex justify-content-center">
 					<b>{{ currentPageName }}</b>
 				</div>
 
 				<!-- Offcanvas Navigation menu -->
-				<button class="navbar-toggler" type="button" data-bs-toggle="offcanvas"
-					data-bs-target="#offcanvasNavbar" aria-controls="offcanvasNavbar" aria-label="Toggle navigation">
-					<span class="navbar-toggler-icon"></span>
-				</button>
+				<div class="col-4 d-flex justify-content-end">
+					<button class="navbar-toggler" type="button" data-bs-toggle="offcanvas"
+						data-bs-target="#offcanvasNavbar" aria-controls="offcanvasNavbar"
+						aria-label="Toggle navigation">
+						<span class="navbar-toggler-icon"></span>
+					</button>
+				</div>
 				<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNavbar"
 					aria-labelledby="offcanvasNavbarLabel">
 					<div class="offcanvas-header">
@@ -94,3 +104,21 @@ export default defineComponent({
 		</nav>
 	</div>
 </template>
+
+<style scoped>
+.pos-header .container-fluid {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.brand {
+	margin-left: 1rem;
+	/* Adjust left margin for branding */
+}
+
+.navbar-toggler {
+	margin-right: 1rem;
+	/* Adjust right margin for toggle button */
+}
+</style>

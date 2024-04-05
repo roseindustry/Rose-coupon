@@ -181,7 +181,7 @@ export default {
 				orderDate: this.today,
 				orderNumber: this.nextOrderNumber,
 				tableNumber: 0,
-				status: 'pending',
+				status: 'Completed',
 				type: 'DineIn',
 				menuItems: selectedMenuItems,
 				totalPricePaid,
