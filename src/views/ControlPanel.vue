@@ -166,7 +166,7 @@ export default {
         <div class="row justify-content-center align-items-center h-100">
             <div class="col-xl-9">
                 <!-- Add new tenant -->
-                <div id="add-tenant" class="mb-5">
+                <div id="edit-tenant" class="mb-5">
                     <h4>Editar Nombre de su Negocio</h4>
                     <p>Por defecto el Nombre de su Negocio es el subdominio que posee.</p>
                     <div class="col card shadow-lg">
@@ -242,15 +242,53 @@ export default {
                         </div>
                     </div>
                 </div>
+                <!-- Asign new role to employee -->
+                <div id="asign-coupons" class="mb-5">
+                    <h4>Registra cupones para tus clientes</h4>
+                    <p>Busque su cliente en el buscador y registre el cupon que desea asignar.</p>
+                    <div class="col card shadow-lg">
+                        <div class="card-body">
+                            <form @submit.prevent="asignCoupon" class="mb-3">
+                                <div class="mb-3" id="search-employee">
+                                    <input type="text" v-model="searchQuery" @input="searchUsers"
+                                        placeholder="Busque un cliente por su cedula..." class="form-control"
+                                        autocomplete="off">
+                                    <div class="dropdown-menu"
+                                        v-show="searchResults.length > 0 || searchQuery.length > 0"
+                                        style="display: block;">
+                                        <i class="hasNoResults" v-if="searchResults.length === 0">No se encontraron
+                                            resultados</i>
+                                        <div class="list-autocomplete">
+                                            <button type="button" class="dropdown-item" v-for="client in searchClients"
+                                                :key="client.uid" @click.prevent="selectUser(client)">
+                                                {{ client.identification }} - {{ client.firstName }} {{ client.lastName }}
+                                            </button>
+                                        </div>
+
+                                    </div>
+                                    <div v-if="selectedClient" class="selected-client-details">
+                                        Cliente seleccionado: {{ selectedClient.identification }} - {{
+                                selectedClient.firstName }}
+                                        {{ selectedClient.lastName }}
+                                    </div>
+                                </div>
+                                <div class="dropdown mb-3">
+                                    
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Aceptar</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- #sidebar-bootstrap -->
             <div class="col-xl-3">
                 <nav id="sidebar-bootstrap" class="navbar navbar-sticky d-none d-xl-block">
                     <nav class="nav">
-                        <nav-scroll-to target="#add-tenant" data-toggle="scroll-to">Nuevo Tenant</nav-scroll-to>
-                        <nav-scroll-to target="#asign-role" data-toggle="scroll-to">Asignar rol a
-                            empleado</nav-scroll-to>
+                        <nav-scroll-to target="#edit-tenant" data-toggle="scroll-to">Editar Negocio</nav-scroll-to>
+                        <nav-scroll-to target="#asign-role" data-toggle="scroll-to">Asignación de Roles</nav-scroll-to>
+                        <nav-scroll-to target="#asign-coupons" data-toggle="scroll-to">Asignación de cupones</nav-scroll-to>
                     </nav>
                 </nav>
             </div>

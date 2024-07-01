@@ -24,6 +24,7 @@ import router from './router';
 import { surveyPlugin } from "survey-vue3-ui";
 import "survey-core/defaultV2.min.css";
 
+// import { registerSW } from './registerSW';
 import Card from '@/components/bootstrap/Card.vue';
 import CardBody from '@/components/bootstrap/CardBody.vue';
 import CardHeader from '@/components/bootstrap/CardHeader.vue';
@@ -36,6 +37,7 @@ library.add(faStar, faStarHalfAlt)
 const emitter = mitt();
 const app = createApp(App);
 
+// requestNotificationPermission();
 app.component('font-awesome-icon', FontAwesomeIcon);
 app.component('Card', Card);
 app.component('CardBody', CardBody);
@@ -53,3 +55,4 @@ app.use(surveyPlugin);
 
 app.config.globalProperties.emitter = emitter;
 app.mount('#app');
+// registerSW();

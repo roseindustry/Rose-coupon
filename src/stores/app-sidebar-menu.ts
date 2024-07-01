@@ -55,7 +55,7 @@ export const useAppSidebarMenuStore = defineStore({
 					{
 						url: '/pos/menu-stock',
 						icon: 'fa-solid fa-burger',
-						text: 'Menú / Inventario'
+						text: 'Inventario'
 					},
 				]
 			},

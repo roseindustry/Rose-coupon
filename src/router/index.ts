@@ -73,6 +73,12 @@ const router = createRouter({
 			meta: { roles: ['admin', 'superadmin', 'gerente'] }
 		},
 		{
+			path: '/page/coupons',
+			name: 'Cupones de cliente',
+			component: () => import('../views/PageCoupons.vue'),
+			meta: { roles: ['cliente'] }
+		},
+		{
 			path: '/page/order-details',
 			name: 'Detalles de orden',
 			component: () => import('../views/PageOrderDetails.vue'),
@@ -124,6 +130,11 @@ const router = createRouter({
 		{
 			path: '/:pathMatch(.*)*',
 			component: () => import('../views/PageError.vue')
+		},
+		{
+			path: '/landing',
+			name: 'Landing Page',
+			component: () => import('../views/Landing.vue')
 		}
 	],
 });

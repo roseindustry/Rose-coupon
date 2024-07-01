@@ -4,7 +4,6 @@ import { getSubdomain } from '@/utils/subdomain';
 import { db } from '@/firebase/init';
 import { ref as dbRef, get, query, orderByChild, equalTo } from 'firebase/database';
 import { Modal } from 'bootstrap';
-import datepicker from 'vue3-datepicker';
 import 'vue-datepicker-next/index.css';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
@@ -252,7 +251,6 @@ export default {
 		},
 		openOrderModal(order) {
 			this.selectedOrderMenuItems = order.menuItems;
-			console.log(this.selectedOrderMenuItems);
 			new Modal(document.getElementById('orderModal')).show();
 		},
 		setActiveTab(tabId) {

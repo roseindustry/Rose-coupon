@@ -23,13 +23,28 @@ export default defineComponent({
 			confirmPassword: '',
 			role: 'cliente',
 			passwordMismatch: false,
-			subdomain: ''
+			subdomain: '',
+			address: '',
+			sector: '',
+			sectores:
+				[
+					"Santa Lucía",
+					"Veritas",
+					"Cecilio Acosta",
+					"La Lago",
+					"El Milagro",
+					"La Paragua",
+					"El Tránsito",
+					"Amparo",
+					"Grano de Oro",
+					"Cañada Honda"
+				],
 		};
 	},
 	async mounted() {
 		const appOption = useAppOptionStore();
 		const tenancyStore = useTenancyStore();
-		
+
 		appOption.appSidebarHide = true;
 		appOption.appHeaderHide = true;
 		appOption.appContentClass = 'p-0';
@@ -53,7 +68,6 @@ export default defineComponent({
 			this.passwordMismatch = false;
 
 			const tenancyStore = useTenancyStore();
-		
 
 			try {
 				const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
@@ -73,12 +87,14 @@ export default defineComponent({
 					lastName: this.lastName,
 					identification: this.identification,
 					phoneNumber: this.phoneNumber,
+					sector: this.sector,
+					address: this.address,
 					role: this.role,
 					tenant_id: tenancyStore.tenant.key // Linking user to tenant by tenant's Firebase-generated key
 				});
 
 				console.log('User created and linked to tenant:', user.uid, tenancyStore.tenant.key);
-				
+
 				//Toastify
 				Toastify({
 					text: "Bienvenido a bordo!",
@@ -112,6 +128,8 @@ export default defineComponent({
 			this.identification = '';
 			this.email = '';
 			this.phoneNumber = '';
+			this.sector = '';
+			this.address = '';
 			this.password = '';
 			this.confirmPassword = '';
 			this.role = 'cliente';
@@ -147,13 +165,25 @@ export default defineComponent({
 				<div class="mb-3">
 					<label class="form-label">Correo electronico <span class="text-danger">*</span></label>
 					<input v-model="email" type="text" class="form-control form-control-lg fs-15px"
-						placeholder="username@address.com" value="" required />
+						placeholder="e.g username@address.com" value="" required />
 				</div>
 				<div class="mb-3">
-					<label class="form-label">Telefono </label>
+					<label class="form-label">Telefono <span class="text-secondary">(Opcional)</span></label>
 					<input type="tel" v-model="phoneNumber" class="form-control form-control-lg fs-15px"
-						placeholder="0414-5555555" value="" pattern="[0-9]{4}-[0-9]{7}" />
-						<small>Formato: 0424-xxxxxxx</small>
+						placeholder="e.g 0414-5555555" value="" pattern="[0-9]{4}-[0-9]{7}" />
+				</div>
+				<div class="mb-3">
+					<label class="form-label">Sector <span class="text-danger">*</span></label>
+					<select v-model="sector" class="form-control form-control-lg fs-15px">
+						<option value="" disabled selected>Selecciona un sector</option>
+						<option v-for="(sector, index) in sectores" :key="index" :value="sector">
+							{{ sector }}
+						</option>
+					</select>
+				</div>
+				<div class="mb-3">
+					<label class="form-label">Dirección <span class="text-secondary">(Opcional)</span></label>
+					<input v-model="address" type="text" class="form-control form-control-lg fs-15px" value="" />
 				</div>
 				<div class="mb-3">
 					<label class="form-label">Contraseña <span class="text-danger">*</span></label>

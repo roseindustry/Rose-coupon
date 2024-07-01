@@ -8,10 +8,11 @@ export default defineComponent({
         return {
             // data for portal items
             portalItems: [
-                { title: 'Ordenes recientes (Coming soon)', description: 'Ver sus ordenes recientes en este negocio.', link: '#', actionText: 'Ver ordenes', icon: 'fa-solid fa-book-open' },
+                { title: 'Ordenes recientes (Coming soon)', description: 'Ver sus ordenes recientes en este negocio.', link: '#', actionText: 'Ver órdenes', icon: 'fa-solid fa-book-open' },
                 { title: 'Encuenta de satisfaccion', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/page/customer-survey', actionText: 'Tomar Encuesta', icon: 'fa-solid fa-comment-dots' },
-                { title: 'Mis reseñas', description: 'Aqui se muestran tus reseñas a nuestros productos.', link: '/page/clients-ratings', actionText: 'Ver mas', icon: 'fa-solid fa-star' },
-                { title: 'Ajustes de perfil', description: 'Actualiza tus datos aqui.', link: '/profile', actionText: 'Editar Perfil', icon: 'fa-solid fa-user' }
+                { title: 'Mis reseñas', description: 'Aqui se muestran tus reseñas a nuestros productos.', link: '/page/clients-ratings', actionText: 'Ver más', icon: 'fa-solid fa-star' },
+                { title: 'Ajustes de perfil', description: 'Actualiza tus datos aqui.', link: '/profile', actionText: 'Editar Perfil', icon: 'fa-solid fa-user' },
+                { title: 'Cupones', description: 'Descubre tus cupones aquí.', link: '/page/coupons', actionText: 'Ver más', icon: 'fa-solid fa-ticket' }
             ]
         };
     },

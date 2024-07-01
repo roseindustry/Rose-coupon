@@ -31,6 +31,9 @@ export default {
 			maxOrders: 40,
 			clients: [],
 			regularClients: [],
+			stockItems: [],
+			lowStockItems: [],
+			soldOutIngredients: 0,
 			renderComponent: true,
 			chart: {
 				options: {
@@ -80,6 +83,8 @@ export default {
 		async initializeData() {
 			await this.fetchUserData();
 			await this.fetchClients();
+			await this.fetchIngredients();
+			await this.calculateIncomeAndOrders();
 		},
 		normalizeDate(date) {
 			if (!date) return null;
@@ -156,6 +161,30 @@ export default {
 			// Filter users to include only those with the role 'cliente'
 			this.clients = allUsers.filter(user => user.role === 'cliente');
 		},
+		async fetchIngredients() {
+			const tenancyStore = useTenancyStore();
+			const tenantId = tenancyStore.tenant.key;
+
+			const stockItemRef = query(dbRef(db, 'Ingredients'), orderByChild('tenant_id'), equalTo(tenantId));
+			const stockItemSnapshot = await get(stockItemRef);
+
+			if (stockItemSnapshot.exists()) {
+				stockItemSnapshot.forEach((childSnapshot) => {
+					const stockItemData = childSnapshot.val();
+					if (stockItemData.stock <= 10) {
+						this.lowStockItems.push({
+							id: childSnapshot.key,
+							stock: stockItemData.stock,
+							name: stockItemData.name
+						});
+					}
+
+					if (stockItemData.stock === 0) {
+						this.soldOutIngredients++;
+					}
+				});
+			}
+		},
 		async calculateIncomeAndOrders(period = this.selectedPeriod) {
 			await this.fetchIncomeData();
 
@@ -230,7 +259,7 @@ export default {
 			});
 
 			chartSeriesData = chartSeriesData.map(value => parseFloat(value.toFixed(2)));
-			console.log(chartSeriesData);
+			
 			this.updateChartData(chartLabels, chartSeriesData);
 
 			this.income = income;
@@ -267,7 +296,6 @@ export default {
 		}
 
 		await this.initializeData();
-		await this.calculateIncomeAndOrders();
 	}
 }
 </script>
@@ -330,25 +358,32 @@ export default {
 						</div>
 					</div>
 
-					<div class="col-md-6">
-						<!-- Ordenes nuevas -->
-						<div class="card custom-card overflow-hidden fs-13px bg-gradient-custom-orange text-white"
-							style="min-height: 230px;">
-							<div class="card-img-overlay d-flex align-items-end justify-content-end p-3">
-								<img src="/assets/img/icon/order.svg" alt="" class="custom-overlay-icon">
-							</div>
+					<!-- Ingredientes con poco stock -->
+					<div class="col-lg-6">
+						<div class="card custom-card fs-13px bg-gradient-custom-orange text-white"
+							style="max-height: 230px; overflow-y: auto;">
 							<div class="card-body">
-								<h5 class="text-white mb-3 fs-16px">Órdenes de esta semana</h5>
-								<h3>{{ this.orders }}</h3>
-								<p class="goal-description">Meta de la semana: 40 ordenes</p>
-								<div class="progress bg-black bg-opacity-50 mb-2 custom-progress-bar"
-									style="height: 6px; position: relative;">
-									<div class="progress-bar" :style="{ width: weeklyOrdersProgress + '%' }"></div>
+								<div class="d-flex justify-content-between align-items-start">
+									<h5 class="text-white mb-3 fs-16px">Ingredientes con poco stock</h5>
+									<i class="fa-solid fa-boxes-stacked fa-lg text-white"></i>
 								</div>
-								<!-- <RouterLink to="/page/orders" class="text-white text-decoration-none">
-									Ver ordenes
-									<i class="fa fa-chevron-right ms-2"></i>
-								</RouterLink> -->
+								<ul class="list-group list-group-flush text-white">
+									<li v-for="item in lowStockItems" :key="item.id"
+										class="list-group-item bg-transparent border-0 p-2">
+										{{ item.name }} <span class="badge bg-danger rounded-pill">{{ item.stock
+											}}</span>
+									</li>
+								</ul>
+								<div class="d-flex align-items-center mt-3">
+									<div class="flex-grow-1">
+										<h5 class="mb-2 text-white">Agotados</h5>
+										<h3>{{ soldOutIngredients }}</h3>
+									</div>
+									<div class="bg-primary bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center"
+										style="width: 50px; height: 50px;">
+										<i class="fa-solid fa-store-slash fa-lg text-white"></i>
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -392,7 +427,25 @@ export default {
 		</div>
 
 		<div class="row mt-0 g-4">
-			<div class="col-lg-4">
+
+			<div class="col-lg-4" style="height: 150px;">
+				<div class="card custom-card">
+					<div class="card-body">
+						<h5 class="mb-3">Órdenes totales</h5>
+						<div class="d-flex align-items-center">
+							<div class="flex-grow-1">
+								<h3>{{ this.orders }}</h3>
+							</div>
+							<div class="bg-primary bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center"
+								style="width: 50px; height: 50px;">
+								<i class="fa-solid fa-pencil fa-lg text-primary"></i>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="col-lg-4" style="height: 150px;">
 				<div class="card custom-card">
 					<div class="card-body">
 						<h5 class="mb-3">Órdenes pendientes</h5>
@@ -408,7 +461,7 @@ export default {
 					</div>
 				</div>
 			</div>
-			<div class="col-lg-4">
+			<div class="col-lg-4" style="height: 150px;">
 				<div class="card custom-card">
 					<div class="card-body">
 						<h5 class="mb-3">Órdenes completadas</h5>
@@ -424,27 +477,9 @@ export default {
 					</div>
 				</div>
 			</div>
-			<div class="col-lg-4">
-				<div class="card custom-card">
-					<div class="card-body">
-						<h5 class="mb-3">Ingredientes agotados</h5>
-						<div class="d-flex align-items-center">
-							<div class="flex-grow-1">
-								<h3>{{ this.soldOutIngredients }}</h3>
-							</div>
-							<div class="bg-primary bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center"
-								style="width: 50px; height: 50px;">
-								<i class="fa-solid fa-store-slash fa-lg text-primary"></i>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
 		</div>
 	</div>
 </template>
-
-
 <style scoped>
 .custom-card {
 	transition: transform .3s ease-in-out, box-shadow .3s ease-in-out;

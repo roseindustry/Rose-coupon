@@ -3,7 +3,7 @@ import { RouterLink } from 'vue-router';
 import { db, auth, functions } from '@/firebase/init';
 import { httpsCallable } from 'firebase/functions';
 import { signOut } from 'firebase/auth';
-import { ref as dbRef, query, orderByChild, equalTo, push, set, get } from 'firebase/database';
+import { ref as dbRef, query, orderByChild, equalTo, push, set, get, update } from 'firebase/database';
 import { useAppOptionStore } from '@/stores/app-option';
 import { useTenancyStore } from '@/stores/tenancy';
 import { useUserStore } from '@/stores/user-role';
@@ -12,6 +12,8 @@ import { Modal } from 'bootstrap';
 import Toastify from 'toastify-js';
 import 'toastify-js/src/toastify.css';
 import moment from 'moment';
+import { messaging } from '@/firebase/init';
+import { getToken } from 'firebase/messaging';
 
 const appOption = useAppOptionStore();
 
@@ -27,7 +29,7 @@ export default {
 			filteredMenuItems: [],
 			categories: [],
 			order: [],
-			orderSumary: [],
+			orderSummary: [],
 			orderHistory: [],
 			nextOrderNumber: null,
 			tableNumber: '',
@@ -185,18 +187,44 @@ export default {
 
 			if (menuItemSnapshot.exists()) {
 				this.menu = [];
+				const menuItemPromises = [];
+
 				menuItemSnapshot.forEach((childSnapshot) => {
 					const menuItemData = childSnapshot.val();
-					this.menu.push({
-						id: childSnapshot.key,
-						category_id: menuItemData.category_id,
-						image: menuItemData.image,
-						name: menuItemData.name,
-						description: menuItemData.description,
-						sellingPrice: menuItemData.sellingPrice,
-						status: menuItemData.status
+					const itemIngredients = menuItemData.ingredients || [];
+
+					// Set a promise to fetch ingredients for this menuItem
+					const ingredientsPromise = Promise.all(itemIngredients.map(async (ingredient) => {
+						const ingredientRef = dbRef(db, `Ingredients/${ingredient.id}`);
+						const ingredientSnapshot = await get(ingredientRef);
+						if (ingredientSnapshot.exists()) {
+							// Merge the database ingredient details with the existing ingredient data (including quantity)
+							const ingredientData = ingredientSnapshot.val();
+							return { ...ingredientData, quantity: ingredient.quantity };
+						} else {
+							return null;
+						}
+					})).then(ingredients => {
+						return ingredients.filter(ingredient => ingredient !== null);
 					});
+
+					menuItemPromises.push(ingredientsPromise.then(ingredients => {
+						return {
+							id: childSnapshot.key,
+							category_id: menuItemData.category_id,
+							image: menuItemData.image,
+							name: menuItemData.name,
+							description: menuItemData.description,
+							sellingPrice: menuItemData.sellingPrice,
+							status: menuItemData.status,
+							ingredients: ingredients
+						};
+					}));
 				});
+				// Wait for all menuItem promises to resolve
+				const menuItemsWithIngredients = await Promise.all(menuItemPromises);
+				this.menu = menuItemsWithIngredients;
+
 				// Filter menu items based on the active category after fetching
 				if (this.categories.length > 0) {
 					const activeCategory = this.categories.find(c => c.active);
@@ -363,7 +391,6 @@ export default {
 				}).showToast();
 				return;
 			}
-
 			//USE THIS LOGIC IN CASE OF MENU SIZE AND ADD-ON OPTIONS 
 			// var options = [];
 			// var extraPrice = 0;
@@ -384,18 +411,32 @@ export default {
 			// 	}
 			// }
 
+			// Preparing the ingredients with the required quantity multiplied by the order quantity
+
+			const ingredientsRequired = this.modalData.ingredients.map(ingredient => {
+				return {
+					id: ingredient.id,
+					name: ingredient.name,
+					quantityRequired: ingredient.quantity * this.modalQuantity
+				};
+			});
+
+			// Add the order with ingredients included
 			this.order.push({
 				"id": this.modalData.id,
 				"image": this.modalData.image,
-				"title": this.modalData.name,
+				"name": this.modalData.name,
 				"price": this.modalData.sellingPrice,
-				"quantity": this.modalQuantity
+				"quantity": this.modalQuantity,
+				"ingredients": ingredientsRequired
 			});
 
 			setTimeout(() => {
-				this.$refs.posSidebarBody.$el.scrollTop = this.$refs.posSidebarBody.$el.scrollHeight;
-				if (this.$refs.posSidebarBody.ps) {
-					this.$refs.posSidebarBody.ps.update();
+				if (this.$refs.posSidebarBody && this.$refs.posSidebarBody.$el) {
+					this.$refs.posSidebarBody.$el.scrollTop = this.$refs.posSidebarBody.$el.scrollHeight;
+					if (this.$refs.posSidebarBody.ps) {
+						this.$refs.posSidebarBody.ps.update();
+					}
 				}
 			}, 500);
 		},
@@ -431,7 +472,7 @@ export default {
 						background: "linear-gradient(to right, #ff5f6d, #ffc371)",
 					},
 				}).showToast();
-				return; // Stop execution if validation fails
+				return;
 			}
 
 			const orderDate = this.today;
@@ -453,9 +494,15 @@ export default {
 				type,
 				menuItems: this.order.map(item => ({
 					id: item.id,
+					name: item.name,
 					price: item.price,
 					quantity: item.quantity,
 					totalPricePerItem: item.price * item.quantity,
+					ingredients: item.ingredients ? item.ingredients.map(ingredient => ({
+						id: ingredient.id,
+						name: ingredient.name,
+						quantityRequired: ingredient.quantityRequired,
+					})) : [] // Default to an empty array if no ingredients are present
 				})),
 				totalPricePaid,
 				tip
@@ -476,7 +523,7 @@ export default {
 				return; // Stop execution if validation fails
 			}
 
-			this.orderSumary = submission;
+			this.orderSummary = submission;
 			this.showConfirmationModal();
 		},
 		showConfirmationModal() {
@@ -484,37 +531,105 @@ export default {
 			confirmationModal.show();
 		},
 		confirmOrder() {
-			// Submit the order after confirmation to Firebase
-			const newOrderRef = push(dbRef(db, 'Orders'));
-			set(newOrderRef, {
-				id: newOrderRef.key,
-				client_id: this.selectedClient.uid,
-				...this.orderSumary
-			})
+			// Validate client_id is specified
+			if (!this.selectedClient || !this.selectedClient.uid) {
+				console.error('Client ID is not specified.');
+				// Display an error message to the user
+				Toastify({
+					text: "Error: Cliente no especificado.",
+					duration: 3000,
+					close: true,
+					gravity: "top",
+					position: "right",
+					stopOnFocus: true,
+					style: {
+						background: "linear-gradient(to right, #D32F2F, #F44336)",
+					},
+				}).showToast();
+				return; // Stop execution if client_id is not present
+			}
+
+			// Validate orderSummary has the necessary information (customize as needed)
+			if (!this.orderSummary || Object.keys(this.orderSummary).length === 0) {
+				console.error('Order summary is not properly formed.');
+				// Display an error message to the user
+				Toastify({
+					text: "Error: Resumen de orden no válido.",
+					duration: 3000,
+					close: true,
+					gravity: "top",
+					position: "right",
+					stopOnFocus: true,
+					style: {
+						background: "linear-gradient(to right, #D32F2F, #F44336)",
+					},
+				}).showToast();
+				return; // Stop execution if orderSummary is not valid
+			}
+			// Prepare a list of stock update promises
+			const stockUpdatePromises = this.orderSummary.menuItems.flatMap(item =>
+				item.ingredients.map(ingredient => {
+					const ingredientRef = dbRef(db, `Ingredients/${ingredient.id}`);
+					return get(ingredientRef).then(snapshot => {
+						if (snapshot.exists()) {
+							const ingredientData = snapshot.val();
+							const currentStock = Number(ingredientData.stock);
+							const quantityRequired = Number(ingredient.quantityRequired); // Make sure to use the corrected property
+							if (isNaN(currentStock) || isNaN(quantityRequired)) {
+								console.error(`Error updating stock: currentStock or quantityRequired is NaN for ingredient ${ingredient.id}`);
+								return Promise.reject(new Error(`Invalid stock or quantity for ingredient ${ingredient.id}`));
+							}
+							const newStock = currentStock - quantityRequired;
+
+							if (newStock < 0) {
+								console.warn(`Warning: Attempted to reduce stock below zero for ingredient ${ingredient.id}.`);
+								return Promise.reject(new Error(`Attempted to reduce stock below zero for ingredient ${ingredient.id}`));
+							}
+
+							return update(ingredientRef, { stock: newStock });
+						}
+					}).catch(error => console.error('Error updating stock:', error));
+				})
+			);
+
+			// Proceed with the stock updates and order submission
+			Promise.all(stockUpdatePromises)
 				.then(() => {
+					console.log("All stock updates successful.");
+					const newOrderRef = push(dbRef(db, 'Orders'));
+					const newOrder = {
+						id: newOrderRef.key,
+						client_id: this.selectedClient.uid,
+						...this.orderSummary
+					};
+					return set(newOrderRef, newOrder);
+				})
+				.then(newOrder => {
 					console.log('Order submitted successfully');
-					//Toast to show Success form Submission
+					// this.notifyKitchen(newOrder.id);
+					// Reload orderHistory
+					this.fetchOrderHistory();
+
 					Toastify({
-						text: "Orden creada con exito!",
+						text: "Orden creada con éxito!",
 						duration: 3000,
 						close: true,
 						gravity: "top",
 						position: "right",
-						stopOnFocus: true,
 						style: {
 							background: "linear-gradient(to right, #00b09b, #96c93d)",
 						},
 					}).showToast();
 
-					// Clear selections after successful submission
+					// Clear selections and UI updates
 					this.clearOrderSelections();
-					// Set new order number incremented
 					this.fetchLastOrderNumber();
-					// Close the modal after confirmation
 					const confirmationModal = Modal.getInstance(this.$refs.confirmationModal);
 					confirmationModal.hide();
 				})
-				.catch((error) => console.error('Error submitting data:', error));
+				.catch((error) => {
+					console.error('Error submitting data:', error);
+				});
 		},
 		async searchClients() {
 			if (this.searchQuery.length > 1) {
@@ -526,6 +641,29 @@ export default {
 			} else {
 				this.searchResults = [];
 			}
+		},
+		selectUser(client) {
+			this.selectedClient = client;
+			this.searchQuery = '';
+			this.searchResults = [];
+		},
+		clearOrderSelections() {
+			// clear order sumary
+			this.order = [];
+			this.orderSummary = [];
+			this.tableNumber = '';
+			this.tip = null;
+			this.addTip = false;
+			this.isTakeaway = false;
+		},
+		async logOut() {
+			try {
+				await signOut(auth);
+				this.$router.push('/page/login'); // Redirect to login after sign out
+			} catch (error) {
+				console.error('Error signing out:', error.message);
+			}
+
 		},
 		// async registerNewClient(email: String, password: string) {
 		// 	const createUser = httpsCallable(functions, 'createUser');
@@ -591,29 +729,17 @@ export default {
 		// 		console.error('Error calling createUser function', error);
 		// 	}
 		// },
-		selectUser(client) {
-			this.selectedClient = client;
-			this.searchQuery = '';
-			this.searchResults = [];
-		},
-		clearOrderSelections() {
-			// clear order sumary
-			this.order = [];
-			this.orderSumary = [],
-				this.tableNumber = '';
-			this.tip = null;
-			this.addTip = false;
-			this.isTakeaway = false;
-		},
-		async logOut() {
-			try {
-				await signOut(auth);
-				this.$router.push('/page/login'); // Redirect to login after sign out
-			} catch (error) {
-				console.error('Error signing out:', error.message);
-			}
 
-		}
+		// notifyKitchen(orderId) {
+		// 	// Call Firebase Function or your API endpoint to trigger the notification
+		// 	const notifyFunction = firebase.functions().httpsCallable('notifyKitchen');
+		// 	notifyFunction({ orderId: orderId, tenantId: this.tenantId })
+		// 		.then((result) => {
+		// 			console.log('Notification sent:', result.data);
+		// 		}).catch((error) => {
+		// 			console.error('Error sending notification:', error);
+		// 		});
+		// }
 	}
 }
 </script>
@@ -731,7 +857,7 @@ export default {
 									<div class="img" v-bind:style="{ backgroundImage: 'url(' + order.image + ')' }">
 									</div>
 									<div class="flex-1">
-										<div class="h6 mb-1">{{ order.title }}</div>
+										<div class="h6 mb-1">{{ order.name }}</div>
 										<div class="small">${{ order.price }}</div>
 										<!-- <div class="small mb-2">
 											<div v-for="option in order.options">- {{ option.key }}: {{ option.value }}
@@ -786,37 +912,34 @@ export default {
 							<div v-if="orderHistory && orderHistory.length" class="tab-pane active p-3"
 								id="orderHistory" role="tabpanel">
 								<div class="accordion" id="orderHistoryAccordion">
-									<div v-for="(order, index) in orderHistory" :key="order.id" class="accordion-item">
+									<div v-for="(order, index) in orderHistory" :key="order.id || index"
+										class="accordion-item">
 										<h2 class="accordion-header" :id="'heading' + index">
 											<button class="accordion-button collapsed" type="button"
 												data-bs-toggle="collapse" :data-bs-target="'#collapse' + index"
 												aria-expanded="false" :aria-controls="'collapse' + index"
-												style="font-size: 1rem;">
+												style="font-size: 1rem; overflow-y: auto;">
 												<span class="text-muted me-1">Orden:</span>
 												<span class="fw-bold me-3">#{{ order.orderNumber }}</span>
 												<span class="text-muted me-1">Mesa:</span>
 												<span class="fw-bold me-3">#{{ order.tableNumber }}</span>
-												<span class="text-muted me-1">Fecha:</span>
-												<span class="fw-bold me-3">{{ order.date }}</span>
 												<span class="text-muted me-1">Cliente:</span>
 												<span class="fw-bold me-2">{{ order.clientName }}</span>
-												<span class="fst-italic">{{ order.clientCedula }}</span>
+												<span class="text-muted me-1">Fecha:</span>
+												<span class="fw-bold">{{ order.date }}</span>
 											</button>
 										</h2>
-
-
 										<div :id="'collapse' + index" class="accordion-collapse collapse"
 											:aria-labelledby="'heading' + index"
 											data-bs-parent="#orderHistoryAccordion">
-											<div class="accordion-body">
+											<div class="accordion-body text-start">
 												<p><strong>Mesa:</strong> #{{ order.tableNumber }}</p>
 												<p><strong>Fecha de orden:</strong> {{ order.date }}</p>
-												<!-- Add more order details here -->
 												<div>
 													<p><strong>Detalles de la Orden:</strong></p>
 													<ul>
 														<li v-for="item in order.menuItems" :key="item.id">
-															{{ item.title }} - Cantidad: {{ item.quantity }} - Subtotal:
+															{{ item.name }} - Cantidad: {{ item.quantity }} - Subtotal:
 															${{
 			item.totalPricePerItem.toFixed(2) }}
 														</li>
@@ -839,6 +962,7 @@ export default {
 								</div>
 							</div>
 						</div>
+
 						<!-- END #orderHistoryTab -->
 					</perfect-scrollbar>
 					<!-- END pos-sidebar-body -->
@@ -1103,7 +1227,7 @@ export default {
 						<div class="card-body">
 							<div style="margin-top: 20px;">
 								<p><b>Tipo de orden: </b>
-									<span class="badge bg-primary">{{ orderSumary && orderSumary.type === 'Takeaway'
+									<span class="badge bg-primary">{{ orderSummary && orderSummary.type === 'Takeaway'
 			?
 			'Para llevar' : 'Local' }}</span>
 								</p>
@@ -1112,8 +1236,8 @@ export default {
 							<div>
 								<b>Resumen de Orden:</b>
 								<ul class="list-group list-group-flush">
-									<li v-for="item in orderSumary.menuItems" :key="item.id" class="list-group-item">
-										{{ item.title }} - Cantidad: <span class="badge bg-primary">{{
+									<li v-for="item in orderSummary.menuItems" :key="item.id" class="list-group-item">
+										{{ item.name }} - Cantidad: <span class="badge bg-primary">{{
 			item.quantity
 		}}</span>
 									</li>
@@ -1121,7 +1245,7 @@ export default {
 							</div>
 
 							<h5 class="text-end mt-3">Total a cancelar: <span class="badge bg-success">${{
-									orderSumary.totalPricePaid }}</span></h5>
+									orderSummary.totalPricePaid }}</span></h5>
 						</div>
 					</div>
 				</div>
@@ -1198,5 +1322,29 @@ export default {
 	display: block;
 	padding: 10px;
 	color: #aaa;
+}
+
+@media (min-width: 992px) {
+
+	/* Target large screens */
+	.accordion-button {
+		padding-left: 1.5rem;
+		/* Increased padding for better alignment */
+		padding-right: 1.5rem;
+		/* Balanced padding on right */
+		font-size: 1.25rem;
+		/* Slightly larger font for readability */
+	}
+
+	.accordion-body {
+		font-size: 1rem;
+		/* Ensure text is not too small on large screens */
+	}
+}
+
+/* Optional: Improve general spacing and aesthetics */
+.accordion-item+.accordion-item {
+	margin-top: 1rem;
+	/* Add space between accordion items */
 }
 </style>

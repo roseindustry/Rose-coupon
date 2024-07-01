@@ -27,6 +27,8 @@ export default defineComponent({
 			identification: '',
 			phoneNumber: '',
 			email: '',
+			sector: '',
+			address: '',
 
 			// Edit states
 			editStates: {
@@ -35,7 +37,9 @@ export default defineComponent({
 				phoneNumber: false,
 				email: false,
 				password: false,
-				identification: false
+				identification: false,
+				sector: false,
+				address: false
 			},
 
 			// Field definitions to iterate over
@@ -43,6 +47,8 @@ export default defineComponent({
 				{ name: 'firstName', label: 'Nombre', value: '' },
 				{ name: 'lastName', label: 'Apellido', value: '' },
 				{ name: 'identification', label: 'Cedula', value: '' },
+				{ name: 'sector', label: 'Sector', value: ''},
+				{ name: 'address', label: 'Dirección', value: ''},
 				{ name: 'phoneNumber', label: 'Telefono', value: '' },
 				{ name: 'email', label: 'Correo electronico', value: '' },
 				{ name: 'password', label: 'Contraseña', value: '' },
@@ -149,9 +155,7 @@ export default defineComponent({
 			</ol>
 		</nav>
 		<div class="row">
-			<!-- BEGIN col-9 -->
 			<div class="col-xl-9">
-				<!-- BEGIN #general -->
 				<div id="general" class="mb-5">
 					<h4><i class="far fa-user fa-fw"></i> General</h4>
 					<p>Puedes actualizar tus datos de usuario aqui.</p>
@@ -176,8 +180,6 @@ export default defineComponent({
 						</div>
 					</div>
 				</div>
-				<!-- END #general -->
-				<!-- BEGIN #notifications -->
 				<div id="notifications" class="mb-5" v-if="role !== 'cliente'">
 					<h4><i class="far fa-bell fa-fw"></i> Notifications</h4>
 					<p>Enable or disable what notifications you want to receive.</p>
@@ -233,10 +235,8 @@ export default defineComponent({
 						</div>
 					</div>
 				</div>
-				<!-- END #notifications -->
 			</div>
 			<div class="col-xl-3">
-				<!-- BEGIN #sidebar-bootstrap -->
 				<nav id="sidebar-bootstrap" class="navbar navbar-sticky d-none d-xl-block">
 					<nav class="nav">
 						<nav-scroll-to target="#general" data-toggle="scroll-to">General</nav-scroll-to>
@@ -244,7 +244,6 @@ export default defineComponent({
 							data-toggle="scroll-to">Notifications</nav-scroll-to>
 					</nav>
 				</nav>
-				<!-- END #sidebar-bootstrap -->
 			</div>
 		</div>
 	</div>

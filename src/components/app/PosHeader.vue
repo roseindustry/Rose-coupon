@@ -11,7 +11,7 @@ export default defineComponent({
 			const routeNameToPageName = {
 				'/pos/customer-order': 'Orden nueva',
 				'/pos/kitchen-order': 'Orden de Cocina',
-				'/pos/menu-stock': 'Menú / Inventario',
+				'/pos/menu-stock': 'Inventario',
 				'/pos/counter-checkout': 'Checkout',
 				'/': 'Dashboard',
 			};

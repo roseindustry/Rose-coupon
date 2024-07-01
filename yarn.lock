@@ -1131,6 +1131,14 @@
     "@firebase/util" "1.9.4"
     tslib "^2.1.0"
 
+"@firebase/component@0.6.6":
+  version "0.6.6"
+  resolved "https://registry.npmjs.org/@firebase/component/-/component-0.6.6.tgz"
+  integrity sha512-pp7sWqHmAAlA3os6ERgoM3k5Cxff510M9RLXZ9Mc8KFKMBc2ct3RkZTWUF7ixJNvMiK/iNgRLPDrLR2gtRJ9iQ==
+  dependencies:
+    "@firebase/util" "1.9.5"
+    tslib "^2.1.0"
+
 "@firebase/database-compat@1.0.3":
   version "1.0.3"
   resolved "https://registry.npmjs.org/@firebase/database-compat/-/database-compat-1.0.3.tgz"
@@ -1249,6 +1257,16 @@
     idb "7.1.1"
     tslib "^2.1.0"
 
+"@firebase/installations@0.6.6":
+  version "0.6.6"
+  resolved "https://registry.npmjs.org/@firebase/installations/-/installations-0.6.6.tgz"
+  integrity sha512-dNGRGoHmstgEJqh9Kzk22fR2ZrVBH1JWliaL6binQ6pIzlWscreHNczzJDgOKoVT0PjWTrAmh/azztiX/e2uTw==
+  dependencies:
+    "@firebase/component" "0.6.6"
+    "@firebase/util" "1.9.5"
+    idb "7.1.1"
+    tslib "^2.1.0"
+
 "@firebase/logger@0.4.0":
   version "0.4.0"
   resolved "https://registry.npmjs.org/@firebase/logger/-/logger-0.4.0.tgz"
@@ -1270,6 +1288,23 @@
   version "0.2.0"
   resolved "https://registry.npmjs.org/@firebase/messaging-interop-types/-/messaging-interop-types-0.2.0.tgz"
   integrity sha512-ujA8dcRuVeBixGR9CtegfpU4YmZf3Lt7QYkcj693FFannwNuZgfAYaTmbJ40dtjB81SAu6tbFPL9YLNT15KmOQ==
+
+"@firebase/messaging-interop-types@0.2.1":
+  version "0.2.1"
+  resolved "https://registry.npmjs.org/@firebase/messaging-interop-types/-/messaging-interop-types-0.2.1.tgz"
+  integrity sha512-jfGJ7Jc32BDHXvXHyXi34mVLzZY8X0t929DTMwz7Tj2Hc40Zuzx8VRCIPLRrRUyvBrJCd5EpIcQgCygXhtaN1A==
+
+"@firebase/messaging@^0.12.8":
+  version "0.12.8"
+  resolved "https://registry.npmjs.org/@firebase/messaging/-/messaging-0.12.8.tgz"
+  integrity sha512-FbCTNhv5DUBo8It+Wj3XbKM1xf3PeoHsHk8PjMWBNm0yP+LL8Jhd3ejRsukEYdysTMvgxY4sU5Cs5YNTK44qTQ==
+  dependencies:
+    "@firebase/component" "0.6.6"
+    "@firebase/installations" "0.6.6"
+    "@firebase/messaging-interop-types" "0.2.1"
+    "@firebase/util" "1.9.5"
+    idb "7.1.1"
+    tslib "^2.1.0"
 
 "@firebase/messaging@0.12.6":
   version "0.12.6"
@@ -1369,6 +1404,13 @@
   version "1.9.4"
   resolved "https://registry.npmjs.org/@firebase/util/-/util-1.9.4.tgz"
   integrity sha512-WLonYmS1FGHT97TsUmRN3qnTh5TeeoJp1Gg5fithzuAgdZOUtsYECfy7/noQ3llaguios8r5BuXSEiK82+UrxQ==
+  dependencies:
+    tslib "^2.1.0"
+
+"@firebase/util@1.9.5":
+  version "1.9.5"
+  resolved "https://registry.npmjs.org/@firebase/util/-/util-1.9.5.tgz"
+  integrity sha512-PP4pAFISDxsf70l3pEy34Mf3GkkUcVQ3MdKp6aSVb7tcpfUQxnsdV7twDd8EkfB6zZylH6wpUAoangQDmCUMqw==
   dependencies:
     tslib "^2.1.0"
 

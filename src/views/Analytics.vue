@@ -388,14 +388,17 @@ export default {
 		<div class="col-lg-6 col-xl-4 mb-4">
 			<div class="card custom-card">
 				<div class="card-body">
-					<h5 class="mb-3">ORDENES TOTALES</h5>
+					<div class="d-flex align-items-center mb-2">
+						<div class="flex-fill fw-bold fs-16px">ORDENES DEL DÍA</div>
+						<a href="#" class="text-decoration-none text-muted">Ver reporte</a>
+					</div>
 					<div class="d-flex align-items-center">
 						<div class="flex-grow-1">
 							<h3>{{ this.currentDayOrders }}</h3>
 						</div>
 						<div class="bg-primary bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center"
 							style="width: 50px; height: 50px;">
-							<i class="fa-solid fa-store-slash fa-lg text-primary"></i>
+							<i class="fa-solid fa-clipboard fa-lg text-primary"></i>
 						</div>
 					</div>
 				</div>
@@ -409,7 +412,6 @@ export default {
 				<div class="card-body">
 					<div class="d-flex align-items-center mb-2">
 						<div class="flex-fill fw-bold fs-16px">GANANCIAS DEL DÍA</div>
-						<a href="#" class="text-decoration-none text-muted">Ver reporte</a>
 					</div>
 					<div class="d-flex align-items-center">
 						<div class="flex-grow-1">
@@ -417,7 +419,7 @@ export default {
 						</div>
 						<div class="bg-primary bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center"
 							style="width: 50px; height: 50px;">
-							<i class="fa-solid fa-store-slash fa-lg text-primary"></i>
+							<i class="fa-solid fa-sack-dollar fa-lg text-primary"></i>
 						</div>
 					</div>
 				</div>
@@ -439,7 +441,7 @@ export default {
 						</div>
 						<div class="bg-primary bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center"
 							style="width: 50px; height: 50px;">
-							<i class="fa-solid fa-store-slash fa-lg text-primary"></i>
+							<i class="fa-solid fa-star fa-lg text-primary"></i>
 						</div>
 					</div>
 				</div>

@@ -1,7 +1,7 @@
 // stores/tenancy.ts
 import { defineStore } from 'pinia';
-import { getSubdomain } from '@/utils/subdomain'; // Adjust path as needed
-import { db } from '@/firebase/init'; // Adjust path as needed
+import { getSubdomain } from '@/utils/subdomain';
+import { db } from '@/firebase/init';
 import { ref as dbRef, set, push, get, child, update } from 'firebase/database';
 
 interface Tenant {
