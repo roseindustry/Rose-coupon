@@ -162,7 +162,6 @@ export default {
 			this.clients = allUsers.filter(user => user.role === 'cliente');
 		},
 		async fetchIngredients() {
-			const tenancyStore = useTenancyStore();
 			const tenantId = tenancyStore.tenant.key;
 
 			const stockItemRef = query(dbRef(db, 'Ingredients'), orderByChild('tenant_id'), equalTo(tenantId));
@@ -283,7 +282,6 @@ export default {
 		},
 	},
 	async mounted() {
-		const tenancyStore = useTenancyStore();
 		this.subdomain = getSubdomain();
 
 		// Automatically find or create tenant upon component mount

@@ -1,12 +1,15 @@
 <script>
 import { useUserStore } from '@/stores/user-role';
-import { ref as dbRef, query, orderByChild, equalTo, get } from 'firebase/database';
+import { ref as dbRef, child, get } from 'firebase/database';
 import { db } from '@/firebase/init';
+import { Modal } from 'bootstrap';
+import moment from 'moment';
 
 export default {
     data() {
         return {
             coupons: [],
+            modalImageUrl: '',
         };
     },
     computed: {
@@ -15,10 +18,61 @@ export default {
         }
     },
     created() {
-        // this.fetchcoupons();
+        this.fetchCoupons();
     },
     methods: {
-        
+        async fetchCoupons() {
+            try {
+                const userStore = useUserStore();
+                const userId = userStore.userId;
+
+                if (!userId) {
+                    console.error('User ID not found');
+                    return;
+                }
+
+                const couponsRef = dbRef(db, `Users/${userId}/coupons`);
+                const couponsSnapshot = await get(couponsRef);
+
+                if (couponsSnapshot.exists()) {
+                    const couponsData = couponsSnapshot.val();
+                    const couponsList = [];
+
+                    for (const couponId in couponsData) {
+                        const couponRef = await get(child(dbRef(db), `Coupons/${couponId}`));
+                        if (couponRef.exists()) {
+                            const coupon = couponRef.val();
+                            let couponExp;
+                            // Format the expiration date to 'DD/MM/YYYY'
+                            if (moment(coupon.expiration, moment.ISO_8601, true).isValid()) {
+                                couponExp = coupon.expiration = moment(coupon.expiration).format('DD/MM/YYYY');
+                            } else {
+                                couponExp = coupon.expiration = moment(coupon.expiration, 'DD/MM/YYYY').format('DD/MM/YYYY');
+                            }
+                            couponsList.push({
+                                id: couponId,
+                                name: coupon.name,
+                                couponCode: coupon.couponCode,
+                                balance: coupon.balance,
+                                expiration: couponExp,
+                                status: coupon.status,
+                                qrFileUrl: coupon.qrFileUrl
+                            });
+                        }
+                    }
+
+                    this.coupons = couponsList;
+                } else {
+                    console.log('No coupons found for the user');
+                }
+            } catch (error) {
+                console.error('Error fetching coupons:', error);
+            }
+        },
+        openModal(imageUrl) {
+            this.modalImageUrl = imageUrl;
+            new Modal(document.getElementById('qrModal')).show();
+        },
     },
 };
 </script>
@@ -31,33 +85,44 @@ export default {
             </ol>
         </nav>
         <div class="row">
-            <div class="col-12 col-md-6" v-if="coupons.length > 0" v-for="coupon in coupons" :key="coupon.id">
-                <div class="card shadow-lg mb-4">
+            <div class="col-12 col-md-3" v-if="coupons.length > 0" v-for="coupon in coupons" :key="coupon.id">
+                <div class="card mb-3 position-relative">
                     <div class="card-body">
-                        <!-- <div class="row row-cols-1 row-cols-md-3 g-4">
-                            <div v-for="menuItem in rating.menuItems" :key="menuItem.id" class="col">
-                                <div class="card h-100">
-                                    <div class="card-body">
-                                        <img :src="menuItem.image" class="img-thumbnail" alt="..."
-                                            style="max-width: 100px; max-height: 100px; object-fit: cover;">
-                                        <h5 class="card-title">{{ menuItem.name }}</h5>
-                                        <p class="card-text">{{ menuItem.description }}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div> -->
-                        <!-- <div>
-                            <span><b>Comentarios:</b> {{ rating.comment }}</span>
+                        <!-- Badge for status -->
+                        <span class="badge position-absolute top-0 start-100 translate-middle"
+                            :class="coupon.status ? 'bg-success' : 'bg-danger'">
+                            {{ coupon.status ? 'Activo' : 'Inactivo' }}
+                        </span>
+                        <div class="d-flex justify-content-between mb-3">
+                            <h6 class="card-title mb-0">{{ coupon.name }}</h6>
                         </div>
-                        <div style="margin-top: 15px;"><b>Puntuacion: </b>
-                            <i class="fa fa-star" v-for="n in parseInt(rating.ratingValue)" :key="n"
-                                aria-hidden="true"></i>
-                        </div> -->
+                        <div class="img-container text-center mb-3">
+                            <!-- Image Display -->
+                            <img :src="coupon.qrFileUrl" alt="QR Code" class="img-fluid img-thumbnail"
+                                style="max-height: 150px;" @click="openModal(coupon.qrFileUrl)">
+                        </div>
+                        <p class="card-text"><strong>Código:</strong> {{ coupon.couponCode }}</p>
+                        <p class="card-text"><strong>Saldo:</strong> ${{ coupon.balance }}</p>
+                        <p class="card-text"><strong>Expiración:</strong> {{ coupon.expiration }}</p>
                     </div>
                 </div>
             </div>
             <div class="col-12 col-md-6" v-else>
-                <div class="card shadow-lg mb-4">No hay cupones hasta ahora.</div>
+                <div class="card shadow-lg mb-4">No hay cupones.</div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal -->
+    <div class="modal fade" id="qrModal" tabindex="-1" aria-labelledby="qrModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="qrModalLabel">QR Code</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img :src="modalImageUrl" alt="QR Code" class="img-fluid">
+                </div>
             </div>
         </div>
     </div>

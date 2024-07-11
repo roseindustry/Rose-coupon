@@ -124,10 +124,12 @@ export default {
                     const userSnapshot = await get(dbRef(db, `Users/${rating.user_id}`));
                     let userName = 'Unknown';
                     let cedula = '';
+                    let plan = '';
                     if (userSnapshot.exists()) {
                         const user = userSnapshot.val();
                         userName = `${user.firstName} ${user.lastName}`;
                         cedula = user.identification;
+                        plan = user.plan;
                     }
 
                     let totalPaid = 0;
@@ -165,6 +167,7 @@ export default {
                         orderItems: menuItemsWithDetails,
                         userName,
                         cedula,
+                        plan,
                         totalPaid,
                     };
                 });
@@ -284,6 +287,7 @@ export default {
                         <th>Puntuacion</th>
                         <th>Comentarios</th>
                         <th>Cliente</th>
+                        <th>Suscripción</th>
                         <th>Cedula</th>
                         <th>Total pagado <a href="#" class="btn" data-toggle="tooltip" data-placement="top"
                                 title="Ordenar" @click.prevent="toggleSortOrder"><i class="fa-solid fa-sort"></i></a>
@@ -298,6 +302,7 @@ export default {
                                     class="fa-solid fa-magnifying-glass" style="margin-left: 5px;"></i></a></td>
                         <td>{{ rating.comment }}</td>
                         <td>{{ rating.userName }}</td>
+                        <td>{{ rating.plan }}</td>
                         <td>{{ rating.cedula }}</td>
                         <td>${{ formatTotalPaid(rating.totalPaid).toFixed(2) }}</td>
                     </tr>

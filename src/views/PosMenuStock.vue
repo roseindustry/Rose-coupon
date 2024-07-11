@@ -16,6 +16,7 @@ const appOption = useAppOptionStore();
 export default {
 	data() {
 		return {
+			// Menu items
 			menu: {
 				name: '',
 				description: '',
@@ -24,6 +25,7 @@ export default {
 				sellingPrice: '',
 				iva: 16
 			},
+			// Ingredients stock
 			stock: {
 				name: '',
 				status: '',
@@ -737,9 +739,9 @@ export default {
 																@change="event => previewUpdatedImage(event, menu)"
 																class="form-control" />
 														</div>
-														<button class="btn btn-danger position-absolute top-0 end-0"
+														<button class="btn btn-transparent btn-sm me-1"
 															@click.prevent="deleteItem(menu, index)">
-															<i class="fa-solid fa-trash fa-sm"></i>
+															<i class="fa-solid fa-trash text-danger"></i>
 														</button>
 													</div>
 													<div class="info">
