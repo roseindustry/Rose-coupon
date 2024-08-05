@@ -1,9 +1,10 @@
 <script>
 import { useAppOptionStore } from '@/stores/app-option';
-import { useRouter, RouterLink } from 'vue-router';
-import { auth, db } from '@/firebase/init'; // Ensure you have these imports
+import { RouterLink } from 'vue-router';
+import { auth, db } from '@/firebase/init';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { get, ref as dbRef } from 'firebase/database';
+import { useTenancyStore } from '@/stores/tenancy';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 
@@ -22,6 +23,7 @@ export default {
 		appOption.appSidebarHide = true;
 		appOption.appHeaderHide = true;
 		appOption.appContentClass = 'p-0';
+		this.getTenantId();
 	},
 	beforeUnmount() {
 		appOption.appSidebarHide = false;
@@ -29,62 +31,79 @@ export default {
 		appOption.appContentClass = '';
 	},
 	methods: {
+		async getTenantId() {
+			const tenancyStore = useTenancyStore();
+			await tenancyStore.findOrCreateTenant();
+			return tenancyStore.tenant.key;
+		},
 		async submitForm() {
 			const { email, password } = this.loginForm;
 			try {
 				const userCredential = await signInWithEmailAndPassword(auth, email, password);
 				const user = userCredential.user;
-				// User is signed in, now let's check their tenant_id
+
 				const userRef = dbRef(db, `Users/${user.uid}`);
 				const snapshot = await get(userRef);
-				if (snapshot.exists()) {
-					const userData = snapshot.val();
-					const tenantRef = dbRef(db, `Tenants/${userData.tenant_id}`);
-					const tenantSnapshot = await get(tenantRef);
-					if (tenantSnapshot.exists()) {
-						// Success Toastify
-						Toastify({
-							text: "Bienvenido "+ userData.firstName +"!",
-							duration: 3000,
-							close: true,
-							gravity: "top", // `top` or `bottom`
-							position: "right", // `left`, `center` or `right`
-							stopOnFocus: true, // Prevents dismissing of toast on hover
-							style: {
-								background: "linear-gradient(to right, #00b09b, #96c93d)",
-							},
-						}).showToast();
-						
-						// Tenant exists, proceed with redirection based on role
-						if (userData.role === 'admin') {
-							this.$router.push('/');
-						} else if (userData.role === 'cliente') {
-							this.$router.push('/page/client-portal');
-						} else if (userData.role === 'mesero') {
-							this.$router.push('/pos/customer-order');
-						} else {
-							console.log('User role is not defined or user is not authorized for access.');
-						}
-					} else {
-						alert('Usuario no encontrado.');
-					}
-				} else {
+
+				if (!snapshot.exists()) {
 					console.log('No user data found in the database.');
+					return;
+				}
+
+				const userData = snapshot.val();
+				const currentTenantId = await this.getTenantId();
+				if (userData.tenant_id !== currentTenantId) {
+					alert('Usuario no pertenece a este Tenant.');
+					return;
+				}
+
+				// Success Toastify
+				Toastify({
+					text: "Bienvenido " + userData.firstName + "!",
+					duration: 3000,
+					close: true,
+					gravity: "top", // `top` or `bottom`
+					position: "right", // `left`, `center` or `right`
+					stopOnFocus: true, // Prevents dismissing of toast on hover
+					style: {
+						background: "linear-gradient(to right, #00b09b, #96c93d)",
+					},
+				}).showToast();
+
+				// Tenant exists, proceed with redirection based on role
+				switch (userData.role) {
+					case 'admin':
+						this.$router.push('/');
+						break;
+					case 'cliente':
+						this.$router.push('/page/client-portal');
+						break;
+					case 'mesero':
+						this.$router.push('/pos/customer-order');
+						break;
+					default:
+						console.log('User role is not defined or user is not authorized for access.');
 				}
 			} catch (error) {
+				console.error('Error signing in');
+				console.error(error);
+
+				const errorMessage = error.code === 'auth/invalid-credential'
+					? "Correo o Contraseña incorrecta."
+					: "Error al Iniciar Sesión. Inténtalo de nuevo.";
+
 				// Error Toastify
 				Toastify({
-							text: "Correo o Contraseña incorrecta!",
-							duration: 3000,
-							close: true,
-							gravity: "top", // `top` or `bottom`
-							position: "right", // `left`, `center` or `right`
-							stopOnFocus: true, // Prevents dismissing of toast on hover
-							style: {
-								background: "linear-gradient(to right, #00b09b, #96c93d)",
-							},
-						}).showToast();
-				console.error('Error during login or tenant verification:', error);
+					text: errorMessage,
+					duration: 3000,
+					close: true,
+					gravity: "top", // `top` or `bottom`
+					position: "right", // `left`, `center` or `right`
+					stopOnFocus: true, // Prevents dismissing of toast on hover
+					style: {
+						background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+					},
+				}).showToast();
 			}
 		},
 		async forgotPassword() {
@@ -137,12 +156,12 @@ export default {
 		<!-- BEGIN login-content -->
 		<div class="login-content">
 			<form v-on:submit.prevent="submitForm()">
-				<h1 class="text-center">Iniciar sesion</h1>
+				<h1 class="text-center">Iniciar sesión</h1>
 				<div class="text-muted text-center mb-4">
-					Para tu proteccion, por favor identificate.
+					Para tu protección, por favor identifícate.
 				</div>
 				<div class="mb-3">
-					<label class="form-label">Correo electronico</label>
+					<label class="form-label">Correo electrónico</label>
 					<input type="email" class="form-control form-control-lg fs-15px" v-model="loginForm.email" value=""
 						placeholder="username@address.com" />
 				</div>
@@ -150,12 +169,12 @@ export default {
 					<div class="d-flex">
 						<label class="form-label">Contraseña</label>
 						<a href="#" class="ms-auto text-muted" data-bs-toggle="modal"
-							data-bs-target="#passwordModal">¿Olvido su contraseña?</a>
+							data-bs-target="#passwordModal">¿Olvidó su contraseña?</a>
 					</div>
 					<input type="password" class="form-control form-control-lg fs-15px" v-model="loginForm.password"
-						value="" placeholder="Enter your password" />
+						value="" placeholder="Ingrese su contraseña" />
 				</div>
-				<button type="submit" class="btn btn-theme btn-lg d-block w-100 fw-500 mb-3">Iniciar sesion</button>
+				<button type="submit" class="btn btn-theme btn-lg d-block w-100 fw-500 mb-3">Iniciar sesión</button>
 				<div class="text-center text-muted">
 					¿No tienes una cuenta? <router-link to="/page/register">Regístrate</router-link>.
 				</div>

@@ -360,7 +360,7 @@ export default {
 								<th class="border-top-0 pt-0 pb-2">Fecha</th>
 								<th class="border-top-0 pt-0 pb-2">Cliente</th>
 								<th class="border-top-0 pt-0 pb-2">Total</th>
-								<th class="border-top-0 pt-0 pb-2">Estado de pago</th>
+								<th class="border-top-0 pt-0 pb-2">Estado</th>
 								<th class="border-top-0 pt-0 pb-2">Cantidad</th>
 								<th class="border-top-0 pt-0 pb-2">Tipo de pedido</th>
 								<th class="border-top-0 pt-0 pb-2">Acciones</th>
@@ -377,11 +377,13 @@ export default {
 								<td>${{ order.totalPricePaid.toFixed(2) }}</td>
 								<td class="py-1 align-middle">
 									<span
-										:class="`badge ${order.status === 'Completed' ? 'bg-teal' : 'bg-danger'} text-white-800 bg-opacity-25 px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center`">
+										:class="`badge ${order.status === 'Completed' ? 'bg-primary' : order.status === 'Paid' ? 'bg-teal' : 'bg-danger'} text-white-800 bg-opacity-25 px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center`">
 										<i class="fa fa-circle text-white fs-9px fa-fw me-5px"></i>
 										{{ order.status === 'Completed' ? 'Completada' : order.status === 'Pending' ?
-				'Pendiente' : order.status }}
+				'Pendiente' : order.status === 'Paid' ? 'Pagada' : order.status }}
 									</span>
+
+
 								</td>
 								<td class="align-middle">{{ order.itemsCount }} items</td>
 								<td class="align-middle">{{ order.type === 'DineIn' ? 'Local' : order.type ===

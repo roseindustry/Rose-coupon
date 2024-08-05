@@ -6,7 +6,7 @@ import { getSubdomain } from '@/utils/subdomain';
 import { RouterLink } from 'vue-router';
 import { auth, db } from '@/firebase/init';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { ref as dbRef, set } from 'firebase/database';
+import { ref as dbRef, set, get } from 'firebase/database';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 
@@ -68,18 +68,37 @@ export default defineComponent({
 			this.passwordMismatch = false;
 
 			const tenancyStore = useTenancyStore();
+			const tenantId = tenancyStore.tenant.key;
 
 			try {
+				// Query Users to check if email is already used by another user in the same tenant
+				const usersRef = dbRef(db, `Users`);
+				const snapshot = await get(usersRef);
+				if (snapshot.exists()) {
+					const users = snapshot.val();
+					for (const uid in users) {
+						if (users[uid].email === this.email && users[uid].tenant_id === tenantId) {
+							// Show a Toastify notification if the email is already in use
+							Toastify({
+								text: "El correo electrónico ya está en uso.",
+								duration: 3000,
+								close: true,
+								gravity: "top", // `top` or `bottom`
+								position: "right", // `left`, `center` or `right`
+								stopOnFocus: true, // Prevents dismissing of toast on hover
+								style: {
+									background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+								},
+							}).showToast();
+							return;
+						}
+					}
+				}
+
 				const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
 				const user = userCredential.user;
 
-				// Ensure tenant is available (it should be set by now if the component was mounted properly)
-				if (!tenancyStore.tenant) {
-					console.error('Tenant information is missing.');
-					return;
-				}
-
-				// Now that the user is created, let's save their additional info
+				// Save user info under the Users table with tenant_id
 				const userRef = dbRef(db, `Users/${user.uid}`);
 				await set(userRef, {
 					email: user.email,
@@ -90,12 +109,12 @@ export default defineComponent({
 					sector: this.sector,
 					address: this.address,
 					role: this.role,
-					tenant_id: tenancyStore.tenant.key // Linking user to tenant by tenant's Firebase-generated key
+					tenant_id: tenantId // Linking user to tenant by tenant's Firebase-generated key
 				});
 
-				console.log('User created and linked to tenant:', user.uid, tenancyStore.tenant.key);
+				console.log('User created and linked to tenant:', user.uid, tenantId);
 
-				//Toastify
+				// Toastify success message
 				Toastify({
 					text: "Bienvenido a bordo!",
 					duration: 3000,
@@ -119,7 +138,20 @@ export default defineComponent({
 
 			} catch (error) {
 				console.error('Error signing up');
-				console.error(error)
+				console.error(error);
+
+				// Check for other errors
+				Toastify({
+					text: "Error al registrarse. Inténtalo de nuevo.",
+					duration: 3000,
+					close: true,
+					gravity: "top", // `top` or `bottom`
+					position: "right", // `left`, `center` or `right`
+					stopOnFocus: true, // Prevents dismissing of toast on hover
+					style: {
+						background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+					},
+				}).showToast();
 			}
 		},
 		resetForm() {
@@ -170,7 +202,7 @@ export default defineComponent({
 				<div class="mb-3">
 					<label class="form-label">Telefono <span class="text-secondary">(Opcional)</span></label>
 					<input type="tel" v-model="phoneNumber" class="form-control form-control-lg fs-15px"
-						placeholder="e.g 0414-5555555" value="" pattern="[0-9]{4}-[0-9]{7}" />
+						placeholder="e.g 04145555555" value="" pattern="[0-9]{4}[0-9]{7}" />
 				</div>
 				<div class="mb-3">
 					<label class="form-label">Sector <span class="text-danger">*</span></label>

@@ -309,7 +309,7 @@ export default {
                 </tbody>
                 <tfoot>
                     <tr>
-                        <th colspan="5">Total</th>
+                        <th colspan="6">Total</th>
                         <th>${{ totalPaidOnStore }}</th>
                     </tr>
                 </tfoot>

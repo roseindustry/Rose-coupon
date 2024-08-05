@@ -1,32 +1,36 @@
 <script>
+import { useTenancyStore } from '@/stores/tenancy';
+import { getSubdomain } from '@/utils/subdomain';
+import { db } from '@/firebase/init';
+import { ref as dbRef, get, query, orderByChild, equalTo } from 'firebase/database';
 import { useAppOptionStore } from '@/stores/app-option';
-import { RouterLink } from 'vue-router';
 import { Modal } from 'bootstrap';
 import axios from 'axios';
 import datepicker from '@/components/plugins/Datepicker.vue';
-import PosHeader from '@/components/app/PosHeader.vue'
+import PosHeader from '@/components/app/PosHeader.vue';
+import moment from 'moment';
 
 const appOption = useAppOptionStore();
 
 export default {
 	data() {
 		return {
-			tables: '',
+			tables: [],
 			currentHour: '',
 			modal: '',
-			modalData: ''
+			modalData: null
 		}
 	},
 	components: {
-    datepicker: datepicker,
-	PosHeader
-  },
+		datepicker: datepicker,
+		PosHeader
+	},
 	mounted() {
 		appOption.appSidebarHide = true;
 		appOption.appHeaderHide = true;
 		appOption.appContentClass = 'p-0';
 		appOption.appContentFullHeight = true;
-		
+
 		axios.get('/assets/data/pos/table-booking.json').then((response) => {
 			this.tables = response.data.tables;
 		});
@@ -38,8 +42,21 @@ export default {
 		appOption.appContentFullHeight = false;
 	},
 	methods: {
+		async fetchTables() {
+			const tablesRef = dbRef(db, 'Tables');
+			const tablesSnapshot = await get(tablesRef);
+
+			if (tablesSnapshot.exists()) {
+				this.tables = [];
+				tablesSnapshot.forEach(childSnapshot => {
+					this.tables.push({ id: childSnapshot.key, ...childSnapshot.val() });
+				});
+			} else {
+				console.log("No tables data available");
+			}
+		},
 		checkTime(i) {
-			if (i < 10) {i = "0" + i};
+			if (i < 10) { i = "0" + i };
 			return i;
 		},
 		getTime() {
@@ -52,9 +69,9 @@ export default {
 			s = this.checkTime(s);
 			a = (h > 11) ? 'pm' : 'am';
 			h = (h > 12) ? h - 12 : h;
-			
+
 			setTimeout(this.getTime, 500);
-			
+
 			return h + ":" + m + a;
 		},
 		getAvailableTable() {
@@ -64,9 +81,9 @@ export default {
 			var a;
 			a = (h > 11) ? 'pm' : 'am';
 			h = (h > 12) ? h - 12 : h;
-			
+
 			this.currentHour = this.checkTime(h) + ":00" + a;
-			
+
 			for (var i = 0; i < this.tables.length; i++) {
 				for (var x = 0; x < this.tables[i].reservation.length; x++) {
 					if (this.tables[i].reservation[x].time == this.currentHour && !this.tables[i].reservation[x].text) {
@@ -85,7 +102,7 @@ export default {
 			var today = new Date();
 			var currentFullHour = today.getHours();
 			var currentHour = (currentFullHour > 12) ? currentFullHour - 12 : currentFullHour;
-			
+
 			if (fullHour == currentFullHour && text) {
 				return 'in-progress';
 			} else if (currentFullHour > fullHour && text) {
@@ -102,7 +119,7 @@ export default {
 			var currentHour = (currentFullHour > 12) ? currentFullHour - 12 : currentFullHour;
 			var currentHour = (currentHour < 10) ? '0' + currentHour : currentHour;
 			var currentTime = currentHour + ':00' + currentAmPm;
-			
+
 			if (currentTime == time) {
 				return true;
 			}
@@ -114,8 +131,8 @@ export default {
 				var hour = parseInt(time[0]);
 				var today = new Date();
 				var currentHour = today.getHours();
-						currentHour = (currentHour > 12) ? currentHour - 12 : currentHour;
-			
+				currentHour = (currentHour > 12) ? currentHour - 12 : currentHour;
+
 				if (currentHour == hour && reservation.text) {
 					return true;
 				}
@@ -124,7 +141,7 @@ export default {
 		},
 		showBookingModal(event, table) {
 			event.preventDefault();
-			
+
 			this.modalData = table;
 			this.modal = new Modal(this.$refs.modalPosBooking);
 			this.modal.show();
@@ -148,16 +165,18 @@ export default {
 			<!-- BEGIN pos-header -->
 			<pos-header />
 			<!-- END pos-header -->
-		
+
 			<!-- BEGIN pos-content -->
 			<div class="pos-content">
 				<div class="pos-content-container h-100 p-4" data-scrollbar="true" data-height="100%">
 					<div class="d-md-flex align-items-center mb-4">
 						<div class="flex-1">
-							<div class="fs-24px mb-1">Available Table ({{ getAvailableTable() }}/{{ tables.length }})</div>
+							<div class="fs-24px mb-1">Mesas Disponibles ({{ getAvailableTable() }}/{{ tables.length }})
+							</div>
 							<div class="mb-2 mb-md-0 d-flex">
 								<div class="d-flex align-items-center me-3">
-									<i class="fa fa-circle fa-fw text-inverse text-opacity-25 fs-9px me-1"></i> Completed
+									<i class="fa fa-circle fa-fw text-inverse text-opacity-25 fs-9px me-1"></i>
+									Completed
 								</div>
 								<div class="d-flex align-items-center me-3">
 									<i class="fa fa-circle fa-fw text-warning fs-9px me-1"></i> Upcoming
@@ -181,7 +200,7 @@ export default {
 												<div class="flex-1">
 													<div class="title">TABLE</div>
 													<div class="no">{{ table.name }}</div>
-													<div class="desc">max {{ table.pax}} pax</div>
+													<div class="desc">max {{ table.pax }} pax</div>
 												</div>
 												<div class="pe-1 text-success" v-if="checkAvailable(table.reservation)">
 													<i class="bi bi-check2-circle fa-3x"></i>
@@ -192,14 +211,19 @@ export default {
 											</div>
 										</div>
 										<div class="pos-table-booking-body">
-											<div class="booking" v-for="reservation in table.reservation" v-bind:class="{'highlight': checkSameHour(reservation.time) }">
+											<div class="booking" v-for="reservation in table.reservation"
+												v-bind:class="{ 'highlight': checkSameHour(reservation.time) }">
 												<div class="time">{{ reservation.time }}</div>
-												<div class="info">{{ (reservation.text) ? reservation.text : '-' }}</div>
-												<div class="status" v-bind:class="getStatus(reservation.time, reservation.text)"><i class="fa fa-circle" v-if="reservation.text"></i></div>
+												<div class="info">{{ (reservation.text) ? reservation.text : '-' }}
+												</div>
+												<div class="status"
+													v-bind:class="getStatus(reservation.time, reservation.text)"><i
+														class="fa fa-circle" v-if="reservation.text"></i></div>
 											</div>
 										</div>
 									</div>
-									<a href="#" class="stretched-link" v-on:click="(event) => showBookingModal(event, table)"></a>
+									<a href="#" class="stretched-link"
+										v-on:click="(event) => showBookingModal(event, table)"></a>
 								</card-body>
 							</card>
 						</div>
@@ -214,8 +238,8 @@ export default {
 		<!-- END pos-container -->
 	</div>
 	<!-- END pos -->
-	
-	
+
+
 	<!-- BEGIN #modalPosBooking -->
 	<div class="modal modal-pos fade" ref="modalPosBooking">
 		<!-- BEGIN modal-dialog -->
@@ -230,8 +254,9 @@ export default {
 							<!-- BEGIN modal-header -->
 							<div class="modal-header align-items-center">
 								<h5 class="modal-title d-flex align-items-end">
-									Table {{ modalData.name }} 
-									<small class="fs-14px ms-2 text-inverse text-opacity-50">max {{ modalData.pax }} pax</small>
+									Table {{ modalData.name }}
+									<small class="fs-14px ms-2 text-inverse text-opacity-50">max {{ modalData.pax }}
+										pax</small>
 								</h5>
 								<a href="#" data-bs-dismiss="modal" class="ms-auto btn-close"></a>
 							</div>
@@ -240,21 +265,25 @@ export default {
 							<div class="modal-body">
 								<div class="row">
 									<div class="col-lg-6">
-										<template v-for="(reservation, index) in modalData.reservation"> 
+										<template v-for="(reservation, index) in modalData.reservation">
 											<div class="form-group mb-2" v-if="index <= 7">
 												<div class="input-group">
-													<div class="input-group-text fw-bold w-90px fs-13px">{{ reservation.time }}</div>
-													<input type="text" class="form-control" placeholder="" v-model="reservation.text" />
+													<div class="input-group-text fw-bold w-90px fs-13px">{{
+								reservation.time }}</div>
+													<input type="text" class="form-control" placeholder=""
+														v-model="reservation.text" />
 												</div>
 											</div>
 										</template>
 									</div>
 									<div class="col-lg-6">
-										<template v-for="(reservation, index) in modalData.reservation"> 
+										<template v-for="(reservation, index) in modalData.reservation">
 											<div class="form-group mb-2" v-if="index > 7">
 												<div class="input-group">
-													<div class="input-group-text fw-bold w-90px fs-13px">{{ reservation.time }}</div>
-													<input type="text" class="form-control" placeholder="" v-model="reservation.text" />
+													<div class="input-group-text fw-bold w-90px fs-13px">{{
+								reservation.time }}</div>
+													<input type="text" class="form-control" placeholder=""
+														v-model="reservation.text" />
 												</div>
 											</div>
 										</template>

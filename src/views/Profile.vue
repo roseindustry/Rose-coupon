@@ -3,8 +3,9 @@ import { defineComponent, ref, computed } from 'vue';
 import navscrollto from '@/components/app/NavScrollTo.vue';
 import { ScrollSpy } from 'bootstrap';
 import { useUserStore } from '@/stores/user-role';
-import { db } from '../firebase/init';
+import { auth, db } from '../firebase/init';
 import { ref as dbRef, update, get, child } from 'firebase/database';
+import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 
@@ -21,7 +22,10 @@ export default defineComponent({
 	},
 	data() {
 		return {
-			password: '',
+			currentPassword: '',
+			newPassword: '',
+			confirmPassword: '',
+
 			firstName: '',
 			lastName: '',
 			identification: '',
@@ -47,11 +51,10 @@ export default defineComponent({
 				{ name: 'firstName', label: 'Nombre', value: '' },
 				{ name: 'lastName', label: 'Apellido', value: '' },
 				{ name: 'identification', label: 'Cedula', value: '' },
-				{ name: 'sector', label: 'Sector', value: ''},
-				{ name: 'address', label: 'Dirección', value: ''},
+				{ name: 'sector', label: 'Sector', value: '' },
+				{ name: 'address', label: 'Dirección', value: '' },
 				{ name: 'phoneNumber', label: 'Telefono', value: '' },
 				{ name: 'email', label: 'Correo electronico', value: '' },
-				{ name: 'password', label: 'Contraseña', value: '' },
 			],
 		};
 	},
@@ -126,7 +129,7 @@ export default defineComponent({
 				console.log("User data updated successfully");
 
 				Toastify({
-					text: "Datos actualizados con exito!",
+					text: "Datos actualizados con éxito!",
 					duration: 3000,
 					close: true,
 					gravity: "top",
@@ -140,6 +143,38 @@ export default defineComponent({
 				this.toggleEdit(fieldName);
 			} catch (error) {
 				console.error("Error updating menu item:", error);
+			}
+		},
+		async changePassword() {
+			if (this.newPassword !== this.confirmPassword) {
+				alert('La nueva contraseña y la confirmación de contraseña no coinciden.');
+				return;
+			}
+
+			const user = auth.currentUser;
+			console.log(user);
+			const credential = EmailAuthProvider.credential(user.email, this.currentPassword);
+
+			try {
+				await reauthenticateWithCredential(user, credential);
+				await updatePassword(user, this.newPassword);
+				Toastify({
+					text: 'contraseña actualizada con éxito.',
+					duration: 3000,
+					close: true,
+					gravity: 'top',
+					position: 'right',
+					stopOnFocus: true,
+					style: {
+						background: 'linear-gradient(to right, #00b09b, #96c93d)',
+					},
+				}).showToast();
+				this.currentPassword = '';
+				this.newPassword = '';
+				this.confirmPassword = '';
+			} catch (error) {
+				console.error('Error updating password:', error);
+				alert('Error al actualizar la contraseña. Inténtalo de nuevo.');
 			}
 		},
 	}
@@ -180,9 +215,36 @@ export default defineComponent({
 						</div>
 					</div>
 				</div>
+
+				<!-- Change Password Section -->
+				<div id="change-password" class="mb-5">
+					<h4><i class="fas fa-key fa-fw"></i> Cambiar Contraseña</h4>
+					<p>Actualiza tu contraseña aquí.</p>
+					<div class="card shadow-sm">
+						<div class="card-body">
+							<div class="mb-3">
+								<label for="currentPassword" class="form-label">Contraseña Actual</label>
+								<input type="password" class="form-control" id="currentPassword"
+									v-model="currentPassword">
+							</div>
+							<div class="mb-3">
+								<label for="newPassword" class="form-label">Nueva Contraseña</label>
+								<input type="password" class="form-control" id="newPassword" v-model="newPassword">
+							</div>
+							<div class="mb-3">
+								<label for="confirmPassword" class="form-label">Confirmar Nueva Contraseña</label>
+								<input type="password" class="form-control" id="confirmPassword"
+									v-model="confirmPassword">
+							</div>
+							<button class="btn btn-primary" @click.prevent="changePassword">Actualizar
+								Contraseña</button>
+						</div>
+					</div>
+				</div>
+
 				<div id="notifications" class="mb-5" v-if="role !== 'cliente'">
-					<h4><i class="far fa-bell fa-fw"></i> Notifications</h4>
-					<p>Enable or disable what notifications you want to receive.</p>
+					<h4><i class="far fa-bell fa-fw"></i> Notificaciones</h4>
+					<p>Habilite o deshabilite las notificaciones que desea recibir.</p>
 					<div class="card">
 						<div class="list-group list-group-flush">
 							<div class="list-group-item d-flex align-items-center">
@@ -194,7 +256,7 @@ export default defineComponent({
 									</div>
 								</div>
 								<div>
-									<a class="btn btn-default w-100px">Edit</a>
+									<a class="btn btn-default w-100px">Editar</a>
 								</div>
 							</div>
 							<div class="list-group-item d-flex align-items-center">
@@ -205,7 +267,7 @@ export default defineComponent({
 									</div>
 								</div>
 								<div>
-									<a class="btn btn-default w-100px">Edit</a>
+									<a class="btn btn-default w-100px">Editar</a>
 								</div>
 							</div>
 							<div class="list-group-item d-flex align-items-center">
@@ -217,7 +279,7 @@ export default defineComponent({
 									</div>
 								</div>
 								<div>
-									<a class="btn btn-default w-100px">Edit</a>
+									<a class="btn btn-default w-100px">Editar</a>
 								</div>
 							</div>
 							<div class="list-group-item d-flex align-items-center">
@@ -229,7 +291,7 @@ export default defineComponent({
 									</div>
 								</div>
 								<div>
-									<a class="btn btn-default w-100px">Edit</a>
+									<a class="btn btn-default w-100px">Editar</a>
 								</div>
 							</div>
 						</div>
@@ -240,6 +302,7 @@ export default defineComponent({
 				<nav id="sidebar-bootstrap" class="navbar navbar-sticky d-none d-xl-block">
 					<nav class="nav">
 						<nav-scroll-to target="#general" data-toggle="scroll-to">General</nav-scroll-to>
+						<nav-scroll-to target="#change-password" data-toggle="scroll-to">Cambiar contraseña</nav-scroll-to>
 						<nav-scroll-to v-if="role !== 'cliente'" target="#notifications"
 							data-toggle="scroll-to">Notifications</nav-scroll-to>
 					</nav>

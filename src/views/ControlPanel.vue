@@ -47,6 +47,7 @@ export default {
 
             // Other properties
             tenantName: '',
+            tables: 0,
             tenantImage: null,
             uploadImage: false,
             imageFile: null,
@@ -549,7 +550,7 @@ export default {
             <div class="col-xl-9">
                 <!-- edit tenant name -->
                 <div id="edit-tenant" class="mb-5">
-                    <h4>Editar Nombre de su Negocio</h4>
+                    <h4>Editar su Negocio</h4>
                     <p>Por defecto el Nombre de su Negocio es el subdominio que posee.</p>
                     <div class="col card shadow-lg">
                         <div class="card-body">
@@ -572,7 +573,14 @@ export default {
                                     <input type="file" class="form-control" id="logoImg" @change="previewImage"
                                         accept="image/*">
                                 </div>
-                                <button type="submit" class="btn btn-primary">Aceptar</button>
+                                <!-- not working yet -->
+                                <hr>
+                                <div class="mb-4">
+                                    <label for="tenantTables" class="form-label"># de Mesas del Negocio:</label>
+                                    <input type="number" class="form-control" id="tenantTables" v-model="tables"
+                                        required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Actualizar</button>
                             </form>
                         </div>
                     </div>
@@ -944,10 +952,6 @@ img.img-thumbnail {
 .card {
     cursor: pointer;
     transition: background-color 0.3s;
-}
-
-.card:hover {
-    background-color: #f0f0f0;
 }
 
 .card.selected {

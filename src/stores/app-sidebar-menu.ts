@@ -88,10 +88,5 @@ export const useAppSidebarMenuStore = defineStore({
 				icon: 'fa fa-user-circle',
 				text: 'Perfil'
 			},
-			{
-				url: '/settings',
-				icon: 'fa fa-cog',
-				text: 'Ajustes'
-			}
 		]}
 });
