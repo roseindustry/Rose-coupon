@@ -1,7 +1,7 @@
 <script>
 import { useUserStore } from '@/stores/user-role';
-import { useTenancyStore } from '@/stores/tenancy';
-import { getSubdomain } from '@/utils/subdomain';
+// import { useTenancyStore } from '@/stores/tenancy';
+// import { getSubdomain } from '@/utils/subdomain';
 import { db } from '@/firebase/init';
 import { ref as dbRef, get, query, orderByChild, equalTo } from 'firebase/database';
 import { Modal } from 'bootstrap';
@@ -152,17 +152,17 @@ export default {
         },
     },
     async mounted() {
-        const tenancyStore = useTenancyStore();
-        this.subdomain = getSubdomain();
+        // const tenancyStore = useTenancyStore();
+        // this.subdomain = getSubdomain();
 
-        // Automatically find or create tenant upon component mount
-        await tenancyStore.findOrCreateTenant(this.subdomain);
+        // // Automatically find or create tenant upon component mount
+        // await tenancyStore.findOrCreateTenant(this.subdomain);
 
-        if (tenancyStore.tenant) {
-            this.tenantName = tenancyStore.tenant.name;
-        } else {
-            console.error("Tenant could not be found or created");
-        }
+        // if (tenancyStore.tenant) {
+        //     this.tenantName = tenancyStore.tenant.name;
+        // } else {
+        //     console.error("Tenant could not be found or created");
+        // }
 
         await this.fetchUsers();
         this.displayedUsers = this.users;
@@ -330,7 +330,6 @@ export default {
 
     </div>
 </template>
-
 <style scoped>
 .fa-star {
     color: gold;

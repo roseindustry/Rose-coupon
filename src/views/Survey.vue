@@ -5,8 +5,8 @@ import { BorderlessDarkPanelless } from "survey-core/themes/borderless-dark-pane
 import { db } from '../firebase/init';
 import { ref as dbRef, onValue, query, orderByChild, equalTo, push, set, get } from 'firebase/database';
 import { useUserStore } from '@/stores/user-role';
-import { useTenancyStore } from '@/stores/tenancy';
-import { getSubdomain } from '@/utils/subdomain';
+// import { useTenancyStore } from '@/stores/tenancy';
+// import { getSubdomain } from '@/utils/subdomain';
 import { Collapse } from 'bootstrap';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
@@ -16,7 +16,7 @@ export default {
     name: 'DropdownMenu',
     data() {
         return {
-            tenantId: null,
+            // tenantId: null,
             menuItems: [],
             categories: [],
             categoriesWithItems: [],
@@ -39,32 +39,30 @@ export default {
         const userStore = useUserStore();
         await userStore.fetchUser();
 
-        await this.initializeTenant();
-        this.initializeSurvey();
+        // await this.initializeTenant();
+        // this.initializeSurvey();
         this.fetchLastOrderNumber();
         this.fetchMenuItems();
         this.fetchMenuCategories();
     },
     methods: {
-        async initializeTenant() {
-			const tenancyStore = useTenancyStore();
-			this.subdomain = getSubdomain();
-			await tenancyStore.findOrCreateTenant(this.subdomain);
-			if (tenancyStore.tenant) {
-				this.tenantId = tenancyStore.tenant.key;
-			} else {
-				console.error("Tenant could not be found or created");
-			}
-		},
+        // async initializeTenant() {
+		// 	const tenancyStore = useTenancyStore();
+		// 	this.subdomain = getSubdomain();
+		// 	await tenancyStore.findOrCreateTenant(this.subdomain);
+		// 	if (tenancyStore.tenant) {
+		// 		this.tenantId = tenancyStore.tenant.key;
+		// 	} else {
+		// 		console.error("Tenant could not be found or created");
+		// 	}
+		// },
         async fetchMenuItems() {
-            const itemsRef = query(dbRef(db, 'MenuItems'), orderByChild('tenant_id'), equalTo(this.tenantId));
+            const itemsRef = query(dbRef(db, 'MenuItems'));
             onValue(itemsRef, (snapshot) => {
                 const data = snapshot.val();
                 this.menuItems = data ? Object.keys(data).map(key => ({
                     id: key,
                     ...data[key],
-                    selected: false,
-                    quantity: 0,
                 })) : [];
             }, (error) => {
                 console.error("Failed to fetch items:", error);
@@ -73,7 +71,7 @@ export default {
             });
         },
         async fetchMenuCategories() {
-            const categoryRef = query(dbRef(db, 'Categories'), orderByChild('tenant_id'), equalTo(this.tenantId));
+            const categoryRef = query(dbRef(db, 'Categories'));
             const categorySnapshot = await get(categoryRef);
 
             if (categorySnapshot.exists()) {
@@ -125,15 +123,15 @@ export default {
             this.survey.onComplete.add(this.submitResults);
         },
         async fetchLastOrderNumber() {
-			if (!this.tenantId) return;
+			// if (!this.tenantId) return;
 
-			const ordersRef = query(dbRef(db, 'Orders'), orderByChild('tenant_id'), equalTo(this.tenantId));
+			const ordersRef = query(dbRef(db, 'Orders'));
 			const snapshot = await get(ordersRef);
 			let lastOrderNumber = 0;
 
 			snapshot.forEach((childSnapshot) => {
 				const order = childSnapshot.val();
-				if ('orderNumber' in order && order.tenant_id === this.tenantId) {
+				if ('orderNumber' in order) {
 					lastOrderNumber = Math.max(lastOrderNumber, order.orderNumber);
 				}
 			});
@@ -171,12 +169,12 @@ export default {
                 comment: results.comment,
                 date: this.today,
                 user_id: userId,
-                tenant_id: this.tenantId,
+                // tenant_id: this.tenantId,
             };
 
             // OrderData
             const OrderSubmission = {
-				tenant_id: this.tenantId,
+				// tenant_id: this.tenantId,
 				client_id: userId,
 				orderDate: this.today,
 				orderNumber: this.nextOrderNumber,
@@ -222,7 +220,7 @@ export default {
                     this.resetMenuSelections();
                     this.collapseAllAccordions();
                     this.fetchLastOrderNumber();
-                    this.initializeSurvey();
+                    // this.initializeSurvey();
                 })
                 .catch((error) => console.error('Error submitting data:', error));
         },

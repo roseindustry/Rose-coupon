@@ -1,40 +1,58 @@
 <script>
 import { defineComponent } from 'vue';
 import { useUserStore } from '@/stores/user-role';
-import { db } from '../firebase/init';
-import { ref as dbRef, get } from 'firebase/database';
+import { db, storage } from '../firebase/init';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as dbRef, get, update } from 'firebase/database';
+import { Modal } from 'bootstrap';
+import Toastify from 'toastify-js'
+import 'toastify-js/src/toastify.css'
 
 export default defineComponent({
     data() {
         return {
+            userId: '',
+            userName: '',
+
             // data for portal items
             portalItems: [
-                { title: 'Ordenes recientes (Coming soon)', description: 'Ver sus ordenes recientes en este negocio.', link: '#', actionText: 'Ver órdenes', icon: 'fa-solid fa-book-open' },
-                { title: 'Encuenta de satisfaccion', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/page/customer-survey', actionText: 'Tomar Encuesta', icon: 'fa-solid fa-comment-dots' },
-                { title: 'Mis reseñas', description: 'Aqui se muestran tus reseñas a nuestros productos.', link: '/page/clients-ratings', actionText: 'Ver más', icon: 'fa-solid fa-star' },
-                { title: 'Ajustes de perfil', description: 'Actualiza tus datos aqui.', link: '/profile', actionText: 'Editar Perfil', icon: 'fa-solid fa-user' },
-                { title: 'Cupones', description: 'Descubre tus cupones aquí.', link: '/page/coupons', actionText: 'Ver más', icon: 'fa-solid fa-ticket' }
+                { title: 'Cupones', description: 'Descubre tus cupones aquí.', link: '/cupones', actionText: 'Ver más', icon: 'fa-solid fa-ticket' },
+                { title: 'Crédito', description: 'Solicite o modifique su crédito aquí.', link: '/creditos', actionText: 'Ver más', icon: 'fa-solid fa-dollar' },
+                { title: 'Comercios Afiliados', description: 'Aquí puede ver los comercios donde puede usar su crédito.', link: '/comercios-afiliados', actionText: 'Ver más', icon: 'fa-solid fa-building' },
+                { title: 'Compras recientes', description: 'Ver sus compras recientes.', link: '#', actionText: 'Ver más', icon: 'fa-solid fa-shopping-cart' },
+                { title: 'Mis Opiniones', description: 'Aqui se muestran tus reseñas y opiniones de lo que consumes.', link: '/clients-ratings', actionText: 'Ver más', icon: 'fa-solid fa-star' },
+                { title: 'Encuesta de satisfaccion', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/customer-survey', actionText: 'Tomar Encuesta', icon: 'fa-solid fa-comment-dots' },
             ],
+
             subscriptionPlan: '',
+            userVerified: false,
+            verificationStatus: 'unverified', // Possible values: 'unverified', 'pending', 'verified'
+
+            idFrontFile: null,
+            idBackFile: null,
+            idFrontPreview: null,
+            idBackPreview: null,
+
+            isSubmitting: false,
+            errorMessage: '',
+            verificationModal: null,
         };
     },
     methods: {
-        getPlanCardClass(plan) {
-            const planClasses = {
-                'Basico': 'bg-basic',
-                'Plata': 'bg-plata',
-                'Oro': 'bg-oro'
-            };
-            return planClasses[plan] || 'bg-secondary';
+        showToast(message) {
+            Toastify({
+                text: message,
+                duration: 3000,
+                close: true,
+                gravity: 'top',
+                position: 'right',
+                stopOnFocus: true,
+                style: {
+                    background: 'linear-gradient(to right, #00b09b, #96c93d)',
+                },
+            }).showToast();
         },
-        getPlanIcon(plan) {
-            const planIcons = {
-                'Basico': 'fa fa-leaf',
-                'Plata': 'fa fa-gem',
-                'Oro': 'fa fa-crown'
-            };
-            return planIcons[plan] || 'fa fa-question';
-        },
+
         async fetchSubscriptionPlan() {
             const userStore = useUserStore();
             await userStore.fetchUser();
@@ -43,14 +61,108 @@ export default defineComponent({
             if (userId) {
                 const userRef = dbRef(db, `Users/${userId}`);
                 const snapshot = await get(userRef);
+
                 if (snapshot.exists()) {
                     const user = snapshot.val();
-                    this.subscriptionPlan = user.plan;
+
+                    this.userVerified = user.isVerified || false;
+
+                    // Check if the user has a subscription plan and it's an object
+                    if (user.subscription && typeof user.subscription === 'object') {
+                        this.subscriptionPlan = {
+                            name: user.subscription.name || 'Sin suscripcion',
+                            status: user.subscription.status || 'No Status',
+                            price: user.subscription.price || 'No Price',
+                            payDay: user.subscription.payDay || 'No PayDay',
+                            isPaid: user.subscription.isPaid || false,
+                            icon: user.subscription.icon
+                        };
+                    } else {
+                        // Handle case where there is no subscription plan
+                        this.subscriptionPlan = {
+                            status: 'No Subscription',
+                            price: 0,
+                            payDay: 'N/A',
+                            isPaid: false
+                        };
+                    }
                 }
+            }
+        },
+        //File uploads
+        handleFileUpload(event, side) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Update the correct file and preview based on the side
+            if (side === 'front') {
+                this.idFrontFile = file;
+                this.idFrontPreview = URL.createObjectURL(file);
+            } else if (side === 'back') {
+                this.idBackFile = file;
+                this.idBackPreview = URL.createObjectURL(file);
+            }
+        },
+
+        async uploadFile(file, side) {
+            // Define storage reference for front or back ID file
+            const fileName = `${side}-ID.${file.name.split('.').pop()}`;
+            const fileRef = storageRef(storage, `verification-files/${this.userId}-${this.userName}/${fileName}`);
+
+            // Upload the file and get the download URL
+            await uploadBytes(fileRef, file);
+            return getDownloadURL(fileRef);
+        },
+
+        async submitVerification() {
+            if (!this.idFrontFile || !this.idBackFile) {
+                this.errorMessage = 'Ambos archivos de la identificación son requeridos.';
+                return;
+            }
+
+            try {
+                // Show the loader
+                this.isSubmitting = true;
+                this.errorMessage = '';
+
+                // Upload both files
+                const frontUrl = await this.uploadFile(this.idFrontFile, 'front');
+                const backUrl = await this.uploadFile(this.idBackFile, 'back');
+
+                console.log('Files uploaded successfully:', frontUrl, backUrl);
+
+                //Update user to set field user.requestedVerification = true
+                const userRef = dbRef(db, `Users/${this.userId}`);
+                await update(userRef, { requestedVerification: true });
+
+                //Success toast
+                this.showToast('Archivos subidos!');
+
+                //reset the image previews
+                this.idFrontPreview = null;
+                this.idBackPreview = null;
+                this.verificationStatus = 'pending';
+
+                // Hide the modal after submission
+                this.verificationModal.hide();
+            } catch (error) {
+                console.error('Error during verification:', error);
+                this.errorMessage = 'Error al subir los archivos, por favor intente nuevamente.';
+            } finally {
+                // Hide the loader
+                this.isSubmitting = false;
             }
         }
     },
     async mounted() {
+        const userStore = useUserStore();
+        await userStore.fetchUser();
+        //this.role = userStore.role;
+        this.userId = userStore.userId;
+        this.userName = userStore.userName;
+
+        this.verificationModal = new Modal(document.getElementById('verificationModal'));
+
         await this.fetchSubscriptionPlan();
     },
 });
@@ -58,31 +170,84 @@ export default defineComponent({
 </script>
 <template>
     <div class="container py-5 h-100">
-        <nav style="--bs-breadcrumb-divider: '>';" aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item active"><a href="/page/client-portal">Portal de clientes</a></li>
-            </ol>
-        </nav>
-        <div class="row justify-content-center align-items-center h-100">
-            <div class="col">
-                <div class="card shadow-lg">
-                    <div class="card-body">
+        <!-- Subscription Badge -->
+        <div class="subscription-badge position-absolute top-0 end-0 m-3">
+            <div v-if="subscriptionPlan && subscriptionPlan.status" class="d-flex align-items-center flex-wrap">
+                <h5 class="m-0">
+                    <div class="subscription-badge mb-4">
+                        <span
+                            class="badge bg-transparent border border-success text-success d-flex flex-column align-items-start p-2">
+                            <span class="d-flex align-items-center">
+                                <i :class="subscriptionPlan.icon" class="me-2" style="font-size: 1.5rem;"></i>
+                                {{ subscriptionPlan.name }}
+                            </span>
+                            <span :class="subscriptionPlan.isPaid ? 'text-success mt-2' : 'text-danger mt-2'">
+                                {{ subscriptionPlan.isPaid ? 'Pagado' : 'Pago Pendiente' }}
+                            </span>
+                        </span>
+                    </div>
+                </h5>
+            </div>
+            <div v-else>
+                <div class="subscription-badge text-muted">
+                    <span
+                        class="badge bg-transparent border border-danger text-danger d-flex flex-column align-items-start p-2">
+                        <span class="d-flex align-items-center">
+                            <i class="me-2" style="font-size: 1.5rem;"></i>
+                            No tiene un plan de suscripción activo.
+                        </span>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="row justify-content-center align-items-center mt-3 h-100">
+            <div class="col-12">
+                <div class="card shadow-lg position-relative">
+
+                    <div class="card-body pb-5 pt-5 pt-md-5 pt-lg-5">
                         <h2 class="card-title mb-4 text-center">Portal de Clientes</h2>
-                        <div v-if="subscriptionPlan" class="card mb-3 subscription-card" :class="getPlanCardClass(subscriptionPlan)">
-                            <div class="card-body text-center">
-                                <i :class="getPlanIcon(subscriptionPlan)" class="plan-icon"></i>
-                                <h5 class="form-label" style="color: black;">Suscripción</h5>
-                                <p class="plan-name">{{ subscriptionPlan }}</p>
-                            </div>
+
+                        <div class="text-muted position-absolute top-0 end-0 m-3">
+                            <span v-if="userVerified"
+                                class="badge bg-transparent border border-success text-success d-flex flex-column align-items-start p-2">
+                                <span class="d-flex align-items-center">
+                                    Usuario verificado
+                                </span>
+                            </span>
+                            <span v-else
+                                class="badge bg-transparent border border-danger text-danger d-flex flex-column align-items-start p-2">
+                                <span class="d-flex align-items-center">
+                                    Usuario no Verificado
+                                </span>
+                            </span>
                         </div>
+
                         <div class="row row-cols-1 row-cols-md-2 g-4">
                             <div class="col" v-for="item in portalItems" :key="item.title">
                                 <div class="card h-100 text-dark bg-light position-relative">
                                     <div class="card-body">
                                         <h5 class="card-title">{{ item.title }}</h5>
                                         <p class="card-text">{{ item.description }}</p>
-                                        <router-link :to="item.link" class="btn btn-primary">{{ item.actionText }}</router-link>
+                                        <router-link :to="item.link" class="btn btn-theme"
+                                            :class="{ 'disabled': item.title === 'Crédito' && !userVerified }"
+                                            :aria-disabled="item.title === 'Crédito' && !userVerified"
+                                            :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
+                                            {{ item.actionText }}
+                                        </router-link>
                                         <i :class="[item.icon, 'icon-circle']"></i>
+                                        <!-- Tooltip or message when 'Crédito' button is disabled -->
+                                        <div v-if="item.title === 'Crédito' && !userVerified" class="mt-2">
+                                            <small class="text-danger">
+                                                <span v-if="verificationStatus === 'unverified'">
+                                                    Verifique su cuenta para habilitar la opción de crédito.
+                                                    <a href="#" data-bs-toggle="modal"
+                                                        data-bs-target="#verificationModal">Solicitar verificación.</a>
+                                                </span>
+                                                <span v-else-if="verificationStatus === 'pending'">
+                                                    Verificación pendiente por Aprobación.
+                                                </span>
+                                            </small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -91,9 +256,61 @@ export default defineComponent({
                 </div>
             </div>
         </div>
+
+        <!-- Modal for ID upload -->
+        <div class="modal fade" id="verificationModal" tabindex="-1" aria-labelledby="verificationModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="verificationModalLabel">Subir Documento de Identificación</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form @submit.prevent="submitVerification">
+                            <div class="mb-3">
+                                <label for="idFront" class="form-label">Frontal de la Cédula/Identificación</label>
+                                <input type="file" class="form-control" id="idFront"
+                                    @change="handleFileUpload($event, 'front')" required>
+                                <img v-if="idFrontPreview" :src="idFrontPreview" alt="Front ID Preview"
+                                    class="img-fluid mt-2" />
+                            </div>
+                            <div class="mb-3">
+                                <label for="idBack" class="form-label">Parte Trasera de la Cédula/Identificación</label>
+                                <input type="file" class="form-control" id="idBack"
+                                    @change="handleFileUpload($event, 'back')" required>
+                                <img v-if="idBackPreview" :src="idBackPreview" alt="Back ID Preview"
+                                    class="img-fluid mt-2" />
+                            </div>
+
+                            <!-- Error Message -->
+                            <div v-if="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
+
+                            <!-- Loader Spinner -->
+                            <div v-if="isSubmitting" class="d-flex justify-content-center my-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cerrar</button>
+                            <!-- Submit Button is disabled during submission -->
+                            <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
+                                Subir y Solicitar Verificación
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
-<style>
+<style scoped>
+/* Subscription Badge Styles */
+.subscription-badge {
+    font-size: 0.9rem;
+    z-index: 2;
+}
+
 .icon-circle {
     position: absolute;
     right: 0;
@@ -119,35 +336,20 @@ export default defineComponent({
 .card {
     overflow: hidden;
 }
-/* Card styling for subscription section */
-.subscription-card {
-    max-width: 200px; 
-    margin: 0 auto;
-}
 
-.plan-name {
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: black;
-}
-.plan-icon {
-    font-size: 2.5rem;
-    margin-bottom: 10px;
-    color: #9fc5e8;
-}
-.bg-basic {
-    background-color: #f8d1d1; 
-    color: #000;
-}
+/* Responsive Adjustments */
+@media (max-width: 767.98px) {
 
-.bg-plata {
-    background-color: #d1e7f8;
-    color: #000;
-}
+    .subscription-badge {
+        margin-bottom: 1rem;
+    }
 
-.bg-oro {
-    background-color: #f8e7d1; 
-    color: #000;
-}
+    .subscription-badge h5 {
+        font-size: 0.85rem;
+    }
 
+    .subscription-badge i {
+        font-size: 1.2rem;
+    }
+}
 </style>

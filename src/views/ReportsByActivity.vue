@@ -1,6 +1,6 @@
 <script>
-import { useTenancyStore } from '@/stores/tenancy';
-import { getSubdomain } from '@/utils/subdomain';
+// import { useTenancyStore } from '@/stores/tenancy';
+// import { getSubdomain } from '@/utils/subdomain';
 import { db } from '@/firebase/init';
 import { ref as dbRef, get, query, orderByChild, equalTo } from 'firebase/database';
 import { Modal } from 'bootstrap';
@@ -99,10 +99,10 @@ export default {
     },
     methods: {
         async fetchRatingsAndUserDetails() {
-            const tenancyStore = useTenancyStore();
-            const tenantId = tenancyStore.tenant.key;
+            // const tenancyStore = useTenancyStore();
+            // const tenantId = tenancyStore.tenant.key;
 
-            const ratingsRef = query(dbRef(db, 'Ratings'), orderByChild('tenant_id'), equalTo(tenantId));
+            const ratingsRef = query(dbRef(db, 'Ratings'));
             const ratingsSnapshot = await get(ratingsRef);
 
             if (ratingsSnapshot.exists()) {
@@ -220,17 +220,17 @@ export default {
 
     },
     async mounted() {
-        const tenancyStore = useTenancyStore();
-        this.subdomain = getSubdomain();
+        // const tenancyStore = useTenancyStore();
+        // this.subdomain = getSubdomain();
 
-        // Automatically find or create tenant upon component mount
-        await tenancyStore.findOrCreateTenant(this.subdomain);
+        // // Automatically find or create tenant upon component mount
+        // await tenancyStore.findOrCreateTenant(this.subdomain);
 
-        if (tenancyStore.tenant) {
-            this.tenantName = tenancyStore.tenant.name;
-        } else {
-            console.error("Tenant could not be found or created");
-        }
+        // if (tenancyStore.tenant) {
+        //     this.tenantName = tenancyStore.tenant.name;
+        // } else {
+        //     console.error("Tenant could not be found or created");
+        // }
 
         await this.fetchRatingsAndUserDetails();
     }

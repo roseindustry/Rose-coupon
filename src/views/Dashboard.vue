@@ -1,17 +1,14 @@
 <script>
-import { RouterLink } from 'vue-router';
-import { useAppVariableStore } from '@/stores/app-variable';
 import { useUserStore } from '@/stores/user-role';
-import { useTenancyStore } from '@/stores/tenancy';
-import { getSubdomain } from '@/utils/subdomain';
+// import { useTenancyStore } from '@/stores/tenancy';
+// import { getSubdomain } from '@/utils/subdomain';
 import apexchart from '@/components/plugins/Apexcharts.vue';
 import moment from 'moment';
 import { db } from '@/firebase/init';
-import { ref as dbRef, get, child, query, orderByChild, equalTo } from 'firebase/database';
+import { ref as dbRef, get, child, query } from 'firebase/database';
 
-const appVariable = useAppVariableStore();
 const userStore = useUserStore();
-const tenancyStore = useTenancyStore();
+// const tenancyStore = useTenancyStore();
 
 export default {
 	components: {
@@ -121,9 +118,9 @@ export default {
 				});
 		},
 		async fetchIncomeData() {
-			const tenantId = tenancyStore.tenant.key;
+			// const tenantId = tenancyStore.tenant.key;
 
-			const incomeRef = query(dbRef(db, 'Orders'), orderByChild('tenant_id'), equalTo(tenantId));
+			const incomeRef = query(dbRef(db, 'Orders'));
 			const incomeSnapshot = await get(incomeRef);
 
 			if (incomeSnapshot.exists()) {
@@ -162,9 +159,9 @@ export default {
 			this.clients = allUsers.filter(user => user.role === 'cliente');
 		},
 		async fetchIngredients() {
-			const tenantId = tenancyStore.tenant.key;
+			// const tenantId = tenancyStore.tenant.key;
 
-			const stockItemRef = query(dbRef(db, 'Ingredients'), orderByChild('tenant_id'), equalTo(tenantId));
+			const stockItemRef = query(dbRef(db, 'Ingredients'));
 			const stockItemSnapshot = await get(stockItemRef);
 
 			if (stockItemSnapshot.exists()) {
@@ -282,16 +279,16 @@ export default {
 		},
 	},
 	async mounted() {
-		this.subdomain = getSubdomain();
+		// this.subdomain = getSubdomain();
 
-		// Automatically find or create tenant upon component mount
-		await tenancyStore.findOrCreateTenant(this.subdomain);
+		// // Automatically find or create tenant upon component mount
+		// await tenancyStore.findOrCreateTenant(this.subdomain);
 
-		if (tenancyStore.tenant) {
-			this.tenantName = tenancyStore.tenant.name;
-		} else {
-			console.error("Tenant could not be found or created");
-		}
+		// if (tenancyStore.tenant) {
+		// 	this.tenantName = tenancyStore.tenant.name;
+		// } else {
+		// 	console.error("Tenant could not be found or created");
+		// }
 
 		await this.initializeData();
 	}

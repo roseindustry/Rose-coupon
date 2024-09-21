@@ -4,7 +4,7 @@ import { RouterLink } from 'vue-router';
 import { auth, db } from '@/firebase/init';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { get, ref as dbRef } from 'firebase/database';
-import { useTenancyStore } from '@/stores/tenancy';
+// import { useTenancyStore } from '@/stores/tenancy';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 
@@ -15,7 +15,7 @@ export default {
 		return {
 			loginForm: {
 				email: '',
-				password: '',
+				password: ''
 			},
 		};
 	},
@@ -23,7 +23,7 @@ export default {
 		appOption.appSidebarHide = true;
 		appOption.appHeaderHide = true;
 		appOption.appContentClass = 'p-0';
-		this.getTenantId();
+		// this.getTenantId();
 	},
 	beforeUnmount() {
 		appOption.appSidebarHide = false;
@@ -31,11 +31,11 @@ export default {
 		appOption.appContentClass = '';
 	},
 	methods: {
-		async getTenantId() {
-			const tenancyStore = useTenancyStore();
-			await tenancyStore.findOrCreateTenant();
-			return tenancyStore.tenant.key;
-		},
+		// async getTenantId() {
+		// 	const tenancyStore = useTenancyStore();
+		// 	await tenancyStore.findOrCreateTenant();
+		// 	return tenancyStore.tenant.key;
+		// },
 		async submitForm() {
 			const { email, password } = this.loginForm;
 			try {
@@ -51,15 +51,17 @@ export default {
 				}
 
 				const userData = snapshot.val();
-				const currentTenantId = await this.getTenantId();
-				if (userData.tenant_id !== currentTenantId) {
-					alert('Usuario no pertenece a este Tenant.');
-					return;
-				}
+				// const currentTenantId = await this.getTenantId();
+				// if (userData.tenant_id !== currentTenantId) {
+				// 	alert('Usuario no pertenece a este Tenant.');
+				// 	return;
+				// }
 
 				// Success Toastify
 				Toastify({
-					text: "Bienvenido " + userData.firstName + "!",
+					text: userData.role === 'afiliado'
+						? `Bienvenido ${userData.companyName} (${userData.role})!`
+						: `Bienvenido ${userData.firstName} (${userData.role})!`,
 					duration: 3000,
 					close: true,
 					gravity: "top", // `top` or `bottom`
@@ -76,11 +78,14 @@ export default {
 						this.$router.push('/');
 						break;
 					case 'cliente':
-						this.$router.push('/page/client-portal');
+						this.$router.push('/client-portal');
 						break;
-					case 'mesero':
-						this.$router.push('/pos/customer-order');
+					case 'afiliado':
+						this.$router.push('/affiliate-portal');
 						break;
+					// case 'mesero':
+					// 	this.$router.push('/pos/customer-order');
+					// 	break;
 					default:
 						console.log('User role is not defined or user is not authorized for access.');
 				}
@@ -152,19 +157,52 @@ export default {
 </script>
 <template>
 	<!-- BEGIN login -->
-	<div class="login">
+	<div class="login d-flex flex-row">
+		<!-- BEGIN carousel-content -->
+		<div class="carousel-content w-50">
+			<!-- Bootstrap Carousel -->
+			<div id="affiliateCarousel" class="carousel slide" data-bs-ride="carousel">
+				<div class="carousel-inner">
+					<div class="carousel-item active">
+						<img src="/assets/img/71sywkcn3CL._AC_UY350_.jpg" class="d-block w-100" alt="Affiliate 1">
+					</div>
+					<div class="carousel-item">
+						<img src="\assets\img\H3a399c9e7ef549c98dda24f92137c4471.jpg_640x640q90.webp"
+							class="d-block w-100" alt="Affiliate 2">
+					</div>
+					<div class="carousel-item">
+						<img src="\assets\img\Yoga-Outfits-for-Women-2-Piece-Workout-Outfit-Set-High-Waist-Moisture-Wicking-Yoga-Leggings-with-Sport-Bra-Set-Gym-Clothes.webp"
+							class="d-block w-100" alt="Affiliate 3">
+					</div>
+				</div>
+				<button class="carousel-control-prev" type="button" data-bs-target="#affiliateCarousel"
+					data-bs-slide="prev">
+					<span class="carousel-control-prev-icon" aria-hidden="true"></span>
+					<span class="visually-hidden">Previous</span>
+				</button>
+				<button class="carousel-control-next" type="button" data-bs-target="#affiliateCarousel"
+					data-bs-slide="next">
+					<span class="carousel-control-next-icon" aria-hidden="true"></span>
+					<span class="visually-hidden">Next</span>
+				</button>
+			</div>
+		</div>
+		<!-- END carousel-content -->
+
 		<!-- BEGIN login-content -->
-		<div class="login-content">
+		<div class="login-content w-50 p-4">
 			<form v-on:submit.prevent="submitForm()">
 				<h1 class="text-center">Iniciar sesión</h1>
 				<div class="text-muted text-center mb-4">
 					Para tu protección, por favor identifícate.
 				</div>
+
 				<div class="mb-3">
 					<label class="form-label">Correo electrónico</label>
-					<input type="email" class="form-control form-control-lg fs-15px" v-model="loginForm.email" value=""
+					<input type="email" class="form-control form-control-lg fs-15px" v-model="loginForm.email"
 						placeholder="username@address.com" />
 				</div>
+
 				<div class="mb-3">
 					<div class="d-flex">
 						<label class="form-label">Contraseña</label>
@@ -172,9 +210,11 @@ export default {
 							data-bs-target="#passwordModal">¿Olvidó su contraseña?</a>
 					</div>
 					<input type="password" class="form-control form-control-lg fs-15px" v-model="loginForm.password"
-						value="" placeholder="Ingrese su contraseña" />
+						placeholder="Ingrese su contraseña" />
 				</div>
+
 				<button type="submit" class="btn btn-theme btn-lg d-block w-100 fw-500 mb-3">Iniciar sesión</button>
+
 				<div class="text-center text-muted">
 					¿No tienes una cuenta? <router-link to="/page/register">Regístrate</router-link>.
 				</div>
@@ -203,3 +243,18 @@ export default {
 		</div>
 	</div>
 </template>
+<!-- <style scoped>
+.login {
+	height: 100vh;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.carousel-content {
+	background-color: #f8f9fa; /* Light background color for carousel side */
+}
+.login-content {
+	background-color: #ffffff; /* White background for login form */
+	box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+}
+</style> -->

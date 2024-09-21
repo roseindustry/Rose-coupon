@@ -57,8 +57,8 @@ document.querySelector('body').classList.add('app-init');
 		<vue3-progress-bar />
 		<app-header v-if="!appOption.appHeaderHide" />
 		<app-top-nav v-if="appOption.appTopNav" />
-		<app-sidebar v-if="!appOption.appSidebarHide && userStore.role !== 'cliente'" />
-		<div class="app-content" v-bind:class="appOption.appContentClass, {'no-sidebar': userStore.role === 'cliente' || appOption.appSidebarHide}">
+		<app-sidebar v-if="!appOption.appSidebarHide" />
+		<div class="app-content" v-bind:class="appOption.appContentClass, {'no-sidebar': appOption.appSidebarHide}">
 			<router-view></router-view>
 		</div>
 		<app-footer v-if="appOption.appFooter" />

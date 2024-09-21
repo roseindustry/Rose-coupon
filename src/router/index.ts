@@ -6,96 +6,141 @@ import { ref, get } from 'firebase/database';
 const router = createRouter({
 	history: createWebHistory(import.meta.env.BASE_URL),
 	routes: [
+		// Admin routes
 		{
 			path: '/',
 			name: 'Dashboard',
 			component: () => import('../views/Dashboard.vue'),
-			meta: { roles: ['admin', 'superadmin'] }
+			meta: { roles: ['admin'] }
 		},
 		{
-			path: '/analytics',
-			name: 'Metricas',
-			component: () => import('../views/Analytics.vue'),
-			meta: { roles: ['admin', 'superadmin'] }
+			path: '/comercios-afiliados',
+			name: 'Comercios Afiliados',
+			component: () => import('../views/Affiliates.vue'),
+			meta: { roles: ['admin', 'cliente', 'afiliado'] }
 		},
 		{
-			path: '/pos/customer-order',
-			name: 'Nueva orden',
-			component: () => import('../views/PosCustomerOrder.vue'),
-			meta: { roles: ['admin', 'superadmin', 'gerente', 'mesero'] }
+			path: '/clientes',
+			name: 'Clientes',
+			component: () => import('../views/Clients.vue'),
+			meta: { roles: ['admin'] }
 		},
 		{
-			path: '/pos/kitchen-order',
-			name: 'Ordenes de cocina',
-			component: () => import('../views/PosKitchenOrder.vue'),
-			meta: { roles: ['admin', 'superadmin', 'gerente', 'mesero'] }
+			path: '/creditos',
+			name: 'Créditos',
+			component: () => import('../views/Credits.vue'),
+			meta: { roles: ['admin', 'cliente', 'afiliado'] }
 		},
 		{
-			path: '/pos/counter-checkout',
-			name: 'Checkout',
-			component: () => import('../views/PosCounterCheckout.vue'),
-			meta: { roles: ['admin', 'superadmin', 'gerente', 'mesero', 'cajero'] }
+			path: '/suscripciones',
+			name: 'Suscripciones',
+			component: () => import('../views/Subscriptions.vue'),
+			meta: { roles: ['admin'] }
 		},
+
+		// Clients routes
+
+		// Affiliates routes
+
+		// {
+		// 	path: '/analytics',
+		// 	name: 'Metricas',
+		// 	component: () => import('../views/Analytics.vue'),
+		// 	meta: { roles: ['admin', 'superadmin'] }
+		// },
+
+		// POS routes
+		// {
+		// 	path: '/pos/customer-order',
+		// 	name: 'Nueva orden',
+		// 	component: () => import('../views/PosCustomerOrder.vue'),
+		// 	meta: { roles: ['admin', 'superadmin', 'gerente', 'mesero'] }
+		// },
+		// {
+		// 	path: '/pos/kitchen-order',
+		// 	name: 'Ordenes de cocina',
+		// 	component: () => import('../views/PosKitchenOrder.vue'),
+		// 	meta: { roles: ['admin', 'superadmin', 'gerente', 'mesero'] }
+		// },
+		// {
+		// 	path: '/pos/counter-checkout',
+		// 	name: 'Checkout',
+		// 	component: () => import('../views/PosCounterCheckout.vue'),
+		// 	meta: { roles: ['admin', 'superadmin', 'gerente', 'mesero', 'cajero'] }
+		// },
+		// {
+		// 	path: '/pos/table-booking',
+		// 	name: 'Control de mesas',
+		// 	component: () => import('../views/PosTableBooking.vue'),
+		// 	meta: { roles: ['admin', 'superadmin', 'gerente', 'mesero'] }
+		// },
+		// {
+		// 	path: '/pos/menu-stock',
+		// 	name: 'Menu',
+		// 	component: () => import('../views/PosMenuStock.vue'),
+		// 	meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		// },
+		// {
+		// 	path: '/page/orders',
+		// 	name: 'Ordenes del cliente',
+		// 	component: () => import('../views/PageOrder.vue'),
+		// 	meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		// },
+		// {
+		// 	path: '/page/order-details',
+		// 	name: 'Detalles de orden',
+		// 	component: () => import('../views/PageOrderDetails.vue'),
+		// 	meta: { roles: ['admin', 'superadmin', 'gerente'] }
+		// },
+
+		// User's routes
 		{
-			path: '/pos/table-booking',
-			name: 'Control de mesas',
-			component: () => import('../views/PosTableBooking.vue'),
-			meta: { roles: ['admin', 'superadmin', 'gerente', 'mesero'] }
-		},
-		{
-			path: '/pos/menu-stock',
-			name: 'Menu',
-			component: () => import('../views/PosMenuStock.vue'),
-			meta: { roles: ['admin', 'superadmin', 'gerente'] }
-		},
-		{
-			path: '/page/client-portal',
+			path: '/client-portal',
 			name: 'Portal de Cliente',
 			component: () => import('../views/PageClientPortal.vue'),
 			meta: { roles: ['cliente'] }
 		},
 		{
-			path: '/page/customer-survey',
+			path: '/affiliate-portal',
+			name: 'Portal de Afiliado',
+			component: () => import('../views/PageAffiliatePortal.vue'),
+			meta: { roles: ['afiliado'] }
+		},
+		// Customer satisfaction survey routes
+		{
+			path: '/customer-survey',
 			name: 'Encuesta de satisfaccion',
 			component: () => import('../views/Survey.vue'),
-			meta: { roles: ['cliente'] }
+			meta: { roles: ['admin', 'cliente', 'afiliado'] }
 		},
 		{
-			path: '/page/clients-ratings',
+			path: '/clients-ratings',
 			name: 'Reseñas del cliente',
 			component: () => import('../views/PageRatings.vue'),
-			meta: { roles: ['cliente'] }
+			meta: { roles: ['cliente', 'afiliado'] }
 		},
+		// Cupons routes
 		{
-			path: '/page/orders',
-			name: 'Ordenes del cliente',
-			component: () => import('../views/PageOrder.vue'),
-			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+			path: '/cupones',
+			name: 'Cupones',
+			component: () => import('../views/Coupons.vue'),
+			meta: { roles: ['admin', 'cliente', 'afiliado'] }
 		},
-		{
-			path: '/page/coupons',
-			name: 'Cupones de cliente',
-			component: () => import('../views/PageCoupons.vue'),
-			meta: { roles: ['cliente'] }
-		},
-		{
-			path: '/page/order-details',
-			name: 'Detalles de orden',
-			component: () => import('../views/PageOrderDetails.vue'),
-			meta: { roles: ['admin', 'superadmin', 'gerente'] }
-		},
+		
+		// Reports routes
 		{
 			path: '/page/reports-by-client',
 			name: 'Reportes por cliente',
 			component: () => import('../views/ReportsByClient.vue'),
-			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+			meta: { roles: ['admin'] }
 		},
 		{
 			path: '/page/reports-by-rating',
 			name: 'Reportes por actividad',
 			component: () => import('../views/ReportsByActivity.vue'),
-			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+			meta: { roles: ['admin'] }
 		},
+		// Generic routes
 		{
 			path: '/page/coming-soon',
 			name: 'Coming soon',
@@ -119,13 +164,13 @@ const router = createRouter({
 			path: '/control-panel',
 			name: 'Panel de control',
 			component: () => import('../views/ControlPanel.vue'),
-			meta: { roles: ['admin', 'superadmin', 'gerente'] }
+			meta: { roles: ['admin'] }
 		},
 		{
 			path: '/profile',
 			name: 'Perfil',
 			component: () => import('../views/Profile.vue'),
-			meta: { roles: ['admin', 'superadmin', 'gerente', 'cliente'] }
+			meta: { roles: ['admin', 'afiliado', 'cliente'] }
 		},
 		{
 			path: '/:pathMatch(.*)*',

@@ -1,8 +1,6 @@
 <script>
 import { defineComponent } from 'vue';
 import { useAppOptionStore } from '@/stores/app-option';
-import { useTenancyStore } from '@/stores/tenancy';
-import { getSubdomain } from '@/utils/subdomain';
 import { RouterLink } from 'vue-router';
 import { auth, db } from '@/firebase/init';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -24,8 +22,8 @@ export default defineComponent({
 			role: 'cliente',
 			passwordMismatch: false,
 			subdomain: '',
-			address: '',
-			sector: '',
+			// address: '',
+			// sector: '',
 			sectores:
 				[
 					"Santa Lucía",
@@ -39,19 +37,9 @@ export default defineComponent({
 					"Grano de Oro",
 					"Cañada Honda"
 				],
+			businessName: '',
+			rif: ''
 		};
-	},
-	async mounted() {
-		const appOption = useAppOptionStore();
-		const tenancyStore = useTenancyStore();
-
-		appOption.appSidebarHide = true;
-		appOption.appHeaderHide = true;
-		appOption.appContentClass = 'p-0';
-		this.subdomain = getSubdomain();
-
-		// Automatically find or create tenant upon component mount
-		await tenancyStore.findOrCreateTenant(this.subdomain);
 	},
 	beforeUnmount() {
 		const appOption = useAppOptionStore();
@@ -67,20 +55,17 @@ export default defineComponent({
 			}
 			this.passwordMismatch = false;
 
-			const tenancyStore = useTenancyStore();
-			const tenantId = tenancyStore.tenant.key;
-
 			try {
-				// Query Users to check if email is already used by another user in the same tenant
+				// Query Users to check if email is already used
 				const usersRef = dbRef(db, `Users`);
 				const snapshot = await get(usersRef);
 				if (snapshot.exists()) {
 					const users = snapshot.val();
 					for (const uid in users) {
-						if (users[uid].email === this.email && users[uid].tenant_id === tenantId) {
-							// Show a Toastify notification if the email is already in use
+						if (users[uid].email === this.email || users[uid].identification === this.identification || users[uid].rif === this.rif) {
+							// Show a Toastify notification if the email, rif or cedula is already in use
 							Toastify({
-								text: "El correo electrónico ya está en uso.",
+								text: "El usuario que intenta registrar ya existe.",
 								duration: 3000,
 								close: true,
 								gravity: "top", // `top` or `bottom`
@@ -98,21 +83,26 @@ export default defineComponent({
 				const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
 				const user = userCredential.user;
 
-				// Save user info under the Users table with tenant_id
 				const userRef = dbRef(db, `Users/${user.uid}`);
 				await set(userRef, {
 					email: user.email,
-					firstName: this.firstName,
-					lastName: this.lastName,
-					identification: this.identification,
+					...(this.role === 'afiliado'
+						? {
+							companyName: this.businessName,
+							rif: this.identification
+						}
+						: {
+							firstName: this.firstName,
+							lastName: this.lastName,
+							identification: this.identification
+						}),
 					phoneNumber: this.phoneNumber,
-					sector: this.sector,
-					address: this.address,
+					// sector: this.sector,
+					// address: this.address,
 					role: this.role,
-					tenant_id: tenantId // Linking user to tenant by tenant's Firebase-generated key
 				});
 
-				console.log('User created and linked to tenant:', user.uid, tenantId);
+				console.log('User created:', user.uid);
 
 				// Toastify success message
 				Toastify({
@@ -129,11 +119,11 @@ export default defineComponent({
 
 				// After successful signup and data storage, redirect based on role
 				if (this.role === 'cliente') {
-					this.$router.push('/page/client-portal');
+					this.$router.push('/client-portal');
 				} else if (this.role === 'admin') {
 					this.$router.push('/');
-				} else if (this.role === 'mesero') {
-					this.$router.push('/pos/customer-order');
+				} else if (this.role === 'afiliado') {
+					this.$router.push('/affiliate-portal');
 				}
 
 			} catch (error) {
@@ -160,8 +150,8 @@ export default defineComponent({
 			this.identification = '';
 			this.email = '';
 			this.phoneNumber = '';
-			this.sector = '';
-			this.address = '';
+			// this.sector = '';
+			// this.address = '';
 			this.password = '';
 			this.confirmPassword = '';
 			this.role = 'cliente';
@@ -180,20 +170,46 @@ export default defineComponent({
 				<h1 class="text-center">Registro</h1>
 				<p class="text-muted text-center">Necesitas ser Admin para acceder a todos los servicios.</p>
 				<div class="mb-3">
-					<label class="form-label">Nombre <span class="text-danger">*</span></label>
-					<input v-model="firstName" type="text" class="form-control form-control-lg fs-15px"
-						placeholder="e.g John" value="" required />
+					<label class="form-label">Tipo de usuario <span class="text-danger">*</span></label>
+					<select v-model="role" class="form-control form-control-lg fs-15px">
+						<option value="admin">Admin</option>
+						<option value="cliente">Cliente</option>
+						<option value="afiliado">Comercio Afiliado</option>
+					</select>
 				</div>
-				<div class="mb-3">
-					<label class="form-label">Apellido <span class="text-danger">*</span></label>
-					<input v-model="lastName" type="text" class="form-control form-control-lg fs-15px"
-						placeholder="e.g Smith" value="" required />
+
+				<!-- Conditional fields based on the selected role -->
+				<div v-if="role === 'afiliado'">
+					<div class="mb-3">
+						<label class="form-label">Nombre del Comercio <span class="text-danger">*</span></label>
+						<input v-model="businessName" type="text" class="form-control form-control-lg fs-15px"
+							placeholder="e.g. Mi Comercio" required />
+					</div>
+					<div class="mb-3">
+						<label class="form-label">RIF <span class="text-danger">*</span></label>
+						<input v-model="rif" type="text" class="form-control form-control-lg fs-15px"
+							placeholder="e.g. J-12345678-9" required />
+					</div>
 				</div>
-				<div class="mb-3">
-					<label class="form-label">Cedula / Identificacion <span class="text-danger">*</span></label>
-					<input v-model="identification" type="number" class="form-control form-control-lg fs-15px"
-						placeholder="e.g 20555444" value="" required />
+
+				<div v-else>
+					<div class="mb-3">
+						<label class="form-label">Nombre <span class="text-danger">*</span></label>
+						<input v-model="firstName" type="text" class="form-control form-control-lg fs-15px"
+							placeholder="e.g John" value="" required />
+					</div>
+					<div class="mb-3">
+						<label class="form-label">Apellido <span class="text-danger">*</span></label>
+						<input v-model="lastName" type="text" class="form-control form-control-lg fs-15px"
+							placeholder="e.g Smith" value="" required />
+					</div>
+					<div class="mb-3">
+						<label class="form-label">Cedula / Identificacion <span class="text-danger">*</span></label>
+						<input v-model="identification" type="number" class="form-control form-control-lg fs-15px"
+							placeholder="e.g 20555444" value="" required />
+					</div>
 				</div>
+
 				<div class="mb-3">
 					<label class="form-label">Correo electronico <span class="text-danger">*</span></label>
 					<input v-model="email" type="text" class="form-control form-control-lg fs-15px"
@@ -204,7 +220,7 @@ export default defineComponent({
 					<input type="tel" v-model="phoneNumber" class="form-control form-control-lg fs-15px"
 						placeholder="e.g 04145555555" value="" pattern="[0-9]{4}[0-9]{7}" />
 				</div>
-				<div class="mb-3">
+				<!-- <div class="mb-3">
 					<label class="form-label">Sector <span class="text-danger">*</span></label>
 					<select v-model="sector" class="form-control form-control-lg fs-15px">
 						<option value="" disabled selected>Selecciona un sector</option>
@@ -216,7 +232,7 @@ export default defineComponent({
 				<div class="mb-3">
 					<label class="form-label">Dirección <span class="text-secondary">(Opcional)</span></label>
 					<input v-model="address" type="text" class="form-control form-control-lg fs-15px" value="" />
-				</div>
+				</div> -->
 				<div class="mb-3">
 					<label class="form-label">Contraseña <span class="text-danger">*</span></label>
 					<input v-model="password" type="password" class="form-control form-control-lg fs-15px" value=""
@@ -227,17 +243,7 @@ export default defineComponent({
 					<input v-model="confirmPassword" type="password" class="form-control form-control-lg fs-15px"
 						value="" required />
 				</div>
-				<div class="mb-3">
-					<label class="form-label">Tipo de usuario <span class="text-danger">*</span></label>
-					<select v-model="role" class="form-control form-control-lg fs-15px">
-						<option value="admin">Admin</option>
-						<option value="super_admin">Super Admin</option>
-						<option value="cliente">Cliente</option>
-						<option value="gerente">Gerente</option>
-						<option value="mesero">Mesero</option>
-						<option value="cajero">Cajero</option>
-					</select>
-				</div>
+
 				<div class="mb-3">
 					<button type="submit" class="btn btn-theme btn-lg fs-15px fw-500 d-block w-100">Registrar</button>
 				</div>

@@ -1,61 +1,84 @@
 <script>
-import { defineComponent, ref, computed } from 'vue';
+import { defineComponent, computed } from 'vue';
 import navscrollto from '@/components/app/NavScrollTo.vue';
 import { ScrollSpy } from 'bootstrap';
 import { useUserStore } from '@/stores/user-role';
-import { auth, db } from '../firebase/init';
-import { ref as dbRef, update, get, child } from 'firebase/database';
+import { auth, db, storage } from '../firebase/init';
+import { ref as dbRef, update, get } from 'firebase/database';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
-
-const userStore = useUserStore();
+import { Modal } from 'bootstrap';
 
 export default defineComponent({
 	components: {
 		navScrollTo: navscrollto
 	},
-	computed: {
-		currentPageName() {
-			return this.$route.name;
-		}
-	},
 	data() {
 		return {
+			userId: '',
+			userName: '',
+			requestSent: '',
+
 			currentPassword: '',
 			newPassword: '',
 			confirmPassword: '',
+			userVerified: null,
 
-			firstName: '',
-			lastName: '',
-			identification: '',
+			// Common fields
 			phoneNumber: '',
 			email: '',
 			sector: '',
 			address: '',
 
+			// Sectores
+			sectores:
+				[
+					"Santa Lucía",
+					"Veritas",
+					"Cecilio Acosta",
+					"La Lago",
+					"El Milagro",
+					"La Paragua",
+					"El Tránsito",
+					"Amparo",
+					"Grano de Oro",
+					"Cañada Honda"
+				],
+
+			// Cliente-specific fields
+			firstName: '',
+			lastName: '',
+			identification: '',
+
+			// Afiliado-specific fields
+			companyName: '',
+			rif: '',
+
 			// Edit states
 			editStates: {
-				firstName: false,
-				lastName: false,
 				phoneNumber: false,
 				email: false,
 				password: false,
-				identification: false,
 				sector: false,
-				address: false
+				address: false,
+				firstName: false,
+				lastName: false,
+				identification: false,
+				companyName: false,
+				rif: false,
 			},
 
-			// Field definitions to iterate over
-			fields: [
-				{ name: 'firstName', label: 'Nombre', value: '' },
-				{ name: 'lastName', label: 'Apellido', value: '' },
-				{ name: 'identification', label: 'Cedula', value: '' },
-				{ name: 'sector', label: 'Sector', value: '' },
-				{ name: 'address', label: 'Dirección', value: '' },
-				{ name: 'phoneNumber', label: 'Telefono', value: '' },
-				{ name: 'email', label: 'Correo electronico', value: '' },
-			],
+			//Verification data
+			idFrontFile: null,
+			idBackFile: null,
+			idFrontPreview: null,
+			idBackPreview: null,
+
+			isSubmitting: false,
+			errorMessage: '',
+			verificationModal: null,
 		};
 	},
 	setup() {
@@ -72,62 +95,89 @@ export default defineComponent({
 
 		const userStore = useUserStore();
 		const userId = userStore.userId;
+		this.userId = userId;
+		this.userName = userStore.userName;
+
+		const isVerified = userStore.isVerified;
+		if (isVerified) {
+			console.log('Usuario verificado')
+			this.userVerified = isVerified;
+		} else {
+			console.log('No verificado')
+		}
 
 		// Immediately invoked async function within mounted
 		(async () => {
 			await userStore.fetchUser(); // Await the fetching of the user
+			this.fetchUserData(userId);
 		})();
 
 		new ScrollSpy(document.body, {
 			target: '#sidebar-bootstrap',
 			offset: 200,
 		});
+		this.verificationModal = new Modal(document.getElementById('verificationModal'));
 
-		this.fetchUserData(userId);
 	},
 	methods: {
+		showToast(message) {
+			Toastify({
+				text: message,
+				duration: 3000,
+				close: true,
+				gravity: 'top',
+				position: 'right',
+				stopOnFocus: true,
+				style: {
+					background: 'linear-gradient(to right, #00b09b, #96c93d)',
+				},
+			}).showToast();
+		},
+
 		fetchUserData(userId) {
-			const userRef = dbRef(db);
-			get(child(userRef, `Users/${userId}`))
+			const userRef = dbRef(db, `Users/${userId}`);
+
+			get(userRef)
 				.then((snapshot) => {
 					if (snapshot.exists()) {
 						const userData = snapshot.val();
-						this.fields.forEach(field => {
-							if (userData[field.name] !== undefined) {
-								field.value = userData[field.name];
+						this.requestSent = userData.requestedVerification;
+
+						// Assign user data to field values
+						for (let key in userData) {
+							if (this[key] !== undefined) {
+								this[key] = userData[key]; // Update the reactive data fields directly
 							}
-						});
+						}
 					} else {
 						console.log("No data available");
 					}
 				}).catch((error) => {
-					console.error(error);
+					console.error('Error fetching user data:', error);
 				});
 		},
 		toggleEdit(fieldName) {
+			// Toggle the edit state for the given fieldName
 			this.editStates[fieldName] = !this.editStates[fieldName];
 		},
 		async updateField(fieldName) {
 			const userStore = useUserStore();
 			const userId = userStore.userId;
 
+			// Reference the specific user data
 			const userDataRef = dbRef(db, `Users/${userId}`);
 
-			// Find the field value to update based on fieldName
-			const fieldToUpdate = this.fields.find(field => field.name === fieldName);
-			if (!fieldToUpdate) {
-				console.error('Field to update not found');
-				return;
-			}
-
+			// Use the data property directly
 			const updateData = {
-				[fieldName]: fieldToUpdate.value
+				[fieldName]: this[fieldName] // this[fieldName] contains the updated value
 			};
 
 			try {
+				// Perform the update operation and log the result
 				await update(userDataRef, updateData);
-				console.log("User data updated successfully");
+				console.log("User data updated successfully", updateData);
 
+				// Success notification
 				Toastify({
 					text: "Datos actualizados con éxito!",
 					duration: 3000,
@@ -140,9 +190,10 @@ export default defineComponent({
 					},
 				}).showToast();
 
+				// Toggle off edit mode for this field
 				this.toggleEdit(fieldName);
 			} catch (error) {
-				console.error("Error updating menu item:", error);
+				console.error("Error updating user data:", error);
 			}
 		},
 		async changePassword() {
@@ -177,18 +228,125 @@ export default defineComponent({
 				alert('Error al actualizar la contraseña. Inténtalo de nuevo.');
 			}
 		},
-	}
+		//File uploads
+		handleFileUpload(event, side) {
+			const file = event.target.files[0];
+			if (!file) return;
+
+			// Update the correct file and preview based on the side
+			if (side === 'front') {
+				this.idFrontFile = file;
+				this.idFrontPreview = URL.createObjectURL(file);
+			} else if (side === 'back') {
+				this.idBackFile = file;
+				this.idBackPreview = URL.createObjectURL(file);
+			}
+		},
+
+		async uploadFile(file, side) {
+			// Define storage reference for front or back ID file
+			const fileName = `${side}-ID.${file.name.split('.').pop()}`;
+			const fileRef = storageRef(storage, `verification-files/${this.userId}-${this.userName}/${fileName}`);
+
+			// Upload the file and get the download URL
+			await uploadBytes(fileRef, file);
+			return getDownloadURL(fileRef);
+		},
+
+		async submitVerification() {
+			if (!this.idFrontFile || !this.idBackFile) {
+				this.errorMessage = 'Ambos archivos de la identificación son requeridos.';
+				return;
+			}
+
+			try {
+				// Show the loader
+				this.isSubmitting = true;
+				this.errorMessage = '';
+
+				// Upload both files
+				const frontUrl = await this.uploadFile(this.idFrontFile, 'front');
+				const backUrl = await this.uploadFile(this.idBackFile, 'back');
+
+				console.log('Files uploaded successfully:', frontUrl, backUrl);
+
+				//Update user to set field user.requestedVerification = true
+				const userRef = dbRef(db, `Users/${this.userId}`);
+				await update(userRef, { requestedVerification: true });
+
+				//Success toast
+				this.showToast('Archivos subidos!');
+
+				//reset the image previews
+				this.idFrontPreview = null;
+				this.idBackPreview = null;
+				this.verificationStatus = 'pending';
+
+				// Hide the modal after submission
+				this.verificationModal.hide();
+			} catch (error) {
+				console.error('Error during verification:', error);
+				this.errorMessage = 'Error al subir los archivos, por favor intente nuevamente.';
+			} finally {
+				// Hide the loader
+				this.isSubmitting = false;
+			}
+		},
+	},
+	computed: {
+		currentPageName() {
+			return this.$route.name;
+		},
+		// Dynamically determine which fields to display based on user role
+		displayedFields() {
+			if (this.role === 'afiliado') {
+				return [
+					{ name: 'companyName', label: 'Nombre del Comercio', value: this.companyName },
+					{ name: 'rif', label: 'RIF', value: this.rif },
+					{ name: 'sector', label: 'Sector', value: this.sector },
+					{ name: 'address', label: 'Dirección', value: this.address },
+					{ name: 'phoneNumber', label: 'Telefono', value: this.phoneNumber },
+					{ name: 'email', label: 'Correo electronico', value: this.email },
+				];
+			} else {
+				return [
+					{ name: 'firstName', label: 'Nombre', value: this.firstName },
+					{ name: 'lastName', label: 'Apellido', value: this.lastName },
+					{ name: 'identification', label: 'Cedula', value: this.identification },
+					{ name: 'sector', label: 'Sector', value: this.sector },
+					{ name: 'address', label: 'Dirección', value: this.address },
+					{ name: 'phoneNumber', label: 'Telefono', value: this.phoneNumber },
+					{ name: 'email', label: 'Correo electronico', value: this.email },
+				];
+			}
+		},
+		isProfileIncomplete() {
+			return !this.sector || !this.address;
+		},
+	},
 });
 </script>
 <template>
 	<!-- BEGIN container -->
 	<div class="container py-5 h-100">
+		<!-- Breadcrumbs -->
 		<nav style="--bs-breadcrumb-divider: '>';" aria-label="breadcrumb">
 			<ol class="breadcrumb">
-				<li class="breadcrumb-item"><router-link to="/page/client-portal">Portal de clientes</router-link></li>
+				<li class="breadcrumb-item"><router-link to="/page/affiliate-portal">Dashboard</router-link></li>
 				<li class="breadcrumb-item active" aria-current="page">{{ currentPageName }}</li>
 			</ol>
 		</nav>
+
+		<!-- Info div for completing profile -->
+		<div v-if="(role === 'cliente' || role === 'afiliado') && isProfileIncomplete"
+			class="alert alert-info d-flex align-items-center mt-4" role="alert">
+			<i class="fa-solid fa-info-circle me-2"></i>
+			<div>
+				<strong>Completa tu perfil:</strong> Para disfrutar de los beneficios de promociones y descuentos
+				exclusivos, completa toda la información de tu perfil.
+			</div>
+		</div>
+
 		<div class="row">
 			<div class="col-xl-9">
 				<div id="general" class="mb-5">
@@ -196,22 +354,78 @@ export default defineComponent({
 					<p>Puedes actualizar tus datos de usuario aqui.</p>
 					<div class="card shadow-sm">
 						<div class="list-group list-group-flush">
-							<div class="list-group-item" v-for="field in fields" :key="field.name">
+							<div class="list-group-item" v-for="field in displayedFields" :key="field.name">
 								<div class="d-flex justify-content-between align-items-center flex-wrap">
 									<div class="flex-fill pe-2">
 										<div class="fw-bold">{{ field.label }}</div>
+
+										<!-- Display field value when not in edit mode -->
 										<div v-if="!editStates[field.name]" class="text-secondary">{{ field.value }}
 										</div>
-										<input v-else v-model="field.value" type="text" class="form-control mt-2">
+
+										<!-- Check if editing sector to show dropdown, otherwise show input -->
+										<template v-if="editStates[field.name]">
+											<select v-if="field.name === 'sector'" v-model="sector"
+												class="form-control mt-2">
+												<option value="" disabled selected>Selecciona un sector</option>
+												<option v-for="(sectorOption, index) in sectores" :key="index"
+													:value="sectorOption">
+													{{ sectorOption }}
+												</option>
+											</select>
+											<input v-else v-model="this[field.name]" type="text"
+												class="form-control mt-2">
+										</template>
 									</div>
-									<div>
-										<button class="btn btn-outline-primary btn-sm me-2"
-											@click.prevent="toggleEdit(field.name)">Editar</button>
-										<button v-if="editStates[field.name]" class="btn btn-success btn-sm"
-											@click.prevent="updateField(field.name)">Actualizar</button>
+									<!-- Botones -->
+									<div class="btn-group" role="group">
+										<!-- Show "Edit" button when not in edit mode -->
+										<button class="btn btn-transparent btn-sm me-1" v-if="!editStates[field.name]"
+											@click.prevent="toggleEdit(field.name)">
+											<i class="fa-solid fa-pencil text-primary"></i>
+										</button>
+
+										<!-- Show "Save" and "Cancel" buttons when in edit mode -->
+										<button class="btn btn-transparent btn-sm me-1" v-if="editStates[field.name]"
+											@click.prevent="updateField(field.name)">
+											<i class="fa-solid fa-save text-success"></i>
+										</button>
+										<button class="btn btn-transparent btn-sm me-1" v-if="editStates[field.name]"
+											@click.prevent="toggleEdit(field.name)">
+											<i class="fa-solid fa-times text-secondary"></i>
+										</button>
 									</div>
 								</div>
 							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Request Verification div -->
+				<div v-if="(role === 'cliente' || role === 'afiliado') && !this.userVerified"
+					class="alert alert-warning d-flex align-items-center mb-5" role="alert">
+					<i class="fa-solid fa-exclamation-circle me-2"></i>
+					<div>
+						<strong>Verifica tu cuenta:</strong> Para asegurar la seguridad de tu cuenta y acceder a todas
+						las
+						funcionalidades, solicita la verificación de tu cuenta.
+						<button v-if="!this.requestSent" class="btn btn-warning btn-sm ms-3" data-bs-toggle="modal"
+							data-bs-target="#verificationModal">
+							Solicitar Verificación
+						</button>
+						<button v-else class="btn btn-secondary btn-sm ms-3" disabled>
+							Solicitud enviada
+						</button>
+					</div>
+				</div>
+				<div v-else-if="(role === 'cliente' || role === 'afiliado') && this.userVerified">
+					<div class="alert alert-success d-flex align-items-center mb-5">
+						<div class="text-muted">
+							<span class="text-success d-flex justify-content-center align-items-center"
+								style="font-size: 0.9rem;">
+								<i class="fa fa-check me-2" style="font-size: 1.25rem;"></i>
+								<strong>Cliente verificado.</strong>
+							</span>
 						</div>
 					</div>
 				</div>
@@ -242,7 +456,7 @@ export default defineComponent({
 					</div>
 				</div>
 
-				<div id="notifications" class="mb-5" v-if="role !== 'cliente'">
+				<!-- <div id="notifications" class="mb-5">
 					<h4><i class="far fa-bell fa-fw"></i> Notificaciones</h4>
 					<p>Habilite o deshabilite las notificaciones que desea recibir.</p>
 					<div class="card">
@@ -296,18 +510,77 @@ export default defineComponent({
 							</div>
 						</div>
 					</div>
-				</div>
+				</div> -->
 			</div>
 			<div class="col-xl-3">
 				<nav id="sidebar-bootstrap" class="navbar navbar-sticky d-none d-xl-block">
 					<nav class="nav">
 						<nav-scroll-to target="#general" data-toggle="scroll-to">General</nav-scroll-to>
-						<nav-scroll-to target="#change-password" data-toggle="scroll-to">Cambiar contraseña</nav-scroll-to>
-						<nav-scroll-to v-if="role !== 'cliente'" target="#notifications"
-							data-toggle="scroll-to">Notifications</nav-scroll-to>
+						<nav-scroll-to target="#change-password" data-toggle="scroll-to">Cambiar
+							contraseña</nav-scroll-to>
+						<!-- <nav-scroll-to target="#notifications" data-toggle="scroll-to">Notifications</nav-scroll-to> -->
 					</nav>
 				</nav>
 			</div>
 		</div>
+
+		<!-- Modal for ID upload -->
+		<div class="modal fade" id="verificationModal" tabindex="-1" aria-labelledby="verificationModalLabel"
+			aria-hidden="true">
+			<div class="modal-dialog">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="verificationModalLabel">Subir Documento de Identificación</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+					</div>
+					<div class="modal-body">
+						<form @submit.prevent="submitVerification">
+							<div class="mb-3">
+								<label for="idFront" class="form-label">Frontal de la Cédula/Identificación</label>
+								<input type="file" class="form-control" id="idFront"
+									@change="handleFileUpload($event, 'front')" required>
+								<img v-if="idFrontPreview" :src="idFrontPreview" alt="Front ID Preview"
+									class="img-fluid mt-2" />
+							</div>
+							<div class="mb-3">
+								<label for="idBack" class="form-label">Parte Trasera de la Cédula/Identificación</label>
+								<input type="file" class="form-control" id="idBack"
+									@change="handleFileUpload($event, 'back')" required>
+								<img v-if="idBackPreview" :src="idBackPreview" alt="Back ID Preview"
+									class="img-fluid mt-2" />
+							</div>
+
+							<!-- Error Message -->
+							<div v-if="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
+
+							<!-- Loader Spinner -->
+							<div v-if="isSubmitting" class="d-flex justify-content-center my-3">
+								<div class="spinner-border text-primary" role="status">
+									<span class="visually-hidden">Cargando...</span>
+								</div>
+							</div>
+							<button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cerrar</button>
+							<!-- Submit Button is disabled during submission -->
+							<button type="submit" class="btn btn-primary" :disabled="isSubmitting">
+								Subir y Solicitar Verificación
+							</button>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+
 	</div>
 </template>
+<style scoped>
+.btn-transparent {
+	background-color: transparent;
+	border: none;
+	padding: 0.5rem;
+}
+
+.btn-transparent:hover {
+	background-color: #f0f0f0;
+	border-radius: 5px;
+}
+</style>
