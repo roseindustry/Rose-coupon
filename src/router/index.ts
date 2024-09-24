@@ -38,9 +38,99 @@ const router = createRouter({
 			meta: { roles: ['admin'] }
 		},
 
-		// Clients routes
+		// User's routes
+		{
+			path: '/client-portal',
+			name: 'Portal de Cliente',
+			component: () => import('../views/PageClientPortal.vue'),
+			meta: { roles: ['cliente'] }
+		},
+		{
+			path: '/affiliate-portal',
+			name: 'Portal de Afiliado',
+			component: () => import('../views/PageAffiliatePortal.vue'),
+			meta: { roles: ['afiliado'] }
+		},
 
-		// Affiliates routes
+		// Customer satisfaction survey routes
+		{
+			path: '/customer-survey',
+			name: 'Encuesta de satisfaccion',
+			component: () => import('../views/Survey.vue'),
+			meta: { roles: ['admin', 'cliente', 'afiliado'] }
+		},
+		{
+			path: '/clients-ratings',
+			name: 'Reseñas del cliente',
+			component: () => import('../views/PageRatings.vue'),
+			meta: { roles: ['cliente', 'afiliado'] }
+		},
+
+		// Coupons routes
+		{
+			path: '/cupones',
+			name: 'Cupones',
+			component: () => import('../views/Coupons.vue'),
+			meta: { roles: ['admin', 'cliente', 'afiliado'] }
+		},
+
+		// Events routes
+		{
+			path: '/events',
+			name: 'Eventos',
+			component: () => import('../views/Events.vue'),
+			meta: { roles: ['admin', 'cliente', 'afiliado'] }
+		},
+		
+		// Reports routes
+		{
+			path: '/page/reports-by-client',
+			name: 'Reportes por cliente',
+			component: () => import('../views/ReportsByClient.vue'),
+			meta: { roles: ['admin'] }
+		},
+		{
+			path: '/page/reports-by-rating',
+			name: 'Reportes por actividad',
+			component: () => import('../views/ReportsByActivity.vue'),
+			meta: { roles: ['admin'] }
+		},
+
+		// Generic routes
+		{
+			path: '/page/coming-soon',
+			name: 'Coming soon',
+			component: () => import('../views/PageComingSoon.vue')
+		},
+		{
+			path: '/page/error',
+			component: () => import('../views/PageError.vue')
+		},
+		{
+			path: '/page/login',
+			name: 'Login',
+			component: () => import('../views/PageLogin.vue')
+		},
+		{
+			path: '/page/register',
+			name: 'Registro',
+			component: () => import('../views/PageRegister.vue')
+		},
+		{
+			path: '/profile',
+			name: 'Perfil',
+			component: () => import('../views/Profile.vue'),
+			meta: { roles: ['admin', 'afiliado', 'cliente'] }
+		},
+		{
+			path: '/:pathMatch(.*)*',
+			component: () => import('../views/PageError.vue')
+		},
+		{
+			path: '/landing',
+			name: 'Landing Page',
+			component: () => import('../views/Landing.vue')
+		},
 
 		// {
 		// 	path: '/analytics',
@@ -92,95 +182,6 @@ const router = createRouter({
 		// 	component: () => import('../views/PageOrderDetails.vue'),
 		// 	meta: { roles: ['admin', 'superadmin', 'gerente'] }
 		// },
-
-		// User's routes
-		{
-			path: '/client-portal',
-			name: 'Portal de Cliente',
-			component: () => import('../views/PageClientPortal.vue'),
-			meta: { roles: ['cliente'] }
-		},
-		{
-			path: '/affiliate-portal',
-			name: 'Portal de Afiliado',
-			component: () => import('../views/PageAffiliatePortal.vue'),
-			meta: { roles: ['afiliado'] }
-		},
-		// Customer satisfaction survey routes
-		{
-			path: '/customer-survey',
-			name: 'Encuesta de satisfaccion',
-			component: () => import('../views/Survey.vue'),
-			meta: { roles: ['admin', 'cliente', 'afiliado'] }
-		},
-		{
-			path: '/clients-ratings',
-			name: 'Reseñas del cliente',
-			component: () => import('../views/PageRatings.vue'),
-			meta: { roles: ['cliente', 'afiliado'] }
-		},
-		// Cupons routes
-		{
-			path: '/cupones',
-			name: 'Cupones',
-			component: () => import('../views/Coupons.vue'),
-			meta: { roles: ['admin', 'cliente', 'afiliado'] }
-		},
-		
-		// Reports routes
-		{
-			path: '/page/reports-by-client',
-			name: 'Reportes por cliente',
-			component: () => import('../views/ReportsByClient.vue'),
-			meta: { roles: ['admin'] }
-		},
-		{
-			path: '/page/reports-by-rating',
-			name: 'Reportes por actividad',
-			component: () => import('../views/ReportsByActivity.vue'),
-			meta: { roles: ['admin'] }
-		},
-		// Generic routes
-		{
-			path: '/page/coming-soon',
-			name: 'Coming soon',
-			component: () => import('../views/PageComingSoon.vue')
-		},
-		{
-			path: '/page/error',
-			component: () => import('../views/PageError.vue')
-		},
-		{
-			path: '/page/login',
-			name: 'Login',
-			component: () => import('../views/PageLogin.vue')
-		},
-		{
-			path: '/page/register',
-			name: 'Registro',
-			component: () => import('../views/PageRegister.vue')
-		},
-		{
-			path: '/control-panel',
-			name: 'Panel de control',
-			component: () => import('../views/ControlPanel.vue'),
-			meta: { roles: ['admin'] }
-		},
-		{
-			path: '/profile',
-			name: 'Perfil',
-			component: () => import('../views/Profile.vue'),
-			meta: { roles: ['admin', 'afiliado', 'cliente'] }
-		},
-		{
-			path: '/:pathMatch(.*)*',
-			component: () => import('../views/PageError.vue')
-		},
-		{
-			path: '/landing',
-			name: 'Landing Page',
-			component: () => import('../views/Landing.vue')
-		}
 	],
 });
 

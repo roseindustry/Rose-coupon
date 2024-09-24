@@ -11,14 +11,17 @@ import 'toastify-js/src/toastify.css'
 export default defineComponent({
     data() {
         return {
+            // deferredPrompt: null,
+
             userId: '',
             userName: '',
 
             // data for portal items
             portalItems: [
-                { title: 'Cupones', description: 'Descubre tus cupones aquí.', link: '/cupones', actionText: 'Ver más', icon: 'fa-solid fa-ticket' },
-                { title: 'Crédito', description: 'Solicite o modifique su crédito aquí.', link: '/creditos', actionText: 'Ver más', icon: 'fa-solid fa-dollar' },
                 { title: 'Comercios Afiliados', description: 'Aquí puede ver los comercios donde puede usar su crédito.', link: '/comercios-afiliados', actionText: 'Ver más', icon: 'fa-solid fa-building' },
+                { title: 'Cupones', description: 'Descubre tus cupones aquí.', link: '/cupones', actionText: 'Ver más', icon: 'fa-solid fa-ticket' },
+                { title: 'Eventos', description: 'Descubre nuestros próximos eventos.', link: '/events', actionText: 'Ver más', icon: 'fa-solid fa-calendar-days' },
+                { title: 'Crédito', description: 'Solicite o modifique su crédito aquí.', link: '/creditos', actionText: 'Ver más', icon: 'fa-solid fa-dollar' },
                 { title: 'Compras recientes', description: 'Ver sus compras recientes.', link: '#', actionText: 'Ver más', icon: 'fa-solid fa-shopping-cart' },
                 { title: 'Mis Opiniones', description: 'Aqui se muestran tus reseñas y opiniones de lo que consumes.', link: '/clients-ratings', actionText: 'Ver más', icon: 'fa-solid fa-star' },
                 { title: 'Encuesta de satisfaccion', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/customer-survey', actionText: 'Tomar Encuesta', icon: 'fa-solid fa-comment-dots' },
@@ -30,8 +33,10 @@ export default defineComponent({
 
             idFrontFile: null,
             idBackFile: null,
+            selfieFile: null,
             idFrontPreview: null,
             idBackPreview: null,
+            selfiePreview: null,
 
             isSubmitting: false,
             errorMessage: '',
@@ -90,23 +95,26 @@ export default defineComponent({
             }
         },
         //File uploads
-        handleFileUpload(event, side) {
+        handleFileUpload(event, type) {
             const file = event.target.files[0];
             if (!file) return;
 
             // Update the correct file and preview based on the side
-            if (side === 'front') {
+            if (type === 'front') {
                 this.idFrontFile = file;
                 this.idFrontPreview = URL.createObjectURL(file);
-            } else if (side === 'back') {
+            } else if (type === 'back') {
                 this.idBackFile = file;
                 this.idBackPreview = URL.createObjectURL(file);
+            } else if (type === 'selfie') {
+                this.selfieFile = file;
+                this.selfiePreview = URL.createObjectURL(file);
             }
         },
 
-        async uploadFile(file, side) {
+        async uploadFile(file, type) {
             // Define storage reference for front or back ID file
-            const fileName = `${side}-ID.${file.name.split('.').pop()}`;
+            const fileName = `${type === 'selfie' ? 'selfie' : `${type}-ID`}.${file.name.split('.').pop()}`;
             const fileRef = storageRef(storage, `verification-files/${this.userId}-${this.userName}/${fileName}`);
 
             // Upload the file and get the download URL
@@ -115,7 +123,7 @@ export default defineComponent({
         },
 
         async submitVerification() {
-            if (!this.idFrontFile || !this.idBackFile) {
+            if (!this.idFrontFile || !this.idBackFile || !this.selfieFile) {
                 this.errorMessage = 'Ambos archivos de la identificación son requeridos.';
                 return;
             }
@@ -128,12 +136,19 @@ export default defineComponent({
                 // Upload both files
                 const frontUrl = await this.uploadFile(this.idFrontFile, 'front');
                 const backUrl = await this.uploadFile(this.idBackFile, 'back');
+                const selfieUrl = await this.uploadFile(this.selfieFile, 'selfie');
 
-                console.log('Files uploaded successfully:', frontUrl, backUrl);
+                console.log('Files uploaded successfully:', frontUrl, backUrl, selfieUrl);
 
                 //Update user to set field user.requestedVerification = true
                 const userRef = dbRef(db, `Users/${this.userId}`);
-                await update(userRef, { requestedVerification: true });
+                await update(userRef,
+                    {
+                        'verificationFiles/Front-ID': frontUrl,
+                        'verificationFiles/Back-ID': backUrl,
+                        'verificationFiles/Selfie': selfieUrl,
+                        requestedVerification: true
+                    });
 
                 //Success toast
                 this.showToast('Archivos subidos!');
@@ -141,6 +156,7 @@ export default defineComponent({
                 //reset the image previews
                 this.idFrontPreview = null;
                 this.idBackPreview = null;
+                this.selfiePreview = null;
                 this.verificationStatus = 'pending';
 
                 // Hide the modal after submission
@@ -152,7 +168,39 @@ export default defineComponent({
                 // Hide the loader
                 this.isSubmitting = false;
             }
-        }
+        },
+
+        //Promt the user to download the shortcut to the app on their phone
+        // handleBeforeInstallPrompt(event) {
+        //     console.log('beforeinstallprompt event fired');
+        //     event.preventDefault();
+        //     this.deferredPrompt = event;
+
+        //     const installButton = document.getElementById('install-button');
+        //     if (installButton) {
+        //         // Show the install button
+        //         installButton.style.display = 'block';
+
+        //         // Add click event to trigger the prompt
+        //         installButton.addEventListener('click', this.triggerInstall);
+        //     }
+        // },
+        // triggerInstall() {
+        //     const installButton = document.getElementById('install-button');
+        //     installButton.style.display = 'none'; // Hide the button after it's clicked
+
+        //     if (this.deferredPrompt) {
+        //         this.deferredPrompt.prompt();
+        //         this.deferredPrompt.userChoice.then((choiceResult) => {
+        //             if (choiceResult.outcome === 'accepted') {
+        //                 console.log('User accepted the install prompt');
+        //             } else {
+        //                 console.log('User dismissed the install prompt');
+        //             }
+        //             this.deferredPrompt = null;
+        //         });
+        //     }
+        // },
     },
     async mounted() {
         const userStore = useUserStore();
@@ -164,15 +212,20 @@ export default defineComponent({
         this.verificationModal = new Modal(document.getElementById('verificationModal'));
 
         await this.fetchSubscriptionPlan();
+        window.addEventListener('beforeinstallprompt', this.handleBeforeInstallPrompt());
     },
 });
 
 </script>
 <template>
     <div class="container py-5 h-100">
+        <!-- Add an install button in your template
+        <button id="install-button" style="display: none;">Instale acceso a Rose Coupon</button> -->
+        
         <!-- Subscription Badge -->
         <div class="subscription-badge position-absolute top-0 end-0 m-3">
-            <div v-if="subscriptionPlan && subscriptionPlan.status" class="d-flex align-items-center flex-wrap">
+            <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
+                class="d-flex align-items-center flex-wrap">
                 <h5 class="m-0">
                     <div class="subscription-badge mb-4">
                         <span
@@ -194,29 +247,32 @@ export default defineComponent({
                         class="badge bg-transparent border border-danger text-danger d-flex flex-column align-items-start p-2">
                         <span class="d-flex align-items-center">
                             <i class="me-2" style="font-size: 1.5rem;"></i>
-                            No tiene un plan de suscripción activo.
+                            No tiene una suscripción activa.
                         </span>
                     </span>
                 </div>
             </div>
         </div>
-        <div class="row justify-content-center align-items-center mt-3 h-100">
+
+        <div class="row justify-content-center align-items-center mt-2 h-100">
             <div class="col-12">
                 <div class="card shadow-lg position-relative">
 
                     <div class="card-body pb-5 pt-5 pt-md-5 pt-lg-5">
                         <h2 class="card-title mb-4 text-center">Portal de Clientes</h2>
 
-                        <div class="text-muted position-absolute top-0 end-0 m-3">
+                        <div class="text-muted position-absolute top-0 end-0 m-2">
                             <span v-if="userVerified"
                                 class="badge bg-transparent border border-success text-success d-flex flex-column align-items-start p-2">
                                 <span class="d-flex align-items-center">
+                                    <i class="fa-solid fa-user-check me-2"></i>
                                     Usuario verificado
                                 </span>
                             </span>
                             <span v-else
                                 class="badge bg-transparent border border-danger text-danger d-flex flex-column align-items-start p-2">
                                 <span class="d-flex align-items-center">
+                                    <i class="fa-solid fa-user-xmark me-2"></i>
                                     Usuario no Verificado
                                 </span>
                             </span>
@@ -280,6 +336,13 @@ export default defineComponent({
                                 <input type="file" class="form-control" id="idBack"
                                     @change="handleFileUpload($event, 'back')" required>
                                 <img v-if="idBackPreview" :src="idBackPreview" alt="Back ID Preview"
+                                    class="img-fluid mt-2" />
+                            </div>
+                            <div class="mb-3">
+                                <label for="selfie" class="form-label">Foto Selfie</label>
+                                <input type="file" class="form-control" id="selfie"
+                                    @change="handleFileUpload($event, 'selfie')" required>
+                                <img v-if="selfiePreview" :src="selfiePreview" alt="Selfie Preview"
                                     class="img-fluid mt-2" />
                             </div>
 

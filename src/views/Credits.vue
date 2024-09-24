@@ -323,7 +323,7 @@ export default {
 
 </script>
 <template>
-    <h2 class="mb-4 text-center text-uppercase fw-bold" style="color: #343a40;">
+    <h2 class="mb-4 text-center text-uppercase fw-bold">
         Crédito
     </h2>
 

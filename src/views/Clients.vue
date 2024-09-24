@@ -30,27 +30,28 @@ export default {
                 identification: '',
                 email: '',
                 phoneNumber: '',
-                address: '',
-                sector: '',
+                //address: '',
+                //sector: '',
             },
-            sectores:
-                [
-                    "Santa Lucía",
-                    "Veritas",
-                    "Cecilio Acosta",
-                    "La Lago",
-                    "El Milagro",
-                    "La Paragua",
-                    "El Tránsito",
-                    "Amparo",
-                    "Grano de Oro",
-                    "Cañada Honda"
-                ],
+            // sectores:
+            //     [
+            //         "Santa Lucía",
+            //         "Veritas",
+            //         "Cecilio Acosta",
+            //         "La Lago",
+            //         "El Milagro",
+            //         "La Paragua",
+            //         "El Tránsito",
+            //         "Amparo",
+            //         "Grano de Oro",
+            //         "Cañada Honda"
+            //     ],
             clients: [],
             clientCoupons: [],
             currentEditing: null,
             searchQuery: null,
             modalImageUrl: '',
+            isSubmitting: false,
         }
     },
     async created() {
@@ -157,26 +158,25 @@ export default {
             }
         },
         async fetchIdFiles(client) {
-            const userName = client.firstName + ' ' + client.lastName;
             try {
-                // Construct the file paths
-                const frontFileName = `front-ID.png`;
-                const backFileName = `back-ID.png`;
+                // Fetch verification files data from the user's collection in the Realtime Database
+                const userRef = dbRef(db, `Users/${client.uid}/verificationFiles`);
+                const snapshot = await get(userRef);
 
-                // Define storage references for both front and back ID files
-                const frontFileRef = storageRef(storage, `verification-files/${client.uid}-${userName}/${frontFileName}`);
-                const backFileRef = storageRef(storage, `verification-files/${client.uid}-${userName}/${backFileName}`);
+                if (snapshot.exists()) {
+                    const verificationFiles = snapshot.val();
 
-                // Fetch the download URLs
-                const frontUrl = await getDownloadURL(frontFileRef);
-                const backUrl = await getDownloadURL(backFileRef);
+                    // Set the URLs for front and back ID images if they exist
+                    client.idFrontUrl = verificationFiles['Front-ID'] || null;
+                    client.idBackUrl = verificationFiles['Back-ID'] || null;
+                    client.selfieUrl = verificationFiles['Selfie'] || null;
 
-                // Store the URLs in the client reactive property
-                client.idFrontUrl = frontUrl;
-                client.idBackUrl = backUrl;
-
+                    console.log('Verification files fetched:', verificationFiles);
+                } else {
+                    console.warn(`No verification files found for ${client.uid}`);
+                }
             } catch (error) {
-                console.error('Error fetching ID files:', error);
+                console.error('Error fetching ID files:', error.message || error);
             }
         },
         async createClient() {
@@ -187,8 +187,8 @@ export default {
                     identification: this.client.identification,
                     email: this.client.email,
                     phoneNumber: this.client.phoneNumber,
-                    sector: this.client.sector,
-                    address: this.client.address,
+                    // sector: this.client.sector,
+                    // address: this.client.address,
                     role: 'cliente'
                 };
 
@@ -269,31 +269,6 @@ export default {
                 console.error('Error updating info:', error);
                 alert('La actualizacion de datos falló.');
             }
-
-            // Cloud functions way
-            // const updateData = {
-            //     firstName: this.selectedClient.firstName,
-            //     lastName: this.selectedClient.lastName,
-            //     identification: this.selectedClient.identification,
-            //     email: this.selectedClient.email,
-            //     phoneNumber: this.selectedClient.phoneNumber,
-            //     address: this.selectedClient.address,
-            //     sector: this.selectedClient.sector
-            // };
-
-            // try {
-            //     const result = await httpsCallable('updateUser')({
-            //         clientId: this.selectedClient.id,
-            //         updateData,
-            //     });
-
-            //     console.log(result.data.message);
-            //     // Apply changes to the original client data
-            //     Object.assign(client, this.selectedClient);
-            //     this.currentEditing = null; // Exit edit mode
-            // } catch (error) {
-            //     console.error('Error updating client data:', error);
-            // }
         },
         deleteClient(client, index) {
             // Confirmation dialog
@@ -354,6 +329,9 @@ export default {
         async approveID(client) {
             const userName = client.firstName + ' ' + client.lastName;
             try {
+                // Show the loader
+                this.isSubmitting = true;
+
                 const userRef = dbRef(db, `Users/${client.uid}`);
                 await update(userRef, { isVerified: true });
 
@@ -368,40 +346,85 @@ export default {
                 await this.sendEmail(emailPayload);
 
                 this.showToast('Usuario verificado con éxito.');
-                this.fetchClients();
+                this.fetchIdFiles(client);
             } catch (error) {
                 console.error("Error approving ID:", error);
+            } finally {
+                // Hide the loader
+                this.isSubmitting = false;
             }
-            // Update the client's 'isVerified' field to true
-            // hide the buttons for approving or dissaproving and add a message
-            // Send an email through firebase to notify the user of their verification status
         },
         async dissapproveID(client) {
-            const userName = client.firstName + ' ' + client.lastName;
-            try {
-                const userRef = dbRef(db, `Users/${client.uid}`);
-                await update(userRef, { isVerified: false, requestedVerification: null });
+            // Confirmation dialog
+            if (confirm("¿Desea borrar este cliente?")) {
+                // User clicked "OK"
+                try {
+                    this.isSubmitting = true;
 
-                // Remove the current image files from Firebase Storage
-                const frontFileRef = storageRef(storage, `verification-files/${client.uid}-${userName}/front-ID.png`);
-                const backFileRef = storageRef(storage, `verification-files/${client.uid}-${userName}/back-ID.png`);
-                await deleteObject(frontFileRef);
-                await deleteObject(backFileRef);
+                    // Fetch the user's verification files from the Database
+                    const userRef = dbRef(db, `Users/${client.uid}`);
+                    const snapshot = await get(dbRef(db, `Users/${client.uid}/verificationFiles`));
 
-                // Send an email notification to the client through Firebase Cloud Functions
-                const emailPayload = {
-                    to: client.email,
-                    message: {
-                        subject: "Verificación Denegada",
-                        text: `Hola ${client.name}, tu solicitud de verificación ha sido denegada. Por favor, sube nuevamente tus archivos de verificación.`,
-                    },
-                };
-                await this.sendEmail(emailPayload);
+                    if (!snapshot.exists()) {
+                        console.warn(`No verification files found for ${client.uid}, skipping deletion.`);
+                        return;
+                    }
 
-                this.showToast('Verificación denegada y archivos eliminados.');
-                this.fetchClients();
-            } catch (error) {
-                console.error("Error disapproving ID:", error);
+                    const verificationFiles = snapshot.val();
+                    const filePaths = [
+                        verificationFiles['Front-ID'] || null,
+                        verificationFiles['Back-ID'] || null,
+                        verificationFiles['Selfie'] || null
+                    ].filter(Boolean); // Filter out null values
+
+                    // Function to delete files from Firebase Storage
+                    const deleteFile = async (fileUrl) => {
+                        try {
+                            const fileRef = storageRef(storage, fileUrl);
+                            await deleteObject(fileRef);
+                            console.log(`${fileUrl} deleted successfully.`);
+                        } catch (error) {
+                            if (error.code === 'storage/object-not-found') {
+                                console.warn(`${fileUrl} not found, skipping deletion.`);
+                            } else {
+                                console.error(`Error deleting ${fileUrl}:`, error);
+                            }
+                        }
+                    };
+
+                    // Delete the files
+                    for (const filePath of filePaths) {
+                        await deleteFile(filePath);
+                    }
+
+                    // Clear verification status and files from the user's database entry
+                    await update(userRef, {
+                        isVerified: null,
+                        requestedVerification: null,
+                        verificationFiles: null, // Clear verification files in the database
+                    });
+
+                    // Send an email notification to the client via Firebase Cloud Functions
+                    const emailPayload = {
+                        to: client.email,
+                        message: {
+                            subject: "Verificación Denegada",
+                            text: `Hola ${client.firstName}, tu solicitud de verificación ha sido denegada. Por favor, sube nuevamente tus archivos de verificación.`,
+                        },
+                    };
+                    await this.sendEmail(emailPayload);
+
+                    // Show a success toast and refresh client list
+                    this.showToast('Verificación denegada y archivos eliminados.');
+                    this.fetchClients();
+
+                } catch (error) {
+                    console.error("Error disapproving verification:", error);
+                    this.showToast('Error al denegar la verificación. Por favor, inténtelo nuevamente.');
+                } finally {
+                    // Hide the loader
+                    this.isSubmitting = false;
+                }
             }
         },
         async sendEmail(payload) {
@@ -417,6 +440,10 @@ export default {
 </script>
 <template>
     <div class="container">
+        <h2 class="mb-4 text-center text-uppercase fw-bold">
+            Clientes
+        </h2>
+
         <div class="d-flex justify-content-end align-items-center">
             <a href="#" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#addClientModal"
                 style="margin: 14px;">
@@ -424,13 +451,9 @@ export default {
             </a>
         </div>
 
-        <h2 class="mb-4 text-center text-uppercase fw-bold" style="color: #343a40;">
-            Clientes
-        </h2>
-
         <div class="shadow-lg p-3 mb-5 bg-body rounded">
             <div class="search-box mb-3">
-                <input v-model="searchQuery" placeholder="Filtrar cliente por cedula..." class="form-control">
+                <input v-model="searchQuery" placeholder="Filtrar cliente por nombre o cedula..." class="form-control">
             </div>
             <div class="accordion" id="clientAccordion">
                 <div v-for="(client, index) in filteredUsers" :key="client.uid" class="accordion-item">
@@ -438,7 +461,7 @@ export default {
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
                             :data-bs-target="'#collapse' + client.uid" aria-expanded="false"
                             :aria-controls="'collapse' + client.uid">
-                            {{ client.firstName + " " + client.lastName }} - {{ client.identification }}
+                            {{ client.firstName + " " + client.lastName }} - V-{{ client.identification }}
                             <span v-if="client.isVerified === true" class="badge bg-success ms-2">Verificado</span>
                             <span v-else class="badge bg-danger ms-2">Sin verificar</span>
                         </button>
@@ -668,6 +691,10 @@ export default {
                                             class="accordion-collapse collapse"
                                             :aria-labelledby="'headingVerification' + client.uid">
                                             <div class="card accordion-body shadow-lg p-3">
+                                                <div class="text-muted mb-3">
+                                                    <strong>Nota:</strong> Las imágenes pueden tardar unos segundos en
+                                                    cargar. Por favor, espere...
+                                                </div>
                                                 <div class="row g-4">
                                                     <!-- ID card - Front -->
                                                     <div class="col-md-6">
@@ -698,29 +725,50 @@ export default {
                                                             </div>
                                                         </div>
                                                     </div>
+
+                                                    <!-- ID card - Selfie -->
+                                                    <div class="col-md-6">
+                                                        <div class="card h-100 border-0 shadow-sm">
+                                                            <div class="card-body text-center">
+                                                                <h5 class="card-title">Selfie</h5>
+                                                                <img :src="client.selfieUrl" class="img-fluid rounded"
+                                                                    alt="Selfie" v-if="client.selfieUrl"
+                                                                    @click="openImgModal(client.selfieUrl)"
+                                                                    style="cursor: pointer; max-height: 200px;">
+                                                                <p v-else class="text-muted">No se encontró imagen
+                                                                    selfie.</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                                 <div v-if="!client.isVerified" class="card-footer text-center mt-3">
                                                     <!-- Approve and Disapprove buttons -->
                                                     <div class="d-flex justify-content-center gap-3">
                                                         <button
                                                             class="btn btn-outline-success d-flex align-items-center gap-1"
-                                                            @click="approveID(client)">
+                                                            @click="approveID(client)" :disabled="isSubmitting">
                                                             <i class="fa-solid fa-check"></i> Aprobar
                                                         </button>
                                                         <button
                                                             class="btn btn-outline-danger d-flex align-items-center gap-1"
-                                                            @click="dissapproveID(client)">
+                                                            @click="dissapproveID(client)" :disabled="isSubmitting">
                                                             <i class="fa-solid fa-times"></i> Denegar
                                                         </button>
                                                     </div>
+                                                    <!-- Loader Spinner -->
+                                                    <div v-if="isSubmitting" class="d-flex justify-content-center my-3">
+                                                        <div class="spinner-border text-primary" role="status">
+                                                            <span class="visually-hidden">Cargando...</span>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div v-else class="mt-3">
+                                                <div v-else class="mt-4">
                                                     <div class="text-muted">
                                                         <span
                                                             class="text-success d-flex justify-content-end align-items-center"
                                                             style="font-size: 0.9rem;">
                                                             <i class="fa fa-check me-2" style="font-size: 1.25rem;"></i>
-                                                           <strong>Cliente verificado.</strong> 
+                                                            <strong>Cliente verificado.</strong>
                                                         </span>
                                                     </div>
                                                 </div>
@@ -786,7 +834,7 @@ export default {
                             <input type="text" class="form-control" id="clientPhoneNumber"
                                 v-model="client.phoneNumber" />
                         </div>
-                        <div class="mb-3">
+                        <!-- <div class="mb-3">
                             <label class="form-label">Sector <span class="text-danger">*</span></label>
                             <select v-model="client.sector" class="form-control form-control-lg fs-15px">
                                 <option value="" disabled selected>Selecciona un sector</option>
@@ -799,7 +847,7 @@ export default {
                             <label class="form-label">Dirección <span class="text-secondary">(Opcional)</span></label>
                             <input v-model="client.address" type="text" class="form-control form-control-lg fs-15px"
                                 value="" />
-                        </div>
+                        </div> -->
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>

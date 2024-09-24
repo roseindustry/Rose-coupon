@@ -18,6 +18,7 @@ export default defineComponent({
 	data() {
 		return {
 			userId: '',
+			role: '',
 			userName: '',
 			requestSent: '',
 
@@ -73,8 +74,10 @@ export default defineComponent({
 			//Verification data
 			idFrontFile: null,
 			idBackFile: null,
+			selfieFile: null,
 			idFrontPreview: null,
 			idBackPreview: null,
+			selfiePreview: null,
 
 			isSubmitting: false,
 			errorMessage: '',
@@ -95,14 +98,16 @@ export default defineComponent({
 
 		const userStore = useUserStore();
 		const userId = userStore.userId;
+		const role = userStore.role;
 		this.userId = userId;
+		this.role = role;
 		this.userName = userStore.userName;
-
 		const isVerified = userStore.isVerified;
-		if (isVerified) {
+		this.userVerified = isVerified;
+
+		if (isVerified && !role === 'admin') {
 			console.log('Usuario verificado')
-			this.userVerified = isVerified;
-		} else {
+		} else if (!role === 'admin') {
 			console.log('No verificado')
 		}
 
@@ -175,7 +180,6 @@ export default defineComponent({
 			try {
 				// Perform the update operation and log the result
 				await update(userDataRef, updateData);
-				console.log("User data updated successfully", updateData);
 
 				// Success notification
 				Toastify({
@@ -229,23 +233,26 @@ export default defineComponent({
 			}
 		},
 		//File uploads
-		handleFileUpload(event, side) {
+		handleFileUpload(event, type) {
 			const file = event.target.files[0];
 			if (!file) return;
 
 			// Update the correct file and preview based on the side
-			if (side === 'front') {
+			if (type === 'front') {
 				this.idFrontFile = file;
 				this.idFrontPreview = URL.createObjectURL(file);
-			} else if (side === 'back') {
+			} else if (type === 'back') {
 				this.idBackFile = file;
 				this.idBackPreview = URL.createObjectURL(file);
+			} else if (type === 'selfie') {
+				this.selfieFile = file;
+				this.selfiePreview = URL.createObjectURL(file);
 			}
 		},
 
-		async uploadFile(file, side) {
+		async uploadFile(file, type) {
 			// Define storage reference for front or back ID file
-			const fileName = `${side}-ID.${file.name.split('.').pop()}`;
+			const fileName = `${type === 'selfie' ? 'selfie' : `${type}-ID`}.${file.name.split('.').pop()}`;
 			const fileRef = storageRef(storage, `verification-files/${this.userId}-${this.userName}/${fileName}`);
 
 			// Upload the file and get the download URL
@@ -254,8 +261,8 @@ export default defineComponent({
 		},
 
 		async submitVerification() {
-			if (!this.idFrontFile || !this.idBackFile) {
-				this.errorMessage = 'Ambos archivos de la identificación son requeridos.';
+			if (!this.idFrontFile || !this.idBackFile || !this.selfieFile) {
+				this.errorMessage = 'Todos los archivos de identificación son requeridos.';
 				return;
 			}
 
@@ -264,15 +271,22 @@ export default defineComponent({
 				this.isSubmitting = true;
 				this.errorMessage = '';
 
-				// Upload both files
+				// Upload files
 				const frontUrl = await this.uploadFile(this.idFrontFile, 'front');
 				const backUrl = await this.uploadFile(this.idBackFile, 'back');
+				const selfieUrl = await this.uploadFile(this.selfieFile, 'selfie');
 
-				console.log('Files uploaded successfully:', frontUrl, backUrl);
+				console.log('Files uploaded successfully:', frontUrl, backUrl, selfieUrl);
 
 				//Update user to set field user.requestedVerification = true
 				const userRef = dbRef(db, `Users/${this.userId}`);
-				await update(userRef, { requestedVerification: true });
+				await update(userRef,
+					{
+						'verificationFiles/Front-ID': frontUrl,
+						'verificationFiles/Back-ID': backUrl,
+						'verificationFiles/Selfie': selfieUrl,
+						requestedVerification: true
+					});
 
 				//Success toast
 				this.showToast('Archivos subidos!');
@@ -280,7 +294,9 @@ export default defineComponent({
 				//reset the image previews
 				this.idFrontPreview = null;
 				this.idBackPreview = null;
+				this.selfiePreview = null;
 				this.verificationStatus = 'pending';
+				this.requestSent = true;
 
 				// Hide the modal after submission
 				this.verificationModal.hide();
@@ -332,25 +348,67 @@ export default defineComponent({
 		<!-- Breadcrumbs -->
 		<nav style="--bs-breadcrumb-divider: '>';" aria-label="breadcrumb">
 			<ol class="breadcrumb">
-				<li class="breadcrumb-item"><router-link to="/page/affiliate-portal">Dashboard</router-link></li>
+				<li class="breadcrumb-item">
+					<router-link v-if="this.role === 'admin'" to="/">
+						Dashboard
+					</router-link>
+					<router-link v-else-if="this.role === 'cliente'" to="/client-portal">
+						Portal de Cliente
+					</router-link>
+					<router-link v-else to="/affiliate-portal">
+						Portal de Afiliado
+					</router-link>
+				</li>
 				<li class="breadcrumb-item active" aria-current="page">{{ currentPageName }}</li>
 			</ol>
 		</nav>
 
 		<!-- Info div for completing profile -->
 		<div v-if="(role === 'cliente' || role === 'afiliado') && isProfileIncomplete"
-			class="alert alert-info d-flex align-items-center mt-4" role="alert">
+			class="alert alert-info d-inline-flex align-items-center mt-4" role="alert" style="width: auto;">
 			<i class="fa-solid fa-info-circle me-2"></i>
 			<div>
-				<strong>Completa tu perfil:</strong> Para disfrutar de los beneficios de promociones y descuentos
+				<strong>Completa tu perfil:</strong> Para disfrutar de los beneficios de promociones y
+				descuentos
 				exclusivos, completa toda la información de tu perfil.
+			</div>
+		</div>
+		<div v-else-if="(role === 'cliente' || role === 'afiliado') && !isProfileIncomplete">
+			<div class="alert alert-success d-inline-flex align-items-center" style="width: auto;">
+				<div class="text-muted">
+					<span class="text-success d-inline-flex justify-content-center align-items-center"
+						style="font-size: 0.9rem;">
+						<i class="fa fa-check me-2" style="font-size: 1.25rem;"></i>
+						<strong>Perfil completo.</strong>
+					</span>
+				</div>
+			</div>
+		</div>
+		<!-- Request Verification -->
+		<div v-if="(role === 'cliente' || role === 'afiliado') && !this.userVerified"
+			class="alert alert-warning d-inline-flex align-items-center mb-5" role="alert" style="width: auto;">
+			<i class="fa-solid fa-exclamation-circle me-2"></i>
+			<div>
+				<strong>Verifica tu cuenta:</strong> Para asegurar la seguridad de tu cuenta y acceder a todas
+				las
+				funcionalidades, solicita la verificación de tu cuenta.
+				<button v-if="!this.requestSent" class="btn btn-warning btn-sm ms-3" data-bs-toggle="modal"
+					data-bs-target="#verificationModal">
+					Solicitar Verificación
+				</button>
+				<button v-else class="btn btn-secondary btn-sm ms-3" disabled>
+					Solicitud enviada
+				</button>
 			</div>
 		</div>
 
 		<div class="row">
 			<div class="col-xl-9">
+				<!-- General user info -->
 				<div id="general" class="mb-5">
-					<h4><i class="far fa-user fa-fw"></i> General</h4>
+					<h4><i class="far fa-user fa-fw"></i> General <span
+							v-if="(role === 'cliente' || role === 'afiliado') && this.userVerified"
+							class="badge text-bg-success">Verificado</span></h4>
 					<p>Puedes actualizar tus datos de usuario aqui.</p>
 					<div class="card shadow-sm">
 						<div class="list-group list-group-flush">
@@ -397,35 +455,6 @@ export default defineComponent({
 									</div>
 								</div>
 							</div>
-						</div>
-					</div>
-				</div>
-
-				<!-- Request Verification div -->
-				<div v-if="(role === 'cliente' || role === 'afiliado') && !this.userVerified"
-					class="alert alert-warning d-flex align-items-center mb-5" role="alert">
-					<i class="fa-solid fa-exclamation-circle me-2"></i>
-					<div>
-						<strong>Verifica tu cuenta:</strong> Para asegurar la seguridad de tu cuenta y acceder a todas
-						las
-						funcionalidades, solicita la verificación de tu cuenta.
-						<button v-if="!this.requestSent" class="btn btn-warning btn-sm ms-3" data-bs-toggle="modal"
-							data-bs-target="#verificationModal">
-							Solicitar Verificación
-						</button>
-						<button v-else class="btn btn-secondary btn-sm ms-3" disabled>
-							Solicitud enviada
-						</button>
-					</div>
-				</div>
-				<div v-else-if="(role === 'cliente' || role === 'afiliado') && this.userVerified">
-					<div class="alert alert-success d-flex align-items-center mb-5">
-						<div class="text-muted">
-							<span class="text-success d-flex justify-content-center align-items-center"
-								style="font-size: 0.9rem;">
-								<i class="fa fa-check me-2" style="font-size: 1.25rem;"></i>
-								<strong>Cliente verificado.</strong>
-							</span>
 						</div>
 					</div>
 				</div>
@@ -547,6 +576,13 @@ export default defineComponent({
 								<input type="file" class="form-control" id="idBack"
 									@change="handleFileUpload($event, 'back')" required>
 								<img v-if="idBackPreview" :src="idBackPreview" alt="Back ID Preview"
+									class="img-fluid mt-2" />
+							</div>
+							<div class="mb-3">
+								<label for="selfie" class="form-label">Foto Selfie</label>
+								<input type="file" class="form-control" id="selfie"
+									@change="handleFileUpload($event, 'selfie')" required>
+								<img v-if="selfiePreview" :src="selfiePreview" alt="Selfie Preview"
 									class="img-fluid mt-2" />
 							</div>
 

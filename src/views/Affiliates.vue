@@ -1,6 +1,6 @@
 <script>
 import { ref as dbRef, query, orderByChild, equalTo, get, update, remove } from 'firebase/database';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage, functions } from '@/firebase/init';
 import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
@@ -16,27 +16,26 @@ export default {
                 status: false,
                 email: '',
                 phoneNumber: '',
-                address: '',
-                sector: '',
-                imageFile: null
+                // address: '',
+                // sector: '',
             },
-            sectores:
-                [
-                    "Santa Lucía",
-                    "Veritas",
-                    "Cecilio Acosta",
-                    "La Lago",
-                    "El Milagro",
-                    "La Paragua",
-                    "El Tránsito",
-                    "Amparo",
-                    "Grano de Oro",
-                    "Cañada Honda"
-                ],
+            // sectores:
+            //     [
+            //         "Santa Lucía",
+            //         "Veritas",
+            //         "Cecilio Acosta",
+            //         "La Lago",
+            //         "El Milagro",
+            //         "La Paragua",
+            //         "El Tránsito",
+            //         "Amparo",
+            //         "Grano de Oro",
+            //         "Cañada Honda"
+            //     ],
             affiliates: [],
             currentEditing: null,
-            uploadImage: false,
             imageFile: null,
+            uploadImage: false,
             imagePreview: null,
             updatedImagePreview: null,
         }
@@ -62,6 +61,7 @@ export default {
                             rif: affiliateData.rif,
                             status: affiliateData.status,
                             image: affiliateData.image,
+                            isSubmitting: false,
                         });
                     });
 
@@ -76,8 +76,13 @@ export default {
         async createAffiliate() {
             // Check if an image was selected for upload and get URL
             let imageUrl = null;
+
             if (this.imageFile) {
-                const imageFileRef = storageRef(storage, `Afiliados/${this.couponName}`);
+                const sanitizedAffiliateName = this.affiliate.name.trim().toLowerCase().replace(/\s+/g, '-');
+                const fileExtension = this.imageFile.name.split('.').pop(); // Get the file extension
+                const fileName = `${sanitizedAffiliateName}-logo.${fileExtension}`; // Create the final file name
+
+                const imageFileRef = storageRef(storage, `Logos/${this.affiliate.name}/${fileName}`);
                 await uploadBytes(imageFileRef, this.imageFile);
                 imageUrl = await getDownloadURL(imageFileRef);
             }
@@ -89,8 +94,8 @@ export default {
                 status: this.affiliate.status,
                 email: this.affiliate.email,
                 phoneNumber: this.affiliate.phoneNumber,
-                address: this.affiliate.address,
-                sector: this.affiliate.sector,
+                // address: this.affiliate.address,
+                // sector: this.affiliate.sector,
                 role: 'afiliado'
             };
 
@@ -124,19 +129,42 @@ export default {
             this.resetForm();
         },
         async updateAffiliate(affiliate) {
-            const affiliateId = affiliate.id;
-
             try {
+                affiliate.isSubmitting = true;
+
                 // Create an updateData object, but only include non-empty fields
                 const updateData = {};
+                let imageUrl = affiliate.image; // Preserve the existing image if no new image
 
+                if (affiliate.imageFile) {
+                    // Delete the old image from storage if it exists
+                    if (imageUrl) {
+                        const oldImagePath = imageUrl.split('?')[0]; // Remove query params
+                        const oldImageFileName = oldImagePath.substring(oldImagePath.lastIndexOf('/') + 1);
+
+                        const oldImageRef = storageRef(storage, `Logos/${affiliate.name}/${oldImageFileName}`);
+                        try {
+                            await deleteObject(oldImageRef); // delete the old image 
+                            console.log(`Deleted old image: ${oldImageFileName}`);
+                        } catch (deleteError) {
+                            console.warn(`Failed to delete old image: ${deleteError.message}`);
+                        }
+                    }
+
+                    // Upload new image
+                    imageUrl = await this.uploadImageToStorage(affiliate.imageFile, affiliate);
+                    affiliate.imageFile = null; // Clear the file after upload
+                }
+
+                // Conditionally update fields if they are provided
                 if (affiliate.name) updateData.companyName = affiliate.name;
                 if (affiliate.rif) updateData.rif = affiliate.rif;
-                if (affiliate.status) updateData.status = affiliate.status;
+                if (affiliate.status !== undefined) updateData.status = affiliate.status;
+                if (imageUrl) updateData.image = imageUrl; // Include image URL if updated
 
                 // Only proceed if there is something to update
                 if (Object.keys(updateData).length > 0) {
-                    const userRef = dbRef(db, `Users/${affiliateId}`);
+                    const userRef = dbRef(db, `Users/${affiliate.id}`);
                     await update(userRef, updateData);
 
                     this.toggleEdit(affiliate);
@@ -159,6 +187,10 @@ export default {
             } catch (error) {
                 console.error('Error updating info:', error);
                 alert('La actualizacion de datos falló.');
+            }
+            finally {
+                // Hide the loader
+                affiliate.isSubmitting = false;
             }
         },
         deleteAffiliate(affiliate, index) {
@@ -214,8 +246,12 @@ export default {
             this.uploadImage = false;
             this.imagePreview = null;
         },
-        toggleEdit(item) {
-            item.isEditing = !item.isEditing;
+        toggleEdit(affiliate) {
+            affiliate.isEditing = !affiliate.isEditing;
+            if (!affiliate.isEditing) {
+                affiliate.imageFile = null; // Reset the imageFile when exiting edit mode
+                affiliate.updatedImagePreview = null;
+            }
         },
         previewImage(event) {
             const file = event.target.files[0];
@@ -224,27 +260,28 @@ export default {
                 this.imagePreview = URL.createObjectURL(file);
             }
         },
-        async uploadImageToStorage(imageFile) {
+        async uploadImageToStorage(imageFile, affiliate) {
             let imageUrl = null;
-
             try {
-                const sRef = storageRef(storage, `affiliatesImages/${imageFile.name}`);
+                // Create a file name based on the affiliate's name
+                const sanitizedAffiliateName = affiliate.name.trim().toLowerCase().replace(/\s+/g, '-');
+                const fileName = `${sanitizedAffiliateName}-logo.${imageFile.name.split('.').pop()}`; // Keep original file extension
+
+                const sRef = storageRef(storage, `Logos/${affiliate.name}/${fileName}`);
+
                 const uploadResult = await uploadBytes(sRef, imageFile);
                 imageUrl = await getDownloadURL(uploadResult.ref);
-                console.log('Image uploaded:', imageUrl);
             } catch (error) {
                 console.error('Error uploading image:', error);
             }
 
             return imageUrl;
         },
-        previewUpdatedImage(event, item) {
+        previewUpdatedImage(event, affiliate) {
             const file = event.target.files[0];
             if (file) {
-                this.imageFile = file;
-                const updatedImagePreviewUrl = URL.createObjectURL(file);
-                // Update the specific item's preview URL
-                item.updatedImagePreview = updatedImagePreviewUrl;
+                affiliate.imageFile = file;
+                affiliate.updatedImagePreview = URL.createObjectURL(file);
             }
         },
     }
@@ -252,16 +289,16 @@ export default {
 </script>
 <template>
     <div class="container">
+        <h2 class="mb-4 text-center text-uppercase fw-bold">
+            Comercios Afiliados
+        </h2>
+
         <div class="d-flex justify-content-end align-items-center">
             <a href="#" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#addAffiliateModal"
                 style="margin: 14px;">
                 <i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Afiliado
             </a>
         </div>
-
-        <h2 class="mb-4 text-center text-uppercase fw-bold" style="color: #343a40;">
-            Comercios Afiliados
-        </h2>
 
         <!-- Display Affiliates -->
         <div class="container-fluid">
@@ -280,21 +317,27 @@ export default {
                     <div class="row">
                         <div v-for="(affiliate, index) in affiliates" :key="affiliate.id"
                             class="col-12 col-sm-6 col-md-4 mb-4">
-                            <div class="card h-100">
+                            <div class="card h-100 position-relative">
                                 <div class="img-container position-relative">
                                     <!-- Image Display -->
-                                    <div v-if="!updatedImagePreview" class="img"
-                                        v-bind:style="{ backgroundImage: 'url(' + affiliate.image + ')' }">
-                                    </div>
+                                    <div v-if="!affiliate.updatedImagePreview" class="img"
+                                        :style="{ backgroundImage: 'url(' + affiliate.image + ')' }"></div>
 
                                     <!-- Image Edit: File Input -->
                                     <div v-if="affiliate.isEditing">
-                                        <div v-if="updatedImagePreview" class="mt-2">
-                                            <img :src="updatedImagePreview" class="img-thumbnail" alt="preview"
-                                                style="max-height: 200px;">
+                                        <div v-if="affiliate.updatedImagePreview" class="mt-2">
+                                            <img :src="affiliate.updatedImagePreview" class="img-thumbnail"
+                                                alt="preview" style="max-height: 200px;">
                                         </div>
                                         <input type="file" @change="event => previewUpdatedImage(event, affiliate)"
                                             class="form-control" />
+                                    </div>
+                                    <!-- Loader Spinner for only the current affiliate being updated -->
+                                    <div v-if="affiliate.isSubmitting"
+                                        class="spinner-overlay d-flex justify-content-center align-items-center">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Cargando...</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="card-body d-flex flex-column">
@@ -302,10 +345,9 @@ export default {
                                     <p class="card-text text-truncate flex-grow-1">{{ affiliate.rif }}</p>
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox"
-                                                v-bind:id="'affiliate' + index" v-model="affiliate.status"
-                                                :disabled="!affiliate.isEditing" />
-                                            <label class="form-check-label" v-bind:for="'affiliate' + index">
+                                            <input class="form-check-input" type="checkbox" :id="'affiliate' + index"
+                                                v-model="affiliate.status" :disabled="!affiliate.isEditing" />
+                                            <label class="form-check-label" :for="'affiliate' + index">
                                                 {{ affiliate.status ? 'Activo' : 'Inactivo' }}
                                             </label>
                                         </div>
@@ -327,9 +369,9 @@ export default {
                                     <input v-model="affiliate.name" class="form-control mb-2"
                                         placeholder="Nombre del afiliado" />
                                     <input v-model="affiliate.rif" class="form-control mb-2"
-                                        placeholder="Descripción" />
-                                    <button class="btn btn-sm btn-success w-100"
-                                        @click="updateAffiliate(affiliate)">Actualizar</button>
+                                        placeholder="RIF del afiliado" />
+                                    <button class="btn btn-sm btn-success w-100" @click="updateAffiliate(affiliate)"
+                                        :disabled="affiliate.isSubmitting">Actualizar</button>
                                 </div>
                             </div>
                         </div>
@@ -348,50 +390,64 @@ export default {
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="affiliateName" class="form-label">Nombre del afiliado</label>
-                            <input type="text" class="form-control" id="affiliateName" v-model="affiliate.name" />
-                        </div>
-                        <div class="mb-3">
-                            <label for="affiliateRif" class="form-label">RIF</label>
-                            <input class="form-control" id="affiliateRif" v-model="affiliate.rif" />
-                        </div>
-                        <div class="mb-3">
-                            <label for="affiliateEmail" class="form-label">Email</label>
-                            <input class="form-control" id="affiliateEmail" v-model="affiliate.email" />
-                        </div>
-                        <div class="mb-3">
-                            <label for="affiliatePhone" class="form-label">Teléfono</label>
-                            <input class="form-control" id="affiliatePhone" v-model="affiliate.phoneNumber" />
-                        </div>
-                        <div class="mb-3">
-                            <label for="affiliateAddress" class="form-label">Dirección</label>
-                            <input class="form-control" id="affiliateAddress" v-model="affiliate.address" />
-                        </div>
-                        <div class="mb-3">
-                            <label for="affiliateSector" class="form-label">Sector</label>
-                            <select v-model="affiliate.sector" class="form-control">
-                                <option v-for="sector in sectores" :key="sector">{{ sector }}</option>
-                            </select>
-                        </div>
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="affiliateStatus"
-                                v-model="affiliate.status" />
-                            <label class="form-check-label" for="affiliateStatus">Activo</label>
-                        </div>
-                        <!-- Imagen -->
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="uploadImageCheckbox"
-                                v-model="uploadImage">
-                            <label class="form-check-label" for="uploadImageCheckbox">Subir imagen</label>
-                        </div>
+                        <div class="container">
+                            <div class="row">
+                                <!-- Affiliate Name -->
+                                <div class="col-md-4 col-sm-6 mb-3">
+                                    <label for="affiliateName" class="form-label">Nombre</label>
+                                    <input type="text" class="form-control" id="affiliateName"
+                                        v-model="affiliate.name" />
+                                </div>
+                                <!-- RIF -->
+                                <div class="col-md-4 col-sm-6 mb-3">
+                                    <label for="affiliateRif" class="form-label">RIF</label>
+                                    <input class="form-control" id="affiliateRif" v-model="affiliate.rif" />
+                                </div>
+                                <!-- Email -->
+                                <div class="col-md-4 col-sm-6 mb-3">
+                                    <label for="affiliateEmail" class="form-label">Email</label>
+                                    <input class="form-control" id="affiliateEmail" v-model="affiliate.email" />
+                                </div>
+                            </div>
+                            <div class="row">
+                                <!-- Phone Number -->
+                                <div class="col-md-4 col-sm-6 mb-3">
+                                    <label for="affiliatePhone" class="form-label">Teléfono</label>
+                                    <input class="form-control" id="affiliatePhone" v-model="affiliate.phoneNumber" />
+                                </div>
+                            </div>
+                            <div class="row">
+                                <!-- Affiliate Status -->
+                                <div class="col-md-4 col-sm-6 mb-3">
+                                    <div class="form-check mt-4">
+                                        <input type="checkbox" class="form-check-input" id="affiliateStatus"
+                                            v-model="affiliate.status" />
+                                        <label class="form-check-label" for="affiliateStatus">Activo</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <!-- Upload Image Checkbox -->
+                                <div class="col-md-4 col-sm-6 mb-3">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="uploadImageCheckbox"
+                                            v-model="uploadImage">
+                                        <label class="form-check-label" for="uploadImageCheckbox">Subir imagen</label>
+                                    </div>
+                                </div>
+                            </div>
 
-                        <div v-if="uploadImage" class="mb-3">
-                            <label for="menuItemImg" class="form-label">Imagen</label>
-                            <input type="file" class="form-control" id="menuItemImg" @change="previewImage"
-                                accept="image/*">
-                            <div v-if="imagePreview" class="mt-2">
-                                <img :src="imagePreview" class="img-thumbnail" alt="preview" style="max-height: 200px;">
+                            <!-- Image Upload -->
+                            <div class="row" v-if="uploadImage">
+                                <div class="col-md-12 mb-3">
+                                    <label for="menuItemImg" class="form-label">Imagen</label>
+                                    <input type="file" class="form-control" id="menuItemImg" @change="previewImage"
+                                        accept="image/*">
+                                    <div v-if="imagePreview" class="mt-2">
+                                        <img :src="imagePreview" class="img-thumbnail" alt="preview"
+                                            style="max-height: 200px;">
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -416,5 +472,24 @@ export default {
 
 .w-100px {
     width: 100px;
+}
+
+.img-container {
+    position: relative;
+    height: 200px;
+    background-size: cover;
+    background-position: center;
+}
+
+.spinner-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.6);
+    /* Light overlay to make spinner visible */
+    z-index: 10;
+    /* Ensure the spinner is on top of the image */
 }
 </style>

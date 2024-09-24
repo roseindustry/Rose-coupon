@@ -53,8 +53,8 @@ exports.createUser = functions.https.onCall(async (data, context) => {
     const userInfo = userData.role === 'afiliado' ? {
       companyName: userData.companyName,
       rif: userData.rif,
-      sector: userData.sector,
-      address: userData.address,
+      // sector: userData.sector,
+      // address: userData.address,
       email: userData.email,
       phoneNumber: userData.phoneNumber,
       role: userData.role,
@@ -64,8 +64,8 @@ exports.createUser = functions.https.onCall(async (data, context) => {
       firstName: userData.firstName,
       lastName: userData.lastName,
       identification: userData.identification,
-      sector: userData.sector,
-      address: userData.address,
+      // sector: userData.sector,
+      // address: userData.address,
       email: userData.email,
       phoneNumber: userData.phoneNumber,
       role: userData.role

@@ -37,7 +37,6 @@ library.add(faStar, faStarHalfAlt)
 const emitter = mitt();
 const app = createApp(App);
 
-// requestNotificationPermission();
 app.component('font-awesome-icon', FontAwesomeIcon);
 app.component('Card', Card);
 app.component('CardBody', CardBody);
@@ -53,6 +52,18 @@ app.use(Vue3ProgressPlugin);
 app.use(PerfectScrollbar);
 app.use(surveyPlugin);
 
+// Register service worker
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/registerSW.js')
+            .then((registration) => {
+                console.log('Service Worker registered with scope:', registration.scope);
+            })
+            .catch((error) => {
+                console.log('Service Worker registration failed:', error);
+            });
+    });
+}
+
 app.config.globalProperties.emitter = emitter;
 app.mount('#app');
-// registerSW();

@@ -110,7 +110,6 @@ export default defineComponent({
             <div class="col-12">
                 <div class="card shadow-lg position-relative">
 
-
                     <div class="card-body pb-5 pt-5 pt-md-5 pt-lg-5">
                         <h2 class="card-title mb-4 text-center">Portal de Afiliados</h2>
 
