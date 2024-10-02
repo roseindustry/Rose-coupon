@@ -14,43 +14,48 @@ export const useAppSidebarMenuStore = defineStore({
         icon: "fa fa-laptop",
         text: "Dashboard",
       },
-	  {
+      {
         url: "/comercios-afiliados",
         icon: "fa fa-building",
         text: "Comercios Afiliados",
       },
-	  {
+      {
         url: "/clientes",
         icon: "fa fa-users",
         text: "Clientes",
       },
-	  {
+      {
         url: "/cupones",
         icon: "fa fa-ticket",
         text: "Cupones",
       },
-	  {
+      {
         url: "/creditos",
         icon: "fa fa-dollar",
         text: "Créditos",
       },
-	  {
+      {
         url: "/suscripciones",
         icon: "fa fa-handshake",
         text: "Suscripciones",
       },
       {
-        is_divider: true,
+        url: "/events",
+        icon: "fa fa-pizza-slice",
+        text: "Eventos",
       },
-      {
-        text: "Reportes",
-        is_header: true,
-      },
-      {
-        url: "/reports-by-rating",
-        icon: "fa fa-clipboard",
-        text: "Reportes por Encuesta",
-      },
+      // {
+      //   is_divider: true,
+      // },
+      // {
+      //   text: "Reportes",
+      //   is_header: true,
+      // },
+      // {
+      //   url: "/reports-by-rating",
+      //   icon: "fa fa-clipboard",
+      //   text: "Reportes por Encuesta",
+      // },
       {
         is_divider: true,
       },
@@ -61,7 +66,7 @@ export const useAppSidebarMenuStore = defineStore({
       {
         url: "/profile",
         icon: "fa fa-user-circle",
-        text: "Ajustes de Perfil",
+        text: "Ajustes",
       },
     ],
     clientMenu: [
@@ -75,11 +80,6 @@ export const useAppSidebarMenuStore = defineStore({
         text: "Home",
       },
       {
-        url: "#",
-        icon: "fa fa-shopping-cart",
-        text: "Compras",
-      },
-      {
         url: "/comercios-afiliados",
         icon: "fa fa-building",
         text: "Comercios Afiliados",
@@ -89,16 +89,21 @@ export const useAppSidebarMenuStore = defineStore({
         icon: "fa fa-ticket",
         text: "Mis cupones",
       },
-      {
-        url: "/clients-ratings",
-        icon: "fa fa-star",
-        text: "Mis opiniones",
-      },
-      {
-        url: "/creditos",
-        icon: "fa fa-dollar",
-        text: "Crédito",
-      },
+      // {
+      //   url: "/clients-ratings",
+      //   icon: "fa fa-star",
+      //   text: "Mis opiniones",
+      // },
+      // {
+      //   url: "/creditos",
+      //   icon: "fa fa-dollar",
+      //   text: "Crédito",
+      // },
+      // {
+      //   url: "#",
+      //   icon: "fa fa-shopping-cart",
+      //   text: "Compras",
+      // },
       {
         is_divider: true,
       },
@@ -158,7 +163,7 @@ export const useAppSidebarMenuStore = defineStore({
   actions: {
     async generateMenu() {
       const userStore = useUserStore();
-      await userStore.fetchUser(); 
+      await userStore.fetchUser();
       const role = userStore.role;
 
       if (role === "admin") {

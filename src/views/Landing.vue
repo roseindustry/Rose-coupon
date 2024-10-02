@@ -1,335 +1,586 @@
 <script>
-import { defineComponent } from 'vue';
 import { RouterLink } from 'vue-router';
+import { defineComponent } from 'vue';
 import { useAppOptionStore } from '@/stores/app-option';
+import { db } from '../firebase/init';
+import { ref as dbRef, get, query, orderByChild, equalTo } from 'firebase/database';
+import PageRegister from '@/views/PageRegister.vue';
+import PageLogin from '@/views/PageLogin.vue';
+import { Modal } from 'bootstrap';
 
 export default defineComponent({
-    mounted() {
+    components: {
+        PageRegister,
+    },
+    data() {
+        return {
+            affiliates: [],
+            suscriptions: []
+        }
+    },
+    computed: {
+        sortedPlans() {
+            return this.suscriptions.sort((a, b) => {
+                return a.order - b.order;
+            });
+        },
+        formattedDesc() {
+            return this.suscriptions.map(plan => ({
+                ...plan,
+                desc: plan.desc
+                    .split('.')
+                    .filter(sentence => sentence.trim()) // Remove any empty sentences
+                    .map(sentence => `<li>${sentence.trim()}</li>`) // Wrap sentences in <li>
+                    .join('') // Join the list items
+            }));
+        },
+    },
+    methods: {
+        async fetchAffiliates() {
+            const role = 'afiliado';
+            const affiliatesRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
+
+            try {
+                const affiliateSnapshot = await get(affiliatesRef);
+
+                if (affiliateSnapshot.exists()) {
+                    const affiliatesList = [];
+                    affiliateSnapshot.forEach((childSnapshot) => {
+                        const affiliateData = childSnapshot.val();
+                        affiliatesList.push({
+                            id: childSnapshot.key,
+                            name: affiliateData.companyName,
+                            rif: affiliateData.rif,
+                            status: affiliateData.status,
+                            image: affiliateData.image,
+                            isSubmitting: false,
+                        });
+                    });
+
+                    this.affiliates = affiliatesList;
+                } else {
+                    console.log("No data available.");
+                }
+            } catch (error) {
+                console.error("Error fetching affiliates:", error);
+            }
+        },
+
+        async fetchSuscriptions() {
+            const suscriptionsRef = dbRef(db, 'Suscriptions');
+
+            try {
+                const suscriptionSnapshot = await get(suscriptionsRef);
+
+                if (suscriptionSnapshot.exists()) {
+                    const suscriptionList = [];
+                    suscriptionSnapshot.forEach((childSnapshot) => {
+                        const suscriptionData = childSnapshot.val();
+                        suscriptionList.push({
+                            ...suscriptionData
+                        });
+                    });
+
+                    this.suscriptions = suscriptionList;
+                } else {
+                    console.log("No data available.");
+                }
+            } catch (error) {
+                console.error("Error fetching suscriptions:", error);
+            }
+        },
+    },
+    async mounted() {
         const appOption = useAppOptionStore();
 
         appOption.appSidebarHide = true;
         appOption.appHeaderHide = true;
+        const sections = document.querySelectorAll('.fade-in');
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('loaded');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        sections.forEach(section => {
+            observer.observe(section);
+        });
+        await this.fetchAffiliates();
+        await this.fetchSuscriptions()
     },
     beforeUnmount() {
         const appOption = useAppOptionStore();
         appOption.appSidebarHide = false;
         appOption.appHeaderHide = false;
+        new Modal(document.getElementById('registerModal')).hide();
     }
 });
 </script>
 <template>
-    <div>
-        <!-- Navigation -->
-        <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
-            <div class="container-fluid ps-lg-3 pe-lg-3">
-                <a class="navbar-brand ms-2" href="#page-top">
-                    <img src="../assets/Logo.png" alt="Rose Industry" class="header-logo img-fluid">
-                </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                    data-bs-target="#navbarResponsive">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse justify-content-center" id="navbarResponsive">
-                    <ul class="navbar-nav" style="font-weight: bold;">
-                        <li class="nav-item"><a class="nav-link" href="#solutions">Soluciones</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#nichos">Tipos de comercios</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#pricing">Precios</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#contact">Contacto</a></li>
-                    </ul>
+    <div class="bg-image d-flex flex-column align-items-center justify-content-center fade-in"
+        style="background-image: url(/assets/img/bg-coupons.jpg);">
+        <div class="bg-overlay"></div>
+        <div class="container text-md-left position-relative">
+            <header class="row justify-content-between align-items-center">
+                <!-- Logo (Left Column) -->
+                <div class="col-12 col-md-6 text-start">
+                    <img src="/assets/img/rose-logo.png" alt="logo" class="logo img-fluid" />
                 </div>
-                <div class="ms-auto d-none d-lg-flex me-2">
-                    <RouterLink to="/page/login" class="btn landing-color me-2">Iniciar Sesión</RouterLink>
-                    <RouterLink to="/page/register" class="btn btn-outline-primary landing-color">Registrarse
-                    </RouterLink>
+                <!-- Button (Right Column) -->
+                <div class="col-12 col-md-6 text-end">
+                    <router-link to="/page/login" class="btn-registrate">Iniciar Sesión</router-link>
+                </div>
+            </header>
+
+            <div class="hero-content text-center">
+                <h1 class="display-2 fw-bold text-white mb-4">Bienvenido<br />a Rose Coupon</h1>
+                <!-- <router-link to="/page/register" class="btn btn-registrate cta-purple">Registrate</router-link> -->
+                <button type="button" class="btn btn-registrate" data-bs-toggle="modal" data-bs-target="#registerModal">
+                    Registrate
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div class="container-fluid my-5 py-2 fade-in">
+        <h2 class="text-center fw-bold mb-5"><strong>Descubre los mejores descuentos</strong></h2>
+        <div class="row g-4">
+            <div class="col-md-4 d-flex flex-column text-center feature-item">
+                <img src="/assets/img/coupon.png" alt="Cupones" class="feature-image mx-auto" />
+                <h4 class="mt-3">Cupones</h4>
+                <p>Al suscribirte tendras acceso a nuestros cupones para poder disfrutar de tus productos favoritos.
+                </p>
+            </div>
+            <div class="col-md-4 d-flex flex-column text-center feature-item">
+                <img src="/assets/img/event.png" alt="Eventos" class="feature-image mx-auto" />
+                <h4 class="mt-3">Eventos</h4>
+                <p>Disfruta de eventos con tus comercios favoritos, donde podras probar sus mejores productos,
+                    patrocinados por RoseCoupon.</p>
+            </div>
+            <div class="col-md-4 d-flex flex-column text-center feature-item">
+                <img src="/assets/img/discount.png" alt="Descuentos" class="feature-image mx-auto" />
+                <h4 class="mt-3">Créditos</h4>
+                <p>Al suscribirte podras realizar compras a crédito, las cuales podras pagar en comodas cuotas. <br>
+                    <small class="text-muted">Debes estar verificado para disfrutar de esta opción.</small>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subscription Plans Section -->
+    <div class="container-fluid my-4 fade-in" style="padding: 20px;" id="price-table">
+        <h2 class="text-center fw-bold mb-5"><strong>Nuestros Planes</strong></h2>
+        <div class="row g-4 justify-content-center">
+            <div v-for="(plan, index) in sortedPlans" :key="plan.id" class="col-md-3">
+                <div :class="['card h-100 text-center py-4', {
+                    'border-primary': plan.name === 'PLATA',
+                    'shadow-sm': true, // Keep shadow for all cards
+                }]" :style="plan.name === 'PLATA' ?
+                    'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
+                    : ''">
+                    <div v-if="plan.name === 'PLATA'" class="ribbon">
+                        <span>Popular</span>
+                    </div>
+                    <i class="fa-lg" :class="plan.icon"></i>
+                    <h4 class="my-4 text-primary">{{ plan.name }}</h4>
+                    <p class="fw-bold display-5">${{ plan.price }} <small>/ MO.</small></p>
+                    <p class="form-label" v-html="formattedDesc[index].desc"></p>
                 </div>
             </div>
-        </nav>
+        </div>
+    </div>
 
-        <!-- Page Content -->
-        <div id="page-top" class="container-fluid pt-5">
-            <!-- Solutions Section -->
-            <section id="solutions" class="pt-4">
-                <div class="container py-5">
-                    <h2 class="mb-4 text-center">Soluciones</h2>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <!-- Solution 1 -->
-                            <div class="card">
-                                <div class="card-body">
-                                    <h5 class="card-title">POS para restaurantes</h5>
-                                    <p class="card-text">Descripción breve de la solución 1.</p>
-                                    <a href="#" class="btn landing-color">Más info</a>
-                                </div>
-                            </div>
-                            <!-- Solution 2 -->
-                            <div class="card">
-                                <div class="card-body">
-                                    <h5 class="card-title">POS para comercios</h5>
-                                    <p class="card-text">Descripción breve de la solución 2.</p>
-                                    <a href="#" class="btn landing-color">Más info</a>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <img id="pos-img" src="/assets/img/pos.jpg" alt="pos" class="img-fluid rounded">
-                        </div>
-                    </div>
+    <!-- Affiliates Section -->
+    <div class="bg-transparent py-4 mb-4 fade-in">
+        <div class="container">
+            <div class="row g-5 justify-content-center">
+                <div class="col text-center" v-for="aff in affiliates" :key="aff.id">
+                    <img :src="aff.image" alt="aff.name" class="client-logo mx-auto shadow-sm" />
                 </div>
-            </section>
-            <hr>
-            <!-- Nichos Section -->
-            <section id="nichos" class="pt-4 bg-transparent">
-                <div class="container py-5">
-                    <h2 class="mb-4 text-center">Tipos de comercios</h2>
-                    <div class="row">
-                        <!-- Nicho 1 -->
-                        <div class="col-md-3 d-flex align-items-stretch">
-                            <div class="card bg-light text-dark">
-                                <div class="card-body d-flex flex-column justify-content-between">
-                                    <h5 class="card-title text-center">Restaurantes</h5>
-                                    <i class="fas fa-utensils fa-3x text-center landing-color"></i>
-                                    <p class="card-text">Descripción breve del nicho 1.</p>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Nicho 2 -->
-                        <div class="col-md-3 d-flex align-items-stretch">
-                            <div class="card bg-light text-dark">
-                                <div class="card-body d-flex flex-column justify-content-between">
-                                    <h5 class="card-title text-center">Cafeterías</h5>
-                                    <i class="fas fa-coffee fa-3x text-center landing-color"></i>
-                                    <p class="card-text">Descripción breve del nicho 2.</p>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Nicho 3 -->
-                        <div class="col-md-3 d-flex align-items-stretch">
-                            <div class="card bg-light text-dark">
-                                <div class="card-body d-flex flex-column justify-content-between">
-                                    <h5 class="card-title text-center">Peluquerías</h5>
-                                    <i class="fas fa-cut fa-3x text-center landing-color"></i>
-                                    <p class="card-text">Descripción breve del nicho 3.</p>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Nicho 4 -->
-                        <div class="col-md-3 d-flex align-items-stretch">
-                            <div class="card bg-light text-dark">
-                                <div class="card-body d-flex flex-column justify-content-between">
-                                    <h5 class="card-title text-center">Tiendas departamentales</h5>
-                                    <i class="fas fa-store fa-3x text-center landing-color"></i>
-                                    <p class="card-text">Descripción breve del nicho 3.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-            <hr>
-            <!-- Pricing Section -->
-            <section id="pricing" class="pt-4">
-                <div class="container py-5 text-center">
-                    <h2 class="mb-4">Precios</h2>
-                    <div class="row">
-                        <div class="col-6">
-                            <img class="img-fluid rounded" src="/assets/img/limited.jpg" alt="Oferta limitada">
-                        </div>
-                        <div class="col-6">
-                            <div class="card mx-auto" style="max-width: 18rem;">
-                                <div class="card-header">Oferta Especial Limitada</div>
-                                <div class="card-body">
-                                    <h5 class="card-title">$50 para nuevos clientes</h5>
-                                    <p class="card-text">Aprovecha nuestra oferta exclusiva para nuevos clientes y
-                                        empieza a
-                                        transformar tu negocio hoy.</p>
-                                    <a href="https://wa.me/5804246026142?text=Me%20interesa%20la%20oferta%20especial%20de%20$50%20para%20nuevos%20clientes."
-                                        class="btn landing-color">
-                                        <i class="fab fa-whatsapp"></i> Obtener Oferta
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            </div>
+        </div>
+    </div>
 
+    <!-- Footer Section -->
+    <div class="text-white py-3">
+        <div class="container-fluid">
+            <div class="row justify-content-center justify-content-md-between align-items-center">
+                <div class="col-12 col-md-6 text-center text-md-start my-2">
+                    Copyright © 2024 All Rights Reserved by Rose App
                 </div>
-            </section>
-            <hr>
-            <!-- Contact Section -->
-            <section id="contact" class="pt-4 bg-transparent">
-                <div class="container py-5">
-                    <div class="row justify-content-center align-items-center">
-                        <div class="col-md-6">
-                            <form>
-                                <h2 class="mb-4 text-center">Contacto</h2>
-                                <h5 class="text-muted text-center">¿Tienes preguntas o dudas para nosotros?</h5>
-                                <div class="mb-3">
-                                    <label for="name" class="form-label">Nombre</label>
-                                    <input type="text" class="form-control" id="name" placeholder="Tu nombre">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="email" class="form-label">Email</label>
-                                    <input type="email" class="form-control" id="email"
-                                        placeholder="tuemail@ejemplo.com">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="message" class="form-label">Mensaje</label>
-                                    <textarea class="form-control" id="message" rows="3"></textarea>
-                                </div>
-                                <button type="submit" class="btn landing-color">Enviar Mensaje</button>
-                            </form>
-                        </div>
-                    </div>
+                <div class="col-12 col-md-6 text-center text-md-end my-2">
+                    <a href="#" class="social-icon" aria-label="Facebook">
+                        <i class="fa fa-facebook"></i>
+                    </a>
+                    <a href="#" class="social-icon" aria-label="Twitter">
+                        <i class="fa fa-twitter"></i>
+                    </a>
+                    <a href="#" class="social-icon" aria-label="Instagram">
+                        <i class="fa fa-instagram"></i>
+                    </a>
                 </div>
-            </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal fade" id="registerModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Registrate</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <PageRegister />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
         </div>
     </div>
 </template>
 
 <style scoped>
-.landing-color {
-    color: rgb(92, 10, 92);
+/* Add this to your global or component-specific CSS */
+.fade-in {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 1s ease-out, transform 1s ease-out;
 }
 
-.btn.landing-color:not(.btn-outline-primary) {
-    background-color: rgb(92, 10, 92);
-    color: #fff;
-    border: 1px solid rgb(92, 10, 92);
+.fade-in.loaded {
+    opacity: 1;
+    transform: translateY(0);
 }
 
-.btn.landing-color:not(.btn-outline-primary):hover {
-    background-color: rgb(72, 0, 72);
-    border-color: rgb(72, 0, 72);
-}
-
-.btn-outline-primary.landing-color {
-    color: rgb(92, 10, 92);
-    background-color: transparent;
-    border: 1px solid rgb(92, 10, 92);
-}
-
-.btn-outline-primary.landing-color:hover {
-    color: #fff;
-    background-color: rgb(92, 10, 92);
-    border-color: rgb(92, 10, 92);
-}
-
-#pos-img {
-    height: 500px;
-}
-
-.container-fluid {
-    padding-right: 0;
-    padding-left: 0;
-    margin-right: auto;
-    margin-left: auto;
-}
-
-/* Global Styles */
-#solutions,
-#nichos,
-#pricing,
-#contact {
-    padding: 60px 15px;
-    /* Adjusted padding for full-width layout */
-}
-
-.card {
-    margin: 20px;
-    /* Increased margin for better spacing */
-}
-
-/* Responsive Adjustments */
-@media (max-width: 992px) {
-    .card {
-        margin: 10px 0;
-        /* Adjust spacing for smaller screens */
-    }
-
-    /* Adjust navbar for better mobile experience */
-    .navbar-nav .nav-item {
-        margin-bottom: 1rem;
-    }
-}
-
-@media (max-width: 768px) {
-    .navbar-nav {
-        margin-top: 0;
-    }
-
-    .navbar-nav .nav-link {
-        margin-right: 0;
-        text-align: center;
-    }
-}
-
-/* Ensure full width for sections if needed */
-.full-width {
+.bg-image {
+    min-height: 100vh;
+    /* Adjust the top padding if needed */
+    position: relative;
     width: 100%;
-    max-width: 100%;
+    height: 80vh;
+    background-size: cover;
+    /* Ensure the image covers the entire div */
+    background-position: center;
+    /* Center the image */
+    overflow: hidden;
+    /* Prevent any overflow */
+    padding: 0;
 }
 
-.header-logo {
-    width: 150px;
-    /* Adjust the width as needed */
+.bg-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    /* Adjust opacity and color as needed */
+    z-index: 1;
+    /* Ensure the overlay is above the background image */
+}
+
+.container {
+    position: relative;
+    /* Position relative to place content above overlay */
+    z-index: 2;
+    /* Ensure the content is above the overlay */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    /* Vertically center hero-content */
+    align-items: center;
+    /* Horizontally center hero-content */
+    min-height: 100%;
+}
+
+header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    /* Ensure header stretches across the entire width */
+    padding: 10px 10px;
+    /* Minimal padding for header */
+    z-index: 2;
+}
+
+.logo {
+    max-height: 80px;
+}
+
+@media (min-width: 576px) {
+    .logo {
+        max-height: 80px;
+        /* For sm screens */
+    }
+
+    .bg-image {
+        height: 60vh;
+    }
+
+}
+
+@media (min-width: 768px) {
+    .logo {
+        max-height: 100px;
+        /* For md screens */
+    }
+
+    .bg-image {
+        height: 70vh;
+    }
+}
+
+@media (min-width: 992px) {
+    .logo {
+        max-height: 120px;
+        /* For lg screens */
+    }
+}
+
+#price-table__premium {
+    background-color: #b800c2;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s;
+}
+
+#price-table__premium:hover {
+    transform: scale(1.05);
+}
+
+.feature-image {
+    max-width: 80%;
     height: auto;
-    /* Keeps the aspect ratio */
 }
 
-/* Add any page-specific styling here */
-.navbar-nav .nav-link {
-    text-transform: uppercase;
-    margin-right: 1rem;
-    /* Ensures a bit of spacing between navigation items for better readability */
+.client-logo {
+    width: 100px;
+    /* Set fixed width */
+    height: 100px;
+    /* Set fixed height */
+    object-fit: cover;
+    /* Ensure the image fits within the dimensions without distortion */
+    border-radius: 10px;
+    /* Optional: Rounded corners */
+    margin: 15px;
+    /* Add spacing below each image */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    /* Customize shadow */
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    /* Smooth transition for hover effects */
 }
 
-.navbar-brand {
-    font-weight: bold;
-    /* Makes the brand name stand out */
+.client-logo:hover {
+    transform: scale(1.05);
+    /* Slight zoom effect on hover */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+    /* Enhanced shadow on hover */
 }
 
-.btn-primary {
-    background-color: #0056b3;
-    /* Example primary color */
+.btn {
+    padding: 0.75rem 1.5rem;
 }
 
-.btn-outline-primary {
-    border-color: #0056b3;
-    color: #0056b3;
+.atlas-cta {
+    border-radius: 50px;
 }
 
-.btn-outline-primary:hover {
-    background-color: #0056b3;
+.cta-green {
+    background-color: #28a745;
     color: white;
 }
 
-/* Improve the readability and spacing */
-section {
-    padding-top: 2rem;
-    padding-bottom: 1rem;
+.cta-ghost {
+    background-color: transparent;
+    border: 2px solid #28a745;
+    color: #28a745;
 }
 
-h2 {
-    font-size: 2rem;
-    /* Larger headings */
+.cta-ghost:hover {
+    background-color: #28a745;
+    color: white;
 }
 
-p {
+#copyright {
+    background-color: #343a40;
+}
+
+#contact {
+    background-size: cover;
+    background-position: center;
+    padding: 4rem 1rem;
+}
+
+form .form-control {
+    border-radius: 0.3rem;
+}
+
+.social-icon {
+    display: inline-block;
+    text-align: center;
+    margin: 0 8px;
+    /* Reduced spacing between icons */
+    color: #cccfd7;
+    /* Default color */
+    font-size: 1.5rem;
+    /* Smaller icon size */
+    transition: color 0.3s, transform 0.3s;
+    /* Smooth transition for hover effects */
+    width: 40px;
+    /* Fixed width for consistent sizing */
+    height: 40px;
+    /* Fixed height for consistent sizing */
+    line-height: 40px;
+    /* Center the icon vertically */
+    border-radius: 50%;
+    /* Make the background circular */
+}
+
+.social-icon:hover {
+    color: #b800c2;
+    /* Change color on hover */
+    transform: scale(1.1);
+    /* Slightly enlarge on hover */
+    background-color: rgba(0, 255, 173, 0.1);
+    /* Light background on hover */
+}
+
+.btn-registrate {
+    background-color: #b800c2;
+    /* Purple color */
+    color: white;
+    /* Text color */
+    padding: 10px 20px;
+    /* Padding for button */
+    border-radius: 25px;
+    /* Rounded edges */
+    text-decoration: none;
+    /* Remove underline */
+    font-weight: bold;
+    /* Bold text */
+    transition: background-color 0.3s ease;
+    /* Transition for hover effect */
+    margin-top: 20px;
+}
+
+.btn-premium {
+    background-color: white;
+    /* Purple color */
+    color: #a300b0;
+    /* Text color */
+    padding: 10px 20px;
+    /* Padding for button */
+    border-radius: 25px;
+    /* Rounded edges */
+    text-decoration: none;
+    /* Remove underline */
+    font-weight: bold;
+    /* Bold text */
+    transition: background-color 0.3s ease;
+    /* Transition for hover effect */
+    margin-top: 20px;
+}
+
+.btn-registrate:hover {
+    background-color: #a300b0;
+    /* Darker purple on hover */
+}
+
+.btn-premium:hover {
+    background-color: #000000;
+    /* Darker purple on hover */
+}
+
+.feature-item {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    /* Ensure even spacing between items */
+    height: 100%;
+    /* Ensure the entire column takes up the available space */
+}
+
+.feature-image {
+    max-width: 200px;
+    height: auto;
+}
+
+.feature-item h4,
+.feature-item p {
+    margin-top: auto;
+    /* Ensure margin-top flexibility */
+}
+
+.container-fluid .row {
+    display: flex;
+}
+
+.card {
+    padding: 15px;
+    border-radius: 10px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.card h4 {
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+
+.ribbon {
+    position: absolute;
+    top: 10px;
+    right: -10px;
+    background: #007bff;
+    color: #fff;
+    padding: 5px 15px;
+    font-size: 0.875rem;
+    font-weight: bold;
+    transform: rotate(45deg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.btn {
+    border-radius: 50px;
     font-size: 1rem;
-    /* Optimal reading size */
-    line-height: 1.6;
-    /* Improve readability */
 }
 
-/* Adjustments for smaller screens */
-@media (max-width: 768px) {
-    .navbar-nav {
-        margin-top: 1rem;
-    }
+.btn-outline-primary {
+    color: #007bff;
+    border-color: #007bff;
+}
 
-    .navbar-nav .nav-link {
-        margin-right: 0;
-        text-align: center;
-        /* Center navigation links */
-    }
+.btn-outline-primary:hover {
+    background-color: #007bff;
+    color: white;
+}
+
+.display-5 {
+    font-size: 2.5rem;
+    font-weight: bold;
+}
+
+#price-table {
+    background: linear-gradient(135deg, #000000, #6d2c92);
+}
+
+#price-table__premium {
+    border-width: 2px;
+}
+
+ul li {
+    margin-bottom: 10px;
 }
 </style>

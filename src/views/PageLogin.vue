@@ -158,37 +158,6 @@ export default {
 <template>
 	<!-- BEGIN login -->
 	<div class="login d-flex flex-row">
-		<!-- BEGIN carousel-content -->
-		<div class="carousel-content w-50">
-			<!-- Bootstrap Carousel -->
-			<div id="affiliateCarousel" class="carousel slide" data-bs-ride="carousel">
-				<div class="carousel-inner">
-					<div class="carousel-item active">
-						<img src="/assets/img/71sywkcn3CL._AC_UY350_.jpg" class="d-block w-100" alt="Affiliate 1">
-					</div>
-					<div class="carousel-item">
-						<img src="\assets\img\H3a399c9e7ef549c98dda24f92137c4471.jpg_640x640q90.webp"
-							class="d-block w-100" alt="Affiliate 2">
-					</div>
-					<div class="carousel-item">
-						<img src="\assets\img\Yoga-Outfits-for-Women-2-Piece-Workout-Outfit-Set-High-Waist-Moisture-Wicking-Yoga-Leggings-with-Sport-Bra-Set-Gym-Clothes.webp"
-							class="d-block w-100" alt="Affiliate 3">
-					</div>
-				</div>
-				<button class="carousel-control-prev" type="button" data-bs-target="#affiliateCarousel"
-					data-bs-slide="prev">
-					<span class="carousel-control-prev-icon" aria-hidden="true"></span>
-					<span class="visually-hidden">Previous</span>
-				</button>
-				<button class="carousel-control-next" type="button" data-bs-target="#affiliateCarousel"
-					data-bs-slide="next">
-					<span class="carousel-control-next-icon" aria-hidden="true"></span>
-					<span class="visually-hidden">Next</span>
-				</button>
-			</div>
-		</div>
-		<!-- END carousel-content -->
-
 		<!-- BEGIN login-content -->
 		<div class="login-content w-50 p-4">
 			<form v-on:submit.prevent="submitForm()">
@@ -243,18 +212,9 @@ export default {
 		</div>
 	</div>
 </template>
-<!-- <style scoped>
-.login {
-	height: 100vh;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+<style>
+.btn-theme{
+	background-color: purple;
+	border-color: purple;
 }
-.carousel-content {
-	background-color: #f8f9fa; /* Light background color for carousel side */
-}
-.login-content {
-	background-color: #ffffff; /* White background for login form */
-	box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
-}
-</style> -->
+</style>

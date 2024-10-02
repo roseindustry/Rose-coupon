@@ -50,7 +50,7 @@ $dark-border-subtle-dark:                 $gray-800 !default;
 
 // 02. Body settings
 
-$body-bg-dark:                            #212837 !default;
+$body-bg-dark:                            #000000 !default;
 $body-color-dark:                         #ebeef4 !default;
 $body-emphasis-color-dark:                $gray-100 !default;
 $body-secondary-color-dark:               rgba($body-color-dark, .75) !default;
@@ -72,20 +72,20 @@ $code-color-dark:                         $pink-300 !default;
 
 // 04. Border settings
 
-$border-color-dark:                       #3c4e71 !default;
+$border-color-dark:                       #29122f !default;
 $border-color-translucent-dark:           rgba($gray-200, .2) !default;
 
 
 
 // 05. Component settings
 
-$component-bg-dark:                             shade-color($gray-800, 30%) !default;
+$component-bg-dark:                             shade-color($purple-500, 30%) !default;
 
 
 
 // 06. App - Header settings
 
-$app-header-bg-dark:                            shade-color($gray-800, 35%) !default;
+$app-header-bg-dark:                            shade-color($purple-500, 35%) !default;
 $app-header-color-dark:                         $gray-300 !default;
 $app-header-input-bg-dark:                      shade-color($gray-700, 30%) !default;
 $app-header-input-border-dark:                  shade-color($gray-700, 30%) !default;
@@ -104,13 +104,13 @@ $app-sidebar-menu-link-hover-bg-dark:           rgba($gray-800,.5) !default;
 $app-sidebar-mobile-backdrop-bg-dark:           rgba($gray-900, .5) !default;
 $app-sidebar-menu-link-active-color-dark:       var(--#{$prefix}theme) !default;
 $app-sidebar-menu-link-active-bg-dark:          transparent !default;
-$app-sidebar-content-mobile-bg-dark:            shade-color($gray-900, 30%) !default;
+$app-sidebar-content-mobile-bg-dark:            shade-color($purple-900, 30%) !default;
 
 
 
 // 08. App - Sidebar minify float menu settings
 
-$app-float-submenu-bg-dark:                     $gray-800 !default;
+$app-float-submenu-bg-dark:                     $purple-500 !default;
 $app-float-submenu-link-color-dark:             $gray-500 !default;
 $app-float-submenu-link-active-color-dark:      var(--#{$prefix}theme) !default;
 $app-float-submenu-link-active-bg-dark:         transparent !default;
@@ -164,4 +164,4 @@ $accordion-button-active-icon-dark:             url("data:image/svg+xml,<svg xml
 
 // 13. Dropdown settings
 
-$dropdown-bg-dark:                              #3c4e71 !default;
+$dropdown-bg-dark:                              #29122f !default;

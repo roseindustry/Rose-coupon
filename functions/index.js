@@ -35,7 +35,20 @@ function generateRandomPassword(length) {
 
 // Create new Users 
 exports.createUser = functions.https.onCall(async (data, context) => {
-  const userData  = data.userData ;
+  const userData = data.userData;
+
+  // Server-side validation based on role
+  if (userData.role === 'afiliado') {
+    if (!userData.companyName || !userData.rif || !userData.email || !userData.state || !userData.municipio || !userData.parroquia) {
+      return { success: false, message: 'Campo obligatorio vacio: Nombre de la empresa, RIF, y Email son requeridos.' };
+    }
+  } else if (userData.role === 'cliente') {
+    if (!userData.firstName || !userData.lastName  || !userData.identification || !userData.email) {
+      return { success: false, message: 'Campo obligatorio vacio: Nombre, Apellido, y Email son requeridos.' };
+    }
+  } else {
+    return { success: false, message: 'Rol no reconocido.' };
+  }
 
   try {
     // Generate a random password (e.g., 10 characters long)
@@ -53,22 +66,24 @@ exports.createUser = functions.https.onCall(async (data, context) => {
     const userInfo = userData.role === 'afiliado' ? {
       companyName: userData.companyName,
       rif: userData.rif,
-      // sector: userData.sector,
-      // address: userData.address,
       email: userData.email,
-      phoneNumber: userData.phoneNumber,
       role: userData.role,
-      status: userData.status,
-      image: userData.image
+      state: userData.state,
+      municipio: userData.municipio,
+      parroquia: userData.parroquia,
+      // Add additional fields if they exist
+      category_id: userData.category_id || null,
+      image: userData.image || null,
+      status: userData.status || null,
+      phoneNumber: userData.phoneNumber || null
     } : {
       firstName: userData.firstName,
       lastName: userData.lastName,
       identification: userData.identification,
-      // sector: userData.sector,
-      // address: userData.address,
       email: userData.email,
-      phoneNumber: userData.phoneNumber,
-      role: userData.role
+      role: userData.role,
+      // Add additional fields if they exist
+      phoneNumber: userData.phoneNumber || null,
     };
 
     await db.ref('Users/' + userRecord.uid).set(userInfo);
@@ -92,15 +107,15 @@ exports.createUser = functions.https.onCall(async (data, context) => {
 
 // Delete users
 exports.deleteUser = functions.https.onCall((data, context) => {
-    const uid = data.uid;
+  const uid = data.uid;
 
-    return admin.auth().deleteUser(uid)
-        .then(() => {
-            return { message: 'Usuario eliminado con exito!' };
-        })
-        .catch((error) => {
-            throw new functions.https.HttpsError('failed-precondition', error.message);
-        });
+  return admin.auth().deleteUser(uid)
+    .then(() => {
+      return { message: 'Usuario eliminado con exito!' };
+    })
+    .catch((error) => {
+      throw new functions.https.HttpsError('failed-precondition', error.message);
+    });
 });
 
 // Cloud Function to send an email

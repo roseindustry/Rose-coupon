@@ -210,10 +210,10 @@ router.beforeEach((to, from, next) => {
 		  });
 		} else {
 		  // No user signed in
-		  if (to.path === '/page/register' || to.path === '/page/login') {
-			resolve(); // Allow access to login or register page
+		  if (to.path === '/page/register' || to.path === '/page/login' || to.path === '/landing') {
+			resolve(); // Allow access to landing, login or register page
 		  } else {
-			resolve('/page/login'); // Redirect to login page
+			resolve('/landing'); // Redirect to login page
 		  }
 		}
 	  });

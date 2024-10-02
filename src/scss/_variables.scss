@@ -67,7 +67,7 @@ $indigo:           #640DF3 !default;
 $lime:             #90ca4b !default;
 $light:            $gray-100 !default;
 $orange:           #FF9500 !default;
-$purple:           #6f42c1 !default;
+$purple:           #29122f !default;
 $pink:             #d63384 !default;
 $red:              #e6180d !default;
 $teal:             #20c997 !default;
@@ -267,14 +267,14 @@ $enable-rtl:                                   false !default;
 
 // 04. Body settings
 
-$body-bg:                                      #ebeef4 !default;
-$body-color:                                   #212837 !default;
-$body-emphasis-color:                          $black !default;
+$body-bg:                                      #000000 !default;
+$body-color:                                   #ffffff !default;
+$body-emphasis-color:                          $white !default;
 $body-secondary-color:                         rgba($body-color, .75) !default;
 $body-secondary-bg:                            $gray-100 !default;
 $body-tertiary-color:                          rgba($body-color, .5) !default;
 $body-tertiary-bg:                             $body-bg !default;
-$emphasis-color:                               $black !default;
+$emphasis-color:                               $white !default;
 
 
 
@@ -298,7 +298,7 @@ $font-weight-bolder:                           800 !default;
 $font-weight-base:                             400 !default;
 $font-weight-normal:                           400 !default;
 $headings-font-weight:                         $font-weight-bold !default;
-$headings-color:                               $black !default;
+$headings-color:                               $white !default;
 $line-height-base:                             1.5 !default;
 $line-height-sm:                               1.25 !default;
 $line-height-lg:                               2 !default;
@@ -370,14 +370,14 @@ $border-widths: (
   5: 5px
 ) !default;
 $border-style:                                 solid !default;
-$border-color:                                 #d1d9e7 !default;
+$border-color:                                 #29122f !default;
 $border-color-translucent:                     rgba($gray-800, .2) !default;
 
 
 
 // 11. Component settings
 
-$component-bg:                                 $white !default;
+$component-bg:                                 $black !default;
 $component-active-color:                       $white !default;
 $component-active-bg:                          $primary !default;
 
@@ -393,8 +393,8 @@ $container-padding-x:                          $grid-gutter-width !default;
 
 $app-header-height:                            rem(60px) !default;
 $app-header-zindex:                            1030 !default;
-$app-header-bg:                                $white !default;
-$app-header-color:                             $gray-900 !default;
+$app-header-bg:                                $purple !default;
+$app-header-color:                             $white !default;
 $app-header-input-bg:                          $gray-100 !default;
 $app-header-input-border:                      $gray-100 !default;
 $app-header-input-border-color:                transparent !default;
@@ -447,15 +447,15 @@ $app-sidebar-minify-menu-item-padding-y:       rem(3px);
 $app-sidebar-minify-menu-header-margin-x:      rem(5px);
 $app-sidebar-border-color:                     $gray-200 !default;
 $app-sidebar-menu-header-color:                $gray-600 !default;
-$app-sidebar-menu-link-color:                  $gray-800 !default;
+$app-sidebar-menu-link-color:                  $white !default;
 $app-sidebar-menu-link-hover-bg:               rgba($gray-300,.5) !default;
-$app-sidebar-menu-link-active-color:           var(--#{$prefix}theme) !default;
+$app-sidebar-menu-link-active-color:           $purple-400 !default;
 $app-sidebar-menu-link-active-bg:              transparent !default;
 $app-sidebar-menu-icon-label-bg:               linear-gradient(to bottom, $orange, $pink) !default;
 $app-sidebar-menu-icon-label-color:            $white !default;
 $app-sidebar-menu-icon-label-font-weight:      $font-weight-bold !default;
 $app-sidebar-mobile-backdrop-bg:               rgba($gray-900, .5) !default;
-$app-sidebar-content-mobile-bg:                $white !default;
+$app-sidebar-content-mobile-bg:                $black !default;
 $app-sidebar-menu-divider-margin-y:            rem(8px) !default;
 
 
@@ -472,9 +472,9 @@ $app-float-submenu-link-line-height:           20px !default;
 $app-float-submenu-submenu-padding-start:      15px !default;
 $app-float-submenu-border-radius:              $border-radius !default;
 $app-float-submenu-caret-opacity:              $app-sidebar-menu-caret-opacity !default;
-$app-float-submenu-bg:                         $white !default;
-$app-float-submenu-link-color:                 $gray-900 !default;
-$app-float-submenu-link-active-color:          var(--#{$prefix}theme) !default;
+$app-float-submenu-bg:                         $black !default;
+$app-float-submenu-link-color:                 $white !default;
+$app-float-submenu-link-active-color:          $gray-500 !default;
 $app-float-submenu-link-active-bg:             transparent !default;
 $app-float-submenu-box-shadow:                 $box-shadow-lg !default;
 
@@ -667,7 +667,7 @@ $input-font-size-sm:                           $input-btn-font-size-sm !default;
 $input-padding-y-lg:                           $input-btn-padding-y-lg !default;
 $input-padding-x-lg:                           $input-btn-padding-x-lg !default;
 $input-font-size-lg:                           $input-btn-font-size-lg !default;
-$input-bg:                                     var(--#{$prefix}component-bg) !default;
+$input-bg:                                     $gray-700 !default;
 $input-disabled-color:                         null !default;
 $input-disabled-bg:                            var(--#{$prefix}form-control-disabled-bg) !default;
 $input-disabled-border-color:                  null !default;
@@ -731,7 +731,7 @@ $form-check-btn-check-disabled-opacity:        $btn-disabled-opacity !default;
 
 // 28. Form switch settings
 
-$form-switch-color:                            rgba($black, .25) !default;
+$form-switch-color:                            rgba($white, .25) !default;
 $form-switch-width:                            2.3em !default;
 $form-switch-padding-start:                    $form-switch-width + .5em !default;
 $form-switch-bg-image:                         url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><circle r='3' fill='#{$form-switch-color}'/></svg>") !default;
@@ -882,7 +882,7 @@ $card-title-spacer-y:                          $spacer * .5 !default;
 $card-title-color:                             var(--#{$prefix}heading-color) !default;
 $card-subtitle-color:                          null !default;
 $card-border-width:                            null !default;
-$card-border-color:                            var(--#{$prefix}border-color) !default;
+$card-border-color:                            $black !default;
 $card-border-radius:                           var(--#{$prefix}border-radius) !default;
 $card-box-shadow:                              null !default;
 $card-inner-border-radius:                     subtract($card-border-radius, $card-border-width) !default;
@@ -892,7 +892,7 @@ $card-cap-bg:                                  var(--#{$prefix}light) !default;
 $card-cap-color:                               var(--#{$prefix}heading-color) !default;
 $card-height:                                  null !default;
 $card-color:                                   var(--#{$prefix}body-color) !default;
-$card-bg:                                      var(--#{$prefix}component-bg) !default;
+$card-bg:                                      $purple-500 !default;
 $card-img-overlay-padding:                     $spacer !default;
 $card-group-margin:                            $grid-gutter-width * .5 !default;
 
@@ -922,7 +922,7 @@ $modal-dialog-margin:                          .5rem !default;
 $modal-dialog-margin-y-sm-up:                  1.75rem !default;
 $modal-title-line-height:                      $line-height-base !default;
 $modal-content-color:                          null !default;
-$modal-content-bg:                             var(--#{$prefix}component-bg) !default;
+$modal-content-bg:                             $gray-600 !default;
 $modal-content-border-color:                   var(--#{$prefix}border-color-translucent) !default;
 $modal-content-border-width:                   var(--#{$prefix}border-width) !default;
 $modal-content-border-radius:                  var(--#{$prefix}border-radius-lg) !default;
@@ -936,7 +936,7 @@ $modal-header-border-width:                    $modal-content-border-width !defa
 $modal-header-padding-y:                       $modal-inner-padding !default;
 $modal-header-padding-x:                       $modal-inner-padding !default;
 $modal-header-padding:                         $modal-header-padding-y $modal-header-padding-x !default;
-$modal-footer-bg:                              null !default;
+$modal-footer-bg:                              $gray-900 !default;
 $modal-footer-border-color:                    $modal-header-border-color !default;
 $modal-footer-border-width:                    $modal-header-border-width !default;
 $modal-sm:                                     300px !default;
@@ -975,9 +975,9 @@ $toasts-container-zindex:                      1030 !default;
 $accordion-padding-y:                          1rem !default;
 $accordion-padding-x:                          1.25rem !default;
 $accordion-color:                              var(--#{$prefix}body-color) !default; // Sass variable because of $accordion-button-icon
-$accordion-bg:                                 var(--#{$prefix}component-bg) !default;
+$accordion-bg:                                 $purple-500 !default;
 $accordion-border-width:                       var(--#{$prefix}border-width) !default;
-$accordion-border-color:                       var(--#{$prefix}border-color) !default;
+$accordion-border-color:                       $white !default;
 $accordion-border-radius:                      var(--#{$prefix}border-radius) !default;
 $accordion-inner-border-radius:                subtract($accordion-border-radius, $accordion-border-width) !default;
 $accordion-body-padding-y:                     $accordion-padding-y !default;
@@ -1046,7 +1046,7 @@ $table-variants: (
 
 // 41. Dropdown settings
 
-$dropdown-bg:                                  $white !default;
+$dropdown-bg:                                  $purple !default;
 $dropdown-box-shadow:                          $box-shadow !default;
 $dropdown-item-padding-y:                      $spacer * .35 !default;
 $dropdown-item-padding-x:                      $spacer !default;
@@ -1054,7 +1054,7 @@ $dropdown-border-width:                        0px !default;
 $dropdown-border-color:                        var(--#{$prefix}border-color-translucent) !default;
 $dropdown-border-radius:                       $border-radius !default;
 $dropdown-min-width:                           10rem !default;
-$dropdown-link-color:                    			var(--#{$prefix}body-color) !default;
+$dropdown-link-color:                    			$white !default;
 $dropdown-link-hover-color:              			$dropdown-link-color !default;
 $dropdown-link-hover-bg:                 			var(--#{$prefix}tertiary-bg) !default;
 $dropdown-header-color:                  			rgba(var(--#{$prefix}body-color-rgb), .5) !default;
@@ -1067,8 +1067,8 @@ $dropdown-divider-bg:                          $dropdown-border-color !default;
 // 42. List group settings
 
 $list-group-color:                             var(--#{$prefix}body-color) !default;
-$list-group-bg:                                var(--#{$prefix}component-bg) !default;
-$list-group-border-color:                      var(--#{$prefix}border-color-translucent) !default;
+$list-group-bg:                                $black !default;
+$list-group-border-color:                      $white !default;
 $list-group-border-width:                      var(--#{$prefix}border-width) !default;
 $list-group-border-radius:                     var(--#{$prefix}border-radius) !default;
 $list-group-item-padding-y:                    $spacer * .5 !default;

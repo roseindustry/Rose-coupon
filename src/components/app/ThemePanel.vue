@@ -12,18 +12,18 @@ const emitter = useEmitter();
 var darkMode = '';
 
 var themeList = [
- { name: 'Pink', bgClass: 'bg-pink', themeClass: 'theme-pink' },
- { name: 'Red', bgClass: 'bg-red', themeClass: 'theme-red' },
- { name: 'Orange', bgClass: 'bg-warning', themeClass: 'theme-warning' },
- { name: 'Yellow', bgClass: 'bg-yellow', themeClass: 'theme-yellow' },
- { name: 'Lime', bgClass: 'bg-lime', themeClass: 'theme-lime' },
- { name: 'Green', bgClass: 'bg-green', themeClass: 'theme-green' },
- { name: 'Teal', bgClass: 'bg-teal', themeClass: 'theme-teal' },
- { name: 'Cyan', bgClass: 'bg-info', themeClass: 'theme-info' },
- { name: 'Default', bgClass: 'bg-primary', themeClass: 'theme-primary' },
- { name: 'Purple', bgClass: 'bg-purple', themeClass: 'theme-purple' },
- { name: 'Indigo', bgClass: 'bg-indigo', themeClass: 'theme-indigo' },
- { name: 'Gray', bgClass: 'bg-gray-200', themeClass: 'theme-gray-200' }
+	// { name: 'Pink', bgClass: 'bg-pink', themeClass: 'theme-pink' },
+	// { name: 'Red', bgClass: 'bg-red', themeClass: 'theme-red' },
+	// { name: 'Orange', bgClass: 'bg-warning', themeClass: 'theme-warning' },
+	// { name: 'Yellow', bgClass: 'bg-yellow', themeClass: 'theme-yellow' },
+	// { name: 'Lime', bgClass: 'bg-lime', themeClass: 'theme-lime' },
+	// { name: 'Green', bgClass: 'bg-green', themeClass: 'theme-green' },
+	// { name: 'Teal', bgClass: 'bg-teal', themeClass: 'theme-teal' },
+	// { name: 'Cyan', bgClass: 'bg-info', themeClass: 'theme-info' },
+	// { name: 'Default', bgClass: 'bg-primary', themeClass: 'theme-primary' },
+	{ name: 'Purple', bgClass: 'bg-purple', themeClass: 'theme-purple' },
+	// { name: 'Indigo', bgClass: 'bg-indigo', themeClass: 'theme-indigo' },
+	// { name: 'Gray', bgClass: 'bg-gray-200', themeClass: 'theme-gray-200' }
 ];
 
 function reloadVariable() {
@@ -34,9 +34,9 @@ function reloadVariable() {
 
 function appThemePanelToggled(event) {
 	event.preventDefault();
-	
+
 	appOption.appThemePanelToggled = !appOption.appThemePanelToggled;
-	
+
 	if (localStorage) {
 		localStorage.appThemePanelToggled = appOption.appThemePanelToggled;
 	}
@@ -44,9 +44,9 @@ function appThemePanelToggled(event) {
 
 function toggleTheme(event, themeClass) {
 	event.preventDefault();
-	
+
 	appOption.appThemeClass = themeClass;
-	
+
 	if (localStorage) {
 		localStorage.appThemeClass = appOption.appThemeClass;
 	}
@@ -80,17 +80,15 @@ function setThemeClass(themeClass) {
 	document.body.classList.add(themeClass);
 	appVariable.color.theme = (getComputedStyle(document.body).getPropertyValue('--bs-theme')).trim();
 	appVariable.color.themeRgb = (getComputedStyle(document.body).getPropertyValue('--bs-theme-rgb')).trim();
-	
+
 	emitter.emit('theme-reload', true);
 }
 
 onMounted(() => {
 	var elm = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-	
-	for (var i = 0; i < elm.length; i++) {
-		new Tooltip(elm[i]);
-	}
-	
+
+	elm.forEach(el => new Tooltip(el));
+
 	if (localStorage) {
 		if (localStorage.appThemePanelToggled) {
 			appOption.appThemePanelToggled = JSON.parse(localStorage.appThemePanelToggled);
@@ -113,31 +111,26 @@ onMounted(() => {
 		<a href="#" v-on:click="appThemePanelToggled" class="theme-collapse-btn"><i class="fa fa-cog"></i></a>
 		<div class="theme-panel-content">
 			<ul class="theme-list clearfix">
-				<li  
-					v-bind:class="{ 'active': appOption.appThemeClass == theme.themeClass || (!appOption.appThemeClass && theme.name == 'Default') }" 
+				<li v-bind:class="{ 'active': appOption.appThemeClass == theme.themeClass || (!appOption.appThemeClass && theme.name == 'Default') }"
 					v-for="theme in themeList">
-					<a href="javascript:;"
-						v-bind:class="theme.bgClass"
-						v-on:click="(event) => toggleTheme(event, theme.themeClass)"
-						data-bs-toggle="tooltip" 
-						data-bs-trigger="hover" 
-						data-bs-container="body" 
-						v-bind:data-bs-title="theme.name">&nbsp;</a>
+					<a href="javascript:;" v-bind:class="theme.bgClass"
+						v-on:click="(event) => toggleTheme(event, theme.themeClass)" data-bs-toggle="tooltip"
+						data-bs-trigger="hover" data-bs-container="body" v-bind:data-bs-title="theme.name">&nbsp;</a>
 				</li>
 			</ul>
 			<hr class="mb-0" />
 			<div class="row mt-10px pt-3px">
 				<div class="col-9 control-label text-body fw-bold">
-					<div>Dark Mode <span class="badge bg-theme text-theme-color ms-1 position-relative py-4px px-6px" style="top: -1px">NEW</span></div>
+					<div>Dark Mode </div>
 					<div class="lh-14 fs-13px">
 						<small class="text-body opacity-50">
-							Ajusta la apariencia para reducir el brillo y darle descanso a tus ojos.
+							Esta configuracion es permanente.
 						</small>
 					</div>
 				</div>
 				<div class="col-3 d-flex">
 					<div class="form-check form-switch ms-auto mb-0 mt-2px">
-						<input type="checkbox" class="form-check-input" v-on:change="toggleDarkMode()" v-model="appOption.appDarkMode" true-value="true" id="appThemeDarkMode" value="true" />
+						<input type="checkbox" class="form-check-input" v-on:change="toggleDarkMode()" v-model="appOption.appDarkMode" true-value="true" id="appThemeDarkMode" value="true" disabled />
 						<label class="form-check-label" for="appThemeDarkMode">&nbsp;</label>
 					</div>
 				</div>

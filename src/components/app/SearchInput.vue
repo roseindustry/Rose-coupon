@@ -4,7 +4,7 @@
             :placeholder="placeholder" class="form-control" autocomplete="off" />
         <div class="dropdown-menu show w-100 mt-2" v-show="results.length > 0 || modelValue.length > 0"
             style="max-height: 200px; overflow-y: auto;">
-            <i class="dropdown-item disabled" v-if="results.length === 0">No se encontraron resultados</i>
+            <i class="dropdown-item disabled text-center" v-if="results.length === 0">No se encontraron resultados</i>
             <div class="list-group">
                 <button type="button" class="list-group-item list-group-item-action" v-for="item in results"
                     :key="item.uid" @click.prevent="$emit('select', item)">
@@ -54,7 +54,6 @@ export default {
 
 .dropdown-menu.show {
     position: absolute;
-    top: 100%;
     left: 0;
     z-index: 1000;
     display: block;
@@ -63,15 +62,16 @@ export default {
     padding: 0.5rem 0;
     margin: 0;
     font-size: 1rem;
-    color: #212529;
     text-align: left;
-    background-color: #fff;
+    background-color: transparent;
     background-clip: padding-box;
-    border: 1px solid rgba(0, 0, 0, 0.15);
     border-radius: 0.25rem;
 }
 
 .list-group-item-action {
     cursor: pointer;
+}
+.list-group-item:hover {
+    background-color: gray;
 }
 </style>

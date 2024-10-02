@@ -97,9 +97,9 @@ document.querySelector('body').classList.add('app-init');
 			<router-view></router-view>
 		</div>
 		<app-footer v-if="appOption.appFooter" />
-		<app-theme-panel />
+		<!-- <app-theme-panel /> -->
 	</div>
-	<div v-if="showInstallButton">
+	<div class="text-center" v-if="showInstallButton">
 		<button @click="installPWA" class="btn btn-primary">Instale Rose App</button>
 	</div>
 </template>

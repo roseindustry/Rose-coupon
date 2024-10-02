@@ -323,7 +323,7 @@ export default {
 
 </script>
 <template>
-    <h2 class="mb-4 text-center text-uppercase fw-bold">
+    <h2 class="mb-2 text-center text-uppercase fw-bold">
         Crédito
     </h2>
 
@@ -469,7 +469,7 @@ export default {
         <!-- Modal to set client's credit -->
         <div class="modal fade" id="set-credit-toclient" tabindex="-1" aria-labelledby="setClientCreditModalLabel"
             aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="setClientCreditModalLabel">Asignar crédito</h5>
@@ -562,6 +562,10 @@ export default {
     </div>
 </template>
 <style>
+.btn-theme{
+	background-color: purple;
+	border-color: purple;
+}
 .custom-card {
     transition: transform .3s ease-in-out, box-shadow .3s ease-in-out;
 }

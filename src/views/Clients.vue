@@ -9,6 +9,7 @@ import 'toastify-js/src/toastify.css'
 import * as XLSX from 'xlsx';
 import moment from 'moment';
 import { formatDate } from '@fullcalendar/core/index.js';
+import venezuela from 'venezuela';
 
 export default {
     data() {
@@ -18,11 +19,7 @@ export default {
                 lastName: '',
                 identification: '',
                 email: '',
-                password: '',
-                confirmPassword: '',
                 phoneNumber: '',
-                address: '',
-                sector: '',
             },
             selectedClient: {
                 firstName: '',
@@ -30,22 +27,21 @@ export default {
                 identification: '',
                 email: '',
                 phoneNumber: '',
-                //address: '',
-                //sector: '',
+                state: '',
+                municipio: '',
+                parroquia: ''
             },
-            // sectores:
-            //     [
-            //         "Santa Lucía",
-            //         "Veritas",
-            //         "Cecilio Acosta",
-            //         "La Lago",
-            //         "El Milagro",
-            //         "La Paragua",
-            //         "El Tránsito",
-            //         "Amparo",
-            //         "Grano de Oro",
-            //         "Cañada Honda"
-            //     ],
+
+            venezuelanStates: [
+                "Amazonas", "Anzoátegui", "Apure", "Aragua", "Barinas",
+                "Bolívar", "Carabobo", "Cojedes", "Delta Amacuro", "Distrito Capital",
+                "Falcón", "Guárico", "Lara", "Mérida", "Miranda",
+                "Monagas", "Nueva Esparta", "Portuguesa", "Sucre", "Táchira",
+                "Trujillo", "Vargas", "Yaracuy", "Zulia"
+            ],
+            municipios: [],
+            parroquias: [],
+
             clients: [],
             clientCoupons: [],
             currentEditing: null,
@@ -89,6 +85,17 @@ export default {
                     background: 'linear-gradient(to right, #00b09b, #96c93d)',
                 },
             }).showToast();
+        },
+        displayMunicipios(state) {
+            const z = venezuela.estado(state, { municipios: true });
+            const munis = z.municipios;
+            if (munis) {
+                this.municipios = munis;
+            }
+        },
+        displayParroquias(municipio) {
+            const y = venezuela.municipio(municipio, { parroquias: true });
+            this.parroquias = y.parroquias;
         },
 
         async fetchClients() {
@@ -180,17 +187,25 @@ export default {
             }
         },
         async createClient() {
+            if (!this.client.firstName || !this.client.lastName || !this.client.identification || !this.client.email) {
+                alert('Por favor, complete todos los campos obligatorios: Nombre, Apellido, cedula o email.');
+                return;
+            }
+
             try {
+                this.isSubmitting = true;
+
                 const userData = {
                     firstName: this.client.firstName,
                     lastName: this.client.lastName,
                     identification: this.client.identification,
                     email: this.client.email,
-                    phoneNumber: this.client.phoneNumber,
-                    // sector: this.client.sector,
-                    // address: this.client.address,
-                    role: 'cliente'
+                    role: 'cliente',
                 };
+
+                if (this.client.phoneNumber) {
+                    userData.phoneNumber = this.client.phoneNumber;
+                }
 
                 // Call Cloud Function to create the client
                 const createClientFunction = httpsCallable(functions, 'createUser');
@@ -240,8 +255,9 @@ export default {
                 if (this.selectedClient.identification) updateData.identification = this.selectedClient.identification;
                 if (this.selectedClient.email) updateData.email = this.selectedClient.email;
                 if (this.selectedClient.phoneNumber) updateData.phoneNumber = this.selectedClient.phoneNumber;
-                if (this.selectedClient.address) updateData.address = this.selectedClient.address;
-                if (this.selectedClient.sector) updateData.sector = this.selectedClient.sector;
+                if (this.selectedClient.state) updateData.state = this.selectedClient.state;
+                if (this.selectedClient.municipio) updateData.municipio = this.selectedClient.municipio;
+                if (this.selectedClient.parroquia) updateData.parroquia = this.selectedClient.parroquia;
 
                 // Only proceed if there is something to update
                 if (Object.keys(updateData).length > 0) {
@@ -271,6 +287,7 @@ export default {
             }
         },
         deleteClient(client, index) {
+            console.log(client.uid);
             // Confirmation dialog
             if (confirm("¿Desea borrar este cliente?")) {
                 // User clicked "OK"
@@ -494,14 +511,37 @@ export default {
                                         <input type="text" v-model="selectedClient.phoneNumber" class="form-control" />
                                     </li>
                                     <li class="list-group-item">
-                                        <label for="sector">Sector:</label>
-                                        <select v-model="selectedClient.sector" class="form-control">
-                                            <option v-for="sector in sectores" :key="sector">{{ sector }}</option>
+                                        <label class="form-label">Estado</label>
+                                        <select v-model="selectedClient.state"
+                                            @change="displayMunicipios(selectedClient.state)" class="form-control mb-2">
+                                            <option value="" disabled selected>Selecciona un estado</option>
+                                            <option v-for="(state, index) in venezuelanStates" :key="index"
+                                                :value="state">
+                                                {{ state }}
+                                            </option>
                                         </select>
                                     </li>
                                     <li class="list-group-item">
-                                        <label for="address">Dirección:</label>
-                                        <textarea v-model="selectedClient.address" class="form-control"></textarea>
+                                        <label class="form-label">Municipio</label>
+                                        <select v-model="selectedClient.municipio"
+                                            @change="displayParroquias(selectedClient.municipio)"
+                                            class="form-control mb-2">
+                                            <option value="" disabled selected>Selecciona un municipio</option>
+                                            <option v-for="(municipio, index) in municipios" :key="index"
+                                                :value="municipio">
+                                                {{ municipio }}
+                                            </option>
+                                        </select>
+                                    </li>
+                                    <li class="list-group-item">
+                                        <label class="form-label">Parroquia</label>
+                                        <select v-model="selectedClient.parroquia" class="form-control mb-2">
+                                            <option value="" disabled selected>Selecciona una parroquia</option>
+                                            <option v-for="(parroquia, index) in parroquias" :key="index"
+                                                :value="parroquia">
+                                                {{ parroquia }}
+                                            </option>
+                                        </select>
                                     </li>
                                 </ul>
 
@@ -522,8 +562,9 @@ export default {
                                     </li>
                                     <li class="list-group-item"><strong>Email:</strong> {{ client.email }}</li>
                                     <li class="list-group-item"><strong>Teléfono:</strong> {{ client.phoneNumber }}</li>
-                                    <li class="list-group-item"><strong>Sector:</strong> {{ client.sector }}</li>
-                                    <li class="list-group-item"><strong>Dirección:</strong> {{ client.address }}</li>
+                                    <li class="list-group-item"><strong>Estado:</strong> {{ client.state }}</li>
+                                    <li class="list-group-item"><strong>Municipio:</strong> {{ client.municipio }}</li>
+                                    <li class="list-group-item"><strong>Parroquia:</strong> {{ client.parroquia }}</li>
                                 </ul>
 
                                 <!-- Nested Accordions for Crédito, Cupones, Suscripción and Verification-->
@@ -778,17 +819,13 @@ export default {
                                 </div>
 
                                 <!-- Action Buttons -->
-                                <div class="d-flex justify-content-end gap-2 mt-3">
-                                    <!-- Edit Client Button -->
-                                    <button class="btn btn-outline-primary d-flex align-items-center gap-1"
-                                        @click="editClient(client)">
-                                        <i class="fa-solid fa-pencil"></i> Editar
+                                <div class="d-flex justify-content-end mt-2">
+                                    <button class="btn btn-sm btn-outline-info me-1" data-bs-toggle="tooltip"
+                                        data-bs-placement="top" title="Editar comercio" @click="editClient(client)">
+                                        <i class="fa-solid fa-pencil"></i>
                                     </button>
-
-                                    <!-- Delete Client Button -->
-                                    <button class="btn btn-outline-danger d-flex align-items-center gap-1"
-                                        @click="deleteClient(client, index)">
-                                        <i class="fa-solid fa-trash"></i> Eliminar
+                                    <button class="btn btn-sm btn-outline-danger" @click="deleteClient(client, index)">
+                                        <i class="fa-solid fa-trash"></i>
                                     </button>
                                 </div>
                             </div>
@@ -811,43 +848,31 @@ export default {
                         <div class="mb-3">
                             <label for="clientFirstName" class="form-label">Nombre <span
                                     class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="clientFirstName" v-model="client.firstName" />
+                            <input type="text" class="form-control" id="clientFirstName" v-model="client.firstName"
+                                required />
                         </div>
                         <div class="mb-3">
                             <label for="clientLastName" class="form-label">Apellido <span
                                     class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="clientLastName" v-model="client.lastName" />
+                            <input type="text" class="form-control" id="clientLastName" v-model="client.lastName"
+                                required />
                         </div>
                         <div class="mb-3">
                             <label for="clientIdentification" class="form-label">Cédula <span
                                     class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="clientIdentification"
-                                v-model="client.identification" />
+                                v-model="client.identification" required />
                         </div>
                         <div class="mb-3">
                             <label for="clientEmail" class="form-label">Email <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="clientEmail" v-model="client.email" />
+                            <input type="text" class="form-control" id="clientEmail" v-model="client.email" required />
                         </div>
                         <div class="mb-3">
-                            <label for="clientPhoneNumber" class="form-label">Teléfono <span
-                                    class="text-danger">*</span></label>
+                            <label for="clientPhoneNumber" class="form-label">Teléfono</label>
                             <input type="text" class="form-control" id="clientPhoneNumber"
                                 v-model="client.phoneNumber" />
                         </div>
-                        <!-- <div class="mb-3">
-                            <label class="form-label">Sector <span class="text-danger">*</span></label>
-                            <select v-model="client.sector" class="form-control form-control-lg fs-15px">
-                                <option value="" disabled selected>Selecciona un sector</option>
-                                <option v-for="(sector, index) in sectores" :key="index" :value="sector">
-                                    {{ sector }}
-                                </option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Dirección <span class="text-secondary">(Opcional)</span></label>
-                            <input v-model="client.address" type="text" class="form-control form-control-lg fs-15px"
-                                value="" />
-                        </div> -->
+                        <p>(<span class="text-danger">*</span>) Campos obligatorios.</p>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
@@ -872,3 +897,9 @@ export default {
         </div>
     </div>
 </template>
+<style scoped>
+.btn-theme {
+    background-color: purple;
+    border-color: purple;
+}
+</style>

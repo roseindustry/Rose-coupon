@@ -18,13 +18,26 @@ export default defineComponent({
 
             // data for portal items
             portalItems: [
-                { title: 'Comercios Afiliados', description: 'Aquí puede ver los comercios donde puede usar su crédito.', link: '/comercios-afiliados', actionText: 'Ver más', icon: 'fa-solid fa-building' },
-                { title: 'Cupones', description: 'Descubre tus cupones aquí.', link: '/cupones', actionText: 'Ver más', icon: 'fa-solid fa-ticket' },
-                { title: 'Eventos', description: 'Descubre nuestros próximos eventos.', link: '/events', actionText: 'Ver más', icon: 'fa-solid fa-calendar-days' },
-                { title: 'Crédito', description: 'Solicite o modifique su crédito aquí.', link: '/creditos', actionText: 'Ver más', icon: 'fa-solid fa-dollar' },
-                { title: 'Compras recientes', description: 'Ver sus compras recientes.', link: '#', actionText: 'Ver más', icon: 'fa-solid fa-shopping-cart' },
-                { title: 'Mis Opiniones', description: 'Aqui se muestran tus reseñas y opiniones de lo que consumes.', link: '/clients-ratings', actionText: 'Ver más', icon: 'fa-solid fa-star' },
-                { title: 'Encuesta de satisfaccion', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/customer-survey', actionText: 'Tomar Encuesta', icon: 'fa-solid fa-comment-dots' },
+                { 
+                    title: 'Comercios Afiliados', 
+                    description: 'Aquí puede ver los comercios donde puede usar su crédito.', 
+                    link: '/comercios-afiliados', 
+                    actionText: 'Ver más', 
+                    bgImage: '/assets/img/rose_imgs/3.png' 
+                },
+                { title: 'Cupones', description: 'Descubre tus cupones aquí.', link: '/cupones', actionText: 'Ver más', bgImage: '/assets/img/rose_imgs/1.png' },
+                { title: 'Eventos', description: 'Descubre nuestros próximos eventos.', link: '/events', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/3.png' },
+                { 
+                    title: 'Crédito', 
+                    description: 'Solicite o modifique su crédito aquí.', 
+                    link: '/creditos', 
+                    actionText: 'Ver más', 
+                    notReady: true, 
+                    bgImage: '/assets/img/rose_imgs/2.png' 
+                },
+                { title: 'Compras recientes', description: 'Ver sus compras recientes.', link: '#', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/5.png' },
+                { title: 'Mis Opiniones', description: 'Aqui se muestran tus reseñas y opiniones de lo que consumes.', link: '/clients-ratings', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
+                { title: 'Encuestas', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/customer-survey', actionText: 'Tomar Encuesta', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
             ],
 
             subscriptionPlan: '',
@@ -203,6 +216,13 @@ export default defineComponent({
         // },
     },
     async mounted() {
+        if (!sessionStorage.getItem('reloaded')) {
+            sessionStorage.setItem('reloaded', 'true');
+            window.location.reload();
+        } else {
+            sessionStorage.removeItem('reloaded');
+        }
+
         const userStore = useUserStore();
         await userStore.fetchUser();
         //this.role = userStore.role;
@@ -221,9 +241,9 @@ export default defineComponent({
     <div class="container py-5 h-100">
         <!-- Add an install button in your template
         <button id="install-button" style="display: none;">Instale acceso a Rose Coupon</button> -->
-        
+
         <!-- Subscription Badge -->
-        <div class="subscription-badge position-absolute top-0 end-0 m-3">
+        <div class="subscription-badge position-absolute text-muted text-center top-0 end-0 m-3">
             <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
                 class="d-flex align-items-center flex-wrap">
                 <h5 class="m-0">
@@ -252,63 +272,66 @@ export default defineComponent({
                     </span>
                 </div>
             </div>
+            <span v-if="userVerified"
+                class="badge bg-transparent border border-success text-success d-flex flex-column align-items-center p-2">
+                <span class="d-flex align-items-center">
+                    <i class="fa-solid fa-user-check me-2"></i>
+                    Usuario verificado
+                </span>
+            </span>
+            <span v-else
+                class="badge bg-transparent border border-danger text-danger d-flex flex-column align-items-center p-2">
+                <span class="d-flex align-items-center">
+                    <i class="fa-solid fa-user-xmark me-2"></i>
+                    Usuario no Verificado
+                </span>
+            </span>
         </div>
 
-        <div class="row justify-content-center align-items-center mt-2 h-100">
+        <div class="row justify-content-center align-items-center h-100 mt-5">
             <div class="col-12">
-                <div class="card shadow-lg position-relative">
+                <div class="pb-5 pt-5 pt-md-5 pt-lg-5">
+                    <h2 class="mb-4 text-center">Portal de Clientes</h2>
 
-                    <div class="card-body pb-5 pt-5 pt-md-5 pt-lg-5">
-                        <h2 class="card-title mb-4 text-center">Portal de Clientes</h2>
-
-                        <div class="text-muted position-absolute top-0 end-0 m-2">
-                            <span v-if="userVerified"
-                                class="badge bg-transparent border border-success text-success d-flex flex-column align-items-start p-2">
-                                <span class="d-flex align-items-center">
-                                    <i class="fa-solid fa-user-check me-2"></i>
-                                    Usuario verificado
-                                </span>
-                            </span>
-                            <span v-else
-                                class="badge bg-transparent border border-danger text-danger d-flex flex-column align-items-start p-2">
-                                <span class="d-flex align-items-center">
-                                    <i class="fa-solid fa-user-xmark me-2"></i>
-                                    Usuario no Verificado
-                                </span>
-                            </span>
-                        </div>
-
-                        <div class="row row-cols-1 row-cols-md-2 g-4">
-                            <div class="col" v-for="item in portalItems" :key="item.title">
-                                <div class="card h-100 text-dark bg-light position-relative">
-                                    <div class="card-body">
-                                        <h5 class="card-title">{{ item.title }}</h5>
-                                        <p class="card-text">{{ item.description }}</p>
-                                        <router-link :to="item.link" class="btn btn-theme"
-                                            :class="{ 'disabled': item.title === 'Crédito' && !userVerified }"
-                                            :aria-disabled="item.title === 'Crédito' && !userVerified"
-                                            :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
-                                            {{ item.actionText }}
-                                        </router-link>
-                                        <i :class="[item.icon, 'icon-circle']"></i>
-                                        <!-- Tooltip or message when 'Crédito' button is disabled -->
-                                        <div v-if="item.title === 'Crédito' && !userVerified" class="mt-2">
-                                            <small class="text-danger">
-                                                <span v-if="verificationStatus === 'unverified'">
-                                                    Verifique su cuenta para habilitar la opción de crédito.
-                                                    <a href="#" data-bs-toggle="modal"
-                                                        data-bs-target="#verificationModal">Solicitar verificación.</a>
-                                                </span>
-                                                <span v-else-if="verificationStatus === 'pending'">
-                                                    Verificación pendiente por Aprobación.
-                                                </span>
-                                            </small>
-                                        </div>
+                    <div class="row row-cols-1 row-cols-md-2 g-4">
+                        <div class="col" v-for="item in portalItems" :key="item.title">
+                            <div class="card h-100 text-dark bg-light position-relative" :style="{
+                                backgroundImage: `url(${item.bgImage})`,
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                                paddingTop: '45%'
+                            }">
+                                <div class="card-body"
+                                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
+                                    <h5 class="card-title">{{ item.title }} {{ item.notReady === true ?
+                                        `(Proximamente)` : '' }}</h5>
+                                    <p class="card-text">{{ item.description }}</p>
+                                    <router-link :to="item.link" class="btn btn-theme"
+                                        :class="{ 'disabled': (item.title === 'Crédito' && !userVerified) || item.notReady === true }"
+                                        :aria-disabled="item.title === 'Crédito' && !userVerified"
+                                        :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
+                                        {{ item.actionText }}
+                                    </router-link>
+                                    <!-- Tooltip or message when 'Crédito' button is disabled -->
+                                    <div v-if="item.title === 'Crédito' && !userVerified" class="mt-2">
+                                        <small class="text-danger">
+                                            <span v-if="verificationStatus === 'unverified'">
+                                                Verifique su cuenta para habilitar la opción de crédito.
+                                                <a href="#" class="text-white" data-bs-toggle="modal"
+                                                    data-bs-target="#verificationModal">
+                                                    <br>
+                                                    Solicitar verificación.</a>
+                                            </span>
+                                            <span v-else-if="verificationStatus === 'pending'">
+                                                Verificación pendiente por Aprobación.
+                                            </span>
+                                        </small>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -339,7 +362,7 @@ export default defineComponent({
                                     class="img-fluid mt-2" />
                             </div>
                             <div class="mb-3">
-                                <label for="selfie" class="form-label">Foto Selfie</label>
+                                <label for="selfie" class="form-label">Foto Selfie con Cédula visible</label>
                                 <input type="file" class="form-control" id="selfie"
                                     @change="handleFileUpload($event, 'selfie')" required>
                                 <img v-if="selfiePreview" :src="selfiePreview" alt="Selfie Preview"
@@ -368,39 +391,20 @@ export default defineComponent({
     </div>
 </template>
 <style scoped>
+.btn-theme{
+	background-color: purple;
+	border-color: purple;
+}
 /* Subscription Badge Styles */
 .subscription-badge {
     font-size: 0.9rem;
     z-index: 2;
 }
 
-.icon-circle {
-    position: absolute;
-    right: 0;
-
-    margin: 15px;
-    top: calc(50% - 20px);
-
-    font-size: 25px;
-
-    background-color: white;
-    color: #000;
-
-    width: 40px;
-
-    height: 40px;
-
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
 .card {
     overflow: hidden;
 }
 
-/* Responsive Adjustments */
 @media (max-width: 767.98px) {
 
     .subscription-badge {

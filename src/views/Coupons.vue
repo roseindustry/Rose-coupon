@@ -221,7 +221,7 @@ export default {
 
                     this.coupons = (await Promise.all(couponsPromises)).filter(coupon => coupon !== null);
                     //console.log(this.coupons)
-                }   
+                }
                 // Role: afiliado
                 else if (userRole === 'afiliado') {
                     const couponsRef = dbRef(db, `Coupons`);
@@ -339,7 +339,6 @@ export default {
         },
         selectCoupon(coupon) {
             this.selectedCoupon = coupon;
-            console.log('Selected coupon:', coupon.id);
         },
 
         //Update coupons
@@ -646,12 +645,13 @@ export default {
         async applyCoupon() {
             try {
                 if (!this.appliedCode) {
+                    alert('Ningun codigo de cupon ingresado.');
                     console.log('No coupon code entered');
                     return;
                 }
 
-                // Load coupons (assuming this.loadCoupons returns an array)
-                const coupons = await this.loadCoupons();
+                // Load coupons 
+                const coupons = this.coupons;
                 let selectedCoupon = null;
 
                 // Find the coupon by its code
@@ -661,13 +661,18 @@ export default {
                     }
                 });
 
+                // Alert if the coupon trying to be applied doenst exists
                 if (!selectedCoupon) {
                     alert('El cupón no existe.');
                     return;
                 }
 
-                // Check if the coupon has any redeemCount left
-                if (selectedCoupon.redeemCount === 0) {
+                // Check if the coupon can still be redeemed
+                const redeemCount = selectedCoupon.redeemCount;
+                const timesUsed = selectedCoupon.hasOwnProperty('timesUsed') ? selectedCoupon.timesUsed : 0;
+
+
+                if (timesUsed >= redeemCount) {
                     alert('Este cupón ya fue aplicado las veces permitidas.');
                     return;
                 }
@@ -675,7 +680,7 @@ export default {
                 // Generate a unique key for each redemption (using timestamp here for simplicity)
                 const redemptionId = new Date().getTime();
 
-                // Save each redemption as a separate entry
+                // Save each redemption as a separate entry in the User's applied coupons
                 const userCouponRef = dbRef(db, `Users/${this.userId}/appliedCoupons/${selectedCoupon.id}/${redemptionId}`);
                 await set(userCouponRef, {
                     couponCode: selectedCoupon.couponCode,
@@ -683,18 +688,25 @@ export default {
                     storeId: this.userId, // Affiliate store applying the coupon
                 });
 
-                // Decrease redeem count
-                const updatedRedeemCount = selectedCoupon.redeemCount > 0 ? selectedCoupon.redeemCount - 1 : 0;
+                // Increment the timesUsed
+                const newTimesUsed = timesUsed + 1;
+
+                // Update the coupon data to reflect the usage
                 const couponUpdateRef = dbRef(db, `Coupons/${selectedCoupon.id}`);
                 await update(couponUpdateRef, {
-                    redeemCount: updatedRedeemCount,
+                    timesUsed: newTimesUsed,
                     storeApplied: true
                 });
+
+                // If coupon can no longer be redeemed, trigger client removal
+                if (newTimesUsed === redeemCount) {
+                    this.removeCouponFromClients(selectedCoupon.id);
+                }
 
                 console.log(`Coupon with ID: ${selectedCoupon.id} applied by store: ${this.userId}`);
 
                 // Show success message
-                this.showToast('Cupón aplicado con éxito!');
+                this.showToast('¡Cupón aplicado con éxito!');
 
                 // Clear the input after applying
                 this.appliedCode = '';
@@ -703,17 +715,35 @@ export default {
                 console.error('Error applying coupon:', error);
             }
         },
+        async removeCouponFromClients(couponId) {
+            try {
+                // Fetch clients (Users with role 'cliente')
+                await this.fetchClients();
+
+                // Iterate through clients to check for the coupon in their 'appliedCoupons'
+                this.clients.forEach(async client => {
+                    
+                    if (client.coupons && client.coupons[couponId]) {
+                        // Remove the coupon from the client's appliedCoupons
+                        const userCouponToRemoveRef = dbRef(db, `Users/${client.id}/coupons/${couponId}`);
+                        await remove(userCouponToRemoveRef);
+                    }
+                });
+
+                console.log(`Coupon with ID: ${couponId} removed from clients.`);
+            } catch (error) {
+                console.error('Error removing coupon from clients:', error);
+            }
+        },
     },
     async created() {
         const userStore = useUserStore();
         await userStore.fetchUser();
         this.role = userStore.role;
         this.userId = userStore.userId;
-        console.log('This user ID: ', this.userId, 'Has a role of: ', this.role);
+        //console.log('This user ID: ', this.userId, 'Has a role of: ', this.role);
 
-        if (this.role !== 'afiliado') {
-            await this.loadCoupons();
-        }
+        await this.loadCoupons();
 
         if (this.role === 'admin') {
             await this.fetchClients();
@@ -723,9 +753,9 @@ export default {
 }
 </script>
 <template>
+    <h2 class="mb-4 text-center">CUPONES</h2>
     <!-- Admin view -->
     <div v-if="this.role === 'admin'" class="container">
-        <h2 class="mb-4 text-center">CUPONES</h2>
 
         <div id="assign-coupons" class="mb-5">
             <p class="mb-3">Busque y seleccione el cliente y el cupon que desea asignar.</p>
@@ -937,7 +967,7 @@ export default {
                             <p><strong>Teléfono:</strong> {{ selectedClient.phoneNumber }}</p>
                         </div>
 
-                        <button @click="assignExistingCoupon" class="btn btn-primary mt-3">Asignar cupón
+                        <button @click="assignExistingCoupon" class="btn btn-theme mt-3">Asignar cupón
                             existente</button>
                     </div>
 
@@ -1019,7 +1049,7 @@ export default {
                             <p><strong>Email:</strong> {{ selectedClient.email }}</p>
                             <p><strong>Teléfono:</strong> {{ selectedClient.phoneNumber }}</p>
                         </div>
-                        <button v-if="assignTheCoupon" @click="createAndAssignCoupon" class="btn btn-primary mt-3">Crear
+                        <button v-if="assignTheCoupon" @click="createAndAssignCoupon" class="btn btn-theme mt-3">Crear
                             y Asignar
                             cupón</button>
                     </div>
@@ -1171,7 +1201,6 @@ export default {
             </ol>
         </nav>
         <div class="row">
-            <h2 class="mb-4 text-center">CUPONES</h2>
             <div class="col-12 col-md-3" v-if="coupons.length > 0" v-for="coupon in coupons" :key="coupon.id">
                 <div class="card mb-3 position-relative">
                     <div class="card-body">
@@ -1223,7 +1252,6 @@ export default {
             </ol>
         </nav>
         <div class="row">
-            <h2 class="mb-4 text-center">CUPONES</h2>
 
             <div id="apply-coupon" class="mb-5">
                 <div class="row justify-content-center mb-4">
@@ -1236,7 +1264,7 @@ export default {
                                     <input type="text" class="form-control form-control-lg rounded-pill"
                                         v-model="appliedCode" placeholder="Código del cupón" />
                                 </div>
-                                <button class="btn btn-success btn-lg rounded-pill px-5 shadow-sm mt-3"
+                                <button class="btn btn-secondary btn-lg rounded-pill px-5 shadow-sm mt-3"
                                     @click="applyCoupon()">Aplicar</button>
                             </div>
                         </div>
@@ -1273,7 +1301,10 @@ export default {
                                 <p class="card-text"><strong>Saldo:</strong> ${{ coupon.balance }}</p>
                                 <p class="card-text"><strong>Expiración:</strong> {{ formatDate(coupon.expiration) }}
                                 </p>
-                                <p class="card-text"><strong>Veces aplicado: </strong>{{ coupon.redeemedCount }}</p>
+                                <p class="card-text"><strong>Veces que se puede aplicar: </strong>{{ coupon.redeemCount
+                                    }}
+                                </p>
+                                <p class="card-text"><strong>Veces aplicado: </strong>{{ coupon.timesUsed }}</p>
                             </div>
                         </div>
                     </div>
@@ -1306,6 +1337,11 @@ export default {
     </div>
 </template>
 <style>
+.btn-theme {
+    background-color: purple;
+    border-color: purple;
+}
+
 .card {
     margin: 15px;
 }
@@ -1316,14 +1352,6 @@ export default {
 
 .list-autocomplete em {
     font-style: normal;
-    background-color: #e1f2f9;
-}
-
-.hasNoResults {
-    color: #aaa;
-    display: block;
-    padding: 10px;
-    color: #aaa;
 }
 
 .card {
@@ -1332,7 +1360,7 @@ export default {
 }
 
 .card.selected {
-    background-color: #e9ecef;
+    background-color: darkblue;
 }
 
 .vertical-separator {

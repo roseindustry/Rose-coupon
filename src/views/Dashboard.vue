@@ -9,6 +9,7 @@ export default {
 			userName: '',
 			clients: [],
 			verifiedClients: [],
+			affiliates: [],
 		}
 	},
 	methods: {
@@ -43,6 +44,30 @@ export default {
 				this.clients = [];
 			}
 		},
+		async fetchAffiliates() {
+            const role = 'afiliado';
+            const affiliatesRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
+
+            try {
+                const affiliateSnapshot = await get(affiliatesRef);
+
+                if (affiliateSnapshot.exists()) {
+                    const affiliatesList = [];
+                    affiliateSnapshot.forEach((childSnapshot) => {
+                        const affiliateData = childSnapshot.val();
+                        affiliatesList.push({
+                            ...affiliateData
+                        });
+                    });
+
+                    this.affiliates = affiliatesList;
+                } else {
+                    console.log("No data available.");
+                }
+            } catch (error) {
+                console.error("Error fetching affiliates:", error);
+            }
+        },
 	},
 	async mounted() {
 		const userStore = useUserStore();
@@ -51,6 +76,7 @@ export default {
 		this.userName = userStore.userName;
 
 		await this.fetchClients();
+		await this.fetchAffiliates();
 	}
 }
 </script>
@@ -100,7 +126,7 @@ export default {
 							<i class="fa fa-building fa-lg text-white"></i>
 						</div>
 						<h5 class="mb-1">Comercios Afiliados</h5>
-						<h3></h3>
+						<h3>{{ affiliates.length || 0 }}</h3>
 					</div>
 				</div>
 			</div>

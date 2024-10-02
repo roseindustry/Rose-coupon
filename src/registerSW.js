@@ -4,17 +4,16 @@ const CACHE_NAME = 'rose-coupon-cache-v1';
 // List of assets to cache
 const CACHE_ASSETS = [
     '/',
-    '/index.html',
-    '/client-portal', // Your client portal route
     '/assets/img/icon/roseapp-icon.png',
     '/assets/img/icon/playstore.png',
 ];
 
 // Install event
 self.addEventListener('install', (event) => {
+    self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            console.log('Caching app shell');
+            console.log('Caching initial assets');
             return cache.addAll(CACHE_ASSETS);
         })
     );
@@ -23,14 +22,16 @@ self.addEventListener('install', (event) => {
 // Fetch event
 self.addEventListener('fetch', (event) => {
     event.respondWith(
-        caches.match(event.request).then((response) => {
-            // Cache hit - return the response from the cached version
-            if (response) {
-                return response;
-            }
-            // Otherwise, fetch the resource from the network
-            return fetch(event.request);
+        fetch(event.request)
+        .then((response) => {
+            // Clone the response and cache it
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, responseClone);
+            });
+            return response;
         })
+        .catch(() => caches.match(event.request)) // Fallback to cache if network fails
     );
 });
 
@@ -41,12 +42,12 @@ self.addEventListener('activate', (event) => {
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
-                    if (cacheWhitelist.indexOf(cacheName) === -1) {
+                    if (!cacheWhitelist.indexOf(cacheName)) {
                         console.log('Deleting old cache:', cacheName);
                         return caches.delete(cacheName);
                     }
                 })
             );
-        })
+        }).then(() => self.clients.claim())
     );
 });

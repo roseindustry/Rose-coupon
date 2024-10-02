@@ -10,6 +10,7 @@ import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 import { Modal } from 'bootstrap';
+import venezuela from 'venezuela';
 
 export default defineComponent({
 	components: {
@@ -30,23 +31,22 @@ export default defineComponent({
 			// Common fields
 			phoneNumber: '',
 			email: '',
-			sector: '',
-			address: '',
+			state: '',
+			municipio: '',
+			parroquia: '',
 
-			// Sectores
-			sectores:
-				[
-					"Santa Lucía",
-					"Veritas",
-					"Cecilio Acosta",
-					"La Lago",
-					"El Milagro",
-					"La Paragua",
-					"El Tránsito",
-					"Amparo",
-					"Grano de Oro",
-					"Cañada Honda"
-				],
+			// Address info
+			venezuelanStates: [
+				"Amazonas", "Anzoátegui", "Apure", "Aragua", "Barinas",
+				"Bolívar", "Carabobo", "Cojedes", "Delta Amacuro", "Distrito Capital",
+				"Falcón", "Guárico", "Lara", "Mérida", "Miranda",
+				"Monagas", "Nueva Esparta", "Portuguesa", "Sucre", "Táchira",
+				"Trujillo", "Vargas", "Yaracuy", "Zulia"
+			],
+			municipios: [],
+			parroquias: [],
+			showMunicipios: false,
+			showParroquias: false,
 
 			// Cliente-specific fields
 			firstName: '',
@@ -62,8 +62,9 @@ export default defineComponent({
 				phoneNumber: false,
 				email: false,
 				password: false,
-				sector: false,
-				address: false,
+				state: false,
+				municipio: false,
+				parroquia: false,
 				firstName: false,
 				lastName: false,
 				identification: false,
@@ -232,6 +233,7 @@ export default defineComponent({
 				alert('Error al actualizar la contraseña. Inténtalo de nuevo.');
 			}
 		},
+
 		//File uploads
 		handleFileUpload(event, type) {
 			const file = event.target.files[0];
@@ -249,7 +251,6 @@ export default defineComponent({
 				this.selfiePreview = URL.createObjectURL(file);
 			}
 		},
-
 		async uploadFile(file, type) {
 			// Define storage reference for front or back ID file
 			const fileName = `${type === 'selfie' ? 'selfie' : `${type}-ID`}.${file.name.split('.').pop()}`;
@@ -260,6 +261,7 @@ export default defineComponent({
 			return getDownloadURL(fileRef);
 		},
 
+		// User verification
 		async submitVerification() {
 			if (!this.idFrontFile || !this.idBackFile || !this.selfieFile) {
 				this.errorMessage = 'Todos los archivos de identificación son requeridos.';
@@ -308,6 +310,23 @@ export default defineComponent({
 				this.isSubmitting = false;
 			}
 		},
+
+		//Address info
+		displayMunicipios(state) {
+			const z = venezuela.estado(state, { municipios: true });
+			const munis = z.municipios;
+			if (munis) {
+				this.municipios = munis;
+				this.showMunicipios = true;
+			}
+		},
+		displayParroquias(municipio) {
+			const y = venezuela.municipio(municipio, { parroquias: true });
+			this.parroquias = y.parroquias;
+			if (this.parroquias) {
+				this.showParroquias = true;
+			}
+		},
 	},
 	computed: {
 		currentPageName() {
@@ -319,25 +338,27 @@ export default defineComponent({
 				return [
 					{ name: 'companyName', label: 'Nombre del Comercio', value: this.companyName },
 					{ name: 'rif', label: 'RIF', value: this.rif },
-					{ name: 'sector', label: 'Sector', value: this.sector },
-					{ name: 'address', label: 'Dirección', value: this.address },
 					{ name: 'phoneNumber', label: 'Telefono', value: this.phoneNumber },
 					{ name: 'email', label: 'Correo electronico', value: this.email },
+					{ name: 'state', label: 'Estado', value: this.state },
+					{ name: 'municipio', label: 'Municipio', value: this.municipio },
+					{ name: 'parroquia', label: 'Parroquia', value: this.parroquia }
 				];
 			} else {
 				return [
 					{ name: 'firstName', label: 'Nombre', value: this.firstName },
 					{ name: 'lastName', label: 'Apellido', value: this.lastName },
 					{ name: 'identification', label: 'Cedula', value: this.identification },
-					{ name: 'sector', label: 'Sector', value: this.sector },
-					{ name: 'address', label: 'Dirección', value: this.address },
 					{ name: 'phoneNumber', label: 'Telefono', value: this.phoneNumber },
 					{ name: 'email', label: 'Correo electronico', value: this.email },
+					{ name: 'state', label: 'Estado', value: this.state },
+					{ name: 'municipio', label: 'Municipio', value: this.municipio },
+					{ name: 'parroquia', label: 'Parroquia', value: this.parroquia }
 				];
 			}
 		},
 		isProfileIncomplete() {
-			return !this.sector || !this.address;
+			return !this.state || !this.municipio || !this.parroquia;
 		},
 	},
 });
@@ -365,7 +386,7 @@ export default defineComponent({
 
 		<!-- Info div for completing profile -->
 		<div v-if="(role === 'cliente' || role === 'afiliado') && isProfileIncomplete"
-			class="alert alert-info d-inline-flex align-items-center mt-4" role="alert" style="width: auto;">
+			class="alert alert-info d-inline-flex align-items-center mt-2" role="alert" style="width: auto;">
 			<i class="fa-solid fa-info-circle me-2"></i>
 			<div>
 				<strong>Completa tu perfil:</strong> Para disfrutar de los beneficios de promociones y
@@ -385,7 +406,7 @@ export default defineComponent({
 			</div>
 		</div>
 		<!-- Request Verification -->
-		<div v-if="(role === 'cliente' || role === 'afiliado') && !this.userVerified"
+		<div v-if="(role === 'cliente') && !this.userVerified"
 			class="alert alert-warning d-inline-flex align-items-center mb-5" role="alert" style="width: auto;">
 			<i class="fa-solid fa-exclamation-circle me-2"></i>
 			<div>
@@ -405,7 +426,7 @@ export default defineComponent({
 		<div class="row">
 			<div class="col-xl-9">
 				<!-- General user info -->
-				<div id="general" class="mb-5">
+				<div id="general" class="mb-5 mt-3">
 					<h4><i class="far fa-user fa-fw"></i> General <span
 							v-if="(role === 'cliente' || role === 'afiliado') && this.userVerified"
 							class="badge text-bg-success">Verificado</span></h4>
@@ -421,14 +442,30 @@ export default defineComponent({
 										<div v-if="!editStates[field.name]" class="text-secondary">{{ field.value }}
 										</div>
 
-										<!-- Check if editing sector to show dropdown, otherwise show input -->
+										<!-- Check if editing address to show dropdown, otherwise show input -->
 										<template v-if="editStates[field.name]">
-											<select v-if="field.name === 'sector'" v-model="sector"
+											<select v-if="field.name === 'state'" v-model="state" @change="displayMunicipios(state)"
 												class="form-control mt-2">
-												<option value="" disabled selected>Selecciona un sector</option>
-												<option v-for="(sectorOption, index) in sectores" :key="index"
-													:value="sectorOption">
-													{{ sectorOption }}
+												<option value="" disabled selected>Selecciona un estado</option>
+												<option v-for="(state, index) in venezuelanStates" :key="index"
+													:value="state">
+													{{ state }}
+												</option>
+											</select>
+											<select v-else-if="field.name === 'municipio' && showMunicipios" v-model="municipio" @change="displayParroquias(municipio)"
+												class="form-control mt-2">
+												<option value="" disabled selected>Selecciona un municipio</option>
+												<option v-for="(municipio, index) in municipios" :key="index"
+													:value="municipio">
+													{{ municipio }}
+												</option>
+											</select>
+											<select v-else-if="field.name === 'parroquia' && showParroquias" v-model="parroquia"
+												class="form-control mt-2">
+												<option value="" disabled selected>Selecciona una parroquia</option>
+												<option v-for="(parroquia, index) in parroquias" :key="index"
+													:value="parroquia">
+													{{ parroquia }}
 												</option>
 											</select>
 											<input v-else v-model="this[field.name]" type="text"
@@ -439,7 +476,7 @@ export default defineComponent({
 									<div class="btn-group" role="group">
 										<!-- Show "Edit" button when not in edit mode -->
 										<button class="btn btn-transparent btn-sm me-1" v-if="!editStates[field.name]"
-											@click.prevent="toggleEdit(field.name)">
+											@click.prevent="toggleEdit(field.name); " >
 											<i class="fa-solid fa-pencil text-primary"></i>
 										</button>
 
@@ -479,7 +516,7 @@ export default defineComponent({
 								<input type="password" class="form-control" id="confirmPassword"
 									v-model="confirmPassword">
 							</div>
-							<button class="btn btn-primary" @click.prevent="changePassword">Actualizar
+							<button class="btn btn-theme" @click.prevent="changePassword">Actualizar
 								Contraseña</button>
 						</div>
 					</div>
@@ -579,7 +616,7 @@ export default defineComponent({
 									class="img-fluid mt-2" />
 							</div>
 							<div class="mb-3">
-								<label for="selfie" class="form-label">Foto Selfie</label>
+								<label for="selfie" class="form-label">Foto Selfie con Cédula visible</label>
 								<input type="file" class="form-control" id="selfie"
 									@change="handleFileUpload($event, 'selfie')" required>
 								<img v-if="selfiePreview" :src="selfiePreview" alt="Selfie Preview"
@@ -609,6 +646,11 @@ export default defineComponent({
 	</div>
 </template>
 <style scoped>
+.btn-theme {
+	background-color: purple;
+	border-color: purple;
+}
+
 .btn-transparent {
 	background-color: transparent;
 	border: none;
@@ -618,5 +660,13 @@ export default defineComponent({
 .btn-transparent:hover {
 	background-color: #f0f0f0;
 	border-radius: 5px;
+}
+
+.card {
+	background-color: #29122f;
+}
+
+.list-group-item {
+	background-color: #29122f;
 }
 </style>

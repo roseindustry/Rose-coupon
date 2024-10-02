@@ -3,7 +3,7 @@
     "version": "4.2.0",
     "scripts": {
         "dev": "vite",
-        "build": "vue-tsc --noEmit && vite build",
+        "build": "vue-tsc --noEmit && vite build && node versioning.js",
         "preview": "vite preview --port 5050",
         "test:unit": "vitest --environment jsdom",
         "test:e2e": "start-server-and-test preview http://127.0.0.1:5050/ 'cypress open'",
@@ -73,6 +73,7 @@
         "survey-vue": "^1.9.132",
         "survey-vue3-ui": "^1.9.131",
         "toastify-js": "^1.12.0",
+        "venezuela": "^2.0.0",
         "vue": "^3.3.8",
         "vue-axios": "^3.5.2",
         "vue-datepicker-next": "^1.0.3",
