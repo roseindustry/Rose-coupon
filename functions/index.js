@@ -43,7 +43,7 @@ exports.createUser = functions.https.onCall(async (data, context) => {
       return { success: false, message: 'Campo obligatorio vacio: Nombre de la empresa, RIF, y Email son requeridos.' };
     }
   } else if (userData.role === 'cliente') {
-    if (!userData.firstName || !userData.lastName  || !userData.identification || !userData.email) {
+    if (!userData.firstName || !userData.lastName || !userData.identification || !userData.email) {
       return { success: false, message: 'Campo obligatorio vacio: Nombre, Apellido, y Email son requeridos.' };
     }
   } else {
@@ -116,6 +116,28 @@ exports.deleteUser = functions.https.onCall((data, context) => {
     .catch((error) => {
       throw new functions.https.HttpsError('failed-precondition', error.message);
     });
+});
+
+// Update User's email on db and auth
+exports.updateUserEmail = functions.https.onCall(async (data, context) => {
+
+  const { uid, newEmail } = data;
+
+  try {
+    // Update the user's email in Firebase Authentication
+    await admin.auth().updateUser(uid, {
+      email: newEmail
+    });
+
+    // Update the 'email' field in the Database
+    const userRef = admin.database().ref(`Users/${uid}`);
+    await userRef.update({ email: newEmail });
+
+    return { message: 'Email actualizado con exito!.' };
+  } catch (error) {
+    console.error('Error updating email:', error);
+    throw new functions.https.HttpsError('unknown', 'Failed to update email');
+  }
 });
 
 // Cloud Function to send an email

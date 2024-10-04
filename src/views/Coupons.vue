@@ -34,6 +34,7 @@ export default {
 
             // Fetching data
             clients: [],
+            affiliates: [],
             coupons: [],
             searchClientResults: [],
 
@@ -51,7 +52,14 @@ export default {
             editingCoupon: null,
             modalImageUrl: '',
 
-            appliedCode: ''
+            appliedCode: '',
+            clientId: '',
+
+            selectedCouponDetails: [],
+            filteredAppliedCoupons: [],
+            filterByDate: false,
+            startDate: null,
+            endDate: null
         }
     },
     watch: {
@@ -63,7 +71,7 @@ export default {
         filteredCoupons() {
             let filteredCoupons = this.coupons;
 
-            // Filter for store-only coupons if `option3` is selected in `selectedCouponOption`
+            // Filter for payable-only coupons if `option3` is selected in `selectedCouponOption`
             if (this.selectedCouponOption === 'option3') {
                 filteredCoupons = filteredCoupons.filter(coupon => coupon.onlyInStore === true);
             }
@@ -75,14 +83,27 @@ export default {
                     break;
                 case 'option2':
                     // Show paid coupons
-                    filteredCoupons = filteredCoupons.filter(coupon => coupon.isPaid === true);
+                    filteredCoupons = filteredCoupons.filter(coupon => coupon.applied === true && coupon.isPaid === true);
                     break;
                 case 'option3':
                     // Show unpaid coupons
-                    filteredCoupons = filteredCoupons.filter(coupon => coupon.isPaid === false);
+                    filteredCoupons = filteredCoupons.filter(coupon => coupon.applied === true && coupon.isPaid === false);
                     break;
                 default:
                     break;
+            }
+
+            // Filter by date range
+            if (this.filterByDate && this.startDate && this.endDate) {
+                const start = new Date(this.startDate);
+                const end = new Date(this.endDate);
+                end.setHours(23, 59, 59, 999);
+
+                filteredCoupons = filteredCoupons.filter(coupon => {
+                    const couponDateParts = coupon.expiration.split('/');
+                    const couponDate = new Date(couponDateParts[2], couponDateParts[1] - 1, couponDateParts[0]);
+                    return couponDate >= start && couponDate <= end;
+                });
             }
 
             // Apply search query filter
@@ -139,6 +160,46 @@ export default {
                 this.clients = [];
             }
         },
+        async fetchAffiliates() {
+            const role = 'afiliado';
+            const affRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
+
+            try {
+                const snapshot = await get(affRef);
+
+                if (snapshot.exists()) {
+                    const users = snapshot.val();
+
+                    // Since Firebase data is an object, map to array for easier use
+                    this.affiliates = Object.keys(users).map(key => ({
+                        id: key,
+                        ...users[key]
+                    }));
+                } else {
+                    this.affiliates = [];  // No clients found
+                }
+            } catch (error) {
+                console.error('Error fetching affiliates:', error);
+                this.affiliates = [];
+            }
+        },
+        async fetchClientName(clientId) {
+            try {
+                const clientRef = dbRef(db, `Users/${clientId}`);
+                const clientSnapshot = await get(clientRef);
+
+                if (clientSnapshot.exists()) {
+                    const clientData = clientSnapshot.val();
+                    return `${clientData.firstName} ${clientData.lastName}`;
+                } else {
+                    console.log('Client not found');
+                    return 'Unknown Client';
+                }
+            } catch (error) {
+                console.error('Error fetching client name:', error);
+                return 'Unknown Client';
+            }
+        },
         async fetchUserCoupons() {
             try {
                 const couponsRef = dbRef(db, `Users/${this.userId}/coupons`);
@@ -175,8 +236,23 @@ export default {
 
                 if (couponsSnapshot.exists()) {
                     const couponsData = couponsSnapshot.val();
-                    const couponIds = Object.keys(couponsData);  // Fetch only IDs
-                    return couponIds; // Return array of coupon IDs
+
+                    // Extracting the correct structure from Firebase
+                    const appliedCoupons = await Promise.all(Object.keys(couponsData).flatMap(couponId =>
+                        Object.keys(couponsData[couponId]).map(async (redemptionId) => {
+                            const couponDetails = couponsData[couponId][redemptionId];
+                            const clientName = await this.fetchClientName(couponDetails.client_id); // Fetch client's name
+
+                            return {
+                                couponId,  // Coupon reference
+                                couponCode: couponDetails.couponCode,
+                                clientId: couponDetails.client_id,
+                                appliedDate: couponDetails.appliedDate,
+                                clientName: clientName,
+                            };
+                        })
+                    ));
+                    return appliedCoupons;
                 } else {
                     console.log('No applied coupons found for the user');
                     return [];
@@ -226,7 +302,7 @@ export default {
                 else if (userRole === 'afiliado') {
                     const couponsRef = dbRef(db, `Coupons`);
                     const couponsSnapshot = await get(couponsRef);
-                    const userAppliedCouponIds = await this.fetchUserAppliedCoupons(); // Coupon IDs applied by the affiliate
+                    const userAppliedCoupons = await this.fetchUserAppliedCoupons();
 
                     if (couponsSnapshot.exists()) {
                         const couponsData = couponsSnapshot.val();
@@ -241,22 +317,39 @@ export default {
 
                         // Applied coupons
                         allCoupons.forEach((coupon) => {
-                            if (coupon.storeApplied === true && userAppliedCouponIds.includes(coupon.id)) {
-                                appliedCoupons.push(coupon);
+                            const appliedCoupon = userAppliedCoupons.find(ac => ac.couponId === coupon.id);
+                            if (coupon.applied === true && appliedCoupon) {
+                                appliedCoupons.push({
+                                    ...coupon,
+                                    couponCode: appliedCoupon.couponCode,
+                                    clientId: appliedCoupon.clientId,
+                                    appliedDate: appliedCoupon.appliedDate,
+                                    clientName: appliedCoupon.clientName
+                                });
                             }
                         });
 
                         // Pending payment coupons
                         allCoupons.forEach((coupon) => {
-                            if (userAppliedCouponIds.includes(coupon.id) && coupon.isPaid === false) {
-                                pendingPaymentCoupons.push(coupon);
+                            const appliedCoupon = userAppliedCoupons.find(ac => ac.couponId === coupon.id);
+                            if (appliedCoupon && coupon.isPaid === false) {
+                                pendingPaymentCoupons.push({
+                                    ...coupon,
+                                    couponCode: appliedCoupon.couponCode,
+                                    clientId: appliedCoupon.clientId,
+                                    appliedDate: appliedCoupon.appliedDate,
+                                    clientName: appliedCoupon.clientName
+                                });
                             }
                         });
 
                         // Display filtered coupons based on the selected option
                         if (this.selectedCouponOption === 'option1') {
+                            // Applied Coupons
                             this.coupons = appliedCoupons;
+                            console.log(this.coupons);
                         } else if (this.selectedCouponOption === 'option2') {
+                            // Pending Payment Coupons
                             this.coupons = pendingPaymentCoupons;
                         } else {
                             this.coupons = allCoupons;
@@ -287,29 +380,6 @@ export default {
             } catch (error) {
                 console.error('Error loading coupons:', error);
                 this.coupons = [];
-            }
-        },
-        async loadCouponsWithRedemptions() {
-            try {
-                // First fetch the list of coupons
-                await this.loadCoupons();
-
-                // Loop through coupons and count redemptions
-                for (const coupon of this.coupons) {
-                    const couponRedemptionsRef = dbRef(db, `Users/${this.userId}/appliedCoupons/${coupon.id}`);
-                    const snapshot = await get(couponRedemptionsRef);
-
-                    // Count the number of redemptions
-                    if (snapshot.exists()) {
-                        coupon.redeemedCount = Object.keys(snapshot.val()).length;
-                    } else {
-                        coupon.redeemedCount = 0; // No redemptions found
-                    }
-                }
-
-                // The coupon data will now have the redemption count
-            } catch (error) {
-                console.error('Error loading coupons with redemption count:', error);
             }
         },
 
@@ -429,8 +499,19 @@ export default {
 
         //Create and Assign coupons
         async createCoupon() {
-            // const tenantId = await this.getTenantId();
             let qrFileUrl = '';
+
+            // Check if the coupon code already exists
+            const existingCouponsRef = dbRef(db, 'Coupons');
+            const existingCouponsSnapshot = await get(existingCouponsRef);
+            const existingCoupons = existingCouponsSnapshot.val();
+
+            // Iterate through existing coupons to check for duplicate couponCode
+            const couponExists = Object.values(existingCoupons || {}).some(coupon => coupon.couponCode === this.couponCode);
+            if (couponExists) {
+                alert('El código de cupón ya existe. Por favor, elija otro código.');
+                return null;
+            }
 
             if (this.qrFile) {
                 const qrFileRef = storageRef(storage, `coupons/${this.couponName}`);
@@ -451,8 +532,6 @@ export default {
                 redeemCount: this.redeemCount,
                 onlyInStore: this.onlyInStore,
                 isPaid: false
-
-                // tenant_id: tenantId
             };
             console.log(couponData);
 
@@ -515,6 +594,18 @@ export default {
                 if (!this.couponName || !this.couponType || !this.couponCode || !this.couponAmount || !this.couponExp) {
                     alert('Por favor complete todos los campos del formulario antes de crear el cupón.');
                     return;
+                }
+
+                // Check if the coupon code already exists
+                const existingCouponsRef = dbRef(db, 'Coupons');
+                const existingCouponsSnapshot = await get(existingCouponsRef);
+                const existingCoupons = existingCouponsSnapshot.val();
+
+                // Iterate through existing coupons to check for duplicate couponCode
+                const couponExists = Object.values(existingCoupons || {}).some(coupon => coupon.couponCode === this.couponCode);
+                if (couponExists) {
+                    alert('El código de cupón ya existe. Por favor, elija otro código.');
+                    return null;
                 }
 
                 // Upload QR file if present
@@ -680,13 +771,22 @@ export default {
                 // Generate a unique key for each redemption (using timestamp here for simplicity)
                 const redemptionId = new Date().getTime();
 
-                // Save each redemption as a separate entry in the User's applied coupons
-                const userCouponRef = dbRef(db, `Users/${this.userId}/appliedCoupons/${selectedCoupon.id}/${redemptionId}`);
-                await set(userCouponRef, {
-                    couponCode: selectedCoupon.couponCode,
-                    appliedDate: new Date().toISOString(),
-                    storeId: this.userId, // Affiliate store applying the coupon
-                });
+                //Client
+                const clientId = this.selectedClient.id;
+                // Check if the client has the coupon assigned to them for their use
+                const clientRef = dbRef(db, `Users/${clientId}/coupons/${selectedCoupon.id}`);
+                const snapshot = await get(clientRef);
+
+                // If the client has the coupon assigned to them, they can use it
+                if (snapshot.exists()) {
+                    // Save each redemption as a separate entry in the User's (Affiliate) applied coupons
+                    const userCouponRef = dbRef(db, `Users/${this.userId}/appliedCoupons/${selectedCoupon.id}/${redemptionId}`);
+                    await set(userCouponRef, {
+                        client_id: clientId,
+                        couponCode: selectedCoupon.couponCode,
+                        appliedDate: new Date().toISOString(),
+                    });
+                }
 
                 // Increment the timesUsed
                 const newTimesUsed = timesUsed + 1;
@@ -695,7 +795,7 @@ export default {
                 const couponUpdateRef = dbRef(db, `Coupons/${selectedCoupon.id}`);
                 await update(couponUpdateRef, {
                     timesUsed: newTimesUsed,
-                    storeApplied: true
+                    applied: true
                 });
 
                 // If coupon can no longer be redeemed, trigger client removal
@@ -710,6 +810,7 @@ export default {
 
                 // Clear the input after applying
                 this.appliedCode = '';
+                this.selectedClient = '';
 
             } catch (error) {
                 console.error('Error applying coupon:', error);
@@ -722,7 +823,7 @@ export default {
 
                 // Iterate through clients to check for the coupon in their 'appliedCoupons'
                 this.clients.forEach(async client => {
-                    
+
                     if (client.coupons && client.coupons[couponId]) {
                         // Remove the coupon from the client's appliedCoupons
                         const userCouponToRemoveRef = dbRef(db, `Users/${client.id}/coupons/${couponId}`);
@@ -735,6 +836,66 @@ export default {
                 console.error('Error removing coupon from clients:', error);
             }
         },
+        setActiveAffiliate(index) {
+            // Set all affiliates to inactive
+            this.affiliates.forEach(affiliate => {
+                affiliate.active = false;
+            });
+            // Set the clicked category to active
+            this.affiliates[index].active = true;
+
+            // Filter the menu items based on the active category
+            this.filterCouponsByAffiliates(this.affiliates[index].id);
+        },
+        async filterCouponsByAffiliates(affiliateId) {
+            try {
+                // Reference to the applied coupons for the affiliate
+                const couponsRef = dbRef(db, `Users/${affiliateId}/appliedCoupons`);
+                const couponsSnapshot = await get(couponsRef);
+
+                if (couponsSnapshot.exists()) {
+                    const couponsData = couponsSnapshot.val();
+
+                    // Fetch applied coupon details and reference coupon data from the Coupons table
+                    const appliedCoupons = await Promise.all(Object.keys(couponsData).flatMap(couponId =>
+                        Object.keys(couponsData[couponId]).map(async (redemptionId) => {
+                            const couponDetails = couponsData[couponId][redemptionId];
+                            const clientName = await this.fetchClientName(couponDetails.client_id); // Fetch client's name
+
+                            // Fetch additional coupon details from the Coupons table
+                            const couponRef = dbRef(db, `Coupons/${couponId}`);
+                            const couponSnapshot = await get(couponRef);
+
+                            let fullCouponData = {};
+                            if (couponSnapshot.exists()) {
+                                fullCouponData = couponSnapshot.val();
+                            }
+
+                            return {
+                                couponId,  // Coupon reference
+                                clientId: couponDetails.client_id,
+                                appliedDate: couponDetails.appliedDate,
+                                clientName: clientName,
+                                ...fullCouponData // Merge full coupon data from Coupons table
+                            };
+                        })
+                    ));
+
+                    // Set the filtered applied coupons to the result
+                    this.filteredAppliedCoupons = appliedCoupons;
+                } else {
+                    console.log('No applied coupons found for the affiliate');
+                    this.filteredAppliedCoupons = [];
+                }
+            } catch (error) {
+                console.error('Error fetching applied coupons:', error);
+                this.filteredAppliedCoupons = [];
+            }
+        },
+        clearDateFilter() {
+            this.startDate = null;
+            this.endDate = null;
+        },
     },
     async created() {
         const userStore = useUserStore();
@@ -745,8 +906,12 @@ export default {
 
         await this.loadCoupons();
 
-        if (this.role === 'admin') {
+        if (this.role === 'admin' || this.role === 'afiliado') {
             await this.fetchClients();
+        }
+
+        if (this.role === 'admin') {
+            await this.fetchAffiliates();
         }
 
     }
@@ -776,12 +941,17 @@ export default {
                     <div class="mb-3 form-check form-check-inline">
                         <input class="form-check-input" type="radio" name="couponOptions" id="inlineRadio3"
                             value="option3" v-model="selectedCouponOption">
-                        <label class="form-check-label" for="inlineRadio3">Administrar cupones de Tienda</label>
+                        <label class="form-check-label" for="inlineRadio3">Administrar Pago de cupones</label>
+                    </div>
+                    <div class="mb-3 form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="couponOptions" id="inlineRadio4"
+                            value="option4" v-model="selectedCouponOption">
+                        <label class="form-check-label" for="inlineRadio4">Ver cupones aplicados</label>
                     </div>
 
                     <!-- Option 1 = Assign Existing Coupon Section -->
                     <div v-if="selectedCouponOption === 'option1'" class="mt-3">
-                        <h5>Seleccione un cupón existente</h5>
+                        <h5 class="text-center text-uppercase mb-4">Seleccione un cupón existente</h5>
                         <p v-if="coupons.length === 0">No hay cupones registrados.</p>
 
                         <!-- Search Bar to Filter Coupons -->
@@ -907,8 +1077,8 @@ export default {
                                                             </template>
                                                         </p>
 
-                                                        <!-- Store Only Coupon -->
-                                                        <p class="card-text"><strong>Solo en tienda: </strong>
+                                                        <!-- Cupones pagables por RoseApp -->
+                                                        <p class="card-text"><strong>Cupon pagable: </strong>
                                                             <template
                                                                 v-if="editingCoupon && editingCoupon.id === coupon.id">
                                                                 <input type="checkbox"
@@ -973,7 +1143,7 @@ export default {
 
                     <!-- Option 2 = Create/Assign New Coupon Section -->
                     <div v-if="selectedCouponOption === 'option2'" class="mt-3">
-                        <h5>Crear cupón</h5>
+                        <h5 class="text-center text-uppercase mb-4">Crear cupón</h5>
                         <div class="row mb-3">
                             <div class="col-12 col-md-6 col-lg-3 mb-3">
                                 <label for="couponName" class="form-label">Nombre</label>
@@ -1020,7 +1190,7 @@ export default {
                             <div class="mb-3 mt-3 form-check">
                                 <input type="checkbox" class="form-check-input" id="storeCheckbox"
                                     v-model="onlyInStore">
-                                <label class="form-check-label" for="storeCheckbox">Cupón de Tienda</label>
+                                <label class="form-check-label" for="storeCheckbox">Cupón pagable</label>
                             </div>
                         </div>
                         <label for="qrFile" class="form-label">Cargar QR</label>
@@ -1054,9 +1224,9 @@ export default {
                             cupón</button>
                     </div>
 
-                    <!-- Option 3 = Manage InStore Coupons -->
+                    <!-- Option 3 = Manage Coupon payments -->
                     <div v-if="selectedCouponOption === 'option3'" class="mt-3">
-                        <h5>Cupones solo disponibles en Tienda</h5>
+                        <h5 class="text-center text-uppercase mb-4">Administrar Cupones</h5>
                         <p v-if="coupons.length === 0">No hay cupones registrados.</p>
 
                         <!-- Search Bar to Filter Coupons -->
@@ -1065,7 +1235,7 @@ export default {
                                 placeholder="Buscar cupón por nombre o código..." />
                         </div>
 
-                        <!-- Filters -->
+                        <!-- Filters by option -->
                         <div class="mb-3 form-check form-check-inline">
                             <input class="form-check-input" type="radio" name="filterOptions" id="allCoupons"
                                 value="option1" v-model="selectedFilterOption">
@@ -1081,6 +1251,38 @@ export default {
                                 value="option3" v-model="selectedFilterOption">
                             <label class="form-check-label" for="notPaidCoupons">Sin pagar</label>
                         </div>
+
+                        <!-- Filters by date range -->
+                        <div class="mb-3 form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="flexSwitchCheckDefault"
+                                v-model="filterByDate">
+                            <label class="form-check-label" for="flexSwitchCheckDefault">Filtrar por fecha</label>
+                        </div>
+
+                        <hr v-if="filterByDate">
+
+                        <div v-if="filterByDate" class="justify-content-center" style="margin-bottom: 20px;">
+                            <h5 class="mb-4 text-center">Filtrar por rango de fecha</h5>
+                            <div class="row g-3 justify-content-center">
+                                <!-- Start Date Picker -->
+                                <div class="col-12 col-sm-6 col-md-4 d-flex justify-content-center">
+                                    <input type="date" v-model="startDate" class="form-control" />
+                                </div>
+                                <!-- End Date Picker -->
+                                <div class="col-12 col-sm-6 col-md-4 d-flex justify-content-center">
+                                    <input type="date" v-model="endDate" class="form-control" />
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-center mt-3">
+                                <button type="button" class="btn btn-theme" style="width: 150px;"
+                                    @click="clearDateFilter">
+                                    Limpiar filtro
+                                </button>
+                            </div>
+                        </div>
+
+                        <hr v-if="filterByDate">
 
                         <div class="row">
                             <div class="col-12 col-md-6 col-lg-4 mb-3" v-for="(coupon, index) in filteredCoupons"
@@ -1114,9 +1316,7 @@ export default {
                                             <div class="col">
                                                 <!-- Coupon Code -->
                                                 <p class="card-text"><strong>Código:</strong>
-                                                    <template>
-                                                        {{ coupon.couponCode }}
-                                                    </template>
+                                                    {{ coupon.couponCode }}
                                                 </p>
 
                                                 <!-- Bootstrap Accordion for Coupon Details -->
@@ -1187,6 +1387,69 @@ export default {
                             </div>
                         </div>
                     </div>
+
+                    <!-- Option 4 = Visualize applied coupons -->
+                    <div v-if="selectedCouponOption === 'option4'" class="mt-3">
+                        <h5 class="text-center text-uppercase mb-4">Cupones Aplicados</h5>
+                        <p v-if="coupons.length === 0">No hay cupones registrados.</p>
+
+                        <!-- Search Bar to Filter Coupons -->
+                        <!-- <div class="mb-3">
+                            <input type="text" class="form-control" v-model="searchCoupon"
+                                placeholder="Buscar cupón por nombre o código..." />
+                        </div> -->
+
+                        <div class="row">
+                            <h6 class="text-uppercase">Comercios</h6>
+
+                            <div class="nav-container">
+                                <div class="overflow-auto" style="max-height: 200px;">
+                                    <ul class="nav nav-pills justify-content-center custom-nav-pills">
+                                        <li class="nav-item" v-for="(affiliate, index) in affiliates"
+                                            :key="affiliate.id">
+                                            <a class="nav-link"
+                                                :class="{ 'active': affiliate.active, 'custom-active': affiliate.active }"
+                                                href="#" @click.prevent="setActiveAffiliate(index)">
+                                                {{ affiliate.companyName }}
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3 mb-3">Mostrando {{ filteredAppliedCoupons.length }} resultados</div>
+                        <div class="row">
+                            <div class="col-12 col-md-6 col-lg-4 mb-3" v-for="coupon in filteredAppliedCoupons"
+                                :key="coupon.id">
+                                <div class="card h-100">
+                                    <div class="card-body position-relative">
+                                        <div class="row">
+                                            <div class="col">
+                                                <div class="img-container position-relative mb-3">
+                                                    <!-- Image Display -->
+                                                    <div class="img"
+                                                        :style="{ backgroundImage: 'url(' + coupon.qrFileUrl + ')', backgroundSize: 'cover', backgroundPosition: 'center', height: '200px' }">
+                                                    </div>
+                                                </div>
+                                                <p class="card-text"><strong>Nombre:</strong>
+                                                    {{ coupon.name }}
+                                                </p>
+                                                <p class="card-text"><strong>Código:</strong>
+                                                    {{ coupon.couponCode }}
+                                                </p>
+                                                <p class="card-text"><strong>Aplicado el dia:</strong>
+                                                    {{ formatDate(coupon.appliedDate) }}
+                                                </p>
+                                                <p class="card-text"><strong>Para el cliente:</strong>
+                                                    {{ coupon.clientName }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1218,7 +1481,11 @@ export default {
                                 style="max-height: 150px;" @click="openModal(coupon.qrFileUrl)">
                         </div>
                         <p class="card-text"><strong>Código:</strong> {{ coupon.couponCode }}</p>
-                        <p class="card-text"><strong>Saldo:</strong> ${{ coupon.balance }}</p>
+                        <p class="card-text">
+                            <strong>{{ coupon.type === 'saldo' ? 'Saldo: $' :
+                                'Porcentaje: %' }}</strong>
+                            {{ coupon.balance }}
+                        </p>
                         <p class="card-text"><strong>Expiración:</strong> {{ coupon.expiration }}</p>
                     </div>
                 </div>
@@ -1261,7 +1528,22 @@ export default {
                                 <h5 class="card-title mb-4 font-weight-bold text-primary">Aplicar Cupón</h5>
                                 <p class="card-text text-muted mb-4">Ingrese el código del cupón que desea aplicar.</p>
                                 <div class="input-group mb-4">
-                                    <input type="text" class="form-control form-control-lg rounded-pill"
+                                    <SearchInput v-model="searchClient" :results="searchClientResults"
+                                        placeholder="Busque un cliente por su cédula..." @input="searchClientsForCoupon"
+                                        @select="selectClientForCoupon"
+                                        class="form-control form-control-lg rounded-pill text-center" />
+                                </div>
+                                <!-- Display selected client information -->
+                                <div v-if="selectedClient" class="mb-3 p-3 border rounded text-start">
+                                    <h5>Información del cliente seleccionado</h5>
+                                    <p><strong>Nombre:</strong> {{ selectedClient.firstName + ' ' +
+                                        selectedClient.lastName }}</p>
+                                    <p><strong>Cédula:</strong> {{ selectedClient.identification }}</p>
+                                    <p><strong>Email:</strong> {{ selectedClient.email }}</p>
+                                    <p><strong>Teléfono:</strong> {{ selectedClient.phoneNumber }}</p>
+                                </div>
+                                <div class="input-group mb-4">
+                                    <input type="text" class="form-control form-control-lg rounded-pill text-center"
                                         v-model="appliedCode" placeholder="Código del cupón" />
                                 </div>
                                 <button class="btn btn-secondary btn-lg rounded-pill px-5 shadow-sm mt-3"
@@ -1276,7 +1558,7 @@ export default {
                 <!-- Options -->
                 <div class="mb-3 form-check form-check-inline">
                     <input class="form-check-input" type="radio" name="couponOptions" id="inlineRadio1" value="option1"
-                        v-model="selectedCouponOption" @click="loadCoupons(), loadCouponsWithRedemptions()">
+                        v-model="selectedCouponOption" @click="loadCoupons()">
                     <label class="form-check-label" for="inlineRadio1">Cupones aplicados</label>
                 </div>
                 <div class="mb-3 form-check form-check-inline">
@@ -1292,6 +1574,7 @@ export default {
                             <div class="card-body">
                                 <div class="d-flex justify-content-between mb-3">
                                     <h6 class="card-title mb-0">{{ coupon.name }}</h6>
+                                    <h6 class="text-muted"><strong>Cliente: </strong>{{ coupon.clientName }}</h6>
                                 </div>
                                 <div class="img-container text-center mb-3">
                                     <img :src="coupon.qrFileUrl" alt="QR Code" class="img-fluid img-thumbnail"
@@ -1299,6 +1582,9 @@ export default {
                                 </div>
                                 <p class="card-text"><strong>Código:</strong> {{ coupon.couponCode }}</p>
                                 <p class="card-text"><strong>Saldo:</strong> ${{ coupon.balance }}</p>
+                                <p class="card-text"><strong>Aplicado el dia: </strong>{{ formatDate(coupon.appliedDate)
+                                    }}
+                                </p>
                                 <p class="card-text"><strong>Expiración:</strong> {{ formatDate(coupon.expiration) }}
                                 </p>
                                 <p class="card-text"><strong>Veces que se puede aplicar: </strong>{{ coupon.redeemCount
@@ -1318,6 +1604,7 @@ export default {
                             <div class="card-body">
                                 <div class="d-flex justify-content-between mb-3">
                                     <h6 class="card-title mb-0">{{ coupon.name }}</h6>
+                                    <h6 class="text-muted"><strong>Cliente: </strong>{{ coupon.clientName }}</h6>
                                 </div>
                                 <div class="img-container text-center mb-3">
                                     <img :src="coupon.qrFileUrl" alt="QR Code" class="img-fluid img-thumbnail"
@@ -1325,6 +1612,9 @@ export default {
                                 </div>
                                 <p class="card-text"><strong>Código:</strong> {{ coupon.couponCode }}</p>
                                 <p class="card-text"><strong>Saldo:</strong> ${{ coupon.balance }}</p>
+                                <p class="card-text"><strong>Aplicado el dia: </strong>{{ formatDate(coupon.appliedDate)
+                                    }}
+                                </p>
                                 <p class="card-text"><strong>Expiración:</strong> {{ formatDate(coupon.expiration) }}
                                 </p>
                             </div>
@@ -1367,5 +1657,37 @@ export default {
     border-left: 1px solid #ccc;
     height: 100%;
     margin-left: 15px;
+}
+
+.custom-nav-pills .nav-link {
+    border-radius: 20px;
+    background-color: #f8f9fa;
+    /* Light background for pills */
+    color: #29122f;
+    margin-right: 10px;
+    padding: 10px 20px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.custom-nav-pills .nav-link:hover {
+    background-color: #e2e6ea;
+    /* Slightly darker on hover */
+    color: #0056b3;
+    /* Darker blue on hover */
+}
+
+.custom-nav-pills .nav-link.active,
+.custom-nav-pills .custom-active {
+    background-color: #007bff;
+    /* Active state color */
+    color: white;
+    /* White text for active pills */
+}
+
+.custom-nav-pills .nav-link.active:hover {
+    background-color: #0056b3;
+    /* Darker blue on active hover */
 }
 </style>

@@ -253,7 +253,6 @@ export default {
                 if (this.selectedClient.firstName) updateData.firstName = this.selectedClient.firstName;
                 if (this.selectedClient.lastName) updateData.lastName = this.selectedClient.lastName;
                 if (this.selectedClient.identification) updateData.identification = this.selectedClient.identification;
-                if (this.selectedClient.email) updateData.email = this.selectedClient.email;
                 if (this.selectedClient.phoneNumber) updateData.phoneNumber = this.selectedClient.phoneNumber;
                 if (this.selectedClient.state) updateData.state = this.selectedClient.state;
                 if (this.selectedClient.municipio) updateData.municipio = this.selectedClient.municipio;
@@ -263,6 +262,14 @@ export default {
                 if (Object.keys(updateData).length > 0) {
                     const userRef = dbRef(db, `Users/${clientId}`);
                     await update(userRef, updateData);
+
+                    // Update email via Cloud Function if the email is changed
+                    const newEmail = this.selectedClient.email;
+                    if (newEmail && client.email !== newEmail) {
+                                                    
+                        const updateEmailFunction = httpsCallable(functions, 'updateUserEmail');
+                        await updateEmailFunction({ uid: clientId, newEmail });
+                    }
 
                     this.cancelEdit();
                     this.fetchClients();

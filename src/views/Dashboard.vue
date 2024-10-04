@@ -10,6 +10,7 @@ export default {
 			clients: [],
 			verifiedClients: [],
 			affiliates: [],
+			appliedCoupons: 0
 		}
 	},
 	methods: {
@@ -45,29 +46,51 @@ export default {
 			}
 		},
 		async fetchAffiliates() {
-            const role = 'afiliado';
-            const affiliatesRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
+			const role = 'afiliado';
+			const affiliatesRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
 
-            try {
-                const affiliateSnapshot = await get(affiliatesRef);
+			try {
+				const affiliateSnapshot = await get(affiliatesRef);
 
-                if (affiliateSnapshot.exists()) {
-                    const affiliatesList = [];
-                    affiliateSnapshot.forEach((childSnapshot) => {
-                        const affiliateData = childSnapshot.val();
-                        affiliatesList.push({
-                            ...affiliateData
-                        });
-                    });
+				if (affiliateSnapshot.exists()) {
+					const affiliatesList = [];
+					affiliateSnapshot.forEach((childSnapshot) => {
+						const affiliateData = childSnapshot.val();
+						affiliatesList.push({
+							...affiliateData
+						});
+					});
 
-                    this.affiliates = affiliatesList;
-                } else {
-                    console.log("No data available.");
-                }
-            } catch (error) {
-                console.error("Error fetching affiliates:", error);
-            }
-        },
+					this.affiliates = affiliatesList;
+				} else {
+					console.log("No data available.");
+				}
+			} catch (error) {
+				console.error("Error fetching affiliates:", error);
+			}
+		},
+		async fetchCoupons() {
+			const affiliates = this.affiliates;
+
+			try {
+				let appliedCoupons = [];
+
+				// Loop through each affiliate and collect their applied coupons
+				affiliates.forEach(affiliate => {
+					if (affiliate.appliedCoupons) {
+						// Add all coupons for the current affiliate to the appliedCoupons array
+						appliedCoupons = appliedCoupons.concat(affiliate.appliedCoupons);
+					}
+				});
+
+				// If you want to sum the number of applied coupons across all affiliates
+				const totalCouponsApplied = appliedCoupons.length;
+				this.appliedCoupons = totalCouponsApplied;
+				console.log("Total applied coupons:", totalCouponsApplied);
+			} catch (error) {
+				console.error("Error fetching applied coupons:", error);
+			}
+		},
 	},
 	async mounted() {
 		const userStore = useUserStore();
@@ -77,6 +100,7 @@ export default {
 
 		await this.fetchClients();
 		await this.fetchAffiliates();
+		await this.fetchCoupons();
 	}
 }
 </script>
@@ -122,11 +146,23 @@ export default {
 			<div class="col-4">
 				<div class="card custom-card h-100 text-center">
 					<div class="card-body d-flex flex-column justify-content-center align-items-center">
-						<div class="icon-circle bg-info mb-3">
+						<div class="icon-circle bg-primary mb-3">
 							<i class="fa fa-building fa-lg text-white"></i>
 						</div>
 						<h5 class="mb-1">Comercios Afiliados</h5>
 						<h3>{{ affiliates.length || 0 }}</h3>
+					</div>
+				</div>
+			</div>
+			<!-- Cupones aplicados -->
+			<div class="col-4">
+				<div class="card custom-card h-100 text-center">
+					<div class="card-body d-flex flex-column justify-content-center align-items-center">
+						<div class="icon-circle bg-success mb-3">
+							<i class="fa fa-ticket fa-lg text-white"></i>
+						</div>
+						<h5 class="mb-1">Cupones Usados</h5>
+						<h3>{{ appliedCoupons || 0 }}</h3>
 					</div>
 				</div>
 			</div>

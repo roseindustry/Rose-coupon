@@ -27,6 +27,7 @@ export default defineComponent({
 			parroquia: '',
 			businessName: '',
 			rif: '',
+			acceptTerms: false,
 			loading: false,
 			formErrors: {
 				emailUsed: false,
@@ -55,110 +56,117 @@ export default defineComponent({
 	},
 	methods: {
 		async submitForm() {
-			// Basic validation for password mismatch
+			// Validation for password mismatch
 			if (this.password !== this.confirmPassword) {
 				this.passwordMismatch = true;
 				return;
 			}
 			this.formErrors.passwordMismatch = false;
 
-			this.loading = true; // Show loader
+			// Validation of Terms and conditions
+			if (this.acceptTerms === true) {
+				try {
+					
+					this.loading = true; // Show loader
 
-			try {
-				// Query Users to check if email is already used
-				const usersRef = dbRef(db, `Users`);
-				const snapshot = await get(usersRef);
-				if (snapshot.exists()) {
-					const users = snapshot.val();
-					for (const uid in users) {
-						if (users[uid].email === this.email || users[uid].identification === this.identification || users[uid].rif === this.rif) {
-							this.formErrors.emailUsed = users[uid].email === this.email;
-							this.formErrors.identificationUsed = users[uid].identification === this.identification;
-							this.formErrors.rifUsed = users[uid].rif === this.rif;
+					// Query Users to check if email or identification is already used
+					const usersRef = dbRef(db, `Users`);
+					const snapshot = await get(usersRef);
+					if (snapshot.exists()) {
+						const users = snapshot.val();
+						for (const uid in users) {
+							if (users[uid].email === this.email || users[uid].identification === this.identification || users[uid].rif === this.rif) {
+								this.formErrors.emailUsed = users[uid].email === this.email;
+								this.formErrors.identificationUsed = users[uid].identification === this.identification;
+								this.formErrors.rifUsed = users[uid].rif === this.rif;
 
-							// Show a Toastify notification if the email, rif or cedula is already in use
-							Toastify({
-								text: "El usuario que intenta registrar ya existe.",
-								duration: 3000,
-								close: true,
-								gravity: "top", // `top` or `bottom`
-								position: "right", // `left`, `center` or `right`
-								stopOnFocus: true, // Prevents dismissing of toast on hover
-								style: {
-									background: "linear-gradient(to right, #ff5f6d, #ffc371)",
-								},
-							}).showToast();
-							this.loading = false; // Hide loader
-							return;
+								// Show a Toastify notification if the email, rif or cedula is already in use
+								Toastify({
+									text: "El usuario que intenta registrar ya existe.",
+									duration: 3000,
+									close: true,
+									gravity: "top", // `top` or `bottom`
+									position: "right", // `left`, `center` or `right`
+									stopOnFocus: true, // Prevents dismissing of toast on hover
+									style: {
+										background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+									},
+								}).showToast();
+								this.loading = false; // Hide loader
+								return;
+							}
 						}
 					}
+
+					// Create the user
+					const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
+					const user = userCredential.user;
+
+					// Set the user data in the database
+					const userRef = dbRef(db, `Users/${user.uid}`);
+					await set(userRef, {
+						email: user.email,
+						...(this.role === 'afiliado'
+							? {
+								companyName: this.businessName,
+								rif: this.identification
+							}
+							: {
+								firstName: this.firstName,
+								lastName: this.lastName,
+								identification: this.identification
+							}),
+						phoneNumber: this.phoneNumber,
+						state: this.state,
+						municipio: this.municipio,
+						parroquia: this.parroquia,
+						role: this.role,
+					});
+
+					console.log('User created:', user.uid);
+
+					// Toastify success message
+					Toastify({
+						text: "Bienvenido a bordo!",
+						duration: 3000,
+						close: true,
+						gravity: "top", // `top` or `bottom`
+						position: "right", // `left`, `center` or `right`
+						stopOnFocus: true, // Prevents dismissing of toast on hover
+						style: {
+							background: "linear-gradient(to right, #00b09b, #96c93d)",
+						},
+					}).showToast();
+
+					// After successful signup and data storage, redirect based on role
+					if (this.role === 'cliente') {
+						this.$router.push('/client-portal');
+					} else if (this.role === 'admin') {
+						this.$router.push('/');
+					} else if (this.role === 'afiliado') {
+						this.$router.push('/affiliate-portal');
+					}
+
+				} catch (error) {
+					console.error('Error signing up');
+					console.error(error);
+
+					// Check for other errors
+					Toastify({
+						text: "Error al registrarse. Inténtalo de nuevo.",
+						duration: 3000,
+						close: true,
+						gravity: "top", // `top` or `bottom`
+						position: "right", // `left`, `center` or `right`
+						stopOnFocus: true, // Prevents dismissing of toast on hover
+						style: {
+							background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+						},
+					}).showToast();
 				}
-
-				// Create the user
-				const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
-				const user = userCredential.user;
-
-				// Set the user data in the database
-				const userRef = dbRef(db, `Users/${user.uid}`);
-				await set(userRef, {
-					email: user.email,
-					...(this.role === 'afiliado'
-						? {
-							companyName: this.businessName,
-							rif: this.identification
-						}
-						: {
-							firstName: this.firstName,
-							lastName: this.lastName,
-							identification: this.identification
-						}),
-					phoneNumber: this.phoneNumber,
-					state: this.state,
-					municipio: this.municipio,
-					parroquia: this.parroquia,
-					role: this.role,
-				});
-
-				console.log('User created:', user.uid);
-
-				// Toastify success message
-				Toastify({
-					text: "Bienvenido a bordo!",
-					duration: 3000,
-					close: true,
-					gravity: "top", // `top` or `bottom`
-					position: "right", // `left`, `center` or `right`
-					stopOnFocus: true, // Prevents dismissing of toast on hover
-					style: {
-						background: "linear-gradient(to right, #00b09b, #96c93d)",
-					},
-				}).showToast();
-
-				// After successful signup and data storage, redirect based on role
-				if (this.role === 'cliente') {
-					this.$router.push('/client-portal');
-				} else if (this.role === 'admin') {
-					this.$router.push('/');
-				} else if (this.role === 'afiliado') {
-					this.$router.push('/affiliate-portal');
-				}
-
-			} catch (error) {
-				console.error('Error signing up');
-				console.error(error);
-
-				// Check for other errors
-				Toastify({
-					text: "Error al registrarse. Inténtalo de nuevo.",
-					duration: 3000,
-					close: true,
-					gravity: "top", // `top` or `bottom`
-					position: "right", // `left`, `center` or `right`
-					stopOnFocus: true, // Prevents dismissing of toast on hover
-					style: {
-						background: "linear-gradient(to right, #ff5f6d, #ffc371)",
-					},
-				}).showToast();
+			} else {
+				alert('Debes aceptar nuestros terminos para proceder.');
+				return;
 			}
 		},
 		resetForm() {
@@ -261,6 +269,7 @@ export default defineComponent({
 					<label class="form-label">Estado</label>
 					<select v-model="state" @change="venezuelanStatesInfo(state)"
 						class="form-control form-control-lg fs-15px" placeholder="Seleccione un Estado">
+						<option value="" disabled selected>Selecciona un estado</option>
 						<option v-for="state in venezuelanStates" :key="state" :value="state">
 							{{ state }}
 						</option>
@@ -270,6 +279,7 @@ export default defineComponent({
 					<label class="form-label">Municipio</label>
 					<select v-model="municipio" @change="displayParroquias(municipio)"
 						class="form-control form-control-lg fs-15px" placeholder="Seleccione un Estado">
+						<option value="" disabled selected>Selecciona un municipio</option>
 						<option v-for="municipio in municipios" :key="municipio" :value="municipio">
 							{{ municipio }}
 						</option>
@@ -279,6 +289,7 @@ export default defineComponent({
 					<label class="form-label">Parroquia</label>
 					<select v-model="parroquia" class="form-control form-control-lg fs-15px"
 						placeholder="Seleccione un Estado">
+						<option value="" disabled selected>Selecciona una parroquia</option>
 						<option v-for="parroquia in parroquias" :key="parroquia" :value="parroquia">
 							{{ parroquia }}
 						</option>
@@ -296,6 +307,11 @@ export default defineComponent({
 					<small v-if="formErrors.passwordMismatch" class="text-danger">Las contraseñas no coinciden.</small>
 				</div>
 				<p>(<span class="text-danger">*</span>) Campos obligatorios.</p>
+				<div class="form-check mt-4 mb-3">
+					<input type="checkbox" class="form-check-input" id="terms" v-model="acceptTerms" />
+					<label class="form-check-label" for="terms">Acepto <a href="#" data-bs-toggle="modal"
+							data-bs-target="#termsModal">Terminos y Condiciones</a>.</label>
+				</div>
 				<button type="submit" :disabled="loading" class="btn btn-theme btn-lg fs-15px fw-500 d-block w-100">
 					<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
 						aria-hidden="true"></span>
@@ -308,6 +324,22 @@ export default defineComponent({
 				</div>
 			</form>
 		</div>
+
+		<!-- Modal for Terminos y condiciones -->
+		<div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
+			<div class="modal-dialog modal-lg modal-dialog-scrollable">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="termsModalLabel">Nuestros Términos y Condiciones</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+					</div>
+					<div class="modal-body">
+						<p>Conditions</p>
+					</div>
+				</div>
+			</div>
+		</div>
+
 	</div>
 </template>
 <style>
