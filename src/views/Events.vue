@@ -52,6 +52,9 @@ export default {
 				},
 			}).showToast();
 		},
+		setSelectedAffiliate(affiliate) {
+			this.selectedAffiliateId = affiliate;
+		},
 
 		// Fetch data
 		async fetchEvents() {
@@ -82,10 +85,10 @@ export default {
 								// fetch the affiliate data using the affiliateId
 								const affiliateDataRef = dbRef(db, `Users/${affiliateId}`);
 								const affiliateDataSnapshot = await get(affiliateDataRef);
-								
+
 								if (affiliateDataSnapshot.exists()) {
 									event.affiliate = affiliateDataSnapshot.val();
-								} 
+								}
 							}
 							return event;
 						})
@@ -336,7 +339,8 @@ export default {
 								<div class="card-body d-flex flex-column">
 									<h5 class="card-title text-truncate">{{ evento.name }}</h5>
 									<p class="card-text"><strong>Fecha: </strong>{{ evento.date }}</p>
-									<p class="card-text"><strong>Comercio Afiliado: </strong>{{ evento.affiliate.companyName }}</p>
+									<p class="card-text"><strong>Comercio Afiliado: </strong>{{
+										evento.affiliate.companyName }}</p>
 									<div v-if="evento.affiliate" class="img"
 										:style="{ backgroundImage: 'url(' + evento.affiliate.image + ')', backgroundSize: 'cover', backgroundPosition: 'center', height: '200px' }">
 									</div>
@@ -371,14 +375,34 @@ export default {
 							<div class="row">
 								<!-- Select Affiliate comerce for event -->
 								<div class="col-md-4 col-sm-6 mb-3">
-									<label for="eventAffiliate" class="form-label">Comercio Afiliado para el
+									<label for="eventAffiliate" class="form-label">Comercios Afiliados para el
 										Evento</label>
-									<select v-model="selectedAffiliateId" class="form-control">
-										<option value="" disabled selected>Selecciona un comercio afiliado</option>
-										<option v-for="(aff, index) in affiliates" :key="index" :value="aff.id">
-											{{ aff.companyName }}
-										</option>
-									</select>
+
+									<div class="dropdown">
+										<button class="btn btn-secondary dropdown-toggle" type="button"
+											id="dropdownMenuCategory" data-bs-toggle="dropdown" aria-expanded="false">
+											{{ selectedAffiliateId.companyName ? selectedAffiliateId.companyName :
+											'Seleccione...' }}
+										</button>
+										<ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+											<li v-if="affiliates.length === 0">
+												<p style="margin: 10px;">No hay afiliados registrados.</p>
+											</li>
+											<li v-for="aff in affiliates" :key="aff.id">
+
+												<div class="form-check" style="margin: 10px;">
+													<input type="checkbox" class="form-check-input" id="dropdownCheck2">
+													<label class="form-check-label" for="dropdownCheck2" @select="setSelectedAffiliate(aff)">
+														{{ aff.companyName }}
+													</label>
+												</div>
+
+												<!-- <a class="dropdown-item" href="#" @click="setSelectedAffiliate(aff)">
+													{{ aff.companyName }}
+												</a> -->
+											</li>
+										</ul>
+									</div>
 								</div>
 								<!-- Name -->
 								<div class="col-md-4 col-sm-6 mb-3">
@@ -516,7 +540,8 @@ export default {
 								<div class="card-body d-flex flex-column">
 									<h5 class="card-title text-truncate">{{ evento.name }}</h5>
 									<p class="card-text"><strong>Fecha: </strong>{{ evento.date }}</p>
-									<p class="card-text"><strong>Comercio Afiliado: </strong>{{ evento.affiliate.companyName }}</p>
+									<p class="card-text"><strong>Comercio Afiliado: </strong>{{
+										evento.affiliate.companyName }}</p>
 									<div v-if="evento.affiliate" class="img"
 										:style="{ backgroundImage: 'url(' + evento.affiliate.image + ')', backgroundSize: 'cover', backgroundPosition: 'center', height: '200px' }">
 									</div>

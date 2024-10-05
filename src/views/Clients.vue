@@ -247,6 +247,8 @@ export default {
             const clientId = client.uid;
 
             try {
+                this.isSubmitting = true;
+
                 // Create an updateData object, but only include non-empty fields
                 const updateData = {};
 
@@ -291,6 +293,9 @@ export default {
             } catch (error) {
                 console.error('Error updating info:', error);
                 alert('La actualizacion de datos falló.');
+            } finally {
+                // Hide the loader
+                this.isSubmitting = false;
             }
         },
         deleteClient(client, index) {
@@ -622,13 +627,17 @@ export default {
                                                 <div
                                                     v-if="clientCoupons[client.uid] && clientCoupons[client.uid].length > 0">
                                                     <!-- Responsive grid of coupons -->
-                                                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                                                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-4">
                                                         <!-- Coupon card -->
                                                         <div class="col" v-for="coupon in clientCoupons[client.uid]"
                                                             :key="coupon.id">
                                                             <div class="card h-100 shadow-sm">
+                                                                <div class="card-header">
+                                                                    <h5 class="card-title text-center text-black">Cupón</h5>
+                                                                    <h6 class="text-center text-primary">{{ coupon.name }}</h6>
+                                                                </div>
                                                                 <div class="card-body">
-                                                                    <h5 class="card-title text-center">Cupón</h5>
+                                                                    
                                                                     <p class="card-text">
                                                                         <strong class="me-2">
                                                                             {{ coupon.type === 'saldo' ? 'Saldo: $' :
@@ -637,18 +646,12 @@ export default {
                                                                         <br>
                                                                         <strong>Válido hasta:</strong> {{
                                                                             formatDate(coupon.expiration) }} <br>
-                                                                        <strong>Estado:</strong>
-                                                                        <span v-if="coupon.status === true"
+                                                                        <strong>Estado: </strong>
+                                                                        <span v-if="coupon.applied === false"
                                                                             class="badge bg-success">Sin usar</span>
                                                                         <span v-else
                                                                             class="badge bg-danger">Usado</span>
                                                                     </p>
-                                                                </div>
-                                                                <div class="card-footer">
-                                                                    <small class="text-muted">
-                                                                        {{ coupon.status ? 'Cupón disponible' :
-                                                                            'Cupón usado' }}
-                                                                    </small>
                                                                 </div>
                                                             </div>
                                                         </div>

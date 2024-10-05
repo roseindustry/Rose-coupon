@@ -95,8 +95,23 @@ export default {
 
                 if (affiliateSnapshot.exists()) {
                     const affiliatesList = [];
+
+                    // Fetch all categories first and store them in a map for easier lookup
+                    const categoriesRef = dbRef(db, 'Affiliate_categories');
+                    const categoriesSnapshot = await get(categoriesRef);
+                    const categoriesMap = {};
+
+                    if (categoriesSnapshot.exists()) {
+                        categoriesSnapshot.forEach((categorySnapshot) => {
+                            const categoryData = categorySnapshot.val();
+                            categoriesMap[categorySnapshot.key] = categoryData.name;  // Assuming 'name' is the category name field
+                        });
+                    }
+
                     affiliateSnapshot.forEach((childSnapshot) => {
                         const affiliateData = childSnapshot.val();
+                        const categoryId = affiliateData.category_id;
+
                         affiliatesList.push({
                             id: childSnapshot.key,
                             name: affiliateData.companyName,
@@ -108,8 +123,10 @@ export default {
                             state: affiliateData.state,
                             municipio: affiliateData.municipio,
                             parroquia: affiliateData.parroquia,
+                            address: affiliateData.address,
                             type: affiliateData.type,
-                            category_id: affiliateData.category_id
+                            category_id: categoryId,
+                            categoryName: categoriesMap[categoryId] || 'Sin categoría'
                         });
                     });
 
@@ -221,16 +238,12 @@ export default {
                 // Conditionally update fields if they are provided
                 if (affiliate.name) updateData.companyName = affiliate.name;
                 if (affiliate.rif) updateData.rif = affiliate.rif;
+                if (affiliate.phoneNumber) updateData.phoneNumber = affiliate.phoneNumber;
                 if (affiliate.state) updateData.state = affiliate.state;
                 if (affiliate.municipio) updateData.municipio = affiliate.municipio;
                 if (affiliate.parroquia) updateData.parroquia = affiliate.parroquia;
                 if (affiliate.type) updateData.type = affiliate.type;
                 if (affiliate.status !== undefined) updateData.status = affiliate.status;
-
-                // Add logic to change this in authentication
-                if (affiliate.email) updateData.email = affiliate.email;
-                // Add logic to verify phone number
-                if (affiliate.phoneNumber) updateData.phoneNumber = affiliate.phoneNumber;
 
                 // Update with selected category ID
                 if (this.selectedCategory && this.selectedCategory.id) {
@@ -242,6 +255,13 @@ export default {
                     const userRef = dbRef(db, `Users/${affiliate.id}`);
                     await update(userRef, updateData);
 
+                    // Update email via Cloud Function if the email is changed
+                    const newEmail = affiliate.email;
+                    if (newEmail) {
+
+                        const updateEmailFunction = httpsCallable(functions, 'updateUserEmail');
+                        await updateEmailFunction({ uid: affiliate.id, newEmail });
+                    }
 
                     // Close the modal after saving
                     const modal = Modal.getInstance(document.getElementById('editAffiliateModal'));
@@ -1028,7 +1048,7 @@ export default {
                                         <button class="btn btn-secondary dropdown-toggle" type="button"
                                             id="dropdownEditMenuCategory" data-bs-toggle="dropdown"
                                             aria-expanded="false">
-                                            {{ selectedCategory ? selectedCategory.name : 'Seleccione...' }}
+                                            {{ selectedCategory ? selectedCategory.name : editData.categoryName }}
                                         </button>
                                         <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
                                             <li v-if="categories.length === 0">
@@ -1055,15 +1075,16 @@ export default {
                                     <input class="form-control" id="editAffiliateRif" v-model="editData.rif" />
                                 </div>
                                 <!-- Email -->
-                                <!-- <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-md-4 col-sm-6 mb-3">
                                     <label for="editAffiliateEmail" class="form-label">Email</label>
                                     <input class="form-control" id="editAffiliateEmail" v-model="editData.email" />
-                                </div> -->
+                                </div>
                                 <!-- Phone Number -->
-                                <!-- <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-md-4 col-sm-6 mb-3">
                                     <label for="editAffiliatePhone" class="form-label">Teléfono</label>
-                                    <input class="form-control" id="editAffiliatePhone" v-model="editData.phoneNumber" />
-                                </div> -->
+                                    <input class="form-control" id="editAffiliatePhone"
+                                        v-model="editData.phoneNumber" />
+                                </div>
                                 <div class="col-md-4 col-sm-6 mb-3">
                                     <label class="form-label">Estado</label>
                                     <select v-model="editData.state" @change="displayMunicipios(editData.state)"
@@ -1311,30 +1332,23 @@ export default {
                 <div v-else>
                     <!-- Loop through filtered affiliates -->
                     <div class="row">
-                        <div v-for="(affiliate, index) in filteredAffiliates" :key="affiliate.id"
+                        <div v-for="affiliate in filteredAffiliates" :key="affiliate.id"
                             class="col-12 col-sm-6 col-md-4 mb-4">
                             <div class="card h-100 position-relative">
                                 <div class="img-container position-relative">
-                                    <div v-if="!affiliate.updatedImagePreview" class="img"
-                                        :style="{ backgroundImage: 'url(' + affiliate.image + ')' }"></div>
-                                    <div v-if="affiliate.isEditing">
-                                        <div v-if="affiliate.updatedImagePreview" class="mt-2">
-                                            <img :src="affiliate.updatedImagePreview" class="img-thumbnail"
-                                                alt="preview" style="max-height: 200px;">
-                                        </div>
-                                        <input type="file" @change="event => previewUpdatedImage(event, affiliate)"
-                                            class="form-control" />
-                                    </div>
-                                    <div v-if="affiliate.isSubmitting"
-                                        class="spinner-overlay d-flex justify-content-center align-items-center">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Cargando...</span>
-                                        </div>
-                                    </div>
+                                    <div class="img" :style="{ backgroundImage: 'url(' + affiliate.image + ')' }"></div>
                                 </div>
                                 <div class="card-body d-flex flex-column">
                                     <h5 class="card-title text-truncate">{{ affiliate.name }}</h5>
-                                    <p class="card-test text-truncate flex-grow-1">{{ affiliate.state }}</p>
+                                    <p class="card-text text-truncate flex-grow-1">
+                                        <i class="fa-brands fa-whatsapp fa-lg"></i>
+                                        {{ affiliate.phoneNumber }}
+                                    </p>
+                                    <p class="card-text text-truncate flex-grow-1">{{ affiliate.state }}</p>
+                                    <p class="card-text text-truncate flex-grow-1">
+                                        <i class="fa-solid fa-location-dot"></i>
+                                        {{ affiliate.address ? affiliate.address : affiliate.municipio }}
+                                    </p>
                                 </div>
                             </div>
                         </div>

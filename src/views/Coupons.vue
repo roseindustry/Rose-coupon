@@ -238,7 +238,7 @@ export default {
                     const couponsData = couponsSnapshot.val();
 
                     // Extracting the correct structure from Firebase
-                    const appliedCoupons = await Promise.all(Object.keys(couponsData).flatMap(couponId =>
+                    const appliedCoupons = await Promise.all(Object.keys(couponsData).map(couponId =>
                         Object.keys(couponsData[couponId]).map(async (redemptionId) => {
                             const couponDetails = couponsData[couponId][redemptionId];
                             const clientName = await this.fetchClientName(couponDetails.client_id); // Fetch client's name
@@ -883,6 +883,7 @@ export default {
 
                     // Set the filtered applied coupons to the result
                     this.filteredAppliedCoupons = appliedCoupons;
+                    console.log(this.filteredAppliedCoupons);
                 } else {
                     console.log('No applied coupons found for the affiliate');
                     this.filteredAppliedCoupons = [];
@@ -1399,21 +1400,26 @@ export default {
                                 placeholder="Buscar cupón por nombre o código..." />
                         </div> -->
 
-                        <div class="row">
-                            <h6 class="text-uppercase">Comercios</h6>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <h6 class="text-uppercase text-center mb-3">Comercios</h6>
+                            </div>
 
-                            <div class="nav-container">
-                                <div class="overflow-auto" style="max-height: 200px;">
-                                    <ul class="nav nav-pills justify-content-center custom-nav-pills">
-                                        <li class="nav-item" v-for="(affiliate, index) in affiliates"
-                                            :key="affiliate.id">
-                                            <a class="nav-link"
-                                                :class="{ 'active': affiliate.active, 'custom-active': affiliate.active }"
-                                                href="#" @click.prevent="setActiveAffiliate(index)">
-                                                {{ affiliate.companyName }}
-                                            </a>
-                                        </li>
-                                    </ul>
+                            <div class="col-12">
+                                <div class="nav-container">
+                                    <!-- Make the container responsive and apply good padding/margin -->
+                                    <div class="overflow-auto px-3 py-2" style="max-height: 200px;">
+                                        <ul class="nav nav-pills justify-content-center custom-nav-pills">
+                                            <li class="nav-item" v-for="(affiliate, index) in affiliates"
+                                                :key="affiliate.id">
+                                                <a class="nav-link px-3 py-2 mb-3"
+                                                    :class="{ 'active': affiliate.active, 'custom-active': affiliate.active }"
+                                                    href="#" @click.prevent="setActiveAffiliate(index)">
+                                                    {{ affiliate.companyName }}
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1432,16 +1438,16 @@ export default {
                                                     </div>
                                                 </div>
                                                 <p class="card-text"><strong>Nombre:</strong>
-                                                    {{ coupon.name }}
+                                                    {{ coupon.name ? coupon.name : 'Cupon borrado' }}
                                                 </p>
                                                 <p class="card-text"><strong>Código:</strong>
-                                                    {{ coupon.couponCode }}
+                                                    {{ coupon.couponCode ? coupon.couponCode : 'Cupon borrado' }}
                                                 </p>
                                                 <p class="card-text"><strong>Aplicado el dia:</strong>
                                                     {{ formatDate(coupon.appliedDate) }}
                                                 </p>
                                                 <p class="card-text"><strong>Para el cliente:</strong>
-                                                    {{ coupon.clientName }}
+                                                    {{ coupon.clientName ? coupon.clientName : 'Aplicado sin cliente' }}
                                                 </p>
                                             </div>
                                         </div>

@@ -56,6 +56,7 @@ export default defineComponent({
 			// Afiliado-specific fields
 			companyName: '',
 			rif: '',
+			address: '',
 
 			// Edit states
 			editStates: {
@@ -70,6 +71,7 @@ export default defineComponent({
 				identification: false,
 				companyName: false,
 				rif: false,
+				address: false,
 			},
 
 			//Verification data
@@ -165,6 +167,14 @@ export default defineComponent({
 		toggleEdit(fieldName) {
 			// Toggle the edit state for the given fieldName
 			this.editStates[fieldName] = !this.editStates[fieldName];
+		},
+		handleEditClick(fieldName) {
+			// If editing 'municipio' or 'parroquia', trigger the respective function
+			if (fieldName === 'municipio') {
+				this.displayMunicipios(this.state); // Pass the current state
+			} else if (fieldName === 'parroquia') {
+				this.displayParroquias(this.municipio); // Pass the current municipio
+			}
 		},
 		async updateField(fieldName) {
 			const userStore = useUserStore();
@@ -342,7 +352,8 @@ export default defineComponent({
 					{ name: 'email', label: 'Correo electronico', value: this.email },
 					{ name: 'state', label: 'Estado', value: this.state },
 					{ name: 'municipio', label: 'Municipio', value: this.municipio },
-					{ name: 'parroquia', label: 'Parroquia', value: this.parroquia }
+					{ name: 'parroquia', label: 'Parroquia', value: this.parroquia },
+					{ name: 'address', label: 'Dirección', value: this.address, special: true },
 				];
 			} else {
 				return [
@@ -358,7 +369,12 @@ export default defineComponent({
 			}
 		},
 		isProfileIncomplete() {
-			return !this.state || !this.municipio || !this.parroquia;
+			if (this.role === 'afiliado') {
+				return !this.state || !this.municipio || !this.parroquia || !this.address;
+			} else {
+				return !this.state || !this.municipio || !this.parroquia;
+			}
+
 		},
 	},
 });
@@ -439,20 +455,23 @@ export default defineComponent({
 										<div class="fw-bold">{{ field.label }}</div>
 
 										<!-- Display field value when not in edit mode -->
-										<div v-if="!editStates[field.name]" class="text-secondary">{{ field.value }}
+										<div v-if="!editStates[field.name]"
+											:class="{ 'text-danger': field.name === 'address' && !field.value, 'text-secondary': field.value }">
+											{{ field.value || (field.name === 'address' ? 'Completa este campo para que tus clientes te encuentren mejor.' : '') }}
 										</div>
 
-										<!-- Check if editing address to show dropdown, otherwise show input -->
+										<!-- Check if in edit mode and show appropriate input based on field.name -->
 										<template v-if="editStates[field.name]">
-											<select v-if="field.name === 'state'" v-model="state" @change="displayMunicipios(state)"
-												class="form-control mt-2">
+											<select v-if="field.name === 'state'" v-model="state"
+												@change="displayMunicipios(state)" class="form-control mt-2">
 												<option value="" disabled selected>Selecciona un estado</option>
 												<option v-for="(state, index) in venezuelanStates" :key="index"
 													:value="state">
 													{{ state }}
 												</option>
 											</select>
-											<select v-else-if="field.name === 'municipio' && showMunicipios" v-model="municipio" @change="displayParroquias(municipio)"
+											<select v-else-if="field.name === 'municipio' && showMunicipios"
+												v-model="municipio" @change="displayParroquias(municipio)"
 												class="form-control mt-2">
 												<option value="" disabled selected>Selecciona un municipio</option>
 												<option v-for="(municipio, index) in municipios" :key="index"
@@ -460,23 +479,25 @@ export default defineComponent({
 													{{ municipio }}
 												</option>
 											</select>
-											<select v-else-if="field.name === 'parroquia' && showParroquias" v-model="parroquia"
-												class="form-control mt-2">
+											<select v-else-if="field.name === 'parroquia' && showParroquias"
+												v-model="parroquia" class="form-control mt-2">
 												<option value="" disabled selected>Selecciona una parroquia</option>
 												<option v-for="(parroquia, index) in parroquias" :key="index"
 													:value="parroquia">
 													{{ parroquia }}
 												</option>
 											</select>
+											<!-- Use a dynamic v-model for text fields -->
 											<input v-else v-model="this[field.name]" type="text"
 												class="form-control mt-2">
 										</template>
 									</div>
+
 									<!-- Botones -->
 									<div class="btn-group" role="group">
 										<!-- Show "Edit" button when not in edit mode -->
 										<button class="btn btn-transparent btn-sm me-1" v-if="!editStates[field.name]"
-											@click.prevent="toggleEdit(field.name); " >
+											@click.prevent="toggleEdit(field.name); handleEditClick(field.name)">
 											<i class="fa-solid fa-pencil text-primary"></i>
 										</button>
 

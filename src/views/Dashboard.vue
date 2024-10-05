@@ -73,18 +73,25 @@ export default {
 			const affiliates = this.affiliates;
 
 			try {
-				let appliedCoupons = [];
+				let totalCouponsApplied = 0;
 
 				// Loop through each affiliate and collect their applied coupons
-				affiliates.forEach(affiliate => {
+				for (const affiliate of affiliates) {
 					if (affiliate.appliedCoupons) {
-						// Add all coupons for the current affiliate to the appliedCoupons array
-						appliedCoupons = appliedCoupons.concat(affiliate.appliedCoupons);
+						if (Array.isArray(affiliate.appliedCoupons)) {
+							// If it's an array, just add the length
+							totalCouponsApplied += affiliate.appliedCoupons.length;
+						} else if (typeof affiliate.appliedCoupons === 'object') {
+							// If it's an object, count the total number of redemptions for each coupon
+							Object.keys(affiliate.appliedCoupons).forEach(couponId => {
+								// For each couponId, count the redemption entries (which are the nested keys)
+								totalCouponsApplied += Object.keys(affiliate.appliedCoupons[couponId]).length;
+							});
+						}
 					}
-				});
+				}
 
-				// If you want to sum the number of applied coupons across all affiliates
-				const totalCouponsApplied = appliedCoupons.length;
+				// Set the total applied coupons count
 				this.appliedCoupons = totalCouponsApplied;
 				console.log("Total applied coupons:", totalCouponsApplied);
 			} catch (error) {
