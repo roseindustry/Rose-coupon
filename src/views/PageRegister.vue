@@ -4,7 +4,7 @@ import { useAppOptionStore } from '@/stores/app-option';
 import { RouterLink } from 'vue-router';
 import { auth, db } from '@/firebase/init';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { ref as dbRef, set, get } from 'firebase/database';
+import { ref as dbRef, set, get, query, orderByChild, equalTo } from 'firebase/database';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 import venezuela from 'venezuela';
@@ -13,6 +13,7 @@ export default defineComponent({
 	name: 'PageRegister',
 	data() {
 		return {
+			referralCode: null,
 			firstName: '',
 			lastName: '',
 			identification: '',
@@ -104,6 +105,49 @@ export default defineComponent({
 					}
 				}
 
+				// Referral code validation: Fetch users with role 'mesero' or 'promotora'
+				let referredByEmployee = null;
+				if (this.referralCode) {
+					const employees = ['mesero', 'promotora'];
+
+					// Query for 'mesero' role users
+					const meseroQuery = query(dbRef(db, `Users`), orderByChild('role'), equalTo('mesero'));
+					const meseroSnapshot = await get(meseroQuery);
+
+					// Query for 'promotora' role users
+					const promotoraQuery = query(usersRef, orderByChild('role'), equalTo('promotora'));
+					const promotoraSnapshot = await get(promotoraQuery);
+
+					// Combine results from both queries
+					const employeeResults = { ...(meseroSnapshot.exists() ? meseroSnapshot.val() : {}), ...(promotoraSnapshot.exists() ? promotoraSnapshot.val() : {}) };
+
+					// Check if referral code matches any employee
+					for (const empUid in employeeResults) {
+						if (employeeResults[empUid].codigoReferido === this.referralCode) {
+							referredByEmployee = empUid;
+							break;
+						}
+					}
+
+					if (!referredByEmployee) {
+						// Invalid referral code
+						Toastify({
+							text: "Código de referido inválido.",
+							duration: 3000,
+							close: true,
+							gravity: "top",
+							position: "right",
+							stopOnFocus: true,
+							style: {
+								background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+							},
+						}).showToast();
+						this.loading = false;
+						return;
+					}
+
+				}
+
 				// Create the user
 				const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
 				const user = userCredential.user;
@@ -130,6 +174,15 @@ export default defineComponent({
 				});
 
 				console.log('User created:', user.uid);
+
+				// If the user was referred, update the referred employee's 'referidos' list
+				if (referredByEmployee) {
+					const referidosRef = dbRef(db, `Users/${referredByEmployee}/referidos/${user.uid}`);
+					await set(referidosRef, {
+						referredAt: new Date().toISOString(),
+					});
+					console.log(`User referred by employee: ${referredByEmployee}`);
+				}
 
 				// Toastify success message
 				Toastify({
@@ -219,15 +272,6 @@ export default defineComponent({
 		<div class="register-content">
 			<form @submit.prevent="submitForm">
 				<h1 class="text-center mb-4">Registro</h1>
-				<!-- <p class="text-muted text-center">Necesitas ser Admin para acceder a todos los servicios.</p> -->
-				<!-- <div class="mb-3">
-					<label class="form-label">Tipo de usuario <span class="text-danger">*</span></label>
-					<select v-model="role" class="form-control form-control-lg fs-15px">
-						<option value="admin">Admin</option>
-						<option value="cliente">Cliente</option>
-						<option value="afiliado">Comercio Afiliado</option>
-					</select>
-				</div> -->
 
 				<!-- Conditional fields based on the selected role -->
 				<div v-if="role === 'afiliado'">
@@ -245,6 +289,11 @@ export default defineComponent({
 				</div>
 
 				<div v-else>
+					<div class="mb-3">
+						<label class="form-label">Código de referido </label>
+						<input v-model="referralCode" type="text" class="form-control form-control-lg fs-15px"
+							value="" />
+					</div>
 					<div class="mb-3">
 						<label class="form-label">Nombre <span class="text-danger">*</span></label>
 						<input v-model="firstName" type="text" class="form-control form-control-lg fs-15px"
@@ -321,7 +370,7 @@ export default defineComponent({
 					<small v-if="formErrors.passwordMismatch" class="text-danger">Las contraseñas no coinciden.</small>
 				</div>
 				<p class="text-muted">(<span class="text-danger">*</span>) Campos obligatorios.</p>
-				
+
 				<!-- <div class="form-check mt-4 mb-3">
 					<input type="checkbox" class="form-check-input" id="terms" v-model="acceptTerms" />
 					<label class="form-check-label" for="terms">Acepto <a href="#" data-bs-toggle="modal"

@@ -11,7 +11,7 @@ const router = createRouter({
 			path: '/',
 			name: 'Dashboard',
 			component: () => import('../views/Dashboard.vue'),
-			meta: { roles: ['admin'] }
+			meta: { roles: ['admin', 'mesero', 'promotora'] }
 		},
 		{
 			path: '/comercios-afiliados',
@@ -129,10 +129,15 @@ const router = createRouter({
 			component: () => import('../views/PageRegister.vue')
 		},
 		{
+			path: '/page/register-employee',
+			name: 'Registro de empleado',
+			component: () => import('../views/PageRegisterEmpleado.vue')
+		},
+		{
 			path: '/profile',
 			name: 'Perfil',
 			component: () => import('../views/Profile.vue'),
-			meta: { roles: ['admin', 'afiliado', 'cliente'] }
+			meta: { roles: ['admin', 'afiliado', 'cliente', 'mesero', 'promotora'] }
 		},
 		{
 			path: '/:pathMatch(.*)*',
@@ -222,10 +227,10 @@ router.beforeEach((to, from, next) => {
 		  });
 		} else {
 		  // No user signed in
-		  if (to.path === '/page/register' || to.path === '/page/login' || to.path === '/landing') {
+		  if (to.path === '/page/register' || to.path === '/page/register-employee' || to.path === '/page/login' || to.path === '/landing') {
 			resolve(); // Allow access to landing, login or register page
 		  } else {
-			resolve('/landing'); // Redirect to login page
+			resolve('/landing'); // Redirect to landing page
 		  }
 		}
 	  });

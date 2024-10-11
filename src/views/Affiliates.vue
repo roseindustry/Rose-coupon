@@ -1070,7 +1070,7 @@ export default {
         <!-- Modal for Adding New Affiliate -->
         <div class="modal fade" id="addAffiliateModal" tabindex="-1" aria-labelledby="addAffiliateModalLabel"
             aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="addAffiliateModalLabel">Agregar Afiliado</h5>
@@ -1081,7 +1081,7 @@ export default {
                         <div class="container">
                             <div class="row">
                                 <!-- Categoria -->
-                                <div class="mb-3">
+                                <div class="col-12 mb-3">
                                     <div class="dropdown">
                                         <button class="btn btn-secondary dropdown-toggle" type="button"
                                             id="dropdownMenuCategory" data-bs-toggle="dropdown" aria-expanded="false">
@@ -1101,74 +1101,75 @@ export default {
                                     </div>
                                 </div>
                                 <!-- Affiliate Name -->
-                                <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-12 mb-3">
                                     <label for="affiliateName" class="form-label">Nombre <span
                                             class="text-danger">*</span></label>
                                     <input type="text" class="form-control" id="affiliateName" v-model="affiliate.name"
                                         required />
                                 </div>
+                            </div>
+
+                            <div class="row">
                                 <!-- RIF -->
-                                <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-12 mb-3">
                                     <label for="affiliateRif" class="form-label">RIF <span
                                             class="text-danger">*</span></label>
                                     <input class="form-control" id="affiliateRif" v-model="affiliate.rif" required />
                                 </div>
                                 <!-- Email -->
-                                <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-12 mb-3">
                                     <label for="affiliateEmail" class="form-label">Email <span
                                             class="text-danger">*</span></label>
                                     <input class="form-control" id="affiliateEmail" v-model="affiliate.email"
                                         required />
                                 </div>
                             </div>
+
                             <div class="row">
                                 <!-- Phone Number -->
-                                <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-12 mb-3">
                                     <label for="affiliatePhone" class="form-label">Teléfono</label>
                                     <input class="form-control" id="affiliatePhone" v-model="affiliate.phoneNumber" />
                                 </div>
-                                <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-12 mb-3">
                                     <label class="form-label">Estado <span class="text-danger">*</span></label>
                                     <select v-model="affiliate.state" @change="displayMunicipios(affiliate.state)"
                                         class="form-control mb-2">
                                         <option value="" disabled selected>Selecciona un estado</option>
                                         <option v-for="(state, index) in venezuelanStates" :key="index" :value="state">
-                                            {{ state }}
-                                        </option>
+                                            {{ state }}</option>
                                     </select>
+
                                     <label class="form-label">Municipio <span class="text-danger">*</span></label>
                                     <select v-model="affiliate.municipio"
                                         @change="displayParroquias(affiliate.municipio)" class="form-control mb-2">
                                         <option value="" disabled selected>Selecciona un municipio</option>
                                         <option v-for="(municipio, index) in municipios" :key="index"
-                                            :value="municipio">
-                                            {{ municipio }}
-                                        </option>
+                                            :value="municipio">{{ municipio }}</option>
                                     </select>
+
                                     <label class="form-label">Parroquia <span class="text-danger">*</span></label>
                                     <select v-model="affiliate.parroquia" class="form-control mb-2">
                                         <option value="" disabled selected>Selecciona una parroquia</option>
                                         <option v-for="(parroquia, index) in parroquias" :key="index"
-                                            :value="parroquia">
-                                            {{ parroquia }}
-                                        </option>
+                                            :value="parroquia">{{ parroquia }}</option>
                                     </select>
                                 </div>
                             </div>
+
                             <p>(<span class="text-danger">*</span>) Campos obligatorios.</p>
+
                             <div class="row">
                                 <!-- Affiliate Status -->
-                                <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-12 mb-3">
                                     <div class="form-check mt-4">
                                         <input type="checkbox" class="form-check-input" id="affiliateStatus"
                                             v-model="affiliate.status" />
                                         <label class="form-check-label" for="affiliateStatus">Activo</label>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="row">
                                 <!-- Upload Image Checkbox -->
-                                <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-12 mb-3">
                                     <div class="form-check">
                                         <input type="checkbox" class="form-check-input" id="uploadImageCheckbox"
                                             v-model="uploadImage">
@@ -1179,7 +1180,7 @@ export default {
 
                             <!-- Image Upload -->
                             <div class="row" v-if="uploadImage">
-                                <div class="col-md-12 mb-3">
+                                <div class="col-12 mb-3">
                                     <label for="menuItemImg" class="form-label">Imagen</label>
                                     <input type="file" class="form-control" id="menuItemImg" @change="previewImage"
                                         accept="image/*">
@@ -1210,7 +1211,7 @@ export default {
         <!-- Modal for Editing Affiliate -->
         <div class="modal fade" id="editAffiliateModal" tabindex="-1" aria-labelledby="editAffiliateModalLabel"
             aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="editAffiliateModalLabel">Editar Afiliado</h5>
@@ -1321,7 +1322,7 @@ export default {
         <!-- Modal for Managing Categories -->
         <div class="modal fade" id="manageCategoriesModal" tabindex="-1" aria-labelledby="manageCategoriesModalLabel"
             aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="manageCategoriesModalLabel">Administrar categorias</h5>
@@ -1383,7 +1384,7 @@ export default {
         <!-- Modal to add new category -->
         <div class="modal fade" id="addCategoryModal" tabindex="-1" aria-labelledby="addCategoryModalLabel"
             aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="addCategoryModalLabel">Nueva categoria</h5>
@@ -1406,7 +1407,7 @@ export default {
         <!-- Modal for Managing Subcategories -->
         <div class="modal fade" id="manageSubcategoriesModal" tabindex="-1"
             aria-labelledby="manageSubcategoriesModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="manageSubcategoriesModalLabel">Administrar Subcategorias</h5>
@@ -1454,7 +1455,8 @@ export default {
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button type="button" class="btn btn-primary" :disabled="editingSubcategoryId" @click="addSubcategory">Agregar
+                        <button type="button" class="btn btn-primary" :disabled="editingSubcategoryId"
+                            @click="addSubcategory">Agregar
                             Subcategoría</button>
                     </div>
                 </div>
@@ -1464,7 +1466,7 @@ export default {
         <!-- Modal to add new Subcategory -->
         <div class="modal fade" id="addSubcategoryModal" tabindex="-1" aria-labelledby="addSubcategoryModalLabel"
             aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="addSubcategoryModalLabel">Nueva Subcategoria</h5>

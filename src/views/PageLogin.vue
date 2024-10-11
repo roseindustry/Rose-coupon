@@ -72,9 +72,10 @@ export default {
 					},
 				}).showToast();
 
-				// Tenant exists, proceed with redirection based on role
 				switch (userData.role) {
 					case 'admin':
+					case 'mesero':
+					case 'promotora':
 						this.$router.push('/');
 						break;
 					case 'cliente':
@@ -83,9 +84,6 @@ export default {
 					case 'afiliado':
 						this.$router.push('/affiliate-portal');
 						break;
-					// case 'mesero':
-					// 	this.$router.push('/pos/customer-order');
-					// 	break;
 					default:
 						console.log('User role is not defined or user is not authorized for access.');
 				}
@@ -117,7 +115,7 @@ export default {
 				try {
 					await sendPasswordResetEmail(auth, email);
 					Toastify({
-						text: "Reset password link sent! Check your email.",
+						text: "Link de actualización de contraseña enviado! Revisa tu correo.",
 						duration: 5000,
 						close: true,
 						gravity: "top",
@@ -129,7 +127,7 @@ export default {
 				} catch (error) {
 					console.error("Failed to send password reset email:", error);
 					Toastify({
-						text: "Failed to send password reset email. Please try again.",
+						text: "Fallo el envío del link. Intenta de nuevo.",
 						duration: 5000,
 						close: true,
 						gravity: "top",
@@ -141,7 +139,7 @@ export default {
 				}
 			} else {
 				Toastify({
-					text: "Please enter your email address.",
+					text: "Por favor, ingrese una dirección de correo electrónico.",
 					duration: 3000,
 					close: true,
 					gravity: "top",
@@ -202,7 +200,8 @@ export default {
 					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 				</div>
 				<div class="modal-body">
-					<input class="form-control" v-model="loginForm.email" type="email" placeholder="Enter your email" />
+					<input class="form-control" v-model="loginForm.email" type="email"
+						placeholder="Ingresa tu correo" />
 				</div>
 				<div class="modal-footer">
 					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
@@ -213,7 +212,7 @@ export default {
 	</div>
 </template>
 <style>
-.btn-theme{
+.btn-theme {
 	background-color: purple;
 	border-color: purple;
 }

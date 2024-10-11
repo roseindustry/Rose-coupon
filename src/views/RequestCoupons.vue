@@ -92,7 +92,7 @@ export default {
                         if (requestsSnapshot.exists()) {
                             const requestsData = requestsSnapshot.val();
                             const currentMonth = new Date().getMonth();
-                            const lastRequestDate = requestsData.lastRequestDate ? new Date(requestsData.lastRequestDate) : null;
+                            const lastRequestDate = requestsData.date ? new Date(requestsData.date) : null;
 
                             if (!lastRequestDate || lastRequestDate.getMonth() !== currentMonth) {
                                 this.availableRequests = requestLimit; // Reset if new month

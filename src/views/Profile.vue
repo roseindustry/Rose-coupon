@@ -588,13 +588,13 @@ export default defineComponent({
 		<nav style="--bs-breadcrumb-divider: '>';" aria-label="breadcrumb">
 			<ol class="breadcrumb">
 				<li class="breadcrumb-item">
-					<router-link v-if="this.role === 'admin'" to="/">
+					<router-link v-if="this.role === 'admin' || this.role === 'mesero' || this.role === 'promotora'" to="/">
 						Dashboard
 					</router-link>
 					<router-link v-else-if="this.role === 'cliente'" to="/client-portal">
 						Portal de Cliente
 					</router-link>
-					<router-link v-else to="/affiliate-portal">
+					<router-link v-else-if="this.role === 'afiliado'" to="/affiliate-portal">
 						Portal de Afiliado
 					</router-link>
 				</li>
@@ -720,7 +720,7 @@ export default defineComponent({
 				</div>
 
 				<!-- Subscription section -->
-				<div v-if="subscriptionPlan" class="col">
+				<div v-if="subscriptionPlan && (this.role === 'cliente' || this.role === 'afiliado')" class="col">
 					<h4><i class="fas fa-handshake fa-fw"></i> Suscripción</h4>
 					<p>Aqui estan los detalles de tu suscripción actual.</p>
 					<div class="card shadow-sm">
