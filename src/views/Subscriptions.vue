@@ -26,6 +26,7 @@ export default {
                 name: '',
                 desc: '',
                 price: 0,
+                requestLimit: 0,
                 icon: ''
             },
             editPlanData: {
@@ -34,6 +35,7 @@ export default {
                 name: '',
                 desc: '',
                 price: 0,
+                requestLimit: 0,
                 icon: ''
             },
 
@@ -76,6 +78,7 @@ export default {
                     name: this.plan.name,
                     desc: this.plan.desc,
                     price: this.plan.price,
+                    requestLimit: this.plan.requestLimit || null,
                     icon: this.plan.icon,
                 };
                 const plansRef = dbRef(db, 'Suscriptions');
@@ -89,6 +92,7 @@ export default {
                 this.plan.name = '';
                 this.plan.desc = '';
                 this.plan.price = 0;
+                this.plan.requestLimit = 0;
                 this.plan.icon = '';
                 this.inputIcon = false;
 
@@ -119,6 +123,7 @@ export default {
                 name: this.editPlanData.name,
                 desc: this.editPlanData.desc,
                 price: this.editPlanData.price,
+                requestLimit: this.editPlanData.requestLimit || null,
                 icon: this.editPlanData.icon
             };
 
@@ -264,12 +269,10 @@ export default {
 
             // Prepare subscription details
             const subscriptionData = {
-                name: selectedPlanDetails.name,
+                subscription_id: selectedPlanDetails.id,
                 status: true, // Set the default status as true 'active'
-                price: selectedPlanDetails.price,
                 payDay: payDay,
                 isPaid: false, // Set the default as unpaid
-                icon: selectedPlanDetails.icon
             };
 
             try {
@@ -342,7 +345,7 @@ export default {
                         class="col-12 col-sm-12 col-md-6 col-lg-3 mb-4 d-flex flex-column align-items-center">
                         <!-- Plan Button (bigger) -->
                         <button @click="selectPlan(plan.name)" :class="{ 'selected': selectedPlan === plan.name }"
-                            class="btn plan-button-big w-50">
+                            class="btn plan-button-big w-50 text-uppercase">
                             <i :class="plan.icon"></i><br>
                             {{ plan.name }}
                             <!-- Edit and Delete Icons -->
@@ -393,6 +396,11 @@ export default {
                         <label class="form-label">Precio <span class="text-danger">*</span></label>
                         <input v-model="plan.price" type="number" class="form-control form-control-lg fs-15px" value=""
                             required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Número de Solicitudes de Cupones <span class="text-danger">*</span></label>
+                        <input v-model="plan.requestLimit" type="number" class="form-control form-control-lg fs-15px" value=""
+                             />
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Icono <span class="text-danger">*</span></label>
@@ -453,6 +461,10 @@ export default {
                     <div class="mb-3">
                         <label class="form-label">Precio</label>
                         <input v-model="editPlanData.price" type="number" class="form-control" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Número de Solicitudes de Cupones</label>
+                        <input v-model="editPlanData.requestLimit" type="number" class="form-control" />
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Icono</label>

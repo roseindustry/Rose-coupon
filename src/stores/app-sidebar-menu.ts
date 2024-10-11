@@ -89,6 +89,16 @@ export const useAppSidebarMenuStore = defineStore({
         icon: "fa fa-ticket",
         text: "Mis cupones",
       },
+      {
+        url: "/preferencias",
+        icon: "fa fa-heart",
+        text: "Preferencias",
+      },
+      {
+        url: "/request-coupons",
+        icon: "fa-solid fa-bell-concierge",
+        text: "Solicitar cupones",
+      },
       // {
       //   url: "/clients-ratings",
       //   icon: "fa fa-star",

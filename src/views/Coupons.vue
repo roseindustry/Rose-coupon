@@ -31,10 +31,13 @@ export default {
             selectedCoupon: null,
             selectedCouponOption: '',
             selectedFilterOption: '',
+            showClientsWithRequests: false,
+            selectedRequestsClient: {},
 
             // Fetching data
             clients: [],
             affiliates: [],
+            categories: [],
             coupons: [],
             searchClientResults: [],
 
@@ -58,8 +61,20 @@ export default {
             selectedCouponDetails: [],
             filteredAppliedCoupons: [],
             filterByDate: false,
+            filterByAffiliate: false,
             startDate: null,
-            endDate: null
+            endDate: null,
+
+            isSubmitting: false,
+            currentPage: 1,
+            itemsPerPage: 6,
+            clientPreferences: [],
+            clientsModalData: '',
+            requestsModalData: '',
+            modalTitle: '',
+            showRequestsColumn: false,
+            sortField: 'firstName',
+            sortOrder: 'asc',
         }
     },
     watch: {
@@ -100,7 +115,7 @@ export default {
                 end.setHours(23, 59, 59, 999);
 
                 filteredCoupons = filteredCoupons.filter(coupon => {
-                    const couponDateParts = coupon.expiration.split('/');
+                    const couponDateParts = this.formatDate(coupon.expiration).split('/');
                     const couponDate = new Date(couponDateParts[2], couponDateParts[1] - 1, couponDateParts[0]);
                     return couponDate >= start && couponDate <= end;
                 });
@@ -116,6 +131,14 @@ export default {
             }
 
             return filteredCoupons;
+        },
+        paginatedFilteredCoupons() {
+            const start = (this.currentPage - 1) * this.itemsPerPage;
+            const end = this.currentPage * this.itemsPerPage;
+            return this.filteredCoupons.slice(start, end);
+        },
+        totalPages() {
+            return Math.ceil(this.filteredCoupons.length / this.itemsPerPage);
         },
         currentPageName() {
             return this.$route.name;
@@ -135,6 +158,11 @@ export default {
                 },
             }).showToast();
         },
+        goToPage(page) {
+            if (page >= 1 && page <= this.totalPages) {
+                this.currentPage = page;
+            }
+        },
 
         //Fetch data
         async fetchClients() {
@@ -147,11 +175,69 @@ export default {
                 if (snapshot.exists()) {
                     const users = snapshot.val();
 
-                    // Since Firebase data is an object, map to array for easier use
                     this.clients = Object.keys(users).map(key => ({
                         id: key,
                         ...users[key]
                     }));
+
+                    this.clientPreferences = {};
+
+                    for (const client of this.clients) {
+                        // Initialize the coupons array for each client
+                        this.clientPreferences[client.id] = {};
+
+                        // Fetch preferences for the client
+                        const preferencesRef = dbRef(db, `Users/${client.id}/preferences`);
+                        const prefSnapshot = await get(preferencesRef);
+
+                        if (prefSnapshot.exists()) {
+                            const preferences = prefSnapshot.val();
+
+                            // Fetch categories for the selectedCategories
+                            if (preferences.selectedCategories) {
+                                const selectedCategories = preferences.selectedCategories;
+
+                                // Initialize each category in clientPreferences
+                                for (const categoryId of selectedCategories) {
+                                    const categoryRef = dbRef(db, `Affiliate_categories/${categoryId}`);
+                                    const categoryDetailsSnapshot = await get(categoryRef);
+
+                                    if (categoryDetailsSnapshot.exists()) {
+                                        const categoryDetails = categoryDetailsSnapshot.val();
+                                        // Store the category details in clientPreferences
+                                        this.clientPreferences[client.id][categoryId] = {
+                                            category: categoryDetails.name,
+                                            subcategories: [] // Initialize subcategories
+                                        };
+                                    }
+                                }
+                            }
+
+                            // Fetch subcategories for the selectedSubcategories
+                            if (preferences.selectedSubcategories) {
+                                const selectedSubcategories = preferences.selectedSubcategories;
+
+                                for (const subcategoryId of selectedSubcategories) {
+                                    const subcategoryRef = dbRef(db, `Affiliate_subcategories/${subcategoryId}`);
+                                    const subcategoryDetailsSnapshot = await get(subcategoryRef);
+
+                                    if (subcategoryDetailsSnapshot.exists()) {
+                                        const subcategoryDetails = subcategoryDetailsSnapshot.val();
+                                        // Find the category to add the subcategory to
+                                        for (const categoryId in this.clientPreferences[client.id]) {
+                                            // Assuming subcategory is related to its category
+                                            if (subcategoryDetails.category_id === categoryId) {
+                                                this.clientPreferences[client.id][categoryId].subcategories.push(subcategoryDetails.name);
+                                                break; // Break after adding to the correct category
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            this.clientPreferences[client.id] = {};
+                        }
+                    }
                 } else {
                     this.clients = [];  // No clients found
                 }
@@ -183,6 +269,25 @@ export default {
                 this.affiliates = [];
             }
         },
+        async fetchCategories() {
+            const categoryRef = dbRef(db, 'Affiliate_categories');
+            try {
+                const categorySnapshot = await get(categoryRef);
+
+                if (categorySnapshot.exists()) {
+                    const categories = categorySnapshot.val();
+
+                    this.categories = Object.keys(categories).map(key => ({
+                        id: key,
+                        ...categories[key]
+                    }));
+                } else {
+                    this.categories = [];
+                }
+            } catch (error) {
+                console.error("Error fetching categories:", error);
+            }
+        },
         async fetchClientName(clientId) {
             try {
                 const clientRef = dbRef(db, `Users/${clientId}`);
@@ -192,7 +297,6 @@ export default {
                     const clientData = clientSnapshot.val();
                     return `${clientData.firstName} ${clientData.lastName}`;
                 } else {
-                    console.log('Client not found');
                     return 'Unknown Client';
                 }
             } catch (error) {
@@ -406,6 +510,12 @@ export default {
             console.log('Selected client:', client.identification);
             this.searchClient = '';
             this.searchClientResults = [];
+            const modal = Modal.getOrCreateInstance(document.getElementById('clientsModal'));
+            modal.hide();
+        },
+        deselectClient() {
+            this.selectedClient = null;
+            console.log('Selected client: none');
         },
         selectCoupon(coupon) {
             this.selectedCoupon = coupon;
@@ -708,6 +818,8 @@ export default {
             this.editingCoupon = null;
             this.searchCoupon = '';  // Clear any search query
             this.selectedFilterOption = '';  // Reset filter selection
+            this.filterByAffiliate = false;
+            this.filterByDate = false;
         },
         resetForm() {
             this.couponName = '';
@@ -729,9 +841,76 @@ export default {
             const year = d.getFullYear();
             return `${day}/${month}/${year}`;
         },
-        openModal(imageUrl) {
+        openImageModal(imageUrl) {
             this.modalImageUrl = imageUrl;
             new Modal(document.getElementById('qrModal')).show();
+        },
+        openClientsModal(type) {
+            if (type === 'withoutCoupons') {
+                // Data for clients without coupons
+                this.clientsModalData = this.clients.filter((client) => !client.coupons).slice();
+                this.modalTitle = 'Clientes sin Cupones';
+                this.showRequestsColumn = false; // Hide 'Solicitud' column
+            } else if (type === 'withRequests') {
+                // Data for clients with coupon requests
+                this.clientsModalData = this.clients.filter((client) => client.coupon_requests).slice();
+                this.modalTitle = 'Clientes con Solicitudes';
+                this.showRequestsColumn = true; // Show 'Solicitud' column
+            }
+
+            // Show the modal
+            new Modal(document.getElementById('clientsModal')).show();
+        },
+        sortClients(field) {
+            if (this.sortField === field) {
+                // If already sorted by this field, toggle sort order
+                this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                // Otherwise, set the field and default to ascending order
+                this.sortField = field;
+                this.sortOrder = 'asc';
+            }
+
+            // Sort the clientsModalData array
+            this.clientsModalData.sort((a, b) => {
+                let fieldA = a[field].toString().toLowerCase();
+                let fieldB = b[field].toString().toLowerCase();
+
+                if (this.sortOrder === 'asc') {
+                    return fieldA > fieldB ? 1 : fieldA < fieldB ? -1 : 0;
+                } else {
+                    return fieldA < fieldB ? 1 : fieldA > fieldB ? -1 : 0;
+                }
+            });
+        },
+        showCouponRequest(client) {
+            if (!client.coupon_requests) {
+                console.error("No coupon requests found for this client");
+                return;
+            }
+            console.log(client);
+            // Convert coupon_requests object into an array with the keys
+            const requests = Object.keys(client.coupon_requests).map(key => ({
+                id: key,
+                ...client.coupon_requests[key]
+            }));
+
+            this.selectedRequestsClient = { ...client, coupon_requests: requests };
+            console.log(this.selectedRequestsClient);
+
+            const modal = Modal.getOrCreateInstance(document.getElementById('couponRequestModal'));
+            modal.show();
+        },
+        getAffiliateNameById(affiliateId) {
+            const affiliate = this.affiliates.find(affiliate => affiliate.id === affiliateId);
+            // If the affiliate is found, return the companyName, otherwise return 'Unknown Affiliate'
+            return affiliate ? affiliate.companyName : 'Unknown Affiliate';
+        },
+
+        getCategoryNameById(categoryId) {
+            const category = this.categories.find(category => category.id === categoryId);
+            // If the category is found, return the name, otherwise return 'Unknown Category'
+            return category ? category.name : 'Unknown Category';
         },
         async applyCoupon() {
             try {
@@ -897,6 +1076,56 @@ export default {
             this.startDate = null;
             this.endDate = null;
         },
+        async showAllAppliedCoupons() {
+            const affiliates = this.affiliates;
+
+            try {
+
+                let allAppliedCoupons = [];
+
+                // Loop through each affiliate and collect their applied coupons
+                for (const affiliate of affiliates) {
+                    if (affiliate.appliedCoupons) {
+                        if (typeof affiliate.appliedCoupons === 'object') {
+                            // For each couponId in appliedCoupons, fetch the coupon details and redemptions
+                            for (const couponId of Object.keys(affiliate.appliedCoupons)) {
+                                const redemptions = affiliate.appliedCoupons[couponId];
+
+                                // Loop through each redemption (nested object) under the couponId
+                                for (const redemptionId of Object.keys(redemptions)) {
+                                    const couponDetails = redemptions[redemptionId];
+                                    const clientName = await this.fetchClientName(couponDetails.client_id); // Fetch client's name
+
+                                    // Fetch additional coupon details from the Coupons table
+                                    const couponRef = dbRef(db, `Coupons/${couponId}`);
+                                    const couponSnapshot = await get(couponRef);
+
+                                    let fullCouponData = {};
+                                    if (couponSnapshot.exists()) {
+                                        fullCouponData = couponSnapshot.val();
+                                    }
+
+                                    // Add the coupon details and additional info to the allAppliedCoupons array
+                                    allAppliedCoupons.push({
+                                        couponId,
+                                        redemptionId,
+                                        clientId: couponDetails.client_id,
+                                        clientName,
+                                        appliedDate: couponDetails.appliedDate,
+                                        ...fullCouponData // Merge full coupon data from Coupons table
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Set the applied coupons to the result
+                this.filteredAppliedCoupons = allAppliedCoupons;
+            } catch (error) {
+                console.error("Error fetching applied coupons:", error);
+            }
+        },
     },
     async created() {
         const userStore = useUserStore();
@@ -913,6 +1142,7 @@ export default {
 
         if (this.role === 'admin') {
             await this.fetchAffiliates();
+            await this.fetchCategories();
         }
 
     }
@@ -924,7 +1154,6 @@ export default {
     <div v-if="this.role === 'admin'" class="container">
 
         <div id="assign-coupons" class="mb-5">
-            <p class="mb-3">Busque y seleccione el cliente y el cupon que desea asignar.</p>
             <div class="card shadow-lg">
                 <div class="card-body">
 
@@ -946,198 +1175,291 @@ export default {
                     </div>
                     <div class="mb-3 form-check form-check-inline">
                         <input class="form-check-input" type="radio" name="couponOptions" id="inlineRadio4"
-                            value="option4" v-model="selectedCouponOption">
+                            value="option4" v-model="selectedCouponOption" @click="showAllAppliedCoupons()">
                         <label class="form-check-label" for="inlineRadio4">Ver cupones aplicados</label>
                     </div>
 
                     <!-- Option 1 = Assign Existing Coupon Section -->
                     <div v-if="selectedCouponOption === 'option1'" class="mt-3">
-                        <h5 class="text-center text-uppercase mb-4">Seleccione un cupón existente</h5>
-                        <p v-if="coupons.length === 0">No hay cupones registrados.</p>
 
-                        <!-- Search Bar to Filter Coupons -->
-                        <div class="mb-3">
-                            <input type="text" class="form-control" v-model="searchCoupon"
-                                placeholder="Buscar cupón por nombre o código..." />
-                        </div>
+                        <hr>
 
-                        <div class="row">
-                            <div class="col-12 col-md-6 col-lg-4 mb-3" v-for="(coupon, index) in filteredCoupons"
-                                :key="coupon.id">
-                                <div class="card h-100" @click="selectCoupon(coupon)"
-                                    :class="{ 'selected': coupon === selectedCoupon }">
-                                    <div class="card-body position-relative">
-                                        <!-- Badge for status -->
-                                        <span class="badge position-absolute top-0 start-100 translate-middle"
-                                            :class="coupon.status ? 'bg-success' : 'bg-danger'">
-                                            {{ coupon.status ? 'Activo' : 'Inactivo' }}
-                                        </span>
-
-                                        <div class="d-flex justify-content-between mb-3">
-                                            <h6 class="card-title mb-0">
-                                                <template v-if="editingCoupon && editingCoupon.id === coupon.id">
-                                                    <input v-model="editingCoupon.name" class="form-control" />
-                                                </template>
-                                                <template v-else>
-                                                    {{ coupon.name }}
-                                                </template>
-                                            </h6>
-                                            <div class="btn-group" role="group">
-                                                <button class="btn btn-transparent btn-sm me-1"
-                                                    v-if="editingCoupon && editingCoupon.id === coupon.id"
-                                                    @click.prevent="updateCoupon">
-                                                    <i class="fa-solid fa-save text-success"></i>
-                                                </button>
-                                                <button class="btn btn-transparent btn-sm me-1"
-                                                    v-if="editingCoupon && editingCoupon.id === coupon.id"
-                                                    @click.prevent="cancelEdit">
-                                                    <i class="fa-solid fa-times text-secondary"></i>
-                                                </button>
-                                                <button class="btn btn-transparent btn-sm me-1" v-else
-                                                    @click.prevent="enableEditMode(coupon)">
-                                                    <i class="fa-solid fa-pencil text-primary"></i>
-                                                </button>
-                                                <button class="btn btn-transparent btn-sm me-1"
-                                                    @click.prevent="deleteCoupon(coupon.id, index)">
-                                                    <i class="fa-solid fa-trash text-danger"></i>
-                                                </button>
+                        <!-- CLIENT TO ASSIGN -->
+                        <div class="container">
+                            <h5 class="text-center text-uppercase mt-4 mb-4">Seleccione un Cliente para asignar cupón
+                            </h5>
+                            <!-- Searching input -->
+                            <SearchInput v-model="searchClient" :results="searchClientResults"
+                                placeholder="Busque un cliente por su cédula..." @input="searchClientsForCoupon"
+                                @select="selectClientForCoupon" class="form-control mb-3" />
+                            <button v-if="selectedClient" class="btn btn-danger mb-3" style="margin: 5px;"
+                                @click.prevent="deselectClient">
+                                {{ selectedClient.firstName + ' ' + selectedClient.lastName }}
+                                <i class="fa fa-times fa-sm"></i>
+                            </button>
+                            <!-- Display selected client information -->
+                            <div v-if="selectedClient && !showClientsWithRequests" class="border rounded">
+                                <div class="row mb-2">
+                                    <div class="col-12 col-md-6">
+                                        <h5><strong>Información del cliente seleccionado:</strong></h5>
+                                        <div class="card shadow-sm">
+                                            <div class="card-header">
+                                                <h5 class="card-title text-center text-black">
+                                                    {{ selectedClient.firstName + ' ' +
+                                                        selectedClient.lastName }}
+                                                </h5>
+                                            </div>
+                                            <div class="card-body">
+                                                <p><strong>Cédula:</strong> {{ selectedClient.identification }}</p>
+                                                <p><strong>Email:</strong> {{ selectedClient.email }}</p>
+                                                <p><strong>Teléfono:</strong> {{ selectedClient.phoneNumber }}</p>
                                             </div>
                                         </div>
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <h5><strong>Preferencias para cupones:</strong></h5>
+                                        <div v-if="Object.keys(clientPreferences[selectedClient.id]).length > 0">
 
-                                        <!-- Image Display -->
-                                        <div class="img-container text-center mb-3">
-                                            <img :src="coupon.qrFileUrl" alt="QR Code" class="img-fluid img-thumbnail"
-                                                style="max-height: 150px;">
+                                            <div v-for="(pref, categoryId) in clientPreferences[selectedClient.id]"
+                                                :key="categoryId">
+                                                <div class="card shadow-sm">
+                                                    <div class="card-header">
+                                                        <h5 class="card-title text-center text-black">
+                                                            {{ pref.category }}</h5>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <ul>
+                                                            <li v-for="(subcategory, index) in pref.subcategories"
+                                                                :key="index">
+                                                                {{ subcategory }}</li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+
+                                            </div>
                                         </div>
+                                        <p v-else class="text-center">El cliente no ha especificado sus
+                                            preferencias.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Trigger Modal -->
+                            <div v-if="!selectedClient" class="row justify-content-center">
+                                <div class="col d-flex justify-content-center align-items-center">
+                                    <button class="btn btn-theme" @click.prevent="openClientsModal('withoutCoupons')"
+                                        style="width: auto;">
+                                        Mostrar Clientes sin cupones
+                                    </button>
+                                </div>
+                                <div class="col d-flex justify-content-center align-items-center">
+                                    <button class="btn btn-theme" @click.prevent="openClientsModal('withRequests')"
+                                        style="width: auto;">
+                                        Mostrar Clientes con Solicitudes
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-                                        <!-- Coupon Code -->
-                                        <p class="card-text"><strong>Código: </strong>
-                                            <template v-if="editingCoupon && editingCoupon.id === coupon.id">
-                                                <input v-model="editingCoupon.couponCode" class="form-control" />
-                                            </template>
-                                            <template v-else>
-                                                {{ coupon.couponCode }}
-                                            </template>
-                                        </p>
+                        <hr>
 
-                                        <!-- Bootstrap Accordion for Coupon Details -->
-                                        <div class="accordion" :id="'couponAccordion' + index">
-                                            <div class="accordion-item">
-                                                <h2 class="accordion-header" :id="'heading' + index">
-                                                    <button class="accordion-button" type="button"
-                                                        data-bs-toggle="collapse"
-                                                        :data-bs-target="'#collapseDetails' + index"
-                                                        aria-expanded="true" :aria-controls="'collapseDetails' + index">
-                                                        Ver Detalles
+                        <!-- COUPON TO ASSIGN -->
+                        <div class="container">
+                            <h5 class="text-center text-uppercase mt-4 mb-4">Seleccione un cupón existente</h5>
+                            <p v-if="coupons.length === 0">No hay cupones registrados.</p>
+
+                            <!-- Search Bar to Filter Coupons -->
+                            <div class="mb-3">
+                                <input type="text" class="form-control" v-model="searchCoupon"
+                                    placeholder="Buscar cupón por nombre o código..." />
+                            </div>
+
+                            <!-- Coupon List -->
+                            <div class="row">
+                                <div class="col-12 col-md-6 col-lg-4 mb-3"
+                                    v-for="(coupon, index) in paginatedFilteredCoupons" :key="coupon.id">
+                                    <div class="card h-100" @click="selectCoupon(coupon)"
+                                        :class="{ 'selected': coupon === selectedCoupon }">
+                                        <div class="card-body position-relative">
+                                            <!-- Badge for status -->
+                                            <span class="badge position-absolute top-0 start-100 translate-middle"
+                                                :class="coupon.status ? 'bg-success' : 'bg-danger'">
+                                                {{ coupon.status ? 'Activo' : 'Inactivo' }}
+                                            </span>
+
+                                            <div class="d-flex justify-content-between mb-3">
+                                                <h6 class="card-title mb-0">
+                                                    <template v-if="editingCoupon && editingCoupon.id === coupon.id">
+                                                        <input v-model="editingCoupon.name" class="form-control" />
+                                                    </template>
+                                                    <template v-else>
+                                                        {{ coupon.name }}
+                                                    </template>
+                                                </h6>
+                                                <div class="btn-group" role="group">
+                                                    <button class="btn btn-transparent btn-sm me-1"
+                                                        v-if="editingCoupon && editingCoupon.id === coupon.id"
+                                                        @click.prevent="updateCoupon">
+                                                        <i class="fa-solid fa-save text-success"></i>
                                                     </button>
-                                                </h2>
-                                                <div :id="'collapseDetails' + index" class="accordion-collapse collapse"
-                                                    :class="{ show: coupon === selectedCoupon }"
-                                                    :aria-labelledby="'heading' + index"
-                                                    :data-bs-parent="'#couponAccordion' + index">
-                                                    <div class="accordion-body">
-                                                        <!-- Conditional Balance / Percentage -->
-                                                        <p class="card-text d-flex align-items-center">
-                                                            <!-- Coupon Type (Dropdown) -->
-                                                            <template
-                                                                v-if="editingCoupon && editingCoupon.id === coupon.id">
-                                                                <select v-model="editingCoupon.type"
-                                                                    class="form-control me-2" id="editType"
-                                                                    style="width: auto;">
-                                                                    <option value="saldo">Saldo</option>
-                                                                    <option value="porcentaje">Porcentaje</option>
-                                                                </select>
-                                                            </template>
-                                                            <template v-else>
-                                                                <strong class="me-2">
-                                                                    {{ coupon.type === 'saldo' ? 'Saldo: $' :
-                                                                        'Porcentaje: %' }}
-                                                                </strong>
-                                                            </template>
+                                                    <button class="btn btn-transparent btn-sm me-1"
+                                                        v-if="editingCoupon && editingCoupon.id === coupon.id"
+                                                        @click.prevent="cancelEdit">
+                                                        <i class="fa-solid fa-times text-secondary"></i>
+                                                    </button>
+                                                    <button class="btn btn-transparent btn-sm me-1" v-else
+                                                        @click.prevent="enableEditMode(coupon)">
+                                                        <i class="fa-solid fa-pencil text-primary"></i>
+                                                    </button>
+                                                    <button class="btn btn-transparent btn-sm me-1"
+                                                        @click.prevent="deleteCoupon(coupon.id, index)">
+                                                        <i class="fa-solid fa-trash text-danger"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
 
-                                                            <!-- Coupon Balance (Input) -->
-                                                            <template
-                                                                v-if="editingCoupon && editingCoupon.id === coupon.id">
-                                                                <input v-model="editingCoupon.balance"
-                                                                    class="form-control" id="editAmount" />
-                                                            </template>
-                                                            <template v-else>
-                                                                {{ coupon.balance }}
-                                                            </template>
-                                                        </p>
+                                            <!-- Image Display -->
+                                            <div class="img-container text-center mb-3">
+                                                <img :src="coupon.qrFileUrl" alt="QR Code"
+                                                    class="img-fluid img-thumbnail" style="max-height: 150px;">
+                                            </div>
 
-                                                        <!-- Redeem Count -->
-                                                        <p class="card-text"><strong>Número de usos: </strong>
-                                                            <template
-                                                                v-if="editingCoupon && editingCoupon.id === coupon.id">
-                                                                <input v-model.number="editingCoupon.redeemCount"
-                                                                    type="number" class="form-control" />
-                                                            </template>
-                                                            <template v-else>
-                                                                {{ coupon.redeemCount }}
-                                                            </template>
-                                                        </p>
+                                            <!-- Coupon Code -->
+                                            <p class="card-text"><strong>Código: </strong>
+                                                <template v-if="editingCoupon && editingCoupon.id === coupon.id">
+                                                    <input v-model="editingCoupon.couponCode" class="form-control" />
+                                                </template>
+                                                <template v-else>
+                                                    {{ coupon.couponCode }}
+                                                </template>
+                                            </p>
 
-                                                        <!-- Cupones pagables por RoseApp -->
-                                                        <p class="card-text"><strong>Cupon pagable: </strong>
-                                                            <template
-                                                                v-if="editingCoupon && editingCoupon.id === coupon.id">
-                                                                <input type="checkbox"
-                                                                    v-model="editingCoupon.onlyInStore" />
-                                                            </template>
-                                                            <template v-else>
-                                                                <span>{{ coupon.onlyInStore ? 'Sí' : 'No' }}</span>
-                                                            </template>
-                                                        </p>
+                                            <!-- Bootstrap Accordion for Coupon Details -->
+                                            <div class="accordion" :id="'couponAccordion' + index">
+                                                <div class="accordion-item">
+                                                    <h2 class="accordion-header" :id="'heading' + index">
+                                                        <button class="accordion-button" type="button"
+                                                            data-bs-toggle="collapse"
+                                                            :data-bs-target="'#collapseDetails' + index"
+                                                            aria-expanded="true"
+                                                            :aria-controls="'collapseDetails' + index">
+                                                            Ver Detalles
+                                                        </button>
+                                                    </h2>
+                                                    <div :id="'collapseDetails' + index"
+                                                        class="accordion-collapse collapse"
+                                                        :class="{ show: coupon === selectedCoupon }"
+                                                        :aria-labelledby="'heading' + index"
+                                                        :data-bs-parent="'#couponAccordion' + index">
+                                                        <div class="accordion-body">
+                                                            <!-- Conditional Balance / Percentage -->
+                                                            <p class="card-text d-flex align-items-center">
+                                                                <!-- Coupon Type (Dropdown) -->
+                                                                <template
+                                                                    v-if="editingCoupon && editingCoupon.id === coupon.id">
+                                                                    <select v-model="editingCoupon.type"
+                                                                        class="form-control me-2" id="editType"
+                                                                        style="width: auto;">
+                                                                        <option value="saldo">Saldo</option>
+                                                                        <option value="porcentaje">Porcentaje</option>
+                                                                    </select>
+                                                                </template>
+                                                                <template v-else>
+                                                                    <strong class="me-2">
+                                                                        {{ coupon.type === 'saldo' ? 'Saldo: $' :
+                                                                            'Porcentaje: %' }}
+                                                                    </strong>
+                                                                </template>
 
-                                                        <!-- Expiration Date -->
-                                                        <p class="card-text"><strong>Expiración: </strong>
-                                                            <template
-                                                                v-if="editingCoupon && editingCoupon.id === coupon.id">
-                                                                <input type="date" v-model="editingCoupon.expiration"
-                                                                    class="form-control" />
-                                                            </template>
-                                                            <template v-else>{{ formatDate(coupon.expiration)
-                                                                }}</template>
-                                                        </p>
+                                                                <!-- Coupon Balance (Input) -->
+                                                                <template
+                                                                    v-if="editingCoupon && editingCoupon.id === coupon.id">
+                                                                    <input v-model="editingCoupon.balance"
+                                                                        class="form-control" id="editAmount" />
+                                                                </template>
+                                                                <template v-else>
+                                                                    {{ coupon.balance }}
+                                                                </template>
+                                                            </p>
 
-                                                        <!-- Status Switch -->
-                                                        <div class="d-flex align-items-center">
-                                                            <p class="card-text mb-0 me-2"><strong>Estado:</strong></p>
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input" type="checkbox"
-                                                                    v-bind:id="'coupon' + index" v-model="coupon.status"
-                                                                    @change="updateCouponStatus(coupon)">
-                                                                <label class="form-check-label"
-                                                                    v-bind:for="'coupon' + index"></label>
+                                                            <!-- Redeem Count -->
+                                                            <p class="card-text"><strong>Número de usos: </strong>
+                                                                <template
+                                                                    v-if="editingCoupon && editingCoupon.id === coupon.id">
+                                                                    <input v-model.number="editingCoupon.redeemCount"
+                                                                        type="number" class="form-control" />
+                                                                </template>
+                                                                <template v-else>
+                                                                    {{ coupon.redeemCount }}
+                                                                </template>
+                                                            </p>
+
+                                                            <!-- Cupones pagables por RoseApp -->
+                                                            <p class="card-text"><strong>Cupon pagable: </strong>
+                                                                <template
+                                                                    v-if="editingCoupon && editingCoupon.id === coupon.id">
+                                                                    <input type="checkbox"
+                                                                        v-model="editingCoupon.onlyInStore" />
+                                                                </template>
+                                                                <template v-else>
+                                                                    <span>{{ coupon.onlyInStore ? 'Sí' : 'No' }}</span>
+                                                                </template>
+                                                            </p>
+
+                                                            <!-- Expiration Date -->
+                                                            <p class="card-text"><strong>Expiración: </strong>
+                                                                <template
+                                                                    v-if="editingCoupon && editingCoupon.id === coupon.id">
+                                                                    <input type="date"
+                                                                        v-model="editingCoupon.expiration"
+                                                                        class="form-control" />
+                                                                </template>
+                                                                <template v-else>{{ formatDate(coupon.expiration)
+                                                                    }}</template>
+                                                            </p>
+
+                                                            <!-- Status Switch -->
+                                                            <div class="d-flex align-items-center">
+                                                                <p class="card-text mb-0 me-2"><strong>Estado:</strong>
+                                                                </p>
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input" type="checkbox"
+                                                                        v-bind:id="'coupon' + index"
+                                                                        v-model="coupon.status"
+                                                                        @change="updateCouponStatus(coupon)">
+                                                                    <label class="form-check-label"
+                                                                        v-bind:for="'coupon' + index"></label>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
 
+                                        </div>
                                     </div>
                                 </div>
+
+                                <!-- Pagination Controls -->
+                                <nav class="mt-4" v-if="totalPages > 1" aria-label="Page navigation">
+                                    <ul class="pagination justify-content-center">
+                                        <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                                            <button class="page-link" @click="goToPage(currentPage - 1)"
+                                                :disabled="currentPage === 1">Anterior</button>
+                                        </li>
+                                        <li class="page-item" v-for="page in totalPages" :key="page"
+                                            :class="{ active: page === currentPage }">
+                                            <button class="page-link" @click="goToPage(page)">{{ page }}</button>
+                                        </li>
+                                        <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                                            <button class="page-link" @click="goToPage(currentPage + 1)"
+                                                :disabled="currentPage === totalPages">Siguiente</button>
+                                        </li>
+                                    </ul>
+                                </nav>
                             </div>
                         </div>
 
-                        <h5 class="mt-4">Seleccione un Cliente</h5>
-
-                        <!-- Searching input -->
-                        <SearchInput v-model="searchClient" :results="searchClientResults"
-                            placeholder="Busque un cliente por su cédula..." @input="searchClientsForCoupon"
-                            @select="selectClientForCoupon" class="form-control mb-3" />
-                        <!-- Display selected client information -->
-                        <div v-if="selectedClient" class="mb-3 p-3 border rounded">
-                            <h5>Información del cliente seleccionado</h5>
-                            <p><strong>Nombre:</strong> {{ selectedClient.firstName + ' ' +
-                                selectedClient.lastName }}</p>
-                            <p><strong>Cédula:</strong> {{ selectedClient.identification }}</p>
-                            <p><strong>Email:</strong> {{ selectedClient.email }}</p>
-                            <p><strong>Teléfono:</strong> {{ selectedClient.phoneNumber }}</p>
-                        </div>
-
+                        <!-- ASSIGN BUTTON -->
                         <button @click="assignExistingCoupon" class="btn btn-theme mt-3">Asignar cupón
                             existente</button>
                     </div>
@@ -1400,19 +1722,51 @@ export default {
                                 placeholder="Buscar cupón por nombre o código..." />
                         </div> -->
 
-                        <div class="row g-3">
+                        <hr>
+
+                        <div class="row text-center">
+                            <label class="mb-2" for="filters"><strong>Filtros</strong></label>
+                        </div>
+
+                        <!-- Filters OJO: CLEAR FILTER WHEN TOGGLED -->
+                        <div class="justify-content-center" style="margin-bottom: 20px;">
+                            <div class="row g-3 justify-content-center">
+                                <div class="col-12 col-sm-6 col-md-4 d-flex justify-content-center">
+                                    <!-- Filters by date range -->
+                                    <div class="mb-3 form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="flexSwitchCheckDefault"
+                                            v-model="filterByDate">
+                                        <label class="form-check-label" for="flexSwitchCheckDefault">Filtrar por
+                                            fecha</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-sm-6 col-md-4 d-flex justify-content-center">
+                                    <!-- Filters by affiliate -->
+                                    <div class="mb-3 form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="flexSwitchCheck"
+                                            v-model="filterByAffiliate">
+                                        <label class="form-check-label" for="flexSwitchCheck">Filtrar por
+                                            Afiliado</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="filterByAffiliate" class="mt-3 row g-3"
+                            style="background-color: darkblue; border-radius: 15px">
                             <div class="col-12">
                                 <h6 class="text-uppercase text-center mb-3">Comercios</h6>
                             </div>
 
+                            <!-- Filter by affiliates -->
                             <div class="col-12">
                                 <div class="nav-container">
                                     <!-- Make the container responsive and apply good padding/margin -->
-                                    <div class="overflow-auto px-3 py-2" style="max-height: 200px;">
-                                        <ul class="nav nav-pills justify-content-center custom-nav-pills">
+                                    <div class="overflow-auto px-3 py-2" style="max-height: 200px; overflow-x: auto;">
+                                        <ul class="nav nav-pills custom-nav-pills d-flex flex-nowrap">
                                             <li class="nav-item" v-for="(affiliate, index) in affiliates"
                                                 :key="affiliate.id">
-                                                <a class="nav-link px-3 py-2 mb-3"
+                                                <a class="nav-link px-3 py-2 mx-1"
                                                     :class="{ 'active': affiliate.active, 'custom-active': affiliate.active }"
                                                     href="#" @click.prevent="setActiveAffiliate(index)">
                                                     {{ affiliate.companyName }}
@@ -1423,7 +1777,41 @@ export default {
                                 </div>
                             </div>
                         </div>
-                        <div class="mt-3 mb-3">Mostrando {{ filteredAppliedCoupons.length }} resultados</div>
+
+                        <div v-if="filterByDate" class="mt-3 row g-3"
+                            style="background-color: darkblue; border-radius: 15px">
+                            <div class="col-12">
+                                <h6 class="text-uppercase text-center mb-3">Rango de fechas</h6>
+                            </div>
+
+                            <!-- Filter by date range -->
+                            <div class="col-12">
+                                <div v-if="filterByDate" class="justify-content-center" style="margin-bottom: 20px;">
+                                    <div class="row g-3 justify-content-center">
+                                        <!-- Start Date Picker -->
+                                        <div class="col-12 col-sm-6 col-md-4 d-flex justify-content-center">
+                                            <input type="date" v-model="startDate" class="form-control" />
+                                        </div>
+                                        <!-- End Date Picker -->
+                                        <div class="col-12 col-sm-6 col-md-4 d-flex justify-content-center">
+                                            <input type="date" v-model="endDate" class="form-control" />
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex justify-content-center mt-3">
+                                        <button type="button" class="btn btn-theme" style="width: 150px;"
+                                            @click="clearDateFilter">
+                                            Limpiar filtro
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3 mb-3">Mostrando {{ filteredAppliedCoupons.length }} {{
+                            filteredAppliedCoupons.length === 1 ?
+                                'resultado' : 'resultados' }}</div>
+
                         <div class="row">
                             <div class="col-12 col-md-6 col-lg-4 mb-3" v-for="coupon in filteredAppliedCoupons"
                                 :key="coupon.id">
@@ -1459,6 +1847,116 @@ export default {
                 </div>
             </div>
         </div>
+        <!-- Clients Modal -->
+        <div class="modal fade" id="clientsModal" tabindex="-1" aria-labelledby="clientsRequestsModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="clientsRequestsModalLabel">{{ modalTitle }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <div class="container">
+                            <table class="table text-center table-responsive">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" @click="sortClients('firstName')">Cliente <i
+                                                class="fa-solid fa-sort"></i></th>
+                                        <th scope="col" @click="sortClients('identification')">Cédula <i
+                                                class="fa-solid fa-sort"></i></th>
+                                        <th scope="col" v-if="showRequestsColumn">Solicitud</th>
+                                        <th scope="col">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="client in clientsModalData" :key="client.id">
+                                        <td>{{ client.firstName + ' ' + client.lastName }}</td>
+                                        <td>{{ client.identification }}</td>
+                                        <td v-if="showRequestsColumn">
+                                            <button class="btn btn-sm btn-info me-1" data-bs-toggle="tooltip"
+                                                data-bs-placement="top" title="Seleccionar cliente"
+                                                @click.prevent="showCouponRequest(client)">
+                                                <i class="fa-solid fa-search me-2"></i>Ver solicitud
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-success me-1" data-bs-toggle="tooltip"
+                                                data-bs-placement="top" title="Seleccionar cliente"
+                                                @click.prevent="selectClientForCoupon(client)">
+                                                <i class="fa-solid fa-check me-2"></i>Seleccionar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Coupon Request Modal -->
+        <div class="modal fade" id="couponRequestModal" tabindex="-1" aria-labelledby="couponRequestModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="couponRequestModalLabel">Detalles de la Solicitud de Cupón</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Client Information -->
+                        <div class="mb-4">
+                            <h5><strong>Cliente:</strong> {{ selectedRequestsClient.firstName + ' ' +
+                                selectedRequestsClient.lastName }}</h5>
+                            <p><strong>Cédula:</strong> {{ selectedRequestsClient.identification }}</p>
+                        </div>
+
+                        <!-- Loop through all coupon requests -->
+                        <div v-for="(request, index) in selectedRequestsClient.coupon_requests" :key="request.id"
+                            class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="text-black"><strong>Solicitud #{{ index + 1 }}</strong></h6>
+                            </div>
+
+                            <div class="card-body">
+                                <!-- Request Date -->
+                                <p><strong>Fecha de solicitud:</strong> {{ formatDate(request.date) }}</p>
+
+                                <!-- Affiliates Section -->
+                                <div v-if="request.selectedAffiliates">
+                                    <strong>Afiliados:</strong>
+                                    <ul class="list-group list-group-flush">
+                                        <li class="list-group-item" style="background-color: transparent;"
+                                            v-for="(affiliateId, index) in Object.keys(request.selectedAffiliates)"
+                                            :key="index">
+                                            {{ getAffiliateNameById(affiliateId) }}
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <!-- Categories Section -->
+                                <div v-if="request.selectedCategories" class="mt-3">
+                                    <strong>Categorías:</strong>
+                                    <ul class="list-group list-group-flush">
+                                        <li class="list-group-item" style="background-color: transparent;"
+                                            v-for="(categoryId, index) in Object.keys(request.selectedCategories)"
+                                            :key="index">
+                                            {{ getCategoryNameById(categoryId) }}
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <!-- <div class="card-footer text-end">
+                                <button class="btn btn-outline-success">
+                                    <i class="fa-solid fa-check"></i> Asignar cupon
+                                </button>
+                            </div> -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Client view -->
@@ -1484,7 +1982,7 @@ export default {
                         <div class="img-container text-center mb-3">
                             <!-- Image Display -->
                             <img :src="coupon.qrFileUrl" alt="QR Code" class="img-fluid img-thumbnail"
-                                style="max-height: 150px;" @click="openModal(coupon.qrFileUrl)">
+                                style="max-height: 150px;" @click="openImageModal(coupon.qrFileUrl)">
                         </div>
                         <p class="card-text"><strong>Código:</strong> {{ coupon.couponCode }}</p>
                         <p class="card-text">
@@ -1500,7 +1998,8 @@ export default {
                 <div class="card shadow-lg mb-4">No hay cupones.</div>
             </div>
         </div>
-        <!-- Modal -->
+
+        <!-- IMAGE Modal -->
         <div class="modal fade" id="qrModal" tabindex="-1" aria-labelledby="qrModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">

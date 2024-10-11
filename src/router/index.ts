@@ -73,6 +73,18 @@ const router = createRouter({
 			component: () => import('../views/Coupons.vue'),
 			meta: { roles: ['admin', 'cliente', 'afiliado'] }
 		},
+		{
+			path: '/preferencias',
+			name: 'Preferencias de cupones',
+			component: () => import('../views/CouponPreferences.vue'),
+			meta: { roles: ['cliente'] }
+		},
+		{
+			path: '/request-coupons',
+			name: 'Solicitar cupones',
+			component: () => import('../views/RequestCoupons.vue'),
+			meta: { roles: ['cliente'] }
+		},
 
 		// Events routes
 		{

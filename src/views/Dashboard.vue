@@ -1,5 +1,6 @@
 <script>
 import { db } from '@/firebase/init';
+import { RouterLink } from "vue-router";
 import { ref as dbRef, get, orderByChild, query, equalTo } from 'firebase/database';
 import { useUserStore } from "@/stores/user-role";
 
@@ -10,7 +11,8 @@ export default {
 			clients: [],
 			verifiedClients: [],
 			affiliates: [],
-			appliedCoupons: 0
+			appliedCoupons: 0,
+			clientsWithRequests: []
 		}
 	},
 	methods: {
@@ -36,7 +38,10 @@ export default {
 					this.clients = await Promise.all(clientPromises);
 
 					const verifiedClients = this.clients.filter((client) => client.isVerified === true);
+					const clientsWithRequests = this.clients.filter((client) => client.coupon_requests);
+
 					this.verifiedClients = verifiedClients;
+					this.clientsWithRequests = clientsWithRequests;
 				} else {
 					this.clients = [];
 				}
@@ -149,11 +154,24 @@ export default {
 					</div>
 				</div>
 			</div>
-			<!-- Comercios afiliados -->
+			<!-- Solicitudes de cupones por Clientes -->
 			<div class="col-4">
 				<div class="card custom-card h-100 text-center">
 					<div class="card-body d-flex flex-column justify-content-center align-items-center">
 						<div class="icon-circle bg-primary mb-3">
+							<i class="fa-solid fa-bell-concierge fa-lg text-white"></i>
+						</div>
+						<h5 class="mb-1">Solicitudes de Cupones</h5>
+						<h3>{{ clientsWithRequests.length || 0 }}</h3>
+						<router-link to="#">Ver</router-link>
+					</div>
+				</div>
+			</div>
+			<!-- Comercios afiliados -->
+			<div class="col-4">
+				<div class="card custom-card h-100 text-center">
+					<div class="card-body d-flex flex-column justify-content-center align-items-center">
+						<div class="icon-circle bg-success mb-3">
 							<i class="fa fa-building fa-lg text-white"></i>
 						</div>
 						<h5 class="mb-1">Comercios Afiliados</h5>
@@ -165,7 +183,7 @@ export default {
 			<div class="col-4">
 				<div class="card custom-card h-100 text-center">
 					<div class="card-body d-flex flex-column justify-content-center align-items-center">
-						<div class="icon-circle bg-success mb-3">
+						<div class="icon-circle bg-primary mb-3">
 							<i class="fa fa-ticket fa-lg text-white"></i>
 						</div>
 						<h5 class="mb-1">Cupones Usados</h5>

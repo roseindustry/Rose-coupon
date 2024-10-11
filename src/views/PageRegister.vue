@@ -27,13 +27,14 @@ export default defineComponent({
 			parroquia: '',
 			businessName: '',
 			rif: '',
-			acceptTerms: false,
+			//acceptTerms: false,
 			loading: false,
 			formErrors: {
 				emailUsed: false,
 				rifUsed: false,
 				identificationUsed: false,
 				passwordMismatch: false,
+				passwordTooShort: false,
 			},
 			venezuelanStates: [
 				"Amazonas", "Anzoátegui", "Apure", "Aragua", "Barinas",
@@ -56,118 +57,127 @@ export default defineComponent({
 	},
 	methods: {
 		async submitForm() {
-			// Validation for password mismatch
+			// Password length validation
+			if (this.password.length < 6) {
+				this.formErrors.passwordTooShort = true;
+				return;
+			}
+
+			// Password mismatch Validation
 			if (this.password !== this.confirmPassword) {
 				this.passwordMismatch = true;
 				return;
 			}
 			this.formErrors.passwordMismatch = false;
+			this.formErrors.passwordTooShort = false;
 
-			// Validation of Terms and conditions
-			if (this.acceptTerms === true) {
-				try {
-					
-					this.loading = true; // Show loader
+			try {
 
-					// Query Users to check if email or identification is already used
-					const usersRef = dbRef(db, `Users`);
-					const snapshot = await get(usersRef);
-					if (snapshot.exists()) {
-						const users = snapshot.val();
-						for (const uid in users) {
-							if (users[uid].email === this.email || users[uid].identification === this.identification || users[uid].rif === this.rif) {
-								this.formErrors.emailUsed = users[uid].email === this.email;
-								this.formErrors.identificationUsed = users[uid].identification === this.identification;
-								this.formErrors.rifUsed = users[uid].rif === this.rif;
+				this.loading = true; // Show loader
 
-								// Show a Toastify notification if the email, rif or cedula is already in use
-								Toastify({
-									text: "El usuario que intenta registrar ya existe.",
-									duration: 3000,
-									close: true,
-									gravity: "top", // `top` or `bottom`
-									position: "right", // `left`, `center` or `right`
-									stopOnFocus: true, // Prevents dismissing of toast on hover
-									style: {
-										background: "linear-gradient(to right, #ff5f6d, #ffc371)",
-									},
-								}).showToast();
-								this.loading = false; // Hide loader
-								return;
-							}
+				// Query Users to check if email or identification is already used
+				const usersRef = dbRef(db, `Users`);
+				const snapshot = await get(usersRef);
+				if (snapshot.exists()) {
+					const users = snapshot.val();
+					for (const uid in users) {
+						if (users[uid].email === this.email || users[uid].identification === this.identification || users[uid].rif === this.rif) {
+							this.formErrors.emailUsed = users[uid].email === this.email;
+							this.formErrors.identificationUsed = users[uid].identification === this.identification;
+							this.formErrors.rifUsed = users[uid].rif === this.rif;
+
+							// Show a Toastify notification if the email, rif or cedula is already in use
+							Toastify({
+								text: "El usuario que intenta registrar ya existe.",
+								duration: 3000,
+								close: true,
+								gravity: "top", // `top` or `bottom`
+								position: "right", // `left`, `center` or `right`
+								stopOnFocus: true, // Prevents dismissing of toast on hover
+								style: {
+									background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+								},
+							}).showToast();
+							this.loading = false; // Hide loader
+							return;
 						}
 					}
-
-					// Create the user
-					const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
-					const user = userCredential.user;
-
-					// Set the user data in the database
-					const userRef = dbRef(db, `Users/${user.uid}`);
-					await set(userRef, {
-						email: user.email,
-						...(this.role === 'afiliado'
-							? {
-								companyName: this.businessName,
-								rif: this.identification
-							}
-							: {
-								firstName: this.firstName,
-								lastName: this.lastName,
-								identification: this.identification
-							}),
-						phoneNumber: this.phoneNumber,
-						state: this.state,
-						municipio: this.municipio,
-						parroquia: this.parroquia,
-						role: this.role,
-					});
-
-					console.log('User created:', user.uid);
-
-					// Toastify success message
-					Toastify({
-						text: "Bienvenido a bordo!",
-						duration: 3000,
-						close: true,
-						gravity: "top", // `top` or `bottom`
-						position: "right", // `left`, `center` or `right`
-						stopOnFocus: true, // Prevents dismissing of toast on hover
-						style: {
-							background: "linear-gradient(to right, #00b09b, #96c93d)",
-						},
-					}).showToast();
-
-					// After successful signup and data storage, redirect based on role
-					if (this.role === 'cliente') {
-						this.$router.push('/client-portal');
-					} else if (this.role === 'admin') {
-						this.$router.push('/');
-					} else if (this.role === 'afiliado') {
-						this.$router.push('/affiliate-portal');
-					}
-
-				} catch (error) {
-					console.error('Error signing up');
-					console.error(error);
-
-					// Check for other errors
-					Toastify({
-						text: "Error al registrarse. Inténtalo de nuevo.",
-						duration: 3000,
-						close: true,
-						gravity: "top", // `top` or `bottom`
-						position: "right", // `left`, `center` or `right`
-						stopOnFocus: true, // Prevents dismissing of toast on hover
-						style: {
-							background: "linear-gradient(to right, #ff5f6d, #ffc371)",
-						},
-					}).showToast();
 				}
-			} else {
-				alert('Debes aceptar nuestros terminos para proceder.');
-				return;
+
+				// Create the user
+				const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
+				const user = userCredential.user;
+
+				// Set the user data in the database
+				const userRef = dbRef(db, `Users/${user.uid}`);
+				await set(userRef, {
+					email: user.email,
+					...(this.role === 'afiliado'
+						? {
+							companyName: this.businessName,
+							rif: this.identification
+						}
+						: {
+							firstName: this.firstName,
+							lastName: this.lastName,
+							identification: this.identification
+						}),
+					phoneNumber: this.phoneNumber,
+					state: this.state,
+					municipio: this.municipio,
+					parroquia: this.parroquia,
+					role: this.role,
+				});
+
+				console.log('User created:', user.uid);
+
+				// Toastify success message
+				Toastify({
+					text: "Bienvenido a bordo!",
+					duration: 3000,
+					close: true,
+					gravity: "top", // `top` or `bottom`
+					position: "right", // `left`, `center` or `right`
+					stopOnFocus: true, // Prevents dismissing of toast on hover
+					style: {
+						background: "linear-gradient(to right, #00b09b, #96c93d)",
+					},
+				}).showToast();
+
+				// After successful signup and data storage, redirect based on role
+				if (this.role === 'cliente') {
+					this.$router.push('/client-portal');
+				} else if (this.role === 'admin') {
+					this.$router.push('/');
+				} else if (this.role === 'afiliado') {
+					this.$router.push('/affiliate-portal');
+				}
+
+			} catch (error) {
+				console.error('Error signing up');
+				console.error(error);
+
+				// Check for other errors
+				Toastify({
+					text: "Error al registrarse. Inténtalo de nuevo.",
+					duration: 3000,
+					close: true,
+					gravity: "top", // `top` or `bottom`
+					position: "right", // `left`, `center` or `right`
+					stopOnFocus: true, // Prevents dismissing of toast on hover
+					style: {
+						background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+					},
+				}).showToast();
 			}
+
+			// // Validation of Terms and conditions
+			// if (this.acceptTerms === true) {
+
+			// } else {
+			// 	alert('Debes aceptar nuestros terminos para proceder.');
+			// 	return;
+			// }
 		},
 		resetForm() {
 			this.firstName = '';
@@ -299,19 +309,24 @@ export default defineComponent({
 					<label class="form-label">Contraseña <span class="text-danger">*</span></label>
 					<input v-model="password" type="password" class="form-control form-control-lg fs-15px" value=""
 						required />
+					<small v-if="formErrors.passwordTooShort" class="text-danger">
+						La contraseña debe tener al menos 6 caracteres.
+					</small>
 				</div>
+
 				<div class="mb-3">
 					<label class="form-label">Confirmar Contraseña <span class="text-danger">*</span></label>
 					<input v-model="confirmPassword" type="password" class="form-control form-control-lg fs-15px"
 						value="" required />
 					<small v-if="formErrors.passwordMismatch" class="text-danger">Las contraseñas no coinciden.</small>
 				</div>
-				<p>(<span class="text-danger">*</span>) Campos obligatorios.</p>
-				<div class="form-check mt-4 mb-3">
+				<p class="text-muted">(<span class="text-danger">*</span>) Campos obligatorios.</p>
+				
+				<!-- <div class="form-check mt-4 mb-3">
 					<input type="checkbox" class="form-check-input" id="terms" v-model="acceptTerms" />
 					<label class="form-check-label" for="terms">Acepto <a href="#" data-bs-toggle="modal"
 							data-bs-target="#termsModal">Terminos y Condiciones</a>.</label>
-				</div>
+				</div> -->
 				<button type="submit" :disabled="loading" class="btn btn-theme btn-lg fs-15px fw-500 d-block w-100">
 					<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
 						aria-hidden="true"></span>

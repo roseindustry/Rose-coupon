@@ -161,3 +161,17 @@ exports.sendEmail = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('internal', 'Unable to send email');
   }
 });
+
+// Cloud function to retrieve the createdAt for Users from Auth
+exports.getUserDetails = functions.https.onCall(async (uid) => {
+  try {
+      const userRecord = await admin.auth().getUser(uid);
+      return {
+          uid: userRecord.uid,
+          creationTime: userRecord.metadata.creationTime,
+          // Add other fields as necessary
+      };
+  } catch (error) {
+      throw new functions.https.HttpsError('not-found', 'User not found');
+  }
+});

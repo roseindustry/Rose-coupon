@@ -40,10 +40,9 @@ export default {
                 address: '',
                 type: '',
             },
-            modalData: [],
+
             affiliates: [],
             filteredAffiliates: [],
-            categories: [],
             filterAffiliates: false,
             showMunicipios: false,
             showParroquias: false,
@@ -67,11 +66,24 @@ export default {
             updatedImagePreview: null,
             isSubmitting: false,
 
+            //Categories
+            categories: [],
+            modalData: [],
             selectedCategory: null,
+            selectedCategoryId: null,
             categoryName: '',
             newCategory: '',
             editingCategoryId: null,
             editCategoryName: '',
+
+            //Subcategories
+            subcategories: [],
+            subcategoriesModalData: [],
+            selectedSubcategory: null,
+            subcategoryName: '',
+            newSubcategory: '',
+            editingSubcategoryId: null,
+            editSubcategoryName: '',
         }
     },
     async mounted() {
@@ -550,10 +562,6 @@ export default {
                         name: categoryData.name
                     });
                 });
-                // Set the first category as active
-                // if (this.categories.length > 0) {
-                // 	this.categories[0].active = true;
-                // }
             } else {
                 console.log("No data available");
             }
@@ -701,6 +709,176 @@ export default {
             const modal = new Modal(document.getElementById('addCategoryModal'));
             modal.show();
         },
+
+        // Subcategories
+        async fetchSubcategories(categoryId) {
+            // Clear the categories array to prevent duplicates
+            this.subcategories = [];
+            const category = categoryId;
+            const subcategoryRef = query(dbRef(db, 'Affiliate_subcategories'), orderByChild('category_id'), equalTo(category));
+            const subcategorySnapshot = await get(subcategoryRef);
+
+            if (subcategorySnapshot.exists()) {
+                subcategorySnapshot.forEach((childSnapshot) => {
+                    const subcategoryData = childSnapshot.val();
+                    this.subcategories.push({
+                        id: childSnapshot.key,
+                        name: subcategoryData.name,
+                        category_id: subcategoryData.category_id
+                    });
+                });
+            } else {
+                console.log("No data available");
+            }
+            this.subcategoriesModalData = [...this.subcategories];
+        },
+        async manageSubcategories(categoryId) {
+            this.selectedCategoryId = categoryId;
+            await this.fetchSubcategories(categoryId);
+
+            // Open the modal
+            const modal = Modal.getOrCreateInstance(document.getElementById('manageSubcategoriesModal'));
+            modal.show();
+        },
+        toggleSubEditing(subcategoryId) {
+            // Set the editing subcategory to the subcategory's ID
+            this.editingSubcategoryId = subcategoryId;
+        },
+        cancelSubEditing() {
+            // Reset the editing state
+            this.editingSubcategoryId = null;
+        },
+        addSubcategory() {
+            // Open the modal
+            const modal = Modal.getOrCreateInstance(document.getElementById('addSubcategoryModal'));
+            modal.show();
+        },
+        async createSubcategory(categoryId) {
+            const subcategoryRef = dbRef(db, 'Affiliate_subcategories');
+            try {
+                // Push new subcategory to Firebase Realtime Database
+                await push(subcategoryRef, {
+                    name: this.newSubcategory,
+                    category_id: categoryId
+                });
+
+                // Show success notification
+                Toastify({
+                    text: "Subcategoria agregada con exito!",
+                    duration: 3000,
+                    close: true,
+                    gravity: "top",
+                    position: "right",
+                    stopOnFocus: true,
+                    style: {
+                        background: "linear-gradient(to right, #00b09b, #96c93d)",
+                    },
+                }).showToast();
+
+                // Hide the 'Add Subcategory' modal
+                const addSubcategoryModal = Modal.getOrCreateInstance(document.getElementById('addSubcategoryModal'));
+                if (addSubcategoryModal) addSubcategoryModal.hide();
+
+                // Show the 'Manage Subcategories' modal again
+                const manageSubcategoriesModal = Modal.getOrCreateInstance(document.getElementById('manageSubcategoriesModal'));
+                manageSubcategoriesModal.show();
+
+                // Refresh subcategories after adding a new one
+                await this.fetchSubcategories(categoryId);  // Ensure this fetches the data correctly and updates modal's Data
+
+            } catch (e) {
+                console.error("Ocurrio un error: ", e);
+                return null;
+            }
+        },
+        async submitSubcategory() {
+            if (this.selectedCategoryId) {
+                await this.createSubcategory(this.selectedCategoryId);
+                this.newSubcategory = ''; // Clear the input field after submission
+            } else {
+                console.error('No category selected for subcategory creation');
+            }
+        },
+        async updateSubcategory(subcategoryId) {
+            const subcategoryRef = dbRef(db, `Affiliate_subcategories/${subcategoryId}`);
+
+            try {
+                // Get the category name from the corresponding category in modalData
+                const subcategoryToUpdate = this.subcategoriesModalData.find(subcategory => subcategory.id === subcategoryId);
+                if (subcategoryToUpdate) {
+                    await update(subcategoryRef, {
+                        name: subcategoryToUpdate.name,
+                    });
+                    // Show success notification
+                    Toastify({
+                        text: "Subcategoría actualizada con éxito!",
+                        duration: 3000,
+                        close: true,
+                        gravity: "top",
+                        position: "right",
+                        stopOnFocus: true,
+                        style: {
+                            background: "linear-gradient(to right, #00b09b, #96c93d)",
+                        },
+                    }).showToast();
+                    this.editingSubcategoryId = false;
+                }
+            } catch (e) {
+                console.error("Ocurrió un error al actualizar la subcategoría: ", e);
+                Toastify({
+                    text: "Error al actualizar la subcategoría.",
+                    duration: 3000,
+                    close: true,
+                    gravity: "top",
+                    position: "right",
+                    stopOnFocus: true,
+                    style: {
+                        background: "linear-gradient(to right, #ff0000, #ff7f50)", // Red gradient for error
+                    },
+                }).showToast();
+            }
+        },
+        async deleteSubcategory(subcategoryId) {
+            // Confirmation dialog
+            if (confirm("¿Desea borrar esta categoria?")) {
+                // User clicked "OK"
+
+                const subcategoryRef = dbRef(db, `Affiliate_subcategories/${subcategoryId}`);
+
+                try {
+                    await remove(subcategoryRef);
+                    // Remove category from the local modalData array
+                    this.subcategoriesModalData = this.subcategoriesModalData.filter(subcat => subcat.id !== subcategoryId);
+                    // Show success notification
+                    Toastify({
+                        text: "Subcategoría eliminada con éxito!",
+                        duration: 3000,
+                        close: true,
+                        gravity: "top",
+                        position: "right",
+                        stopOnFocus: true,
+                        style: {
+                            background: "linear-gradient(to right, #00b09b, #ff0000)", // Red gradient for success
+                        },
+                    }).showToast();
+
+                } catch (e) {
+                    console.error("Ocurrió un error al eliminar la Subcategoría: ", e);
+                    Toastify({
+                        text: "Error al eliminar la Subcategoría.",
+                        duration: 3000,
+                        close: true,
+                        gravity: "top",
+                        position: "right",
+                        stopOnFocus: true,
+                        style: {
+                            background: "linear-gradient(to right, #ff0000, #ff7f50)", // Red gradient for error
+                        },
+                    }).showToast();
+                }
+            }
+
+        },
     }
 }
 </script>
@@ -711,7 +889,7 @@ export default {
 
     <div v-if="this.role === 'admin'" class="container">
         <div class="row">
-            <div class="col justify-content-start align-items-center">
+            <div class="col d-flex justify-content-start align-items-center">
                 <a href="#" class="btn btn-theme" style="margin: 14px;" @click="manageCategories()">
                     <i class="fa fa-list fa-fw me-1"></i> Administrar categorias
                 </a>
@@ -725,7 +903,7 @@ export default {
             </div>
         </div>
 
-        <!-- Display Affiliates -->
+        <!-- Affiliates List -->
         <div class="container-fluid mt-2">
             <div class="row">
 
@@ -1141,7 +1319,7 @@ export default {
         </div>
 
         <!-- Modal for Managing Categories -->
-        <div class="modal fade" id="manageCategoriesModal" tabindex="-1" aria-labelledby="editAffiliateModalLabel"
+        <div class="modal fade" id="manageCategoriesModal" tabindex="-1" aria-labelledby="manageCategoriesModalLabel"
             aria-hidden="true">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
@@ -1164,6 +1342,11 @@ export default {
                                                 class="form-control" v-model="category.name"></td>
                                         <td v-else>{{ category.name }}</td>
                                         <td>
+                                            <button class="btn btn-sm btn-theme me-1" data-bs-toggle="tooltip"
+                                                data-bs-placement="top" title="Subcategorias"
+                                                @click="manageSubcategories(category.id)">
+                                                <i class="fa-solid fa-list"></i>
+                                            </button>
                                             <button v-if="editingCategoryId === category.id"
                                                 class="btn btn-sm btn-outline-success me-1" data-bs-toggle="tooltip"
                                                 data-bs-placement="top" title="actualizar comercio"
@@ -1215,6 +1398,87 @@ export default {
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                         <button type="button" class="btn btn-theme" @click="createCategory()">Guardar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for Managing Subcategories -->
+        <div class="modal fade" id="manageSubcategoriesModal" tabindex="-1"
+            aria-labelledby="manageSubcategoriesModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="manageSubcategoriesModalLabel">Administrar Subcategorias</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="container">
+                            <table class="table text-center table-responsive">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Subctegoría</th>
+                                        <th scope="col">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="subcategory in subcategoriesModalData" :key="subcategory.id">
+                                        <td v-if="editingSubcategoryId === subcategory.id"><input type="text"
+                                                class="form-control" v-model="subcategory.name"></td>
+                                        <td v-else>{{ subcategory.name }}</td>
+                                        <td>
+                                            <button v-if="editingSubcategoryId === subcategory.id"
+                                                class="btn btn-sm btn-outline-success me-1" data-bs-toggle="tooltip"
+                                                data-bs-placement="top" title="actualizar comercio"
+                                                @click="updateSubcategory(subcategory.id)">
+                                                <i class="fa-solid fa-check"></i>
+                                            </button>
+                                            <button v-else class="btn btn-sm btn-outline-success me-1"
+                                                data-bs-toggle="tooltip" data-bs-placement="top"
+                                                title="Editar subcategoria" @click="toggleSubEditing(subcategory.id)">
+                                                <i class="fa-solid fa-pencil"></i>
+                                            </button>
+                                            <button v-if="editingSubcategoryId === subcategory.id"
+                                                @click="cancelSubEditing()" class="btn btn-sm btn-outline-danger">
+                                                <i class="fa-solid fa-times"></i>
+                                            </button>
+                                            <button v-else class="btn btn-sm btn-outline-danger"
+                                                @click="deleteSubcategory(subcategory.id, index)">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="button" class="btn btn-primary" :disabled="editingSubcategoryId" @click="addSubcategory">Agregar
+                            Subcategoría</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal to add new Subcategory -->
+        <div class="modal fade" id="addSubcategoryModal" tabindex="-1" aria-labelledby="addSubcategoryModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="addSubcategoryModalLabel">Nueva Subcategoria</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <input id="newSubcategory" type="text" class="form-control" v-model="newSubcategory"
+                                aria-label="Monto" aria-describedby="value-addon">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="button" class="btn btn-theme" @click="submitSubcategory()">Guardar</button>
                     </div>
                 </div>
             </div>

@@ -22,6 +22,8 @@ export default defineComponent({
 			role: '',
 			userName: '',
 			requestSent: '',
+			userSubscriptionId: '',
+			subscriptionPlan: {},
 
 			currentPassword: '',
 			newPassword: '',
@@ -78,13 +80,19 @@ export default defineComponent({
 			idFrontFile: null,
 			idBackFile: null,
 			selfieFile: null,
+			paymentFile: null,
 			idFrontPreview: null,
 			idBackPreview: null,
 			selfiePreview: null,
+			paymentPreview: null,
 
+			paymentDate: null,
 			isSubmitting: false,
 			errorMessage: '',
 			verificationModal: null,
+			paymentModal: null,
+			modalImageUrl: null,
+			paymentUrl: null
 		};
 	},
 	setup() {
@@ -98,7 +106,6 @@ export default defineComponent({
 		};
 	},
 	mounted() {
-
 		const userStore = useUserStore();
 		const userId = userStore.userId;
 		const role = userStore.role;
@@ -118,6 +125,9 @@ export default defineComponent({
 		(async () => {
 			await userStore.fetchUser(); // Await the fetching of the user
 			this.fetchUserData(userId);
+
+			await this.fetchSubscriptionPlan();
+			await this.checkPaymentReset();
 		})();
 
 		new ScrollSpy(document.body, {
@@ -125,7 +135,7 @@ export default defineComponent({
 			offset: 200,
 		});
 		this.verificationModal = new Modal(document.getElementById('verificationModal'));
-
+		this.paymentModal = new Modal(document.getElementById('notifyPaymentModal'));
 	},
 	methods: {
 		showToast(message) {
@@ -141,7 +151,67 @@ export default defineComponent({
 				},
 			}).showToast();
 		},
+		formatDate(date) {
+			if (!date) return ''; // Handle invalid dates or null values
+			const d = new Date(date);
+			const day = String(d.getUTCDate()).padStart(2, '0'); // Ensure two-digit day
+			const month = String(d.getUTCMonth() + 1).padStart(2, '0'); // Ensure two-digit month (months are zero-indexed)
+			const year = d.getUTCFullYear();
+			return `${day}/${month}/${year}`;
+		},
 
+		async fetchSubscriptionPlan() {
+			const userId = this.userId;
+
+			if (userId) {
+				const userRef = dbRef(db, `Users/${userId}`);
+				const snapshot = await get(userRef);
+
+				if (snapshot.exists()) {
+					const user = snapshot.val();
+
+					// Check if the user has a subscription plan and it's an object
+					if (user.subscription && typeof user.subscription === 'object') {
+						const userSubscriptionRef = dbRef(db, `Users/${this.userId}/subscription`);
+						const subscriptionSnapshot = await get(userSubscriptionRef);
+
+						if (subscriptionSnapshot.exists()) {
+							const subscriptionData = subscriptionSnapshot.val();
+							this.userSubscriptionId = subscriptionData.subscription_id;
+
+							// Query the Suscriptions collection
+							const subscriptionDataRef = dbRef(db, `Suscriptions/${this.userSubscriptionId}`);
+							const userSuscriptionSnapshot = await get(subscriptionDataRef);
+
+							if (userSuscriptionSnapshot.exists()) {
+								const userSuscription = userSuscriptionSnapshot.val();
+
+								this.subscriptionPlan = {
+									name: userSuscription.name || 'Sin suscripcion',
+									status: subscriptionData.status || 'No Status',
+									price: userSuscription.price || 'No Price',
+									payDay: subscriptionData.payDay || 'No PayDay',
+									lastPaymentDate: subscriptionData.lastPaymentDate || null,
+									isPaid: subscriptionData.isPaid || false,
+									paymentUploaded: subscriptionData.paymentUploaded || null,
+									paymentVerified: subscriptionData.paymentVerified || null,
+									icon: userSuscription.icon || 'fa fa-times'
+								};
+							}
+						}
+
+					} else {
+						// Handle case where there is no subscription plan
+						this.subscriptionPlan = {
+							status: 'No Subscription',
+							price: 0,
+							payDay: 'N/A',
+							isPaid: false
+						};
+					}
+				}
+			}
+		},
 		fetchUserData(userId) {
 			const userRef = dbRef(db, `Users/${userId}`);
 
@@ -243,6 +313,9 @@ export default defineComponent({
 				alert('Error al actualizar la contraseña. Inténtalo de nuevo.');
 			}
 		},
+		async requestUpgrade() {
+
+		},
 
 		//File uploads
 		handleFileUpload(event, type) {
@@ -259,6 +332,9 @@ export default defineComponent({
 			} else if (type === 'selfie') {
 				this.selfieFile = file;
 				this.selfiePreview = URL.createObjectURL(file);
+			} else if (type === 'payment') {
+				this.paymentFile = file;
+				this.paymentPreview = URL.createObjectURL(file);
 			}
 		},
 		async uploadFile(file, type) {
@@ -270,8 +346,17 @@ export default defineComponent({
 			await uploadBytes(fileRef, file);
 			return getDownloadURL(fileRef);
 		},
+		async uploadPaymentFile(file, date) {
+			// Define storage reference for front or back ID file
+			const fileName = `${date}-capture.${file.name.split('.').pop()}`;
+			const fileRef = storageRef(storage, `payment-captures/${this.userId}-${this.userName}/${fileName}`);
 
-		// User verification
+			// Upload the file and get the download URL
+			await uploadBytes(fileRef, file);
+			return getDownloadURL(fileRef);
+		},
+
+		// User verification and subscription logic
 		async submitVerification() {
 			if (!this.idFrontFile || !this.idBackFile || !this.selfieFile) {
 				this.errorMessage = 'Todos los archivos de identificación son requeridos.';
@@ -319,6 +404,123 @@ export default defineComponent({
 				// Hide the loader
 				this.isSubmitting = false;
 			}
+		},
+		async notifyPayment() {
+			if (!this.paymentFile) {
+				this.errorMessage = 'El archivo es requerido.';
+				return;
+			}
+
+			try {
+				this.isSubmitting = true;
+
+				// Upload capture
+				const paymentUrl = await this.uploadPaymentFile(this.paymentFile, this.paymentDate);
+				console.log('File uploaded successfully:', paymentUrl);
+
+				// Get the current date to set the paymentDate
+				const uploadPaymentDate = new Date(this.paymentDate);
+				const formattedDate = uploadPaymentDate.toISOString();
+
+				// Update user to set field user.requestedVerification = true
+				const userRef = dbRef(db, `Users/${this.userId}/subscription`);
+				await update(userRef,
+					{
+						paymentUploaded: true,
+						lastPaymentDate: formattedDate
+					});
+
+				//Success toast
+				this.showToast('Archivo subido!');
+				this.fetchSubscriptionPlan();
+
+				//reset the image previews
+				this.paymentPreview = null;
+
+				// Hide the modal after submission
+				this.paymentModal.hide();
+
+			} catch (error) {
+				console.error('Error during uploading:', error);
+				this.errorMessage = 'Error al subir el archivo, por favor intente nuevamente.';
+			} finally {
+				// Hide the loader
+				this.isSubmitting = false;
+			}
+		},
+		async checkPaymentReset() {
+			const userRef = dbRef(db, `Users/${this.userId}/subscription`);
+			const snapshot = await get(userRef);
+
+			if (snapshot.exists()) {
+				const subscriptionData = snapshot.val();
+				const lastPaymentDate = new Date(subscriptionData.lastPaymentDate || null);
+				const payDay = new Date(subscriptionData.payDay); // Assuming payDay is a stored date
+				const currentDate = new Date();
+
+				// Reset if the current date is past the payDay and payment was not uploaded for this month
+				if (currentDate >= payDay && lastPaymentDate.getMonth() !== currentDate.getMonth()) {
+					await update(userRef, {
+						isPaid: false, // Reset to mark unpaid month
+						status: false,
+						paymentUploaded: false,
+						paymentVerified: false
+					});
+
+					this.showToast('Debes subir tu comprobante de pago para este mes.');
+				}
+			}
+		},
+
+		// User payment notification
+		openPaymentModal() {
+			Modal.getOrCreateInstance(document.getElementById('notifyPaymentModal')).show();
+		},
+		async fetchPaymentFiles(date) {
+			const currentUserRef = dbRef(db, `Users/${this.userId}`);
+			let currentUser = null;
+
+			try {
+                const snapshot = await get(currentUserRef);
+
+                if (snapshot.exists()) {
+                    currentUser = snapshot.val();
+					// fetch the currentUser key
+
+                } else {
+                    currentUser = null;
+                }
+            } catch (error) {
+                console.error("Error fetching current user details:", error);
+            }
+
+            try {
+                const userName = `${currentUser.firstName} ${currentUser.lastName}`;
+                const fileName = `${date}-capture.png`;
+
+                // Reference to the storage file
+                const fileRef = storageRef(storage, `payment-captures/${this.userId}-${userName}/${fileName}`);
+
+                // Get the download URL for the payment file
+                const paymentUrl = await getDownloadURL(fileRef);
+
+                // Assign the URL to the client object if it exists
+                this.paymentUrl = paymentUrl || null;
+                console.log('Payment file fetched:', paymentUrl);
+            } catch (error) {
+                console.error('Error fetching payment file:', error.message || error);
+                this.paymentUrl = null;
+            }
+        },
+		openImgModal() {
+			if (this.subscriptionPlan.lastPaymentDate) {
+				
+				const paymentDate = (this.subscriptionPlan.lastPaymentDate).split('T')[0];
+				console.log(paymentDate)
+				this.fetchPaymentFiles(paymentDate);
+			}
+
+			new Modal(document.getElementById('idImgModal')).show();
 		},
 
 		//Address info
@@ -423,7 +625,7 @@ export default defineComponent({
 		</div>
 		<!-- Request Verification -->
 		<div v-if="(role === 'cliente') && !this.userVerified"
-			class="alert alert-warning d-inline-flex align-items-center mb-5" role="alert" style="width: auto;">
+			class="alert alert-warning d-inline-flex align-items-center mb-5 w-50" role="alert" style="width: auto;">
 			<i class="fa-solid fa-exclamation-circle me-2"></i>
 			<div>
 				<strong>Verifica tu cuenta:</strong> Para asegurar la seguridad de tu cuenta y acceder a todas
@@ -440,7 +642,7 @@ export default defineComponent({
 		</div>
 
 		<div class="row">
-			<div class="col-xl-9">
+			<div class="col-xl-6">
 				<!-- General user info -->
 				<div id="general" class="mb-5 mt-3">
 					<h4><i class="far fa-user fa-fw"></i> General <span
@@ -517,8 +719,53 @@ export default defineComponent({
 					</div>
 				</div>
 
+				<!-- Subscription section -->
+				<div v-if="subscriptionPlan" class="col">
+					<h4><i class="fas fa-handshake fa-fw"></i> Suscripción</h4>
+					<p>Aqui estan los detalles de tu suscripción actual.</p>
+					<div class="card shadow-sm">
+						<div class="card-body">
+							<div class="card-title mb-3">
+								<h4 class="text-center"><i :class="this.subscriptionPlan.icon"></i> {{
+									this.subscriptionPlan.name }}
+								</h4>
+							</div>
+							<div class="card-text mb-3">
+								<strong>Precio: </strong>${{ this.subscriptionPlan.price }}
+							</div>
+							<div class="card-text mb-3">
+								<strong>Fecha de corte: </strong>{{ formatDate(this.subscriptionPlan.payDay) }}
+								<span class="badge bg-transparent border border-success text-success ms-2"
+									v-if="subscriptionPlan.isPaid">Pago verificado</span>
+							</div>
+							<div v-if="subscriptionPlan.isPaid" class="card-text mb-3">
+								<button class="btn btn-outline-secondary" @click.prevent="openImgModal()">Ver ultimo
+									pago</button>
+							</div>
+							<div v-if="subscriptionPlan.paymentUploaded && !subscriptionPlan.isPaid"
+								class="alert alert-warning">
+								Su pago fue recibido. En espera de Aprobación.
+							</div>
+							<div v-if="!subscriptionPlan.paymentUploaded" class="alert alert-warning">
+								Debes subir tu comprobante de pago para este mes.
+							</div>
+						</div>
+						<div class="card-footer text-center">
+							<div class="d-flex justify-content-center gap-3">
+								<button v-if="!subscriptionPlan.paymentUploaded" class="btn btn-theme"
+									@click.prevent="openPaymentModal">
+									Notificar Pago
+								</button>
+								<button class="btn btn-theme" @click.prevent="requestUpgrade">
+									Mejorar Suscripción
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
 				<!-- Change Password Section -->
-				<div id="change-password" class="mb-5">
+				<div id="change-password" class="mb-5 mt-5">
 					<h4><i class="fas fa-key fa-fw"></i> Cambiar Contraseña</h4>
 					<p>Actualiza tu contraseña aquí.</p>
 					<div class="card shadow-sm">
@@ -537,6 +784,9 @@ export default defineComponent({
 								<input type="password" class="form-control" id="confirmPassword"
 									v-model="confirmPassword">
 							</div>
+
+						</div>
+						<div class="card-footer text-end">
 							<button class="btn btn-theme" @click.prevent="changePassword">Actualizar
 								Contraseña</button>
 						</div>
@@ -663,7 +913,62 @@ export default defineComponent({
 				</div>
 			</div>
 		</div>
+		<!-- Modal for Payment upload -->
+		<div class="modal fade" id="notifyPaymentModal" tabindex="-1" aria-labelledby="notifyPaymentModalLabel"
+			aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="notifyPaymentModalLabel">Subir Captura de Pago</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+					</div>
+					<div class="modal-body">
+						<form @submit.prevent="notifyPayment">
+							<div class="mb-3">
+								<label for="paymentDate" class="form-label">Fecha de Pago</label>
+								<input type="date" class="form-control" v-model="paymentDate" style="width: auto;">
+							</div>
+							<div class="mb-3">
+								<label for="payment" class="form-label">Captura de Pago</label>
+								<input type="file" class="form-control" id="payment"
+									@change="handleFileUpload($event, 'payment')" required>
+								<img v-if="paymentPreview" :src="paymentPreview" alt="payment preview"
+									class="img-fluid mt-2" />
+							</div>
 
+							<!-- Error Message -->
+							<div v-if="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
+
+							<!-- Loader Spinner -->
+							<div v-if="isSubmitting" class="d-flex justify-content-center my-3">
+								<div class="spinner-border text-primary" role="status">
+									<span class="visually-hidden">Cargando...</span>
+								</div>
+							</div>
+							<button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cerrar</button>
+							<!-- Submit Button is disabled during submission -->
+							<button type="submit" class="btn btn-theme" :disabled="isSubmitting">
+								Subir
+							</button>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- Modal for opening ID img -->
+		<div class="modal fade" id="idImgModal" tabindex="-1" aria-labelledby="idImgModalLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="idImgModalLabel">Captura de Pago mas reciente</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+					</div>
+					<div class="modal-body text-center">
+						<img :src="paymentUrl" alt="comprobante" class="img-fluid">
+					</div>
+				</div>
+			</div>
+		</div>
 	</div>
 </template>
 <style scoped>

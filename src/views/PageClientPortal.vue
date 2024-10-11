@@ -15,25 +15,28 @@ export default defineComponent({
 
             userId: '',
             userName: '',
+            userSubscriptionId: '',
 
             // data for portal items
             portalItems: [
-                { 
-                    title: 'Comercios Afiliados', 
-                    description: 'Aquí puede ver los comercios donde puede usar su crédito.', 
-                    link: '/comercios-afiliados', 
-                    actionText: 'Ver más', 
-                    bgImage: '/assets/img/rose_imgs/3.png' 
+                {
+                    title: 'Comercios Afiliados',
+                    description: 'Aquí puede ver los comercios donde puede usar su crédito.',
+                    link: '/comercios-afiliados',
+                    actionText: 'Ver más',
+                    bgImage: '/assets/img/rose_imgs/3.png'
                 },
                 { title: 'Cupones', description: 'Descubre tus cupones aquí.', link: '/cupones', actionText: 'Ver más', bgImage: '/assets/img/rose_imgs/1.png' },
+                { title: 'Cupones que te interesan', description: 'Cuentanos que te gusta.', link: '/preferencias', actionText: 'Cuentanos', notReady: false, bgImage: '/assets/img/rose_imgs/1.png' },
+                { title: 'Solicitar cupón', description: 'Solicita los cupones que deseas.', link: '/request-coupons', actionText: 'Solicitar', notReady: false, bgImage: '/assets/img/rose_imgs/1.png' },
                 { title: 'Eventos', description: 'Descubre nuestros próximos eventos.', link: '/events', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/3.png' },
-                { 
-                    title: 'Crédito', 
-                    description: 'Solicite o modifique su crédito aquí.', 
-                    link: '/creditos', 
-                    actionText: 'Ver más', 
-                    notReady: true, 
-                    bgImage: '/assets/img/rose_imgs/2.png' 
+                {
+                    title: 'Crédito',
+                    description: 'Solicite o modifique su crédito aquí.',
+                    link: '/creditos',
+                    actionText: 'Ver más',
+                    notReady: true,
+                    bgImage: '/assets/img/rose_imgs/2.png'
                 },
                 { title: 'Compras recientes', description: 'Ver sus compras recientes.', link: '#', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/5.png' },
                 { title: 'Suscripciones', description: 'Administra tu suscripcion aqui.', link: '#', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/5.png' },
@@ -41,7 +44,7 @@ export default defineComponent({
                 { title: 'Encuestas', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/customer-survey', actionText: 'Tomar Encuesta', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
             ],
 
-            subscriptionPlan: '',
+            subscriptionPlan: {},
             userVerified: false,
             verificationStatus: 'unverified', // Possible values: 'unverified', 'pending', 'verified'
 
@@ -73,9 +76,7 @@ export default defineComponent({
         },
 
         async fetchSubscriptionPlan() {
-            const userStore = useUserStore();
-            await userStore.fetchUser();
-            const userId = userStore.userId;
+            const userId = this.userId;
 
             if (userId) {
                 const userRef = dbRef(db, `Users/${userId}`);
@@ -88,14 +89,31 @@ export default defineComponent({
 
                     // Check if the user has a subscription plan and it's an object
                     if (user.subscription && typeof user.subscription === 'object') {
-                        this.subscriptionPlan = {
-                            name: user.subscription.name || 'Sin suscripcion',
-                            status: user.subscription.status || 'No Status',
-                            price: user.subscription.price || 'No Price',
-                            payDay: user.subscription.payDay || 'No PayDay',
-                            isPaid: user.subscription.isPaid || false,
-                            icon: user.subscription.icon
-                        };
+                        const userSubscriptionRef = dbRef(db, `Users/${this.userId}/subscription`);
+                        const subscriptionSnapshot = await get(userSubscriptionRef);
+                        
+                        if (subscriptionSnapshot.exists()) {
+                            const subscriptionData = subscriptionSnapshot.val();
+                            this.userSubscriptionId = subscriptionData.subscription_id;
+                            
+                            // Query the Suscriptions collection
+                            const subscriptionDataRef = dbRef(db, `Suscriptions/${this.userSubscriptionId}`);
+                            const userSuscriptionSnapshot = await get(subscriptionDataRef);
+
+                            if (userSuscriptionSnapshot.exists()) {
+                                const userSuscription = userSuscriptionSnapshot.val();
+
+                                this.subscriptionPlan = {
+                                name: userSuscription.name || 'Sin suscripcion',
+                                status: subscriptionData.status || 'No Status',
+                                price: userSuscription.price || 'No Price',
+                                payDay: subscriptionData.payDay || 'No PayDay',
+                                isPaid: subscriptionData.isPaid || false,
+                                icon: userSuscription.icon || 'fa fa-times'
+                            };
+                            }                            
+                        }
+
                     } else {
                         // Handle case where there is no subscription plan
                         this.subscriptionPlan = {
@@ -183,38 +201,6 @@ export default defineComponent({
                 this.isSubmitting = false;
             }
         },
-
-        //Promt the user to download the shortcut to the app on their phone
-        // handleBeforeInstallPrompt(event) {
-        //     console.log('beforeinstallprompt event fired');
-        //     event.preventDefault();
-        //     this.deferredPrompt = event;
-
-        //     const installButton = document.getElementById('install-button');
-        //     if (installButton) {
-        //         // Show the install button
-        //         installButton.style.display = 'block';
-
-        //         // Add click event to trigger the prompt
-        //         installButton.addEventListener('click', this.triggerInstall);
-        //     }
-        // },
-        // triggerInstall() {
-        //     const installButton = document.getElementById('install-button');
-        //     installButton.style.display = 'none'; // Hide the button after it's clicked
-
-        //     if (this.deferredPrompt) {
-        //         this.deferredPrompt.prompt();
-        //         this.deferredPrompt.userChoice.then((choiceResult) => {
-        //             if (choiceResult.outcome === 'accepted') {
-        //                 console.log('User accepted the install prompt');
-        //             } else {
-        //                 console.log('User dismissed the install prompt');
-        //             }
-        //             this.deferredPrompt = null;
-        //         });
-        //     }
-        // },
     },
     async mounted() {
         if (!sessionStorage.getItem('reloaded')) {
@@ -304,11 +290,15 @@ export default defineComponent({
                             }">
                                 <div class="card-body"
                                     style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
-                                    <h5 class="card-title">{{ item.title }} {{ item.notReady === true ?
-                                        `(Proximamente)` : '' }}</h5>
-                                    <p class="card-text">{{ item.description }}</p>
+                                    <h5 class="card-title">{{ item.title }}</h5>
+                                    <!--  {{ item.notReady === true ?
+                                        `(Proximamente)` : '' }} -->
+                                    <div v-if="item.notReady === true" class="ribbon">
+                                        <span>Proximamente</span>
+                                    </div>
+                                    <p class="card-text w-50">{{ item.description }}</p>
                                     <router-link :to="item.link" class="btn btn-theme"
-                                        :class="{ 'disabled': (item.title === 'Crédito' && !userVerified) || item.notReady === true }"
+                                        :class="{ 'disabled': (item.title === 'Crédito' && !userVerified) || (item.title === 'Solicitar cupón' && !subscriptionPlan) || item.notReady === true }"
                                         :aria-disabled="item.title === 'Crédito' && !userVerified"
                                         :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
                                         {{ item.actionText }}
@@ -326,6 +316,14 @@ export default defineComponent({
                                             <span v-else-if="verificationStatus === 'pending'">
                                                 Verificación pendiente por Aprobación.
                                             </span>
+                                        </small>
+                                    </div>
+                                    <!-- check to see the User's subscription -->
+                                    <div class="w-50 mt-2"
+                                        v-if="item.title === 'Solicitar cupón' && subscriptionPlan.price === 0">
+                                        <small class="text-danger">
+                                            <span>Debes contar con suscripción Bronce en adelante para gozar de este
+                                                beneficio.</span>
                                         </small>
                                     </div>
                                 </div>
@@ -392,10 +390,11 @@ export default defineComponent({
     </div>
 </template>
 <style scoped>
-.btn-theme{
-	background-color: purple;
-	border-color: purple;
+.btn-theme {
+    background-color: purple;
+    border-color: purple;
 }
+
 /* Subscription Badge Styles */
 .subscription-badge {
     font-size: 0.9rem;
@@ -419,5 +418,18 @@ export default defineComponent({
     .subscription-badge i {
         font-size: 1.2rem;
     }
+}
+
+.ribbon {
+    position: absolute;
+    top: 25px;
+    right: -20px;
+    background: #8c042c;
+    color: #fff;
+    padding: 5px 15px;
+    font-size: 0.875rem;
+    font-weight: bold;
+    transform: rotate(45deg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 </style>
