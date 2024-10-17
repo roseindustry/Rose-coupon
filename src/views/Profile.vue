@@ -5,12 +5,13 @@ import { ScrollSpy } from 'bootstrap';
 import { useUserStore } from '@/stores/user-role';
 import { auth, db, storage } from '../firebase/init';
 import { ref as dbRef, update, get } from 'firebase/database';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as storageRef, uploadBytes, getDownloadURL, listAll } from 'firebase/storage';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 import { Modal } from 'bootstrap';
 import venezuela from 'venezuela';
+import { RouterLink } from 'vue-router';
 
 export default defineComponent({
 	components: {
@@ -23,7 +24,7 @@ export default defineComponent({
 			userName: '',
 			requestSent: '',
 			userSubscriptionId: '',
-			subscriptionPlan: {},
+			subscriptionPlan: null,
 
 			currentPassword: '',
 			newPassword: '',
@@ -105,7 +106,7 @@ export default defineComponent({
 			role,
 		};
 	},
-	mounted() {
+	async mounted() {
 		const userStore = useUserStore();
 		const userId = userStore.userId;
 		const role = userStore.role;
@@ -115,25 +116,26 @@ export default defineComponent({
 		const isVerified = userStore.isVerified;
 		this.userVerified = isVerified;
 
-		if (isVerified && !role === 'admin') {
-			console.log('Usuario verificado')
-		} else if (!role === 'admin') {
-			console.log('No verificado')
+		// Corrected condition
+		if (isVerified && role !== 'admin') {
+			console.log('Usuario verificado');
+		} else if (role !== 'admin') {
+			console.log('No verificado');
 		}
 
-		// Immediately invoked async function within mounted
-		(async () => {
-			await userStore.fetchUser(); // Await the fetching of the user
-			this.fetchUserData(userId);
+		this.fetchUserData(userId);
 
-			await this.fetchSubscriptionPlan();
-			await this.checkPaymentReset();
-		})();
+		// Await async functions
+		await this.fetchSubscriptionPlan();
+		await this.checkPaymentReset();
 
+		// Initialize ScrollSpy
 		new ScrollSpy(document.body, {
 			target: '#sidebar-bootstrap',
 			offset: 200,
 		});
+
+		// Initialize modals
 		this.verificationModal = new Modal(document.getElementById('verificationModal'));
 		this.paymentModal = new Modal(document.getElementById('notifyPaymentModal'));
 	},
@@ -171,7 +173,7 @@ export default defineComponent({
 					const user = snapshot.val();
 
 					// Check if the user has a subscription plan and it's an object
-					if (user.subscription && typeof user.subscription === 'object') {
+					if (user.subscription) {
 						const userSubscriptionRef = dbRef(db, `Users/${this.userId}/subscription`);
 						const subscriptionSnapshot = await get(userSubscriptionRef);
 
@@ -203,10 +205,8 @@ export default defineComponent({
 					} else {
 						// Handle case where there is no subscription plan
 						this.subscriptionPlan = {
-							status: 'No Subscription',
+							status: 'Sin suscripcion',
 							price: 0,
-							payDay: 'N/A',
-							isPaid: false
 						};
 					}
 				}
@@ -481,42 +481,48 @@ export default defineComponent({
 			let currentUser = null;
 
 			try {
-                const snapshot = await get(currentUserRef);
+				const snapshot = await get(currentUserRef);
 
-                if (snapshot.exists()) {
-                    currentUser = snapshot.val();
-					// fetch the currentUser key
+				if (snapshot.exists()) {
+					currentUser = snapshot.val();
+				} else {
+					currentUser = null;
+				}
+			} catch (error) {
+				console.error("Error fetching current user details:", error);
+			}
 
-                } else {
-                    currentUser = null;
+			try {
+				const userName = `${currentUser.firstName} ${currentUser.lastName}`;
+				const folderRef = storageRef(storage, `payment-captures/${this.userId}-${userName}`);
+
+				// List all files in the client's payment-captures folder
+				const fileList = await listAll(folderRef);
+
+				// Filter files by date (ignoring extension)
+				const matchingFile = fileList.items.find(fileRef => fileRef.name.startsWith(date));
+
+				if (matchingFile) {
+					// Get the download URL for the payment file
+					const paymentUrl = await getDownloadURL(matchingFile);
+
+					// Assign the URL to the client object if it exists
+					this.paymentUrl = paymentUrl || null;
+					console.log('Payment file fetched:', paymentUrl);
+				} else {
+                    console.log('No payment file found for the given date');
+                    this.paymentUrl = null;
                 }
-            } catch (error) {
-                console.error("Error fetching current user details:", error);
-            }
-
-            try {
-                const userName = `${currentUser.firstName} ${currentUser.lastName}`;
-                const fileName = `${date}-capture.png`;
-
-                // Reference to the storage file
-                const fileRef = storageRef(storage, `payment-captures/${this.userId}-${userName}/${fileName}`);
-
-                // Get the download URL for the payment file
-                const paymentUrl = await getDownloadURL(fileRef);
-
-                // Assign the URL to the client object if it exists
-                this.paymentUrl = paymentUrl || null;
-                console.log('Payment file fetched:', paymentUrl);
-            } catch (error) {
-                console.error('Error fetching payment file:', error.message || error);
-                this.paymentUrl = null;
-            }
-        },
+			} catch (error) {
+				console.error('Error fetching payment file:', error.message || error);
+				this.paymentUrl = null;
+			}
+		},
 		openImgModal() {
 			if (this.subscriptionPlan.lastPaymentDate) {
-				
+
 				const paymentDate = (this.subscriptionPlan.lastPaymentDate).split('T')[0];
-				console.log(paymentDate)
+				
 				this.fetchPaymentFiles(paymentDate);
 			}
 
@@ -588,7 +594,8 @@ export default defineComponent({
 		<nav style="--bs-breadcrumb-divider: '>';" aria-label="breadcrumb">
 			<ol class="breadcrumb">
 				<li class="breadcrumb-item">
-					<router-link v-if="this.role === 'admin' || this.role === 'mesero' || this.role === 'promotora'" to="/">
+					<router-link v-if="this.role === 'admin' || this.role === 'mesero' || this.role === 'promotora'"
+						to="/">
 						Dashboard
 					</router-link>
 					<router-link v-else-if="this.role === 'cliente'" to="/client-portal">
@@ -720,21 +727,23 @@ export default defineComponent({
 				</div>
 
 				<!-- Subscription section -->
-				<div v-if="subscriptionPlan && (this.role === 'cliente' || this.role === 'afiliado')" class="col">
+				<div v-if="(this.role === 'cliente' || this.role === 'afiliado') && subscriptionPlan" class="col">
 					<h4><i class="fas fa-handshake fa-fw"></i> Suscripción</h4>
 					<p>Aqui estan los detalles de tu suscripción actual.</p>
 					<div class="card shadow-sm">
 						<div class="card-body">
 							<div class="card-title mb-3">
 								<h4 class="text-center"><i :class="this.subscriptionPlan.icon"></i> {{
-									this.subscriptionPlan.name }}
+									this.subscriptionPlan.name.toUpperCase() }}
 								</h4>
 							</div>
 							<div class="card-text mb-3">
 								<strong>Precio: </strong>${{ this.subscriptionPlan.price }}
 							</div>
 							<div class="card-text mb-3">
-								<strong>Fecha de corte: </strong>{{ formatDate(this.subscriptionPlan.payDay) }}
+								<strong>Fecha de corte: </strong>{{ this.subscriptionPlan ?
+									formatDate(this.subscriptionPlan.payDay) :
+									'' }}
 								<span class="badge bg-transparent border border-success text-success ms-2"
 									v-if="subscriptionPlan.isPaid">Pago verificado</span>
 							</div>
@@ -756,9 +765,9 @@ export default defineComponent({
 									@click.prevent="openPaymentModal">
 									Notificar Pago
 								</button>
-								<button class="btn btn-theme" @click.prevent="requestUpgrade">
+								<RouterLink to="/suscripciones" class="btn btn-theme">
 									Mejorar Suscripción
-								</button>
+								</RouterLink>
 							</div>
 						</div>
 					</div>
@@ -955,7 +964,7 @@ export default defineComponent({
 				</div>
 			</div>
 		</div>
-		<!-- Modal for opening ID img -->
+		<!-- Modal for opening img -->
 		<div class="modal fade" id="idImgModal" tabindex="-1" aria-labelledby="idImgModalLabel" aria-hidden="true">
 			<div class="modal-dialog modal-dialog-centered">
 				<div class="modal-content">

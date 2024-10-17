@@ -21,7 +21,7 @@ export default {
 			referralClients: [],
 			clientsModalData: '',
 			sortField: 'firstName',
-            sortOrder: 'asc',
+			sortOrder: 'asc',
 		}
 	},
 	methods: {
@@ -140,7 +140,25 @@ export default {
 
 							if (referralSnapshot.exists()) {
 								const referralData = referralSnapshot.val();
-								this.referralClients.push(referralData); 								
+
+								// Check if the client has a subscription object with a subscription_id
+								if (referralData.subscription && referralData.subscription.subscription_id) {
+									const subscriptionId = referralData.subscription.subscription_id;
+									const subscriptionRef = dbRef(db, `Suscriptions/${subscriptionId}`);
+									const subscriptionSnapshot = await get(subscriptionRef);
+
+									if (subscriptionSnapshot.exists()) {
+										// Add subscription name to referralData
+										referralData.subscriptionName = subscriptionSnapshot.val().name || "Unknown Subscription";
+									} else {
+										console.log(`Subscription with ID ${subscriptionId} not found.`);
+										referralData.subscriptionName = "Unknown Subscription";
+									}
+								} else {
+									referralData.subscriptionName = "No Subscription";
+								}
+
+								this.referralClients.push(referralData);
 							} else {
 								console.log(`Referral client with ID ${referralId} not found.`);
 							}
@@ -163,27 +181,27 @@ export default {
 			new Modal(document.getElementById('clientsModal')).show();
 		},
 		sortClients(field) {
-            if (this.sortField === field) {
-                // If already sorted by this field, toggle sort order
-                this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
-            } else {
-                // Otherwise, set the field and default to ascending order
-                this.sortField = field;
-                this.sortOrder = 'asc';
-            }
+			if (this.sortField === field) {
+				// If already sorted by this field, toggle sort order
+				this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+			} else {
+				// Otherwise, set the field and default to ascending order
+				this.sortField = field;
+				this.sortOrder = 'asc';
+			}
 
-            // Sort the clientsModalData array
-            this.clientsModalData.sort((a, b) => {
-                let fieldA = a[field].toString().toLowerCase();
-                let fieldB = b[field].toString().toLowerCase();
+			// Sort the clientsModalData array
+			this.clientsModalData.sort((a, b) => {
+				let fieldA = a[field].toString().toLowerCase();
+				let fieldB = b[field].toString().toLowerCase();
 
-                if (this.sortOrder === 'asc') {
-                    return fieldA > fieldB ? 1 : fieldA < fieldB ? -1 : 0;
-                } else {
-                    return fieldA < fieldB ? 1 : fieldA > fieldB ? -1 : 0;
-                }
-            });
-        },
+				if (this.sortOrder === 'asc') {
+					return fieldA > fieldB ? 1 : fieldA < fieldB ? -1 : 0;
+				} else {
+					return fieldA < fieldB ? 1 : fieldA > fieldB ? -1 : 0;
+				}
+			});
+		},
 	},
 	async mounted() {
 		const userStore = useUserStore();
@@ -220,9 +238,9 @@ export default {
 				</div>
 			</div>
 
-			<div class="row g-4">
+			<div class="row">
 				<!-- Clientes registrados -->
-				<div class="col-4">
+				<div class="col-sm-6 col-lg-4 mb-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-primary mb-3">
@@ -234,7 +252,7 @@ export default {
 					</div>
 				</div>
 				<!-- Clientes verificados -->
-				<div class="col-4">
+				<div class="col-sm-6 col-lg-4 mb-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-success mb-3">
@@ -246,7 +264,7 @@ export default {
 					</div>
 				</div>
 				<!-- Solicitudes de cupones por Clientes -->
-				<div class="col-4">
+				<div class="col-sm-6 col-lg-4 mb-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-primary mb-3">
@@ -259,7 +277,7 @@ export default {
 					</div>
 				</div>
 				<!-- Comercios afiliados -->
-				<div class="col-4">
+				<div class="col-sm-6 col-lg-4 mb-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-success mb-3">
@@ -271,7 +289,7 @@ export default {
 					</div>
 				</div>
 				<!-- Cupones aplicados -->
-				<div class="col-4">
+				<div class="col-sm-6 col-lg-4 mb-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-primary mb-3">
@@ -303,7 +321,8 @@ export default {
 						<div class="card-body text-center py-5">
 							<h5 class="card-title mb-3">Clientes referidos</h5>
 							<h3><strong>{{ this.userReferralsLength || 0 }}</strong></h3>
-							<a href="#" class="btn btn-theme btn-lg px-4 mt-3 shadow-sm" @click.prevent="openClientsModal()">Ver lista de referidos</a>
+							<a href="#" class="btn btn-theme btn-lg px-4 mt-3 shadow-sm"
+								@click.prevent="openClientsModal()">Ver lista de referidos</a>
 						</div>
 					</div>
 				</div>
@@ -329,12 +348,14 @@ export default {
 											<th scope="col" @click="sortClients('identification')">Cédula
 												<i class="fa-solid fa-sort"></i>
 											</th>
+											<th scope="col">Suscripción</th>
 										</tr>
 									</thead>
 									<tbody>
 										<tr v-for="client in clientsModalData" :key="client.id">
 											<td>{{ client.firstName + ' ' + client.lastName }}</td>
 											<td>{{ client.identification }}</td>
+											<td>{{ client.subscriptionName.charAt(0).toUpperCase() + client.subscriptionName.slice(1) }}</td>
 										</tr>
 									</tbody>
 								</table>

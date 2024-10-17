@@ -36,6 +36,7 @@ export default {
 
             // Fetching data
             clients: [],
+            selectedClients: [],
             affiliates: [],
             categories: [],
             coupons: [],
@@ -59,6 +60,7 @@ export default {
             clientId: '',
 
             selectedCouponDetails: [],
+            allAppliedCoupons: [],
             filteredAppliedCoupons: [],
             filterByDate: false,
             filterByAffiliate: false,
@@ -66,10 +68,11 @@ export default {
             endDate: null,
 
             isSubmitting: false,
+            loading: false,
             currentPage: 1,
             itemsPerPage: 6,
             clientPreferences: [],
-            clientsModalData: '',
+            clientsModalData: [],
             requestsModalData: '',
             modalTitle: '',
             showRequestsColumn: false,
@@ -81,6 +84,16 @@ export default {
         selectedCouponOption(newOption) {
             this.clearData(newOption);
         },
+        filterByDate(newValue) {
+            if (!newValue) {
+                this.clearDateFilter();
+            }
+        },
+        filterByAffiliate(newValue) {
+            if (!newValue) {
+                this.clearAffiliateFilter();
+            }
+        },
     },
     computed: {
         filteredCoupons() {
@@ -91,7 +104,7 @@ export default {
                 filteredCoupons = filteredCoupons.filter(coupon => coupon.onlyInStore === true);
             }
 
-            // Apply filtering based on the `selectedFilterOption`
+            // Apply filtering based on the `selectedFilterOption` (for non-applied coupons)
             switch (this.selectedFilterOption) {
                 case 'option1':
                     // No additional filtering required as this case shows all coupons
@@ -106,19 +119,6 @@ export default {
                     break;
                 default:
                     break;
-            }
-
-            // Filter by date range
-            if (this.filterByDate && this.startDate && this.endDate) {
-                const start = new Date(this.startDate);
-                const end = new Date(this.endDate);
-                end.setHours(23, 59, 59, 999);
-
-                filteredCoupons = filteredCoupons.filter(coupon => {
-                    const couponDateParts = this.formatDate(coupon.expiration).split('/');
-                    const couponDate = new Date(couponDateParts[2], couponDateParts[1] - 1, couponDateParts[0]);
-                    return couponDate >= start && couponDate <= end;
-                });
             }
 
             // Apply search query filter
@@ -142,7 +142,11 @@ export default {
         },
         currentPageName() {
             return this.$route.name;
-        }
+        },
+        allSelected() {
+            // Check if the number of selected clients matches the total number of clients
+            return this.selectedClients.length === this.clientsModalData.length && this.clientsModalData.length > 0;
+        },
     },
     methods: {
         showToast(message) {
@@ -162,6 +166,10 @@ export default {
             if (page >= 1 && page <= this.totalPages) {
                 this.currentPage = page;
             }
+        },
+        toggleSelectAll(event) {
+            const isChecked = event.target.checked;
+            this.selectedClients = isChecked ? this.clientsModalData.map(client => client.id) : [];
         },
 
         //Fetch data
@@ -342,7 +350,7 @@ export default {
                     const couponsData = couponsSnapshot.val();
 
                     // Extracting the correct structure from Firebase
-                    const appliedCoupons = await Promise.all(Object.keys(couponsData).map(couponId =>
+                    const appliedCoupons = await Promise.all(Object.keys(couponsData).flatMap(couponId =>
                         Object.keys(couponsData[couponId]).map(async (redemptionId) => {
                             const couponDetails = couponsData[couponId][redemptionId];
                             const clientName = await this.fetchClientName(couponDetails.client_id); // Fetch client's name
@@ -404,66 +412,82 @@ export default {
                 }
                 // Role: afiliado
                 else if (userRole === 'afiliado') {
+                    this.loading = true;
+
                     const couponsRef = dbRef(db, `Coupons`);
-                    const couponsSnapshot = await get(couponsRef);
-                    const userAppliedCoupons = await this.fetchUserAppliedCoupons();
 
-                    if (couponsSnapshot.exists()) {
-                        const couponsData = couponsSnapshot.val();
-                        let allCoupons = [];
-                        const appliedCoupons = [];
-                        const pendingPaymentCoupons = [];
+                    try {
+                        const couponsSnapshot = await get(couponsRef);
+                        const userAppliedCoupons = await this.fetchUserAppliedCoupons();
 
-                        allCoupons = Object.keys(couponsData).map(couponId => ({
-                            id: couponId,
-                            ...couponsData[couponId],
-                        }));
+                        if (couponsSnapshot.exists()) {
+                            const couponsData = couponsSnapshot.val();
+                            let allCoupons = [];
+                            const appliedCoupons = [];
+                            const pendingPaymentCoupons = [];
 
-                        // Applied coupons
-                        allCoupons.forEach((coupon) => {
-                            const appliedCoupon = userAppliedCoupons.find(ac => ac.couponId === coupon.id);
-                            if (coupon.applied === true && appliedCoupon) {
-                                appliedCoupons.push({
-                                    ...coupon,
-                                    couponCode: appliedCoupon.couponCode,
-                                    clientId: appliedCoupon.clientId,
-                                    appliedDate: appliedCoupon.appliedDate,
-                                    clientName: appliedCoupon.clientName
-                                });
+                            allCoupons = Object.keys(couponsData).map(couponId => ({
+                                id: couponId,
+                                ...couponsData[couponId],
+                            }));
+
+                            for (const appliedCoupon of userAppliedCoupons) {
+                                // Find the corresponding coupon in allCoupons
+                                const coupon = allCoupons.find(c => c.id === appliedCoupon.couponId);
+
+                                if (coupon) {
+                                    // Only process if the coupon exists
+                                    if (coupon.applied === true) {
+                                        const clientName = await this.fetchClientName(appliedCoupon.clientId); // Fetch the client's name
+                                        appliedCoupons.push({
+                                            ...coupon,
+                                            couponCode: appliedCoupon.couponCode,
+                                            clientId: appliedCoupon.clientId,
+                                            appliedDate: appliedCoupon.appliedDate,
+                                            clientName: clientName, // Add client name
+                                        });
+                                    }
+
+                                    // Check for pending payment
+                                    if (coupon.isPaid === false) {
+                                        pendingPaymentCoupons.push({
+                                            ...coupon,
+                                            couponCode: appliedCoupon.couponCode,
+                                            clientId: appliedCoupon.clientId,
+                                            appliedDate: appliedCoupon.appliedDate,
+                                            clientName: await this.fetchClientName(appliedCoupon.clientId), // Fetch the client's name
+                                        });
+                                    }
+                                } else {
+                                    // Log or handle the case where the coupon has been deleted
+                                    console.warn(`Coupon with ID ${appliedCoupon.couponId} was deleted from the database.`);
+                                }
                             }
-                        });
 
-                        // Pending payment coupons
-                        allCoupons.forEach((coupon) => {
-                            const appliedCoupon = userAppliedCoupons.find(ac => ac.couponId === coupon.id);
-                            if (appliedCoupon && coupon.isPaid === false) {
-                                pendingPaymentCoupons.push({
-                                    ...coupon,
-                                    couponCode: appliedCoupon.couponCode,
-                                    clientId: appliedCoupon.clientId,
-                                    appliedDate: appliedCoupon.appliedDate,
-                                    clientName: appliedCoupon.clientName
-                                });
+                            // Display filtered coupons based on the selected option
+                            if (this.selectedCouponOption === 'option1') {
+                                // Applied Coupons
+                                this.coupons = appliedCoupons;
+                                console.log('applied coupons:', this.coupons);
+                            } else if (this.selectedCouponOption === 'option2') {
+                                // Pending Payment Coupons
+                                this.coupons = pendingPaymentCoupons;
+                                console.log('pending Payment coupons:', this.coupons);
+                            } else {
+                                this.coupons = allCoupons;
                             }
-                        });
-
-                        // Display filtered coupons based on the selected option
-                        if (this.selectedCouponOption === 'option1') {
-                            // Applied Coupons
-                            this.coupons = appliedCoupons;
-                            console.log(this.coupons);
-                        } else if (this.selectedCouponOption === 'option2') {
-                            // Pending Payment Coupons
-                            this.coupons = pendingPaymentCoupons;
                         } else {
-                            this.coupons = allCoupons;
+                            console.log('No coupons found for affiliate');
+                            this.coupons = [];
                         }
-                    } else {
-                        console.log('No coupons found for afiliado');
+                    } catch (error) {
+                        console.error('Error fetching coupons for affiliate:', error);
                         this.coupons = [];
+                    } finally {
+                        this.loading = false;
                     }
                 }
-                // General coupon fetch for all users
+                // General coupon fetch for admin users
                 else {
                     const couponsRef = dbRef(db, 'Coupons');
                     const snapshot = await get(couponsRef);
@@ -486,9 +510,76 @@ export default {
                 this.coupons = [];
             }
         },
+        async fetchAllAppliedCoupons() {
+            const affiliates = this.affiliates;
+
+            try {
+                this.loading = true;
+                let allAppliedCoupons = [];
+
+                // Loop through each affiliate and collect their applied coupons
+                for (const affiliate of affiliates) {
+
+                    if (affiliate.appliedCoupons && typeof affiliate.appliedCoupons === 'object') {
+
+                        // Process each couponId in appliedCoupons
+                        const couponPromises = Object.keys(affiliate.appliedCoupons).map(async (couponId) => {
+                            const redemptions = affiliate.appliedCoupons[couponId];
+
+                            // Process each redemptionId under the couponId
+                            const redemptionPromises = Object.keys(redemptions).map(async (redemptionId) => {
+                                const couponDetails = redemptions[redemptionId];
+                                const clientName = await this.fetchClientName(couponDetails.client_id); // Fetch client's name
+
+                                // Fetch additional coupon details from the Coupons table
+                                const couponRef = dbRef(db, `Coupons/${couponId}`);
+                                const couponSnapshot = await get(couponRef);
+
+                                let fullCouponData = {};
+                                if (couponSnapshot.exists()) {
+                                    fullCouponData = couponSnapshot.val();
+                                }
+
+                                // Return the coupon data for this redemption
+                                return {
+                                    couponId,
+                                    redemptionId,
+                                    clientId: couponDetails.client_id,
+                                    clientName,
+                                    appliedDate: couponDetails.appliedDate,
+                                    ...fullCouponData // Merge full coupon data from Coupons table
+                                };
+                            });
+
+                            // Wait for all redemptions for the current coupon to complete
+                            const couponRedemptions = await Promise.all(redemptionPromises);
+                            allAppliedCoupons.push(...couponRedemptions);
+                        });
+
+                        // Wait for all coupons for the current affiliate to complete
+                        await Promise.all(couponPromises);
+                    }
+                }
+
+                // Set the applied coupons to the result
+                this.allAppliedCoupons = allAppliedCoupons; // Store all coupons first
+                this.filteredAppliedCoupons = allAppliedCoupons; // Initially set filtered coupons as all coupons
+            } catch (error) {
+                console.error("Error fetching applied coupons:", error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        getClientFullName(clientId) {
+            const client = this.clients.find(client => client.id === clientId);
+            return client ? `${client.firstName} ${client.lastName}` : 'Nombre no disponible';
+        },
+        getClientIdentification(clientId) {
+            const client = this.clients.find(client => client.id === clientId);
+            return client ? client.identification : 'Cédula no disponible';
+        },
 
         //Assign coupon to clients 
-        // OJO: Modify so many coupons can be assigned at the same time
         searchClientsForCoupon() {
             if (!this.searchClient.trim()) {
                 this.searchClientResults = [];
@@ -505,29 +596,58 @@ export default {
                 return identification.includes(searchQuery) || name.includes(searchQuery);
             });
         },
-        selectClientForCoupon(client) {
+        // Method for selecting a client for a coupon being applied
+        selectClientForApply(client) {
             this.selectedClient = client;
-            console.log('Selected client:', client.identification);
+
+            console.log('Selected client:', client.id);
             this.searchClient = '';
             this.searchClientResults = [];
-            const modal = Modal.getOrCreateInstance(document.getElementById('clientsModal'));
-            modal.hide();
         },
-        deselectClient() {
-            this.selectedClient = null;
-            console.log('Selected client: none');
+        // Method for selecting a single client to assign coupons
+        selectClientForCoupon(client) {
+            if (!this.selectedClients.includes(client.id)) {
+                this.selectedClients.push(client.id);
+            } else {
+                this.selectedClients = this.selectedClients.filter(id => id !== client.id);
+            }
+
+            if (this.role === 'admin') {
+                // Hide the modal after selecting the single client
+                const modal = Modal.getOrCreateInstance(document.getElementById('clientsModal'));
+                modal.hide();
+            }
+
+            console.log('Selected client:', client.id);
+            this.searchClient = '';
+            this.searchClientResults = [];
+        },
+        // Method for selecting multiple clients (applies to button "Asignar Cupon a Seleccionados")
+        selectMultipleClientsForCoupon() {
+            if (this.selectedClients.length > 0) {
+                console.log('Selected clients:', this.selectedClients);
+
+                // Hide the modal after selecting multiple clients
+                const modal = Modal.getOrCreateInstance(document.getElementById('clientsModal'));
+                modal.hide();
+            } else {
+                console.warn('No clients selected');
+            }
+        },
+        deselectClient(clientId) {
+            this.selectedClients = this.selectedClients.filter(id => id !== clientId);
+            console.log('DeSelected client: ', clientId);
         },
         selectCoupon(coupon) {
             this.selectedCoupon = coupon;
         },
 
-        //Update coupons
+        //Update status of expired coupons
         checkCouponStatus(coupon) {
-            const today = moment();
+            const today = new Date();
+            const expirationDate = new Date(coupon.expiration);
 
-            const expirationDate = moment(coupon.expiration, 'DD/MM/YYYY');
-
-            if (expirationDate.isBefore(today, 'day')) {
+            if (expirationDate < today) {
                 coupon.status = false; // Set the coupon to inactive if expiration date is before today
                 this.updateCouponStatusInDB(coupon); // Update status in the database
             }
@@ -674,27 +794,27 @@ export default {
             }
         },
         async assignExistingCoupon() {
-            if (!this.selectedClient) {
-                alert('Por favor seleccione un cliente antes de asignar un cupon.');
+            if (this.selectedClients.length === 0) {
+                alert('Por favor seleccione al menos un cliente antes de asignar un cupon.');
                 return;
             }
 
-            const clientId = this.selectedClient.id;
-
             try {
-                // Assign existing coupon
-                const userCouponRef = dbRef(db, `Users/${clientId}/coupons/${this.selectedCoupon.id}`);
-                await set(userCouponRef, this.selectedCoupon.id);
+                for (const clientId of this.selectedClients) {
+                    // Assign existing coupon
+                    const userCouponRef = dbRef(db, `Users/${clientId}/coupons/${this.selectedCoupon.id}`);
+                    await set(userCouponRef, this.selectedCoupon.id);
+                }
 
-                this.showToast('Cupon asignado con exito!');
+                this.showToast('Cupones asignados con exito!');
 
                 // Reset selection if needed
                 this.selectedCoupon = null;
-                this.selectedClient = null;
+                this.selectedClients = [];
                 this.searchClient = '';
             } catch (error) {
-                console.error('Error assigning coupon:', error);
-                alert('La asignacion de cupon fallo.');
+                console.error('Error assigning coupons:', error);
+                alert('La asignacion de cupones fallo.');
             }
         },
         async createAndAssignCoupon() {
@@ -750,11 +870,13 @@ export default {
                 await set(newCouponRef, couponData);
 
                 // Assign coupon to client if required
-                if (this.assignTheCoupon && this.selectedClient) {
-                    const clientId = this.selectedClient.id;
-                    const userCouponRef = dbRef(db, `Users/${clientId}/coupons/${newCouponKey}`);
-                    await set(userCouponRef, newCouponKey);
-                    this.showToast('Cupon asignado con exito!');
+                if (this.assignTheCoupon && this.selectedClients) {
+                    for (const clientId of this.selectedClients) {
+                        // Assign existing coupon
+                        const userCouponRef = dbRef(db, `Users/${clientId}/coupons/${newCouponKey}`);
+                        await set(userCouponRef, newCouponKey);
+                        this.showToast('Cupon asignado con exito!');
+                    }
                 } else {
                     this.showToast('Cupon creado con exito!');
                 }
@@ -913,27 +1035,24 @@ export default {
             return category ? category.name : 'Unknown Category';
         },
         async applyCoupon() {
-            try {
-                if (!this.appliedCode) {
-                    alert('Ningun codigo de cupon ingresado.');
-                    console.log('No coupon code entered');
-                    return;
+            const client = this.selectedClient;
+            const coupons = this.coupons;
+            let selectedCoupon = null;
+
+            // Find the coupon by its code
+            coupons.forEach(coupon => {
+                if (coupon.couponCode === this.appliedCode) {
+                    selectedCoupon = coupon;
                 }
+            });
 
-                // Load coupons 
-                const coupons = this.coupons;
-                let selectedCoupon = null;
+            try {
+                this.loading = true;
 
-                // Find the coupon by its code
-                coupons.forEach(coupon => {
-                    if (coupon.couponCode === this.appliedCode) {
-                        selectedCoupon = coupon;
-                    }
-                });
-
-                // Alert if the coupon trying to be applied doenst exists
-                if (!selectedCoupon) {
-                    alert('El cupón no existe.');
+                // Alert if the coupon code was not entered
+                if (!this.appliedCode) {
+                    alert('Primero ingrese un código de cupón válido.');
+                    console.log('No coupon code entered');
                     return;
                 }
 
@@ -947,70 +1066,79 @@ export default {
                     return;
                 }
 
+                // Check if the client has the coupon assigned
+                if (!client.coupons || !client.coupons[selectedCoupon.id]) {
+                    console.error('Client does not have this coupon assigned');
+                    alert('El cliente no tiene el cupon asignado');
+                    return;
+                }
+
+                // Check if the coupon has already been applied (client can apply only once)
+                const appliedCouponRef = dbRef(db, `Users/${this.userId}/appliedCoupons`);
+                const appliedCouponsSnapshot = await get(appliedCouponRef);
+
+                if (appliedCouponsSnapshot.exists()) {
+                    const appliedCoupons = appliedCouponsSnapshot.val();
+
+                    // Iterate through the entries of appliedCoupons to check for the selectedCoupon and selectedClient
+                    const couponAlreadyApplied = Object.entries(appliedCoupons).some(([redemptionId, coupon]) => {
+                        // Check if couponId matches selectedCoupon.id and clientId matches selectedClient.id
+                        return coupon.couponId === selectedCoupon.id && coupon.clientId === client.id;
+                    });
+
+                    if (couponAlreadyApplied) {
+                        console.error('Coupon already applied by this client');
+                        alert('El cliente va ha aplicado este cupon.');
+                        return;
+                    }
+                }
+
                 // Generate a unique key for each redemption (using timestamp here for simplicity)
                 const redemptionId = new Date().getTime();
 
-                //Client
-                const clientId = this.selectedClient.id;
-                // Check if the client has the coupon assigned to them for their use
-                const clientRef = dbRef(db, `Users/${clientId}/coupons/${selectedCoupon.id}`);
-                const snapshot = await get(clientRef);
-
-                // If the client has the coupon assigned to them, they can use it
-                if (snapshot.exists()) {
-                    // Save each redemption as a separate entry in the User's (Affiliate) applied coupons
-                    const userCouponRef = dbRef(db, `Users/${this.userId}/appliedCoupons/${selectedCoupon.id}/${redemptionId}`);
-                    await set(userCouponRef, {
-                        client_id: clientId,
-                        couponCode: selectedCoupon.couponCode,
-                        appliedDate: new Date().toISOString(),
-                    });
-                }
-
-                // Increment the timesUsed
-                const newTimesUsed = timesUsed + 1;
-
-                // Update the coupon data to reflect the usage
-                const couponUpdateRef = dbRef(db, `Coupons/${selectedCoupon.id}`);
-                await update(couponUpdateRef, {
-                    timesUsed: newTimesUsed,
-                    applied: true
+                // Apply the coupon to the affiliate's 'appliedCoupons' object                
+                const newAppliedCouponRef = dbRef(db, `Users/${this.userId}/appliedCoupons/${selectedCoupon.id}/${redemptionId}`);
+                await set(newAppliedCouponRef, {
+                    client_id: client.id,
+                    couponCode: selectedCoupon.couponCode,
+                    appliedDate: new Date().toISOString(),
                 });
 
-                // If coupon can no longer be redeemed, trigger client removal
-                if (newTimesUsed === redeemCount) {
-                    this.removeCouponFromClients(selectedCoupon.id);
+                // Remove the coupon from the client's 'coupons' object
+                await this.removeCouponFromClients(selectedCoupon.id, client.id);
+
+                // Check if the coupon was successfully added to 'appliedCoupons' and removed from the client
+                const checkAppliedCoupon = await get(newAppliedCouponRef);
+                if (checkAppliedCoupon.exists()) {
+                    this.showToast('Cupón aplicado con éxito.');
+                } else {
+                    console.error('Failed to apply coupon');
+                    alert('Error al aplicar el cupón');
                 }
-
-                console.log(`Coupon with ID: ${selectedCoupon.id} applied by store: ${this.userId}`);
-
-                // Show success message
-                this.showToast('¡Cupón aplicado con éxito!');
-
                 // Clear the input after applying
                 this.appliedCode = '';
                 this.selectedClient = '';
 
             } catch (error) {
                 console.error('Error applying coupon:', error);
+            } finally {
+                this.loading = false;
             }
         },
-        async removeCouponFromClients(couponId) {
+        async removeCouponFromClients(couponId, clientId) {
             try {
-                // Fetch clients (Users with role 'cliente')
-                await this.fetchClients();
+                // Fetch the specific client
+                const clientRef = dbRef(db, `Users/${clientId}/coupons/${couponId}`);
 
-                // Iterate through clients to check for the coupon in their 'appliedCoupons'
-                this.clients.forEach(async client => {
-
-                    if (client.coupons && client.coupons[couponId]) {
-                        // Remove the coupon from the client's appliedCoupons
-                        const userCouponToRemoveRef = dbRef(db, `Users/${client.id}/coupons/${couponId}`);
-                        await remove(userCouponToRemoveRef);
-                    }
-                });
-
-                console.log(`Coupon with ID: ${couponId} removed from clients.`);
+                // Check if the coupon exists for the selected client
+                const couponSnapshot = await get(clientRef);
+                if (couponSnapshot.exists()) {
+                    // Remove the coupon from the client's 'coupons' object
+                    await remove(clientRef);
+                    console.log(`Coupon with ID: ${couponId} removed from client with ID: ${clientId}`);
+                } else {
+                    console.error(`Coupon not found for client with ID: ${clientId}`);
+                }
             } catch (error) {
                 console.error('Error removing coupon from clients:', error);
             }
@@ -1023,7 +1151,7 @@ export default {
             // Set the clicked category to active
             this.affiliates[index].active = true;
 
-            // Filter the menu items based on the active category
+            // Filter the items based on the active category
             this.filterCouponsByAffiliates(this.affiliates[index].id);
         },
         async filterCouponsByAffiliates(affiliateId) {
@@ -1072,78 +1200,61 @@ export default {
                 this.filteredAppliedCoupons = [];
             }
         },
+        filterCouponsByDate() {
+            let appliedCoupons;
+            if (!this.startDate || !this.endDate) {
+                // If either date is missing, return all coupons
+                this.filteredAppliedCoupons = this.allAppliedCoupons;
+                return;
+            }
+
+            const start = new Date(this.startDate);
+            const end = new Date(this.endDate);
+            end.setHours(23, 59, 59, 999); // Include the entire end date
+
+            // Filter coupons based on the appliedDate
+            appliedCoupons = this.allAppliedCoupons.filter(coupon => {
+
+                const couponDate = new Date(coupon.appliedDate); // Convert ISOString to Date object
+                return couponDate >= start && couponDate <= end;
+            });
+
+            this.filteredAppliedCoupons = appliedCoupons;
+            console.log(this.filteredAppliedCoupons)
+        },
         clearDateFilter() {
             this.startDate = null;
             this.endDate = null;
+            this.filteredAppliedCoupons = this.allAppliedCoupons;
         },
-        async showAllAppliedCoupons() {
-            const affiliates = this.affiliates;
-
-            try {
-
-                let allAppliedCoupons = [];
-
-                // Loop through each affiliate and collect their applied coupons
-                for (const affiliate of affiliates) {
-                    if (affiliate.appliedCoupons) {
-                        if (typeof affiliate.appliedCoupons === 'object') {
-                            // For each couponId in appliedCoupons, fetch the coupon details and redemptions
-                            for (const couponId of Object.keys(affiliate.appliedCoupons)) {
-                                const redemptions = affiliate.appliedCoupons[couponId];
-
-                                // Loop through each redemption (nested object) under the couponId
-                                for (const redemptionId of Object.keys(redemptions)) {
-                                    const couponDetails = redemptions[redemptionId];
-                                    const clientName = await this.fetchClientName(couponDetails.client_id); // Fetch client's name
-
-                                    // Fetch additional coupon details from the Coupons table
-                                    const couponRef = dbRef(db, `Coupons/${couponId}`);
-                                    const couponSnapshot = await get(couponRef);
-
-                                    let fullCouponData = {};
-                                    if (couponSnapshot.exists()) {
-                                        fullCouponData = couponSnapshot.val();
-                                    }
-
-                                    // Add the coupon details and additional info to the allAppliedCoupons array
-                                    allAppliedCoupons.push({
-                                        couponId,
-                                        redemptionId,
-                                        clientId: couponDetails.client_id,
-                                        clientName,
-                                        appliedDate: couponDetails.appliedDate,
-                                        ...fullCouponData // Merge full coupon data from Coupons table
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Set the applied coupons to the result
-                this.filteredAppliedCoupons = allAppliedCoupons;
-            } catch (error) {
-                console.error("Error fetching applied coupons:", error);
-            }
+        clearAffiliateFilter() {
+            this.affiliates.forEach((affiliate) => {
+                affiliate.active = false;
+            });
+            this.filteredAppliedCoupons = this.allAppliedCoupons;
         },
+
     },
-    async created() {
+    async mounted() {
         const userStore = useUserStore();
         await userStore.fetchUser();
         this.role = userStore.role;
         this.userId = userStore.userId;
-        //console.log('This user ID: ', this.userId, 'Has a role of: ', this.role);
 
         await this.loadCoupons();
+        await this.fetchAffiliates();
 
         if (this.role === 'admin' || this.role === 'afiliado') {
             await this.fetchClients();
         }
 
         if (this.role === 'admin') {
-            await this.fetchAffiliates();
             await this.fetchCategories();
         }
+
+        this.coupons.forEach(coupon => {
+            this.checkCouponStatus(coupon);
+        });
 
     }
 }
@@ -1175,7 +1286,7 @@ export default {
                     </div>
                     <div class="mb-3 form-check form-check-inline">
                         <input class="form-check-input" type="radio" name="couponOptions" id="inlineRadio4"
-                            value="option4" v-model="selectedCouponOption" @click="showAllAppliedCoupons()">
+                            value="option4" v-model="selectedCouponOption" @click="fetchAllAppliedCoupons()">
                         <label class="form-check-label" for="inlineRadio4">Ver cupones aplicados</label>
                     </div>
 
@@ -1192,54 +1303,52 @@ export default {
                             <SearchInput v-model="searchClient" :results="searchClientResults"
                                 placeholder="Busque un cliente por su cédula..." @input="searchClientsForCoupon"
                                 @select="selectClientForCoupon" class="form-control mb-3" />
-                            <button v-if="selectedClient" class="btn btn-danger mb-3" style="margin: 5px;"
-                                @click.prevent="deselectClient">
-                                {{ selectedClient.firstName + ' ' + selectedClient.lastName }}
-                                <i class="fa fa-times fa-sm"></i>
-                            </button>
+
                             <!-- Display selected client information -->
-                            <div v-if="selectedClient && !showClientsWithRequests" class="border rounded">
-                                <div class="row mb-2">
+                            <p>{{ selectedClients.length }} Clientes seleccionados</p>
+                            <div v-if="selectedClients.length > 0 && !showClientsWithRequests" class="border rounded">
+                                <div class="row mb-2" v-for="clientId in selectedClients" :key="clientId">
                                     <div class="col-12 col-md-6">
                                         <h5><strong>Información del cliente seleccionado:</strong></h5>
                                         <div class="card shadow-sm">
                                             <div class="card-header">
+                                                <!-- Deselect button -->
+                                                <button class="btn btn-sm btn-danger" @click="deselectClient(clientId)">
+                                                    <i class="fa-solid fa-times"></i>
+                                                </button>
                                                 <h5 class="card-title text-center text-black">
-                                                    {{ selectedClient.firstName + ' ' +
-                                                        selectedClient.lastName }}
+                                                    {{ getClientFullName(clientId) }}
                                                 </h5>
+
+                                                <h6 class="text-center text-black">V-{{
+                                                    getClientIdentification(clientId) }}</h6>
                                             </div>
                                             <div class="card-body">
-                                                <p><strong>Cédula:</strong> {{ selectedClient.identification }}</p>
-                                                <p><strong>Email:</strong> {{ selectedClient.email }}</p>
-                                                <p><strong>Teléfono:</strong> {{ selectedClient.phoneNumber }}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-12 col-md-6">
-                                        <h5><strong>Preferencias para cupones:</strong></h5>
-                                        <div v-if="Object.keys(clientPreferences[selectedClient.id]).length > 0">
+                                                <h5><strong>Preferencias para cupones:</strong></h5>
+                                                <div v-if="Object.keys(clientPreferences[clientId]).length > 0">
 
-                                            <div v-for="(pref, categoryId) in clientPreferences[selectedClient.id]"
-                                                :key="categoryId">
-                                                <div class="card shadow-sm">
-                                                    <div class="card-header">
-                                                        <h5 class="card-title text-center text-black">
-                                                            {{ pref.category }}</h5>
-                                                    </div>
-                                                    <div class="card-body">
-                                                        <ul>
-                                                            <li v-for="(subcategory, index) in pref.subcategories"
-                                                                :key="index">
-                                                                {{ subcategory }}</li>
-                                                        </ul>
+                                                    <div v-for="(pref, categoryId) in clientPreferences[clientId]"
+                                                        :key="categoryId">
+                                                        <div class="card shadow-sm">
+                                                            <div class="card-header">
+                                                                <h5 class="card-title text-center text-black">
+                                                                    {{ pref.category }}</h5>
+                                                            </div>
+                                                            <div class="card-body">
+                                                                <ul>
+                                                                    <li v-for="(subcategory, index) in pref.subcategories"
+                                                                        :key="index">
+                                                                        {{ subcategory }}</li>
+                                                                </ul>
+                                                            </div>
+                                                        </div>
+
                                                     </div>
                                                 </div>
-
+                                                <p v-else class="text-center">El cliente no ha especificado sus
+                                                    preferencias.</p>
                                             </div>
                                         </div>
-                                        <p v-else class="text-center">El cliente no ha especificado sus
-                                            preferencias.</p>
                                     </div>
                                 </div>
                             </div>
@@ -1279,15 +1388,15 @@ export default {
                                     v-for="(coupon, index) in paginatedFilteredCoupons" :key="coupon.id">
                                     <div class="card h-100" @click="selectCoupon(coupon)"
                                         :class="{ 'selected': coupon === selectedCoupon }">
-                                        <div class="card-body position-relative">
+                                        <div class="card-body position-relative d-flex flex-column">
                                             <!-- Badge for status -->
                                             <span class="badge position-absolute top-0 start-100 translate-middle"
                                                 :class="coupon.status ? 'bg-success' : 'bg-danger'">
-                                                {{ coupon.status ? 'Activo' : 'Inactivo' }}
+                                                {{ coupon.status ? 'Activo' : 'Expirado' }}
                                             </span>
 
                                             <div class="d-flex justify-content-between mb-3">
-                                                <h6 class="card-title mb-0">
+                                                <h6 class="card-title mb-0 flex-grow-1">
                                                     <template v-if="editingCoupon && editingCoupon.id === coupon.id">
                                                         <input v-model="editingCoupon.name" class="form-control" />
                                                     </template>
@@ -1295,7 +1404,9 @@ export default {
                                                         {{ coupon.name }}
                                                     </template>
                                                 </h6>
-                                                <div class="btn-group" role="group">
+
+                                                <!-- Buttons -->
+                                                <div class="btn-group ms-2" role="group">
                                                     <button class="btn btn-transparent btn-sm me-1"
                                                         v-if="editingCoupon && editingCoupon.id === coupon.id"
                                                         @click.prevent="updateCoupon">
@@ -1320,7 +1431,8 @@ export default {
                                             <!-- Image Display -->
                                             <div class="img-container text-center mb-3">
                                                 <img :src="coupon.qrFileUrl" alt="QR Code"
-                                                    class="img-fluid img-thumbnail" style="max-height: 150px;">
+                                                    class="img-fluid img-thumbnail"
+                                                    style="max-height: 150px; width: auto;">
                                             </div>
 
                                             <!-- Coupon Code -->
@@ -1334,7 +1446,7 @@ export default {
                                             </p>
 
                                             <!-- Bootstrap Accordion for Coupon Details -->
-                                            <div class="accordion" :id="'couponAccordion' + index">
+                                            <div class="accordion mt-auto" :id="'couponAccordion' + index">
                                                 <div class="accordion-item">
                                                     <h2 class="accordion-header" :id="'heading' + index">
                                                         <button class="accordion-button" type="button"
@@ -1533,15 +1645,56 @@ export default {
                             placeholder="Busque un cliente por su cédula..." @input="searchClientsForCoupon"
                             @select="selectClientForCoupon" class="form-control mt-3 mb-3" />
 
+                        <p>{{ selectedClients.length }} Clientes seleccionados</p>
+
                         <!-- Display selected client information -->
-                        <div v-if="selectedClient && assignTheCoupon" class="mb-3 p-3 border rounded">
-                            <h5>Información del cliente seleccionado</h5>
-                            <p><strong>Nombre:</strong> {{ selectedClient.firstName + ' ' +
-                                selectedClient.lastName }}</p>
-                            <p><strong>Cédula:</strong> {{ selectedClient.identification }}</p>
-                            <p><strong>Email:</strong> {{ selectedClient.email }}</p>
-                            <p><strong>Teléfono:</strong> {{ selectedClient.phoneNumber }}</p>
+                        <div v-if="selectedClients.length > 0 && assignTheCoupon" class="mb-3 p-3 border rounded">
+                            <div class="row mb-2" v-for="clientId in selectedClients" :key="clientId">
+                                <div class="col-12 col-md-6">
+                                    <h5><strong>Información del cliente seleccionado:</strong></h5>
+                                    <div class="card shadow-sm">
+                                        <div class="card-header">
+                                            <!-- Deselect button -->
+                                            <button class="btn btn-sm btn-danger" @click="deselectClient(clientId)">
+                                                <i class="fa-solid fa-times"></i>
+                                            </button>
+                                            <h5 class="card-title text-center text-black">
+                                                {{ getClientFullName(clientId) }}
+                                            </h5>
+
+                                            <h6 class="text-center text-black">V-{{
+                                                getClientIdentification(clientId) }}</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <h5><strong>Preferencias para cupones:</strong></h5>
+                                            <div v-if="Object.keys(clientPreferences[clientId]).length > 0">
+
+                                                <div v-for="(pref, categoryId) in clientPreferences[clientId]"
+                                                    :key="categoryId">
+                                                    <div class="card shadow-sm">
+                                                        <div class="card-header">
+                                                            <h5 class="card-title text-center text-black">
+                                                                {{ pref.category }}</h5>
+                                                        </div>
+                                                        <div class="card-body">
+                                                            <ul>
+                                                                <li v-for="(subcategory, index) in pref.subcategories"
+                                                                    :key="index">
+                                                                    {{ subcategory }}</li>
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                            <p v-else class="text-center">El cliente no ha especificado sus
+                                                preferencias.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+
                         <button v-if="assignTheCoupon" @click="createAndAssignCoupon" class="btn btn-theme mt-3">Crear
                             y Asignar
                             cupón</button>
@@ -1615,7 +1768,7 @@ export default {
                                         <!-- Badge for status -->
                                         <span class="badge position-absolute top-0 start-100 translate-middle"
                                             :class="coupon.status ? 'bg-success' : 'bg-danger'">
-                                            {{ coupon.status ? 'Activo' : 'Inactivo' }}
+                                            {{ coupon.status ? 'Activo' : 'Expirado' }}
                                         </span>
                                         <!-- Badge for isPaid status -->
                                         <span class="badge position-absolute top-0 start-0 translate-middle"
@@ -1735,7 +1888,7 @@ export default {
                                     <!-- Filters by date range -->
                                     <div class="mb-3 form-check form-switch">
                                         <input class="form-check-input" type="checkbox" id="flexSwitchCheckDefault"
-                                            v-model="filterByDate">
+                                            v-model="filterByDate" />
                                         <label class="form-check-label" for="flexSwitchCheckDefault">Filtrar por
                                             fecha</label>
                                     </div>
@@ -1744,7 +1897,7 @@ export default {
                                     <!-- Filters by affiliate -->
                                     <div class="mb-3 form-check form-switch">
                                         <input class="form-check-input" type="checkbox" id="flexSwitchCheck"
-                                            v-model="filterByAffiliate">
+                                            v-model="filterByAffiliate" />
                                         <label class="form-check-label" for="flexSwitchCheck">Filtrar por
                                             Afiliado</label>
                                     </div>
@@ -1752,13 +1905,13 @@ export default {
                             </div>
                         </div>
 
+                        <!-- Filter by affiliates -->
                         <div v-if="filterByAffiliate" class="mt-3 row g-3"
                             style="background-color: darkblue; border-radius: 15px">
                             <div class="col-12">
                                 <h6 class="text-uppercase text-center mb-3">Comercios</h6>
                             </div>
 
-                            <!-- Filter by affiliates -->
                             <div class="col-12">
                                 <div class="nav-container">
                                     <!-- Make the container responsive and apply good padding/margin -->
@@ -1778,13 +1931,13 @@ export default {
                             </div>
                         </div>
 
+                        <!-- Filter by date range -->
                         <div v-if="filterByDate" class="mt-3 row g-3"
                             style="background-color: darkblue; border-radius: 15px">
                             <div class="col-12">
                                 <h6 class="text-uppercase text-center mb-3">Rango de fechas</h6>
                             </div>
 
-                            <!-- Filter by date range -->
                             <div class="col-12">
                                 <div v-if="filterByDate" class="justify-content-center" style="margin-bottom: 20px;">
                                     <div class="row g-3 justify-content-center">
@@ -1799,6 +1952,10 @@ export default {
                                     </div>
 
                                     <div class="d-flex justify-content-center mt-3">
+                                        <button type="button" class="btn btn-theme me-2" style="width: 150px;"
+                                            @click="filterCouponsByDate">
+                                            Filtrar
+                                        </button>
                                         <button type="button" class="btn btn-theme" style="width: 150px;"
                                             @click="clearDateFilter">
                                             Limpiar filtro
@@ -1811,6 +1968,12 @@ export default {
                         <div class="mt-3 mb-3">Mostrando {{ filteredAppliedCoupons.length }} {{
                             filteredAppliedCoupons.length === 1 ?
                                 'resultado' : 'resultados' }}</div>
+
+                        <div class="text-center" v-if="loading">
+                            <p>Cargando cupones, espere...</p>
+                            <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+                                aria-hidden="true"></span>
+                        </div>
 
                         <div class="row">
                             <div class="col-12 col-md-6 col-lg-4 mb-3" v-for="coupon in filteredAppliedCoupons"
@@ -1853,7 +2016,7 @@ export default {
             <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="clientsRequestsModalLabel">{{ modalTitle }}</h5>
+                        <h5 class="modal-title text-center" id="clientsRequestsModalLabel">{{ modalTitle }}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body text-center">
@@ -1861,6 +2024,10 @@ export default {
                             <table class="table text-center table-responsive">
                                 <thead>
                                     <tr>
+                                        <th scope="col">
+                                            <input class="form-check" type="checkbox" @click="toggleSelectAll"
+                                                :checked="allSelected">
+                                        </th>
                                         <th scope="col" @click="sortClients('firstName')">Cliente <i
                                                 class="fa-solid fa-sort"></i></th>
                                         <th scope="col" @click="sortClients('identification')">Cédula <i
@@ -1871,6 +2038,10 @@ export default {
                                 </thead>
                                 <tbody>
                                     <tr v-for="client in clientsModalData" :key="client.id">
+                                        <td>
+                                            <input class="form-check" type="checkbox" :value="client.id"
+                                                v-model="selectedClients">
+                                        </td>
                                         <td>{{ client.firstName + ' ' + client.lastName }}</td>
                                         <td>{{ client.identification }}</td>
                                         <td v-if="showRequestsColumn">
@@ -1891,6 +2062,10 @@ export default {
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-theme" @click="selectMultipleClientsForCoupon()">Asignar Cupon a
+                            Seleccionados</button>
                     </div>
                 </div>
             </div>
@@ -1974,7 +2149,7 @@ export default {
                         <!-- Badge for status -->
                         <span class="badge position-absolute top-0 start-100 translate-middle"
                             :class="coupon.status ? 'bg-success' : 'bg-danger'">
-                            {{ coupon.status ? 'Activo' : 'Inactivo' }}
+                            {{ coupon.status ? 'Activo' : 'Expirado' }}
                         </span>
                         <div class="d-flex justify-content-between mb-3">
                             <h6 class="card-title mb-0">{{ coupon.name }}</h6>
@@ -2027,7 +2202,7 @@ export default {
 
             <div id="apply-coupon" class="mb-5">
                 <div class="row justify-content-center mb-4">
-                    <div class="col-12 col-md-6 col-lg-4">
+                    <div class="col-12 col-md-6">
                         <div class="card custom-card h-100 shadow-sm border-0 rounded-lg">
                             <div class="card-body text-center py-4">
                                 <h5 class="card-title mb-4 font-weight-bold text-primary">Aplicar Cupón</h5>
@@ -2035,7 +2210,7 @@ export default {
                                 <div class="input-group mb-4">
                                     <SearchInput v-model="searchClient" :results="searchClientResults"
                                         placeholder="Busque un cliente por su cédula..." @input="searchClientsForCoupon"
-                                        @select="selectClientForCoupon"
+                                        @select="selectClientForApply"
                                         class="form-control form-control-lg rounded-pill text-center" />
                                 </div>
                                 <!-- Display selected client information -->
@@ -2051,8 +2226,12 @@ export default {
                                     <input type="text" class="form-control form-control-lg rounded-pill text-center"
                                         v-model="appliedCode" placeholder="Código del cupón" />
                                 </div>
-                                <button class="btn btn-secondary btn-lg rounded-pill px-5 shadow-sm mt-3"
-                                    @click="applyCoupon()">Aplicar</button>
+                                <button :disabled="loading" class="btn btn-secondary btn-lg rounded-pill px-5 shadow-sm mt-3"
+                                    @click="applyCoupon()">
+                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+                                        aria-hidden="true"></span>
+                                    <span v-else>Aplicar</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -2079,12 +2258,15 @@ export default {
                             <div class="card-body">
                                 <div class="d-flex justify-content-between mb-3">
                                     <h6 class="card-title mb-0">{{ coupon.name }}</h6>
-                                    <h6 class="text-muted"><strong>Cliente: </strong>{{ coupon.clientName }}</h6>
                                 </div>
                                 <div class="img-container text-center mb-3">
                                     <img :src="coupon.qrFileUrl" alt="QR Code" class="img-fluid img-thumbnail"
                                         style="max-height: 150px;">
                                 </div>
+                                <div class="card-title"><strong>Cliente: </strong>
+                                    {{ coupon.clientName }}
+                                </div>
+                                <hr>
                                 <p class="card-text"><strong>Código:</strong> {{ coupon.couponCode }}</p>
                                 <p class="card-text"><strong>Saldo:</strong> ${{ coupon.balance }}</p>
                                 <p class="card-text"><strong>Aplicado el dia: </strong>{{ formatDate(coupon.appliedDate)
@@ -2092,10 +2274,10 @@ export default {
                                 </p>
                                 <p class="card-text"><strong>Expiración:</strong> {{ formatDate(coupon.expiration) }}
                                 </p>
-                                <p class="card-text"><strong>Veces que se puede aplicar: </strong>{{ coupon.redeemCount
+                                <!-- <p class="card-text"><strong>Veces que se puede aplicar: </strong>{{ coupon.redeemCount
                                     }}
                                 </p>
-                                <p class="card-text"><strong>Veces aplicado: </strong>{{ coupon.timesUsed }}</p>
+                                <p class="card-text"><strong>Veces aplicado: </strong>{{ coupon.timesUsed }}</p> -->
                             </div>
                         </div>
                     </div>

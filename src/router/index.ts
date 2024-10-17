@@ -35,7 +35,7 @@ const router = createRouter({
 			path: '/suscripciones',
 			name: 'Suscripciones',
 			component: () => import('../views/Subscriptions.vue'),
-			meta: { roles: ['admin'] }
+			meta: { roles: ['admin', 'cliente', 'afiliado'] }
 		},
 
 		// User's routes

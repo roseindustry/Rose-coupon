@@ -23,6 +23,7 @@ export default {
 
             userSubscriptionId: null,
             userSubscriptionName: null,
+            userSubscriptionIcon: null,
             availableRequests: null,
         }
     },
@@ -84,21 +85,25 @@ export default {
                         const subscriptionData = requestLimitSnapshot.val();
                         const requestLimit = subscriptionData.requestLimit;
                         this.userSubscriptionName = subscriptionData.name;
+                        this.userSubscriptionIcon = subscriptionData.icon;
 
                         // Reference to the user's coupon requests
                         const userRequestsRef = dbRef(db, `Users/${this.userId}/coupon_requests`);
                         const requestsSnapshot = await get(userRequestsRef);
 
                         if (requestsSnapshot.exists()) {
-                            const requestsData = requestsSnapshot.val();
+                            const requestsData = Object.values(requestsSnapshot.val());
                             const currentMonth = new Date().getMonth();
-                            const lastRequestDate = requestsData.date ? new Date(requestsData.date) : null;
 
-                            if (!lastRequestDate || lastRequestDate.getMonth() !== currentMonth) {
-                                this.availableRequests = requestLimit; // Reset if new month
-                            } else {
-                                this.availableRequests = requestLimit - (requestsData.requestCount || 0);
-                            }
+                            // Filter requests for the current month
+                            const requestsThisMonth = requestsData.filter(request => {
+                                const requestDate = new Date(request.date);
+                                return requestDate.getMonth() === currentMonth;
+                            });
+
+                            // Calculate remaining requests
+                            const usedRequests = requestsThisMonth.length;
+                            this.availableRequests = requestLimit - usedRequests;
                         } else {
                             // No requests yet, full limit available
                             this.availableRequests = requestLimit;
@@ -286,22 +291,30 @@ export default {
             <div class="row">
                 <div class="col-12 justify-content-center text-center">
                     <div class="alert alert-info d-inline-flex align-items-center mt-2" role="alert"
-                        style="width: 50%;">
+                        style="width: auto;">
                         <i class="fa-solid fa-info-circle me-2"></i>
                         <div>
                             Recuerda que debes contar con una suscripción activa para solicitar cupones.
+                            <br><small class="text-info">Solicitudes se resetean cada mes.</small>
                         </div>
                     </div>
+                </div>                
+                <div class="col-lg-6 col-sm-12 d-flex justify-content-center text-center">
                     <div v-if="userSubscriptionId && availableRequests !== null"
-                        class="alert alert-info d-inline-flex text-center align-items-center top-0 end-0 m-3"
+                        class="alert alert-info d-inline-flex text-center align-items-center m-3"
                         role="alert" style="width: auto;">
-                        <div class="me-2">
-                            <strong>Suscripción:</strong> {{ userSubscriptionName.charAt(0).toUpperCase() +
-                                userSubscriptionName.slice(1) }}
-                        </div>
-                        <div>
-                            <strong>Solicitudes disponibles:</strong> {{ availableRequests }}
-                        </div>
+                        <i class="me-2" :class="userSubscriptionIcon"></i>
+                        <strong class="me-2">Suscripción:</strong> {{ userSubscriptionName.charAt(0).toUpperCase() +
+                            userSubscriptionName.slice(1) }} <br>
+
+                    </div>
+                </div>
+                <div class="col-lg-6 col-sm-12 d-flex justify-content-center">
+                    <div v-if="userSubscriptionId && availableRequests !== null"
+                        class="alert alert-info d-inline-flex text-center align-items-center 0 m-3"
+                        role="alert">
+                        <i class="fa-solid fa-bell-concierge me-2"></i>
+                        <strong class="me-2">Solicitudes disponibles:</strong> {{ availableRequests }}
                     </div>
                 </div>
             </div>

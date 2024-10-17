@@ -26,10 +26,12 @@ export default defineComponent({
                     actionText: 'Ver más',
                     bgImage: '/assets/img/rose_imgs/3.png'
                 },
+                { title: 'Suscripciones', description: 'Administra tu suscripcion aqui.', link: '/suscripciones', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/5.png' },
                 { title: 'Cupones', description: 'Descubre tus cupones aquí.', link: '/cupones', actionText: 'Ver más', bgImage: '/assets/img/rose_imgs/1.png' },
                 { title: 'Cupones que te interesan', description: 'Cuentanos que te gusta.', link: '/preferencias', actionText: 'Cuentanos', notReady: false, bgImage: '/assets/img/rose_imgs/1.png' },
                 { title: 'Solicitar cupón', description: 'Solicita los cupones que deseas.', link: '/request-coupons', actionText: 'Solicitar', notReady: false, bgImage: '/assets/img/rose_imgs/1.png' },
                 { title: 'Eventos', description: 'Descubre nuestros próximos eventos.', link: '/events', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/3.png' },
+                { title: 'Sorteos', description: 'Descubre nuestros próximos sorteos.', link: '#', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/3.png' },
                 {
                     title: 'Crédito',
                     description: 'Solicite o modifique su crédito aquí.',
@@ -39,7 +41,6 @@ export default defineComponent({
                     bgImage: '/assets/img/rose_imgs/2.png'
                 },
                 { title: 'Compras recientes', description: 'Ver sus compras recientes.', link: '#', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/5.png' },
-                { title: 'Suscripciones', description: 'Administra tu suscripcion aqui.', link: '#', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/5.png' },
                 { title: 'Mis Opiniones', description: 'Aqui se muestran tus reseñas y opiniones de lo que consumes.', link: '/clients-ratings', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
                 { title: 'Encuestas', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/customer-survey', actionText: 'Tomar Encuesta', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
             ],
@@ -91,11 +92,11 @@ export default defineComponent({
                     if (user.subscription && typeof user.subscription === 'object') {
                         const userSubscriptionRef = dbRef(db, `Users/${this.userId}/subscription`);
                         const subscriptionSnapshot = await get(userSubscriptionRef);
-                        
+
                         if (subscriptionSnapshot.exists()) {
                             const subscriptionData = subscriptionSnapshot.val();
                             this.userSubscriptionId = subscriptionData.subscription_id;
-                            
+
                             // Query the Suscriptions collection
                             const subscriptionDataRef = dbRef(db, `Suscriptions/${this.userSubscriptionId}`);
                             const userSuscriptionSnapshot = await get(subscriptionDataRef);
@@ -104,14 +105,14 @@ export default defineComponent({
                                 const userSuscription = userSuscriptionSnapshot.val();
 
                                 this.subscriptionPlan = {
-                                name: userSuscription.name || 'Sin suscripcion',
-                                status: subscriptionData.status || 'No Status',
-                                price: userSuscription.price || 'No Price',
-                                payDay: subscriptionData.payDay || 'No PayDay',
-                                isPaid: subscriptionData.isPaid || false,
-                                icon: userSuscription.icon || 'fa fa-times'
-                            };
-                            }                            
+                                    name: userSuscription.name || 'Sin suscripcion',
+                                    status: subscriptionData.status || 'No Status',
+                                    price: userSuscription.price || 'No Price',
+                                    payDay: subscriptionData.payDay || 'No PayDay',
+                                    isPaid: subscriptionData.isPaid || false,
+                                    icon: userSuscription.icon || 'fa fa-times'
+                                };
+                            }
                         }
 
                     } else {
@@ -225,57 +226,49 @@ export default defineComponent({
 
 </script>
 <template>
-    <div class="container py-5 h-100">
+    <div class="container">
         <!-- Add an install button in your template
         <button id="install-button" style="display: none;">Instale acceso a Rose Coupon</button> -->
 
         <!-- Subscription Badge -->
-        <div class="subscription-badge position-absolute text-muted text-center top-0 end-0 m-3">
-            <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
-                class="d-flex align-items-center flex-wrap">
-                <h5 class="m-0">
-                    <div class="subscription-badge mb-4">
-                        <span
-                            class="badge bg-transparent border border-success text-success d-flex flex-column align-items-start p-2">
-                            <span class="d-flex align-items-center">
-                                <i :class="subscriptionPlan.icon" class="me-2" style="font-size: 1.5rem;"></i>
-                                {{ subscriptionPlan.name }}
-                            </span>
-                            <span :class="subscriptionPlan.isPaid ? 'text-success mt-2' : 'text-danger mt-2'">
-                                {{ subscriptionPlan.isPaid ? 'Pagado' : 'Pago Pendiente' }}
-                            </span>
-                        </span>
-                    </div>
-                </h5>
-            </div>
-            <div v-else>
-                <div class="subscription-badge text-muted">
-                    <span
-                        class="badge bg-transparent border border-danger text-danger d-flex flex-column align-items-start p-2">
-                        <span class="d-flex align-items-center">
-                            <i class="me-2" style="font-size: 1.5rem;"></i>
-                            No tiene una suscripción activa.
-                        </span>
+        <div class="subscription-badge-container position-absolute text-muted text-center top-0 end-0 m-3">
+            <div class="d-flex justify-content-end align-items-center gap-2 flex-wrap">
+
+                <!-- Subscription Plan Badge -->
+                <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name">
+                    <span class="badge bg-transparent border border-success text-success d-flex align-items-center p-2"
+                        style="width: auto;">
+                        <i :class="subscriptionPlan.icon" class="me-2"></i>
+                        {{ subscriptionPlan.name.toUpperCase() }}
+                    </span>
+                </div>
+                <div v-else>
+                    <span class="badge bg-transparent border border-danger text-danger d-flex align-items-center p-2"
+                        style="width: auto;">
+                        <i class="me-2" style="font-size: 1.5rem;"></i>
+                        Sin suscripción activa
+                    </span>
+                </div>
+
+                <!-- User Verification Badge -->
+                <div>
+                    <span v-if="userVerified"
+                        class="badge bg-transparent border 
+                        border-success text-success d-flex 
+                        justify-content-center align-items-center p-2">
+                        <i class="fa-solid fa-user-check"></i>
+                    </span>
+                    <span v-else
+                        class="badge bg-transparent border 
+                        border-danger text-danger 
+                        d-flex justify-content-center align-items-center p-2">
+                        <i class="fa-solid fa-user-xmark"></i>
                     </span>
                 </div>
             </div>
-            <span v-if="userVerified"
-                class="badge bg-transparent border border-success text-success d-flex flex-column align-items-center p-2">
-                <span class="d-flex align-items-center">
-                    <i class="fa-solid fa-user-check me-2"></i>
-                    Usuario verificado
-                </span>
-            </span>
-            <span v-else
-                class="badge bg-transparent border border-danger text-danger d-flex flex-column align-items-center p-2">
-                <span class="d-flex align-items-center">
-                    <i class="fa-solid fa-user-xmark me-2"></i>
-                    Usuario no Verificado
-                </span>
-            </span>
         </div>
 
-        <div class="row justify-content-center align-items-center h-100 mt-5">
+        <div class="row justify-content-center align-items-center h-100">
             <div class="col-12">
                 <div class="pb-5 pt-5 pt-md-5 pt-lg-5">
                     <h2 class="mb-4 text-center">Portal de Clientes</h2>

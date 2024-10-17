@@ -9,8 +9,8 @@ export default {
     data() {
         return {
             // Logged User data
-            userId: '',
-            role: '',
+            userId: null,
+            role: null,
 
             categories: [],
             selectedCategoriesIds: [],
@@ -101,7 +101,34 @@ export default {
                 }
             }
         },
+        async fetchUserPreferences() {
+            // Ensure the user is logged in (has userId)
+            if (!this.userId) {
+                console.error('User is not logged in');
+                return;
+            }
 
+            try {
+                // Reference to the user's preferences in Firebase
+                const userRef = dbRef(db, `Users/${this.userId}/preferences`);
+                const snapshot = await get(userRef);
+
+                if (snapshot.exists()) {
+                    const preferences = snapshot.val();
+                    this.selectedCategoriesIds = preferences.selectedCategories || [];
+                    this.selectedSubcategoriesIds = preferences.selectedSubcategories || [];
+
+                    // Toggle subcategories for each selected category
+                    this.selectedCategoriesIds.forEach(categoryId => {
+                        this.toggleSubcategories(categoryId);
+                    });
+                } else {
+                    console.log("No preferences found for this user.");
+                }
+            } catch (error) {
+                console.error("Error fetching user preferences:", error);
+            }
+        },
         async savePreferences() {
             // Ensure the user is logged in (has userId)
             if (!this.userId) {
@@ -109,7 +136,7 @@ export default {
                 return;
             }
             // Validate selected categories and affiliates
-            if (this.selectedCategoriesIds.length === 0 || this.selectedSubcategories.length === 0) {
+            if (this.selectedCategoriesIds.length === 0 || this.selectedSubcategoriesIds.length === 0) {
                 this.showToast('Error: Debe seleccionar al menos una categoría', 'error');
                 return;
             }
@@ -129,19 +156,10 @@ export default {
                     existingPreferences = snapshot.val();
                 }
 
-                // Merge the new selections with the existing preferences
-                const mergedCategories = [
-                    ...new Set([...existingPreferences.selectedCategories, ...this.selectedCategoriesIds])
-                ];
-
-                const mergedSubcategories = [
-                    ...new Set([...existingPreferences.selectedSubcategories, ...this.selectedSubcategoriesIds])
-                ];
-
-                // Structure of the updated preferences
+                // Update the preferences with the selected categories and subcategories
                 const updatedPreferences = {
-                    selectedCategories: mergedCategories,
-                    selectedSubcategories: mergedSubcategories
+                    selectedCategories: this.selectedCategoriesIds,
+                    selectedSubcategories: this.selectedSubcategoriesIds
                 };
 
                 // Save the updated preferences back to Firebase
@@ -161,6 +179,7 @@ export default {
         this.userId = userStore.userId;
 
         await this.fetchCategories();
+        await this.fetchUserPreferences();
     }
 }
 
@@ -226,7 +245,7 @@ export default {
                         </div>
                         <div class="card-footer text-end">
                             <button class="btn btn-outline-success" @click="savePreferences()">
-                                <i class="fa fa-check"></i>
+                                <i class="fa fa-check"></i> Guardar
                             </button>
                         </div>
                     </div>

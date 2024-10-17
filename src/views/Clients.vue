@@ -1,6 +1,6 @@
 <script>
 import { ref as dbRef, query, orderByChild, equalTo, get, push, set, update, remove } from 'firebase/database';
-import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref as storageRef, listAll, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage, functions } from '@/firebase/init';
 import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
@@ -298,17 +298,25 @@ export default {
         async fetchPaymentFiles(client, date) {
             try {
                 const userName = `${client.firstName} ${client.lastName}`;
-                const fileName = `${date}-capture.png`;
+                const folderRef = storageRef(storage, `payment-captures/${client.uid}-${userName}`);
 
-                // Reference to the storage file
-                const fileRef = storageRef(storage, `payment-captures/${client.uid}-${userName}/${fileName}`);
+                // List all files in the client's payment-captures folder
+                const fileList = await listAll(folderRef);
 
-                // Get the download URL for the payment file
-                const paymentUrl = await getDownloadURL(fileRef);
+                // Filter files by date (ignoring extension)
+                const matchingFile = fileList.items.find(fileRef => fileRef.name.startsWith(date));
 
-                // Assign the URL to the client object if it exists
-                client.paymentUrl = paymentUrl || null;
-                console.log('Payment file fetched:', paymentUrl);
+                if (matchingFile) {
+                    // Get the download URL for the matched file
+                    const paymentUrl = await getDownloadURL(matchingFile);
+
+                    // Assign the URL to the client object
+                    client.paymentUrl = paymentUrl;
+                    console.log('Payment file fetched:', paymentUrl);
+                } else {
+                    console.log('No payment file found for the given date');
+                    client.paymentUrl = null;
+                }
             } catch (error) {
                 console.error('Error fetching payment file:', error.message || error);
                 client.paymentUrl = null;
@@ -904,7 +912,7 @@ export default {
                                                                             </h5>
                                                                             <h6 class="text-center text-primary">{{
                                                                                 coupon.name
-                                                                                }}</h6>
+                                                                            }}</h6>
                                                                         </div>
                                                                         <div class="card-body">
 
@@ -917,11 +925,10 @@ export default {
                                                                                 <strong>Válido hasta:</strong> {{
                                                                                     formatDate(coupon.expiration) }} <br>
                                                                                 <strong>Estado: </strong>
-                                                                                <span v-if="coupon.applied === false"
-                                                                                    class="badge bg-success">Sin
-                                                                                    usar</span>
+                                                                                <span v-if="coupon.status"
+                                                                                    class="badge bg-success">Activo</span>
                                                                                 <span v-else
-                                                                                    class="badge bg-danger">Usado</span>
+                                                                                    class="badge bg-danger">Inactivo</span>
                                                                             </p>
                                                                         </div>
                                                                     </div>
@@ -952,7 +959,8 @@ export default {
                                                         <ul class="list-group" v-if="client.subscription">
                                                             <!-- Subscription Name -->
                                                             <li class="list-group-item">
-                                                                <strong>Nivel: </strong> {{ client.subscription.name }}
+                                                                <strong>Nivel: </strong> {{
+                                                                client.subscription.name.toUpperCase() }}
                                                             </li>
 
                                                             <!-- Subscription Status -->
@@ -984,7 +992,8 @@ export default {
                                                                     <span class="badge bg-success ms-2">
                                                                         Pago realizado
                                                                     </span>
-                                                                    <a class="validate btn mw-2" href="#"
+                                                                    <a class="validate btn btn-outline-success btn-sm ms-2"
+                                                                        href="#"
                                                                         @click.prevent="openPaymentModal(client)">Validar</a>
                                                                 </span>
                                                                 <span v-else class="badge bg-danger ms-2">

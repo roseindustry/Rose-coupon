@@ -177,16 +177,16 @@ export default defineComponent({
         <div class="row g-4 justify-content-center">
             <div v-for="(plan, index) in sortedPlans" :key="plan.id" class="col-md-3">
                 <div :class="['card h-100 text-center py-4', {
-                    'border-primary': plan.name === 'PLATA',
+                    'border-primary': plan.name === 'plata',
                     'shadow-sm': true, // Keep shadow for all cards
-                }]" :style="plan.name === 'PLATA' ?
+                }]" :style="plan.name === 'plata' ?
                     'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
                     : ''">
-                    <div v-if="plan.name === 'PLATA'" class="ribbon">
+                    <div v-if="plan.name === 'plata'" class="ribbon">
                         <span>Popular</span>
                     </div>
                     <i class="fa-lg" :class="plan.icon"></i>
-                    <h4 class="my-4 text-primary">{{ plan.name }}</h4>
+                    <h4 class="my-4 text-primary">{{ plan.name.toUpperCase() }}</h4>
                     <p class="fw-bold display-5">${{ plan.price }} <small>/ MO.</small></p>
                     <p class="form-label" v-html="formattedDesc[index].desc"></p>
                 </div>
