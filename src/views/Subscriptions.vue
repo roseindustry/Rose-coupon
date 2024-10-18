@@ -1,7 +1,8 @@
 <script>
-import { db, storage } from '../firebase/init';
+import { db, storage, functions } from '../firebase/init';
 import { ref as dbRef, update, get, query, orderByChild, equalTo, push, set, remove } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { httpsCallable } from 'firebase/functions';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 import SearchInput from '@/components/app/SearchInput.vue';
@@ -181,6 +182,23 @@ export default {
                 },
             }).showToast();
         },
+        async sendEmail(payload) {
+            try {
+                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
+                await sendEmailFunction(payload);
+            } catch (error) {
+                console.error('Error sending email:', error);
+            }
+        },
+        async sendNotificationEmail(emailPayload) {
+            try {
+                await this.sendEmail(emailPayload);
+            } catch (error) {
+                console.error('Error sending email:', error);
+            }
+        },
+
+
         goToPage(page) {
             if (page >= 1 && page <= this.totalPages) {
                 this.currentPage = page;
@@ -421,6 +439,9 @@ export default {
 
             const clientId = this.selectedClient.id;
 
+            // Find the selected client's data from the clients array
+            const client = this.clients.find(client => client.id === clientId);
+
             // Find the selected plan object from the plans array
             const selectedPlanDetails = this.plans.find(plan => plan.name === this.selectedPlan);
 
@@ -444,6 +465,31 @@ export default {
                 // Assign the subscription details to the client's data in Firebase
                 const userPlanRef = dbRef(db, `Users/${clientId}/subscription`);
                 await update(userPlanRef, subscriptionData);
+
+                // Notify Client
+                const appUrl = 'https://app.rosecoupon.com';
+                const clientEmailPayload = {
+                    to: client.email,
+                    message: {
+                        subject: `Suscripción ${selectedPlanDetails.name.toUpperCase()} activada`,
+                        text: `Hola ${client.firstName}, se le ha activado la Suscripción ${selectedPlanDetails.name.toUpperCase()} in Roseapp.
+                        Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}`,
+                        html: `<p>Hola ${client.firstName}, se le ha activado la Suscripción ${suscription.name} in Roseapp.</p>
+                        <p>Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}</p>`
+                    },
+                };
+                await this.sendNotificationEmail(clientEmailPayload);
+
+                // Notify Admin
+                const adminEmailPayload = {
+                    to: 'joselinq38@gmail.com',
+                    message: {
+                        subject: `Nuevo cliente suscrito al Plan ${selectedPlanDetails.name.toUpperCase()}`,
+                        text: `Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${selectedPlanDetails.name.toUpperCase()}.`,
+                        html: `<p>Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${selectedPlanDetails.name.toUpperCase()}.</p>`
+                    },
+                };
+                await this.sendNotificationEmail(adminEmailPayload);
 
                 this.showToast('Suscripción asignada con éxito!');
                 // Reset selection after assigning the plan
@@ -471,6 +517,9 @@ export default {
                     return;
                 }
 
+                // Find the selected client's data from the clients array
+                const client = this.clients.find(client => client.id === clientId);
+
                 // Find the selected plan object from the plans array
                 const selectedPlanDetails = this.plans.find(plan => plan.name === this.selectedPlan.name);
 
@@ -495,6 +544,31 @@ export default {
                         // Assign the subscription details to the client's data in Firebase
                         const userPlanRef = dbRef(db, `Users/${clientId}/subscription`);
                         await update(userPlanRef, subscriptionData);
+
+                        // Notify client
+                        const appUrl = 'https://app.rosecoupon.com';
+                        const clientEmailPayload = {
+                            to: client.email,
+                            message: {
+                                subject: `Suscripción ${plan.name.toUpperCase()} activada`,
+                                text: `Hola ${client.firstName}, se le ha activado la Suscripción ${plan.name.toUpperCase()} in Roseapp.
+                        Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}`,
+                                html: `<p>Hola ${client.firstName}, se le ha activado la Suscripción ${plan.name} in Roseapp.</p>
+                        <p>Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}</p>`
+                            },
+                        };
+                        await this.sendNotificationEmail(clientEmailPayload);
+
+                        // Notify Admin
+                        const adminEmailPayload = {
+                            to: 'joselinq38@gmail.com',
+                            message: {
+                                subject: `Nuevo cliente suscrito al Plan ${selectedPlanDetails.name.toUpperCase()}`,
+                                text: `Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${selectedPlanDetails.name.toUpperCase()}.`,
+                                html: `<p>Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${selectedPlanDetails.name.toUpperCase()}.</p>`
+                            },
+                        };
+                        await this.sendNotificationEmail(adminEmailPayload);
 
                         this.showToast('Suscripción asignada con éxito!');
                         // Reset selection after assigning the plan
@@ -524,6 +598,7 @@ export default {
 
             try {
                 this.isSubmitting = true;
+                const clientId = this.userId;
 
                 // Upload capture
                 const paymentUrl = await this.uploadPaymentFile(this.paymentFile, this.paymentDate);
@@ -546,9 +621,37 @@ export default {
                     lastPaymentDate: formattedDate
                 };
 
+                // Find the client's data from the clients array
+                const client = this.clients.find(client => client.id === clientId);
+
                 // Update user to set field user.requestedVerification = true
                 const userRef = dbRef(db, `Users/${this.userId}/subscription`);
                 await update(userRef, subscriptionData);
+
+                // Notify client
+                const appUrl = 'https://app.rosecoupon.com';
+                const clientEmailPayload = {
+                    to: client.email,
+                    message: {
+                        subject: `Suscripción ${plan.name.toUpperCase()} activada`,
+                        text: `Hola ${client.firstName}, se le ha activado la Suscripción ${plan.name.toUpperCase()} in Roseapp.
+                        Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}`,
+                        html: `<p>Hola ${client.firstName}, se le ha activado la Suscripción ${plan.name} in Roseapp.</p>
+                        <p>Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}</p>`
+                    },
+                };
+                await this.sendNotificationEmail(clientEmailPayload);
+
+                // Notify Admin
+                const adminEmailPayload = {
+                    to: 'joselinq38@gmail.com',
+                    message: {
+                        subject: `Nuevo cliente suscrito al Plan ${plan.name.toUpperCase()}`,
+                        text: `Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${plan.name.toUpperCase()}.`,
+                        html: `<p>Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${plan.name.toUpperCase()}.</p>`
+                    },
+                };
+                await this.sendNotificationEmail(adminEmailPayload);
 
                 //Success toast
                 this.showToast('Archivo subido!');
@@ -968,8 +1071,6 @@ export default {
     </div>
 
     <div v-if="this.role === 'cliente' || this.role === 'afiliado'" class="container">
-
-
 
         <!-- Lista de suscripciones -->
         <div class="container-fluid my-4 fade-in" style="padding: 20px;" id="price-table">

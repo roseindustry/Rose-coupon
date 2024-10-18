@@ -1,7 +1,6 @@
 <script>
 import { db } from '@/firebase/init';
-import { RouterLink } from "vue-router";
-import { ref as dbRef, get, orderByChild, query, equalTo } from 'firebase/database';
+import { ref as dbRef, get, update, orderByChild, query, equalTo } from 'firebase/database';
 import { useUserStore } from "@/stores/user-role";
 import { Modal } from 'bootstrap';
 
@@ -16,15 +15,44 @@ export default {
 			clients: [],
 			verifiedClients: [],
 			affiliates: [],
+			categories: [],
 			appliedCoupons: 0,
 			clientsWithRequests: [],
+			clientsVerifyRequests: [],
 			referralClients: [],
 			clientsModalData: '',
+			requestsModalTitle: '',
+			requestsModalData: '',
+			selectedRequestsClient: {},
+			clientImgModal: null,
 			sortField: 'firstName',
 			sortOrder: 'asc',
+			isSubmitting: false,
 		}
 	},
 	methods: {
+		showToast(message) {
+			Toastify({
+				text: message,
+				duration: 3000,
+				close: true,
+				gravity: 'top',
+				position: 'right',
+				stopOnFocus: true,
+				style: {
+					background: 'linear-gradient(to right, #00b09b, #96c93d)',
+				},
+			}).showToast();
+		},
+		formatDate(date) {
+			if (!date) return ''; // Handle invalid dates or null values
+			const d = new Date(date);
+			const day = String(d.getDate()).padStart(2, '0'); // Ensure two-digit day
+			const month = String(d.getMonth() + 1).padStart(2, '0'); // Ensure two-digit month (months are zero-indexed)
+			const year = d.getFullYear();
+			return `${day}/${month}/${year}`;
+		},
+
 		async fetchClients() {
 			const role = 'cliente';
 			const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
@@ -48,9 +76,11 @@ export default {
 
 					const verifiedClients = this.clients.filter((client) => client.isVerified === true);
 					const clientsWithRequests = this.clients.filter((client) => client.coupon_requests);
+					const clientsVerifyRequests = this.clients.filter((client) => client.requestedVerification && !client.isVerified);
 
 					this.verifiedClients = verifiedClients;
 					this.clientsWithRequests = clientsWithRequests;
+					this.clientsVerifyRequests = clientsVerifyRequests;
 				} else {
 					this.clients = [];
 				}
@@ -67,20 +97,36 @@ export default {
 				const affiliateSnapshot = await get(affiliatesRef);
 
 				if (affiliateSnapshot.exists()) {
-					const affiliatesList = [];
-					affiliateSnapshot.forEach((childSnapshot) => {
-						const affiliateData = childSnapshot.val();
-						affiliatesList.push({
-							...affiliateData
-						});
-					});
+					const affiliates = affiliateSnapshot.val();
 
-					this.affiliates = affiliatesList;
+					this.affiliates = Object.keys(affiliates).map(key => ({
+						id: key,
+						...affiliates[key]
+					}));
 				} else {
 					console.log("No data available.");
 				}
 			} catch (error) {
 				console.error("Error fetching affiliates:", error);
+			}
+		},
+		async fetchCategories() {
+			const categoryRef = dbRef(db, 'Affiliate_categories');
+			try {
+				const categorySnapshot = await get(categoryRef);
+
+				if (categorySnapshot.exists()) {
+					const categories = categorySnapshot.val();
+
+					this.categories = Object.keys(categories).map(key => ({
+						id: key,
+						...categories[key]
+					}));
+				} else {
+					this.categories = [];
+				}
+			} catch (error) {
+				console.error("Error fetching categories:", error);
 			}
 		},
 		async fetchCoupons() {
@@ -202,6 +248,199 @@ export default {
 				}
 			});
 		},
+		openRequestsModal(type) {
+			if (type === 'verificationRequests') {
+				this.requestsModalTitle = 'Solicitudes de Verificación';
+				this.requestsModalData = this.clientsVerifyRequests;
+			} else if (type === 'couponRequests') {
+				this.requestsModalTitle = 'Solicitudes de Cupones'
+				this.requestsModalData = this.clientsWithRequests;
+			}
+
+			// Show the modal
+			new Modal(document.getElementById('requestsModal')).show();
+		},
+		showIDfiles(client) {
+			this.fetchIdFiles(client).then(() => {
+				// Show the image Modal after fetching files
+				const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
+				modal.show();
+			});
+			this.clientImgModal = client;
+		},
+		async fetchIdFiles(client) {
+			try {
+				// Fetch verification files data from the user's collection in the Realtime Database
+				const userRef = dbRef(db, `Users/${client.id}/verificationFiles`);
+				const snapshot = await get(userRef);
+
+				if (snapshot.exists()) {
+					const verificationFiles = snapshot.val();
+
+					// Set the URLs for front and back ID images if they exist
+					client.idFrontUrl = verificationFiles['Front-ID'] || null;
+					client.idBackUrl = verificationFiles['Back-ID'] || null;
+					client.selfieUrl = verificationFiles['Selfie'] || null;
+
+				} else {
+					console.warn(`No verification files found for ${client.uid}`);
+				}
+			} catch (error) {
+				console.error('Error fetching ID files:', error.message || error);
+			}
+		},
+		async approveID(client) {
+			const userName = client.firstName + ' ' + client.lastName;
+			try {
+				// Show the loader
+				this.isSubmitting = true;
+
+				const userRef = dbRef(db, `Users/${client.id}`);
+				await update(userRef, { isVerified: true });
+
+				// Send an email notification to the client through Firebase Cloud Functions
+				const emailPayload = {
+					to: client.email,
+					message: {
+						subject: "Verificación Aprobada en Rose App",
+						text: `Hola ${userName}, tu solicitud de verificación ha sido aprobada.`,
+					},
+				};
+				await this.sendEmail(emailPayload);
+
+				this.showToast('Usuario verificado con éxito.');
+				this.fetchIdFiles(client);
+			} catch (error) {
+				console.error("Error approving ID:", error);
+			} finally {
+				// Hide the loader
+				this.isSubmitting = false;
+			}
+		},
+		async dissapproveID(client) {
+			// Confirmation dialog
+			if (confirm("¿Desea borrar este cliente?")) {
+				// User clicked "OK"
+				try {
+					this.isSubmitting = true;
+
+					// Fetch the user's verification files from the Database
+					const userRef = dbRef(db, `Users/${client.id}`);
+					const snapshot = await get(dbRef(db, `Users/${client.id}/verificationFiles`));
+
+					if (!snapshot.exists()) {
+						console.warn(`No verification files found for ${client.id}, skipping deletion.`);
+						return;
+					}
+
+					const verificationFiles = snapshot.val();
+					const filePaths = [
+						verificationFiles['Front-ID'] || null,
+						verificationFiles['Back-ID'] || null,
+						verificationFiles['Selfie'] || null
+					].filter(Boolean); // Filter out null values
+
+					// Function to delete files from Firebase Storage
+					const deleteFile = async (fileUrl) => {
+						try {
+							const fileRef = storageRef(storage, fileUrl);
+							await deleteObject(fileRef);
+							console.log(`${fileUrl} deleted successfully.`);
+						} catch (error) {
+							if (error.code === 'storage/object-not-found') {
+								console.warn(`${fileUrl} not found, skipping deletion.`);
+							} else {
+								console.error(`Error deleting ${fileUrl}:`, error);
+							}
+						}
+					};
+
+					// Delete the files
+					for (const filePath of filePaths) {
+						await deleteFile(filePath);
+					}
+
+					// Clear verification status and files from the user's database entry
+					await update(userRef, {
+						isVerified: null,
+						requestedVerification: null,
+						verificationFiles: null, // Clear verification files in the database
+					});
+
+					// Send an email notification to the client via Firebase Cloud Functions
+					const emailPayload = {
+						to: client.email,
+						message: {
+							subject: "Verificación Denegada",
+							text: `Hola ${client.firstName}, tu solicitud de verificación ha sido denegada. Por favor, sube nuevamente tus archivos de verificación.`,
+						},
+					};
+					await this.sendEmail(emailPayload);
+
+					// Show a success toast and refresh client list
+					this.showToast('Verificación denegada y archivos eliminados.');
+					this.fetchClients();
+
+				} catch (error) {
+					console.error("Error disapproving verification:", error);
+					this.showToast('Error al denegar la verificación. Por favor, inténtelo nuevamente.');
+				} finally {
+					// Hide the loader
+					this.isSubmitting = false;
+				}
+			}
+		},
+		async sendEmail(payload) {
+			try {
+				const sendEmailFunction = httpsCallable(functions, 'sendEmail');
+				await sendEmailFunction(payload);
+			} catch (error) {
+				console.error('Error sending email:', error);
+			}
+		},
+		showCouponRequest(client) {
+			if (!client.coupon_requests) {
+				console.error("No coupon requests found for this client");
+				return;
+			}
+			console.log(client);
+			// Convert coupon_requests object into an array with the keys
+			const requests = Object.keys(client.coupon_requests).map(key => ({
+				id: key,
+				...client.coupon_requests[key]
+			}));
+
+			this.selectedRequestsClient = { ...client, coupon_requests: requests };
+			console.log(this.selectedRequestsClient);
+
+			const modal = Modal.getOrCreateInstance(document.getElementById('couponRequestModal'));
+			modal.show();
+		},
+		getAffiliateNameById(affiliateId) {
+			this.fetchAffiliates();
+			const affiliate = this.affiliates.find(affiliate => affiliate.id === affiliateId);
+			// If the affiliate is found, return the companyName, otherwise return 'Unknown Affiliate'
+			return affiliate ? affiliate.companyName : 'Unknown Affiliate';
+		},
+		getCategoryNameById(categoryId) {
+			this.fetchCategories();
+			const category = this.categories.find(category => category.id === categoryId);
+			// If the category is found, return the name, otherwise return 'Unknown Category'
+			return category ? category.name : 'Unknown Category';
+		},
+		assignCoupon(client) {
+			// Hide the modal 
+			const modal = Modal.getInstance(document.getElementById('requestsModal'));
+			if (modal) {
+				modal.hide();
+			}
+
+			this.$router.push({
+				path: '/cupones',
+				query: { clientId: client.id } // Pass the client's ID
+			});
+			
+		},
 	},
 	async mounted() {
 		const userStore = useUserStore();
@@ -263,19 +502,6 @@ export default {
 						</div>
 					</div>
 				</div>
-				<!-- Solicitudes de cupones por Clientes -->
-				<div class="col-sm-6 col-lg-4 mb-4">
-					<div class="card custom-card h-100 text-center">
-						<div class="card-body d-flex flex-column justify-content-center align-items-center">
-							<div class="icon-circle bg-primary mb-3">
-								<i class="fa-solid fa-bell-concierge fa-lg text-white"></i>
-							</div>
-							<h5 class="mb-1">Solicitudes de Cupones</h5>
-							<h3>{{ clientsWithRequests.length || 0 }}</h3>
-							<router-link to="#">Ver</router-link>
-						</div>
-					</div>
-				</div>
 				<!-- Comercios afiliados -->
 				<div class="col-sm-6 col-lg-4 mb-4">
 					<div class="card custom-card h-100 text-center">
@@ -297,6 +523,214 @@ export default {
 							</div>
 							<h5 class="mb-1">Cupones Usados</h5>
 							<h3>{{ appliedCoupons || 0 }}</h3>
+						</div>
+					</div>
+				</div>
+				<!-- Solicitudes de cupones por Clientes -->
+				<div class="col-sm-6 col-lg-4 mb-4">
+					<div class="card custom-card h-100 text-center">
+						<div class="card-body d-flex flex-column justify-content-center align-items-center">
+							<div class="icon-circle bg-primary mb-3">
+								<i class="fa-solid fa-bell-concierge fa-lg text-white"></i>
+							</div>
+							<h5 class="mb-1">Solicitudes de Cupones</h5>
+							<h3>{{ clientsWithRequests.length || 0 }}</h3>
+							<a href="#" @click.prevent="openRequestsModal('couponRequests')">Ver</a>
+						</div>
+					</div>
+				</div>
+				<!-- Solicitudes de verificacion por Clientes -->
+				<div class="col-sm-6 col-lg-4 mb-4">
+					<div class="card custom-card h-100 text-center">
+						<div class="card-body d-flex flex-column justify-content-center align-items-center">
+							<div class="icon-circle bg-primary mb-3">
+								<i class="fa-solid fa-bell-concierge fa-lg text-white"></i>
+							</div>
+							<h5 class="mb-1">Solicitudes de Verificacion</h5>
+							<h3>{{ clientsVerifyRequests.length || 0 }}</h3>
+							<a href="#" @click.prevent="openRequestsModal('verificationRequests')">Ver</a>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Modal for requests -->
+		<div class="modal fade" id="requestsModal" tabindex="-1" aria-labelledby="verifyClientsModalLabel"
+			aria-hidden="true">
+			<div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="verifyClientsModalLabel">{{ requestsModalTitle }}</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+					</div>
+					<div class="modal-body text-center">
+						<div class="container">
+							<table class="table text-center table-responsive">
+								<thead>
+									<tr>
+										<th scope="col">Cliente</th>
+										<th scope="col">Cédula</th>
+										<template v-if="requestsModalTitle === 'Solicitudes de Verificación'">
+											<th scope="col">Acciones</th>
+										</template>
+										<template v-else-if="requestsModalTitle === 'Solicitudes de Cupones'">
+											<th scope="col">Solicitus</th>
+											<th scope="col">Acciones</th>
+										</template>
+									</tr>
+								</thead>
+								<tbody>
+									<tr v-for="client in requestsModalData" :key="client.id">
+										<td>{{ client.firstName + ' ' + client.lastName }}</td>
+										<td>V-{{ client.identification }}</td>
+										<td>
+											<template v-if="requestsModalTitle === 'Solicitudes de Verificación'">
+												<button class="btn btn-outline-info me-2"
+													@click.prevent="showIDfiles(client)">
+													<i class="fa-solid fa-id-card"></i>
+												</button>
+											</template>
+											<template v-else-if="requestsModalTitle === 'Solicitudes de Cupones'">
+												<button class="btn btn-sm btn-info me-1" data-bs-toggle="tooltip"
+													data-bs-placement="top" title="Seleccionar cliente"
+													@click.prevent="showCouponRequest(client)">
+													<i class="fa-solid fa-search me-2"></i>Ver solicitud
+												</button>
+											</template>
+										</td>
+										<td>
+											<template v-if="requestsModalTitle === 'Solicitudes de Cupones'">
+												<button class="btn btn-sm btn-success me-1" data-bs-toggle="tooltip"
+													data-bs-placement="top" title="Seleccionar cliente"
+													@click.prevent="assignCoupon(client)">
+													<i class="fa-solid fa-check me-2"></i>Asignar
+												</button>
+											</template>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- Modal for opening image -->
+		<div v-if="clientImgModal" class="modal fade" id="idImgModal" tabindex="-1" aria-labelledby="qrModalLabel"
+			aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="qrModalLabel">{{ clientImgModal.firstName }} {{
+							clientImgModal.lastName }}
+						</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+					</div>
+					<div class="modal-body">
+						<div class="d-flex justify-content-center gap-3">
+							<button class="btn btn-outline-success d-flex align-items-center gap-1"
+								@click="approveID(clientImgModal)" :disabled="isSubmitting">
+								<i class="fa-solid fa-check"></i>
+								<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+									aria-hidden="true"></span>
+								<span v-else>Aprovar</span>
+							</button>
+							<button class="btn btn-outline-danger d-flex align-items-center gap-1"
+								@click="dissapproveID(clientImgModal)" :disabled="isSubmitting">
+								<i class="fa-solid fa-times"></i>
+								<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+									aria-hidden="true"></span>
+								<span v-else>Denegar</span>
+							</button>
+						</div>
+						<div class="mb-4">
+							<label for="idFrontUrl" class="form-label">Parte frontal</label>
+							<div class="image-container">
+								<img v-if="clientImgModal.idFrontUrl" :src="clientImgModal.idFrontUrl" alt="front"
+									class="img-fluid rounded border border-primary">
+								<p v-else class="text-muted">No hay imagen disponible.</p>
+							</div>
+						</div>
+
+						<div class="mb-4">
+							<label for="idBackUrl" class="form-label">Parte trasera</label>
+							<div class="image-container">
+								<img v-if="clientImgModal.idBackUrl" :src="clientImgModal.idBackUrl" alt="back"
+									class="img-fluid rounded border border-primary">
+								<p v-else class="text-muted">No hay imagen disponible.</p>
+							</div>
+						</div>
+
+						<div class="mb-4">
+							<label for="selfieUrl" class="form-label">Foto con Cédula visible</label>
+							<div class="image-container">
+								<img v-if="clientImgModal.selfieUrl" :src="clientImgModal.selfieUrl" alt="selfie"
+									class="img-fluid rounded border border-primary">
+								<p v-else class="text-muted">No hay imagen disponible.</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- Coupon Request Modal -->
+		<div class="modal fade" id="couponRequestModal" tabindex="-1" aria-labelledby="couponRequestModalLabel"
+			aria-hidden="true">
+			<div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="couponRequestModalLabel">Detalles de la Solicitud de Cupón</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+					</div>
+					<div class="modal-body">
+						<!-- Client Information -->
+						<div class="mb-4">
+							<h5><strong>Cliente:</strong> {{ selectedRequestsClient.firstName + ' ' +
+								selectedRequestsClient.lastName }}</h5>
+							<p><strong>Cédula:</strong> {{ selectedRequestsClient.identification }}</p>
+						</div>
+
+						<!-- Loop through all coupon requests -->
+						<div v-for="(request, index) in selectedRequestsClient.coupon_requests" :key="request.id"
+							class="card mb-3">
+							<div class="card-header">
+								<h6 class="text-black"><strong>Solicitud #{{ index + 1 }}</strong></h6>
+							</div>
+
+							<div class="card-body">
+								<!-- Request Date -->
+								<p><strong>Fecha de solicitud:</strong> {{ formatDate(request.date) }}</p>
+
+								<!-- Affiliates Section -->
+								<div v-if="request.selectedAffiliates">
+									<strong>Comercios Afiliados:</strong>
+									<ul class="list-group list-group-flush">
+										<li class="list-group-item" style="background-color: transparent;"
+											v-for="(affiliateId, index) in Object.keys(request.selectedAffiliates)"
+											:key="index">
+											{{ getAffiliateNameById(affiliateId) }}
+										</li>
+									</ul>
+								</div>
+
+								<!-- Categories Section -->
+								<div v-if="request.selectedCategories" class="mt-3">
+									<strong>Categorías:</strong>
+									<ul class="list-group list-group-flush">
+										<li class="list-group-item" style="background-color: transparent;"
+											v-for="(categoryId, index) in Object.keys(request.selectedCategories)"
+											:key="index">
+											{{ getCategoryNameById(categoryId) }}
+										</li>
+									</ul>
+								</div>
+							</div>
+							<!-- <div class="card-footer text-end">
+                                <button class="btn btn-outline-success">
+                                    <i class="fa-solid fa-check"></i> Asignar cupon
+                                </button>
+                            </div> -->
 						</div>
 					</div>
 				</div>
@@ -355,7 +789,8 @@ export default {
 										<tr v-for="client in clientsModalData" :key="client.id">
 											<td>{{ client.firstName + ' ' + client.lastName }}</td>
 											<td>{{ client.identification }}</td>
-											<td>{{ client.subscriptionName.charAt(0).toUpperCase() + client.subscriptionName.slice(1) }}</td>
+											<td>{{ client.subscriptionName.charAt(0).toUpperCase() +
+												client.subscriptionName.slice(1) }}</td>
 										</tr>
 									</tbody>
 								</table>

@@ -61,9 +61,9 @@ exports.createUser = functions.https.onCall(async (data, context) => {
       displayName: userData.role === 'afiliado' ? userData.companyName : `${userData.firstName} ${userData.lastName}`,
     });
 
-    // Save additional client info in Firestore or Realtime Database
+    // Save additional client info in Realtime Database
     const db = admin.database();
-    const userInfo = userData.role === 'afiliado' ? {
+    const userInfo = userData.role === 'afiliado' ? {      
       companyName: userData.companyName,
       rif: userData.rif,
       email: userData.email,
@@ -73,9 +73,14 @@ exports.createUser = functions.https.onCall(async (data, context) => {
       parroquia: userData.parroquia,
       // Add additional fields if they exist
       category_id: userData.category_id || null,
+      order: userData.order || null,
       image: userData.image || null,
       status: userData.status || null,
-      phoneNumber: userData.phoneNumber || null
+      phoneNumber: userData.phoneNumber || null,
+      twitter: userData.twitter || null,
+      instagram: userData.instagram || null,
+      facebook: userData.facebook || null,
+      tiktok: userData.tiktok || null,
     } : {
       firstName: userData.firstName,
       lastName: userData.lastName,
@@ -150,6 +155,7 @@ exports.sendEmail = functions.https.onCall(async (data, context) => {
     to: to, // list of receivers
     subject: message.subject, // Subject line
     text: message.text, // Plain text body
+    html: message.html || message.text, // HTML body
   };
 
   try {

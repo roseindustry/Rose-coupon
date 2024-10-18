@@ -534,7 +534,7 @@ export default {
         },
         async dissapproveID(client) {
             // Confirmation dialog
-            if (confirm("¿Desea borrar este cliente?")) {
+            if (confirm("¿Desea rechazar la verificación de este cliente?")) {
                 // User clicked "OK"
                 try {
                     this.isSubmitting = true;

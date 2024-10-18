@@ -1,9 +1,10 @@
 <script>
 import { defineComponent } from 'vue';
 import { useUserStore } from '@/stores/user-role';
-import { db, storage } from '../firebase/init';
+import { db, storage, functions } from '../firebase/init';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { ref as dbRef, get, update } from 'firebase/database';
+import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
@@ -74,6 +75,14 @@ export default defineComponent({
                     background: 'linear-gradient(to right, #00b09b, #96c93d)',
                 },
             }).showToast();
+        },
+        async sendEmail(payload) {
+            try {
+                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
+                await sendEmailFunction(payload);
+            } catch (error) {
+                console.error('Error sending email:', error);
+            }
         },
 
         async fetchSubscriptionPlan() {
@@ -183,6 +192,21 @@ export default defineComponent({
                         requestedVerification: true
                     });
 
+                // Send an email notification to the admin through Firebase Cloud Functions				
+                const appUrl = 'https://app.rosecoupon.com';
+                const emailPayload = {
+                    to: 'joselinq38@gmail.com',
+                    message: {
+                        subject: "Usuario solicitó verificación",
+                        text: `Hola administrador, el usuario ${this.userName} ha solicitado verificación de identidad en Roseapp.
+                        Para verificar el usuario, abre la app en el siguiente enlace: ${appUrl}`,
+                        html: `<p>Hola administrador,</p>
+               <p>El usuario <strong>${this.userName}</strong> ha solicitado verificación de identidad en Roseapp.</p>
+               <p>Para verificar el usuario, por favor <a href="${appUrl}" target="_blank">abre la app</a>.</p>`
+                    },
+                };
+                await this.sendEmail(emailPayload);
+
                 //Success toast
                 this.showToast('Archivos subidos!');
 
@@ -252,14 +276,12 @@ export default defineComponent({
 
                 <!-- User Verification Badge -->
                 <div>
-                    <span v-if="userVerified"
-                        class="badge bg-transparent border 
+                    <span v-if="userVerified" class="badge bg-transparent border 
                         border-success text-success d-flex 
                         justify-content-center align-items-center p-2">
                         <i class="fa-solid fa-user-check"></i>
                     </span>
-                    <span v-else
-                        class="badge bg-transparent border 
+                    <span v-else class="badge bg-transparent border 
                         border-danger text-danger 
                         d-flex justify-content-center align-items-center p-2">
                         <i class="fa-solid fa-user-xmark"></i>

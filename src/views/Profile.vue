@@ -3,10 +3,11 @@ import { defineComponent, computed } from 'vue';
 import navscrollto from '@/components/app/NavScrollTo.vue';
 import { ScrollSpy } from 'bootstrap';
 import { useUserStore } from '@/stores/user-role';
-import { auth, db, storage } from '../firebase/init';
+import { auth, db, storage, functions } from '../firebase/init';
 import { ref as dbRef, update, get } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL, listAll } from 'firebase/storage';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 import { Modal } from 'bootstrap';
@@ -161,6 +162,14 @@ export default defineComponent({
 			const year = d.getUTCFullYear();
 			return `${day}/${month}/${year}`;
 		},
+		async sendEmail(payload) {
+            try {
+                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
+                await sendEmailFunction(payload);
+            } catch (error) {
+                console.error('Error sending email:', error);
+            }
+        },
 
 		async fetchSubscriptionPlan() {
 			const userId = this.userId;
@@ -384,6 +393,21 @@ export default defineComponent({
 						'verificationFiles/Selfie': selfieUrl,
 						requestedVerification: true
 					});
+				
+				// Send an email notification to the admin through Firebase Cloud Functions				
+                const appUrl = 'https://app.rosecoupon.com';
+				const emailPayload = {
+                    to: 'joselinq38@gmail.com',
+                    message: {
+                        subject: "Usuario solicitó verificación",
+                        text: `Hola administrador, el usuario ${this.userName} ha solicitado verificación de identidad en Roseapp.
+                        Para verificar el usuario, abre la app en el siguiente enlace: ${appUrl}`,
+                        html: `<p>Hola administrador,</p>
+						<p>El usuario <strong>${this.userName}</strong> ha solicitado verificación de identidad en Roseapp.</p>
+						<p>Para verificar el usuario, por favor <a href="${appUrl}" target="_blank">abre la app</a>.</p>`
+					},
+                };
+                await this.sendEmail(emailPayload);
 
 				//Success toast
 				this.showToast('Archivos subidos!');
@@ -472,7 +496,7 @@ export default defineComponent({
 			}
 		},
 
-		// User payment notification
+		// User payment
 		openPaymentModal() {
 			Modal.getOrCreateInstance(document.getElementById('notifyPaymentModal')).show();
 		},
@@ -632,19 +656,19 @@ export default defineComponent({
 		</div>
 		<!-- Request Verification -->
 		<div v-if="(role === 'cliente') && !this.userVerified"
-			class="alert alert-warning d-inline-flex align-items-center mb-5 w-50" role="alert" style="width: auto;">
+			class="alert alert-warning d-inline-flex align-items-center mb-5" role="alert" style="width: auto;">
 			<i class="fa-solid fa-exclamation-circle me-2"></i>
 			<div>
 				<strong>Verifica tu cuenta:</strong> Para asegurar la seguridad de tu cuenta y acceder a todas
 				las
 				funcionalidades, solicita la verificación de tu cuenta.
-				<button v-if="!this.requestSent" class="btn btn-warning btn-sm ms-3" data-bs-toggle="modal"
-					data-bs-target="#verificationModal">
-					Solicitar Verificación
-				</button>
-				<button v-else class="btn btn-secondary btn-sm ms-3" disabled>
+				<button v-if="this.requestSent" class="btn btn-secondary btn-sm ms-3" disabled>
 					Solicitud enviada
 				</button>
+				<button v-else class="btn btn-warning btn-sm ms-3" data-bs-toggle="modal"
+					data-bs-target="#verificationModal">
+					Solicitar Verificación
+				</button>				
 			</div>
 		</div>
 

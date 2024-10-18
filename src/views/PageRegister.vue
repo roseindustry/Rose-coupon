@@ -2,9 +2,10 @@
 import { defineComponent } from 'vue';
 import { useAppOptionStore } from '@/stores/app-option';
 import { RouterLink } from 'vue-router';
-import { auth, db } from '@/firebase/init';
+import { auth, db, functions } from '@/firebase/init';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { ref as dbRef, set, get, query, orderByChild, equalTo } from 'firebase/database';
+import { httpsCallable } from 'firebase/functions';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 import venezuela from 'venezuela';
@@ -13,7 +14,7 @@ export default defineComponent({
 	name: 'PageRegister',
 	data() {
 		return {
-			referralCode: null,
+			referralCode: '',
 			firstName: '',
 			lastName: '',
 			identification: '',
@@ -56,7 +57,29 @@ export default defineComponent({
 		appOption.appHeaderHide = false;
 		appOption.appContentClass = '';
 	},
+	computed: {
+        formattedReferralCode: {
+            get() {
+                // Always return the value prefixed with 'REF-'
+                return `REF-${this.referralCode.toUpperCase()}`;
+            },
+            set(value) {
+                // Ensure only the part after 'REF-' is processed, and keep only valid characters
+        const cleanedValue = value.replace(/^REF-/, ''); // Remove 'REF-' if it exists
+        this.referralCode = cleanedValue.toUpperCase(); // Store the rest in uppercase
+            }
+        }
+    },
 	methods: {
+		async sendEmail(payload) {
+            try {
+                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
+                await sendEmailFunction(payload);
+            } catch (error) {
+                console.error('Error sending email:', error);
+            }
+        },
+
 		async submitForm() {
 			// Password length validation
 			if (this.password.length < 6) {
@@ -184,6 +207,16 @@ export default defineComponent({
 					console.log(`User referred by employee: ${referredByEmployee}`);
 				}
 
+				// Send an email notification to the admin through Firebase Cloud Functions
+                const emailPayload = {
+                    to: 'joselinq38@gmail.com',
+                    message: {
+                        subject: `Nuevo ${this.role.charAt(0).toUpperCase() + this.role.slice(1)} registrado`,
+                        text: `Hola administrador, el ${this.role.charAt(0).toUpperCase() + this.role.slice(1)} ${this.firstName} ${this.lastName} se ha registrado en Roseapp.`,
+                    },
+                };
+                await this.sendEmail(emailPayload);
+
 				// Toastify success message
 				Toastify({
 					text: "Bienvenido a bordo!",
@@ -291,7 +324,7 @@ export default defineComponent({
 				<div v-else>
 					<div class="mb-3">
 						<label class="form-label">Código de referido </label>
-						<input v-model="referralCode" type="text" class="form-control form-control-lg fs-15px"
+						<input v-model="formattedReferralCode" class="form-control form-control-lg fs-15px"
 							value="" />
 					</div>
 					<div class="mb-3">

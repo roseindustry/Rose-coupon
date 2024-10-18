@@ -1,9 +1,10 @@
 <script>
 import { defineComponent } from 'vue';
 import { useAppOptionStore } from '@/stores/app-option';
-import { auth, db } from '@/firebase/init';
+import { auth, db, functions } from '@/firebase/init';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { ref as dbRef, set, get } from 'firebase/database';
+import { httpsCallable } from 'firebase/functions';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
 import venezuela from 'venezuela';
@@ -51,6 +52,15 @@ export default defineComponent({
         appOption.appContentClass = '';
     },
     methods: {
+        async sendEmail(payload) {
+            try {
+                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
+                await sendEmailFunction(payload);
+            } catch (error) {
+                console.error('Error sending email:', error);
+            }
+        },
+
         async submitForm() {
             // Password length validation
             if (this.password.length < 6) {
@@ -103,7 +113,7 @@ export default defineComponent({
                 const user = userCredential.user;
 
                 // Generate unique referral code
-                const referralCode = `REF-${user.uid.slice(-3)}-${Date.now().toString(36).slice(-3)}`;
+                const referralCode = `REF-${user.uid.slice(0, 3).toUpperCase()}${Date.now().toString().slice(-2)}`;
 
                 // Set the user data in the database
                 const userRef = dbRef(db, `Users/${user.uid}`);
@@ -121,6 +131,16 @@ export default defineComponent({
                 });
 
                 console.log('User created:', user.uid, 'with referral code:', referralCode);
+
+                // Send an email notification to the admin through Firebase Cloud Functions
+                const emailPayload = {
+                    to: 'joselinq38@gmail.com',
+                    message: {
+                        subject: `Nuevo ${this.role.charAt(0).toUpperCase() + this.role.slice(1)} registrado`,
+                        text: `Hola administrador, el ${this.role.charAt(0).toUpperCase() + this.role.slice(1)} ${this.firstName} ${this.lastName} se ha registrado en Roseapp.`,
+                    },
+                };
+                await this.sendEmail(emailPayload);
 
                 // Toastify success message
                 Toastify({

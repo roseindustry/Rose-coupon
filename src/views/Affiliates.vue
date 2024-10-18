@@ -17,6 +17,7 @@ export default {
             role: '',
 
             affiliate: {
+                order: '',
                 name: '',
                 rif: '',
                 status: false,
@@ -27,8 +28,13 @@ export default {
                 parroquia: '',
                 address: '',
                 type: '',
+                twitter: '',
+                instagram: '',
+                facebook: '',
+                tiktok: '',
             },
             editData: {
+                order: '',
                 name: '',
                 rif: '',
                 status: false,
@@ -39,6 +45,10 @@ export default {
                 parroquia: '',
                 address: '',
                 type: '',
+                twitter: '',
+                instagram: '',
+                facebook: '',
+                tiktok: '',
             },
 
             affiliates: [],
@@ -95,6 +105,7 @@ export default {
 
         await this.fetchAffiliates();
         await this.fetchCategories();
+        this.sortAffiliatesByOrder();
     },
     methods: {
         // Fetching data functions
@@ -126,17 +137,7 @@ export default {
 
                         affiliatesList.push({
                             id: childSnapshot.key,
-                            name: affiliateData.companyName,
-                            rif: affiliateData.rif,
-                            status: affiliateData.status,
-                            email: affiliateData.email,
-                            phoneNumber: affiliateData.phoneNumber,
-                            image: affiliateData.image,
-                            state: affiliateData.state,
-                            municipio: affiliateData.municipio,
-                            parroquia: affiliateData.parroquia,
-                            address: affiliateData.address,
-                            type: affiliateData.type,
+                            ...affiliateData,
                             category_id: categoryId,
                             categoryName: categoriesMap[categoryId] || 'Sin categoría'
                         });
@@ -144,12 +145,23 @@ export default {
 
                     this.affiliates = affiliatesList;
                     this.filteredAffiliates = affiliatesList;
+                    this.sortAffiliatesByOrder();
                 } else {
                     console.log("No data available.");
                 }
             } catch (error) {
                 console.error("Error fetching affiliates:", error);
             }
+        },
+        sortAffiliatesByOrder(order = 'asc') {
+            this.filteredAffiliates.sort((a, b) => {
+                if (order === 'asc') {
+                    return a.order - b.order;
+                } else {
+                    return b.order - a.order;
+                }
+            });
+
         },
 
         // Filter affiliates
@@ -184,23 +196,25 @@ export default {
             this.filteredAffiliates = this.affiliates.filter(affiliate =>
                 affiliate.state === state
             );
+            this.sortAffiliatesByOrder();
         },
         filterByMunicipio(municipio) {
             this.filteredAffiliates = this.affiliates.filter(affiliate =>
                 affiliate.municipio === municipio
             );
-            console.log(this.filteredAffiliates);
+            this.sortAffiliatesByOrder();
         },
         filterByParroquia(parroquia) {
             this.filteredAffiliates = this.affiliates.filter(affiliate =>
                 affiliate.parroquia === parroquia
             );
-            console.log(this.filteredAffiliates);
+            this.sortAffiliatesByOrder();
         },
         filterByCategory(category) {
             this.filteredAffiliates = this.affiliates.filter(affiliate =>
                 affiliate.category_id === category.id
             );
+            this.sortAffiliatesByOrder();
         },
 
         // Select options
@@ -248,6 +262,7 @@ export default {
                 const updateData = {};
 
                 // Conditionally update fields if they are provided
+                if (affiliate.order) updateData.order = affiliate.order;
                 if (affiliate.name) updateData.companyName = affiliate.name;
                 if (affiliate.rif) updateData.rif = affiliate.rif;
                 if (affiliate.phoneNumber) updateData.phoneNumber = affiliate.phoneNumber;
@@ -256,6 +271,12 @@ export default {
                 if (affiliate.parroquia) updateData.parroquia = affiliate.parroquia;
                 if (affiliate.type) updateData.type = affiliate.type;
                 if (affiliate.status !== undefined) updateData.status = affiliate.status;
+
+                // Social media
+                if (affiliate.twitter) updateData.twitter = affiliate.twitter;
+                if (affiliate.instagram) updateData.instagram = affiliate.instagram;
+                if (affiliate.facebook) updateData.facebook = affiliate.facebook;
+                if (affiliate.tiktok) updateData.tiktok = affiliate.tiktok;
 
                 // Update with selected category ID
                 if (this.selectedCategory && this.selectedCategory.id) {
@@ -279,6 +300,9 @@ export default {
                     const modal = Modal.getInstance(document.getElementById('editAffiliateModal'));
                     modal.hide();
                     this.fetchAffiliates();
+                    this.showMunicipios = false;
+                    this.showParroquias = false;
+                    this.selectedCategory = null;
 
                     Toastify({
                         text: "Información actualizada!",
@@ -291,7 +315,7 @@ export default {
                             background: 'linear-gradient(to right, #00b09b, #96c93d)',
                         },
                     }).showToast();
-                    this.selectedCategory = null;
+                    
                 } else {
                     alert('No hay campos para actualizar.');
                 }
@@ -406,7 +430,8 @@ export default {
                     role: 'afiliado',
                     state: this.affiliate.state,
                     municipio: this.affiliate.municipio,
-                    parroquia: this.affiliate.parroquia
+                    parroquia: this.affiliate.parroquia,
+                    order: this.affiliate.order,
                 };
 
                 if (categoryId) {
@@ -420,6 +445,18 @@ export default {
                 }
                 if (this.affiliate.phoneNumber) {
                     userData.phoneNumber = this.affiliate.phoneNumber;
+                }
+                if (this.affiliate.twitter) {
+                    userData.twitter = this.affiliate.twitter;
+                }
+                if (this.affiliate.instagram) {
+                    userData.instagram = this.affiliate.instagram;
+                }
+                if (this.affiliate.facebook) {
+                    userData.facebook = this.affiliate.facebook;
+                }
+                if (this.affiliate.tiktok) {
+                    userData.tiktok = this.affiliate.tiktok;
                 }
 
                 // Call Cloud Function to create the client
@@ -879,6 +916,43 @@ export default {
             }
 
         },
+
+        applyRifMask() {
+            // Remove any unwanted characters
+            let rif = this.affiliate.rif.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+            // Ensure the first character is a letter and format the rest
+            if (rif.length > 1) {
+                // Add hyphen after the first letter
+                this.affiliate.rif = rif[0] + '-' + rif.slice(1);
+            } else {
+                // If it's just the first letter, don't add a hyphen yet
+                this.affiliate.rif = rif;
+            }
+        },
+        async getNextAffiliateOrder() {
+            const role = 'afiliado';
+            try {
+                // Fetch the affiliates to get the highest order value
+                const affiliatesSnapshot = await get(query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role)));
+
+                let maxOrder = 0;
+                if (affiliatesSnapshot.exists()) {
+                    const affiliates = affiliatesSnapshot.val();
+                    // Loop through the affiliates to find the highest order number
+                    Object.values(affiliates).forEach(affiliate => {
+                        if (affiliate.order && affiliate.order > maxOrder) {
+                            maxOrder = affiliate.order;
+                        }
+                    });
+                }
+
+                // Increment the max order value by 1 for the new affiliate
+                this.affiliate.order = maxOrder + 1;
+            } catch (error) {
+                console.error("Error fetching affiliates to calculate order:", error);
+            }
+        },
     }
 }
 </script>
@@ -896,8 +970,8 @@ export default {
             </div>
 
             <div class="col d-flex justify-content-end align-items-center">
-                <a href="#" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#addAffiliateModal"
-                    style="margin: 14px;">
+                <a href="#" class="btn btn-theme" @click="getNextAffiliateOrder()" data-bs-toggle="modal"
+                    data-bs-target="#addAffiliateModal" style="margin: 14px;">
                     <i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Afiliado
                 </a>
             </div>
@@ -1038,7 +1112,7 @@ export default {
                                     </div>
                                 </div>
                                 <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title text-truncate">{{ affiliate.name }}</h5>
+                                    <h5 class="card-title text-truncate">{{ affiliate.companyName }}</h5>
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" :id="'affiliate' + index"
@@ -1051,7 +1125,7 @@ export default {
                                     <div class="d-flex justify-content-end mt-2">
                                         <button class="btn btn-sm btn-outline-info me-1" data-bs-toggle="tooltip"
                                             data-bs-placement="top" title="Editar comercio"
-                                            @click="editAffiliate(affiliate), fetchCategories()">
+                                            @click="editAffiliate(affiliate), fetchCategories(), displayMunicipios(affiliate.state), displayParroquias(affiliate.municipio)">
                                             <i class="fa-solid fa-pencil"></i>
                                         </button>
                                         <button class="btn btn-sm btn-outline-danger"
@@ -1081,8 +1155,9 @@ export default {
                         <div class="container">
                             <div class="row">
                                 <!-- Categoria -->
-                                <div class="col-12 mb-3">
-                                    <div class="dropdown">
+                                <div class="col-6 mb-3">
+                                    <label for="categoryDropdown" class="form-label">Categoría</label>
+                                    <div class="dropdown" id="categoryDropdown">
                                         <button class="btn btn-secondary dropdown-toggle" type="button"
                                             id="dropdownMenuCategory" data-bs-toggle="dropdown" aria-expanded="false">
                                             {{ selectedCategory ? selectedCategory.name : 'Seleccione...' }}
@@ -1100,38 +1175,44 @@ export default {
                                         </ul>
                                     </div>
                                 </div>
+                                <!-- Affiliate Order Number -->
+                                <div class="col-6 mb-3">
+                                    <label for="affiliateOrder" class="form-label">Orden
+                                        <!-- <span class="text-muted">
+                                            Este número determinará la posición en que aparezca listado el Comercio
+                                        </span> -->
+                                    </label>
+                                    <input type="number" class="form-control" id="affiliateOrder"
+                                        v-model="affiliate.order" />
+                                </div>
                                 <!-- Affiliate Name -->
-                                <div class="col-12 mb-3">
+                                <div class="col-6 mb-3">
                                     <label for="affiliateName" class="form-label">Nombre <span
                                             class="text-danger">*</span></label>
                                     <input type="text" class="form-control" id="affiliateName" v-model="affiliate.name"
                                         required />
                                 </div>
-                            </div>
-
-                            <div class="row">
                                 <!-- RIF -->
-                                <div class="col-12 mb-3">
+                                <div class="col-6 mb-3">
                                     <label for="affiliateRif" class="form-label">RIF <span
                                             class="text-danger">*</span></label>
-                                    <input class="form-control" id="affiliateRif" v-model="affiliate.rif" required />
+                                    <input class="form-control" id="affiliateRif" v-model="affiliate.rif"
+                                        @input="applyRifMask" required />
                                 </div>
                                 <!-- Email -->
-                                <div class="col-12 mb-3">
+                                <div class="col-6 mb-3">
                                     <label for="affiliateEmail" class="form-label">Email <span
                                             class="text-danger">*</span></label>
                                     <input class="form-control" id="affiliateEmail" v-model="affiliate.email"
                                         required />
                                 </div>
-                            </div>
-
-                            <div class="row">
                                 <!-- Phone Number -->
-                                <div class="col-12 mb-3">
+                                <div class="col-6 mb-3">
                                     <label for="affiliatePhone" class="form-label">Teléfono</label>
                                     <input class="form-control" id="affiliatePhone" v-model="affiliate.phoneNumber" />
                                 </div>
-                                <div class="col-12 mb-3">
+                                <!-- State -->
+                                <div class="col-6 mb-3">
                                     <label class="form-label">Estado <span class="text-danger">*</span></label>
                                     <select v-model="affiliate.state" @change="displayMunicipios(affiliate.state)"
                                         class="form-control mb-2">
@@ -1139,21 +1220,69 @@ export default {
                                         <option v-for="(state, index) in venezuelanStates" :key="index" :value="state">
                                             {{ state }}</option>
                                     </select>
-
+                                </div>
+                                <!-- Municipality -->
+                                <div class="col-6 mb-3">
                                     <label class="form-label">Municipio <span class="text-danger">*</span></label>
                                     <select v-model="affiliate.municipio"
                                         @change="displayParroquias(affiliate.municipio)" class="form-control mb-2">
                                         <option value="" disabled selected>Selecciona un municipio</option>
                                         <option v-for="(municipio, index) in municipios" :key="index"
-                                            :value="municipio">{{ municipio }}</option>
+                                            :value="municipio">{{
+                                                municipio }}</option>
                                     </select>
-
+                                </div>
+                                <!-- Parroquia -->
+                                <div class="col-6 mb-3">
                                     <label class="form-label">Parroquia <span class="text-danger">*</span></label>
                                     <select v-model="affiliate.parroquia" class="form-control mb-2">
                                         <option value="" disabled selected>Selecciona una parroquia</option>
                                         <option v-for="(parroquia, index) in parroquias" :key="index"
-                                            :value="parroquia">{{ parroquia }}</option>
+                                            :value="parroquia">{{
+                                                parroquia }}</option>
                                     </select>
+                                </div>
+                            </div>
+
+                            <hr>
+
+                            <div class="row">
+                                <h5 for="affiliateSocials" class="form-label text-center mb-3">Redes sociales</h5>
+                                <div class="col-6 mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fa-brands fa-x-twitter"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="affiliateTwitter"
+                                            v-model="affiliate.twitter" />
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fa-brands fa-instagram"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="affiliateInstagram"
+                                            v-model="affiliate.instagram" />
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fa-brands fa-facebook-f"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="affiliateFacebook"
+                                            v-model="affiliate.facebook" />
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fa-brands fa-tiktok"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="affiliateTiktok"
+                                            v-model="affiliate.tiktok" />
+                                    </div>
                                 </div>
                             </div>
 
@@ -1221,9 +1350,9 @@ export default {
                         <div class="container">
                             <div class="row">
                                 <!-- Categoria -->
-                                <div class="mb-3">
-                                    <label for="categoryDropdown" class="form-label">Categoria</label>
-                                    <div class="dropdown" id="categoryDropdown">
+                                <div class="col-6 mb-3">
+                                    <label for="EditCategoryDropdown" class="form-label">Categoria</label>
+                                    <div class="dropdown" id="EditCategoryDropdown">
                                         <button class="btn btn-secondary dropdown-toggle" type="button"
                                             id="dropdownEditMenuCategory" data-bs-toggle="dropdown"
                                             aria-expanded="false">
@@ -1242,29 +1371,36 @@ export default {
                                         </ul>
                                     </div>
                                 </div>
+                                <!-- Affiliate Order Number -->
+                                <div class="col-6 mb-3">
+                                    <label for="editAffiliateOrder" class="form-label">Orden
+                                    </label>
+                                    <input type="number" class="form-control" id="editAffiliateOrder"
+                                        v-model="editData.order" />
+                                </div>
                                 <!-- Affiliate Name -->
-                                <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-6 mb-3">
                                     <label for="editAffiliateName" class="form-label">Nombre</label>
                                     <input type="text" class="form-control" id="editAffiliateName"
-                                        v-model="editData.name" />
+                                        v-model="editData.companyName" />
                                 </div>
                                 <!-- RIF -->
-                                <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-6 mb-3">
                                     <label for="editAffiliateRif" class="form-label">RIF</label>
                                     <input class="form-control" id="editAffiliateRif" v-model="editData.rif" />
                                 </div>
                                 <!-- Email -->
-                                <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-6 mb-3">
                                     <label for="editAffiliateEmail" class="form-label">Email</label>
                                     <input class="form-control" id="editAffiliateEmail" v-model="editData.email" />
                                 </div>
                                 <!-- Phone Number -->
-                                <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-6 mb-3">
                                     <label for="editAffiliatePhone" class="form-label">Teléfono</label>
                                     <input class="form-control" id="editAffiliatePhone"
                                         v-model="editData.phoneNumber" />
                                 </div>
-                                <div class="col-md-4 col-sm-6 mb-3">
+                                <div class="col-6 mb-3">
                                     <label class="form-label">Estado</label>
                                     <select v-model="editData.state" @change="displayMunicipios(editData.state)"
                                         class="form-control mb-2">
@@ -1273,6 +1409,8 @@ export default {
                                             {{ state }}
                                         </option>
                                     </select>
+                                </div>
+                                <div class="col-6 mb-3">
                                     <label class="form-label">Municipio</label>
                                     <select v-model="editData.municipio" @change="displayParroquias(editData.municipio)"
                                         class="form-control mb-2">
@@ -1282,6 +1420,8 @@ export default {
                                             {{ municipio }}
                                         </option>
                                     </select>
+                                </div>
+                                <div class="col-6 mb-3">
                                     <label class="form-label">Parroquia</label>
                                     <select v-model="editData.parroquia" class="form-control mb-2">
                                         <option value="" disabled selected>Selecciona una parroquia</option>
@@ -1292,6 +1432,49 @@ export default {
                                     </select>
                                 </div>
                             </div>
+
+                            <hr>
+
+                            <div class="row">
+                                <h5 for="affiliateSocials" class="form-label text-center mb-3">Redes sociales</h5>
+                                <div class="col-6 mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fa-brands fa-x-twitter"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="editAffiliateTwitter"
+                                            v-model="editData.twitter" />
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fa-brands fa-instagram"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="editAffiliateInstagram"
+                                            v-model="editData.instagram" />
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fa-brands fa-facebook-f"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="editAffiliateFacebook"
+                                            v-model="editData.facebook" />
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fa-brands fa-tiktok"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="editAffiliateTiktok"
+                                            v-model="editData.tiktok" />
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="row">
                                 <!-- Affiliate Status -->
                                 <div class="col-md-4 col-sm-6 mb-3">
@@ -1375,7 +1558,7 @@ export default {
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button type="button" class="btn btn-primary" @click="addCategory">Agregar Categoría</button>
+                        <button type="button" class="btn btn-theme" @click="addCategory">Agregar Categoría</button>
                     </div>
                 </div>
             </div>
@@ -1455,7 +1638,7 @@ export default {
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button type="button" class="btn btn-primary" :disabled="editingSubcategoryId"
+                        <button type="button" class="btn btn-theme" :disabled="editingSubcategoryId"
                             @click="addSubcategory">Agregar
                             Subcategoría</button>
                     </div>
@@ -1615,6 +1798,84 @@ export default {
                                         <i class="fa-solid fa-location-dot"></i>
                                         {{ affiliate.address ? affiliate.address : affiliate.municipio }}
                                     </p>
+
+                                    <!-- Accordion for Social Media Links -->
+                                    <div class="accordion" :id="'accordionSocial' + affiliate.id">
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" :id="'heading' + affiliate.id">
+                                                <button class="accordion-button collapsed" type="button"
+                                                    data-bs-toggle="collapse"
+                                                    :data-bs-target="'#collapse' + affiliate.id" aria-expanded="false"
+                                                    :aria-controls="'collapse' + affiliate.id">
+                                                    Redes Sociales
+                                                </button>
+                                            </h2>
+                                            <div :id="'collapse' + affiliate.id" class="accordion-collapse collapse"
+                                                :aria-labelledby="'heading' + affiliate.id"
+                                                :data-bs-parent="'#accordionSocial' + affiliate.id">
+                                                <div class="accordion-body">
+                                                    <ul class="list-unstyled">
+                                                        <li v-if="affiliate.facebook" class="mb-2">
+                                                            <div class="input-group">
+                                                                <span class="input-group-text">
+                                                                    <i class="fa-brands fa-facebook-f"></i>
+                                                                </span>
+                                                                <input type="text" class="form-control"
+                                                                    :value="affiliate.facebook" readonly>
+                                                                <a :href="affiliate.facebook"
+                                                                    class="btn btn-outline-primary" target="_blank">
+                                                                    <i class="fa-solid fa-arrow-right"></i>
+                                                                </a>
+                                                            </div>
+                                                        </li>
+                                                        <li v-if="affiliate.instagram" class="mb-2">
+                                                            <div class="input-group">
+                                                                <span class="input-group-text">
+                                                                    <i class="fa-brands fa-instagram"></i>
+                                                                </span>
+                                                                <input type="text" class="form-control"
+                                                                    :value="affiliate.instagram" readonly>
+                                                                <a :href="affiliate.instagram"
+                                                                    class="btn btn-outline-primary" target="_blank">
+                                                                    <i class="fa-solid fa-arrow-right"></i>
+                                                                </a>
+                                                            </div>
+                                                        </li>
+                                                        <li v-if="affiliate.twitter" class="mb-2">
+                                                            <div class="input-group">
+                                                                <span class="input-group-text">
+                                                                    <i class="fa-brands fa-x-twitter"></i>
+                                                                </span>
+                                                                <input type="text" class="form-control"
+                                                                    :value="affiliate.twitter" readonly>
+                                                                <a :href="affiliate.twitter"
+                                                                    class="btn btn-outline-primary" target="_blank">
+                                                                    <i class="fa-solid fa-arrow-right"></i>
+                                                                </a>
+                                                            </div>
+                                                        </li>
+                                                        <li v-if="affiliate.tiktok" class="mb-2">
+                                                            <div class="input-group">
+                                                                <span class="input-group-text">
+                                                                    <i class="fa-brands fa-tiktok"></i>
+                                                                </span>
+                                                                <input type="text" class="form-control"
+                                                                    :value="affiliate.tiktok" readonly>
+                                                                <a :href="affiliate.tiktok"
+                                                                    class="btn btn-outline-primary" target="_blank">
+                                                                    <i class="fa-solid fa-arrow-right"></i>
+                                                                </a>
+                                                            </div>
+                                                        </li>
+                                                        <li
+                                                            v-if="!affiliate.facebook && !affiliate.instagram && !affiliate.twitter && !affiliate.tiktok">
+                                                            <p>Este comercio no ha registrado redes sociales.</p>
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
