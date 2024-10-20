@@ -19,6 +19,7 @@ export default {
             role: null,
             userId: null,
             userName: null,
+            exchange: null,
 
             clients: [],
             clientsSubscriptions: [],
@@ -482,7 +483,7 @@ export default {
 
                 // Notify Admin
                 const adminEmailPayload = {
-                    to: 'joselinq38@gmail.com',
+                    to: 'roseindustry11@gmail.com',
                     message: {
                         subject: `Nuevo cliente suscrito al Plan ${selectedPlanDetails.name.toUpperCase()}`,
                         text: `Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${selectedPlanDetails.name.toUpperCase()}.`,
@@ -561,7 +562,7 @@ export default {
 
                         // Notify Admin
                         const adminEmailPayload = {
-                            to: 'joselinq38@gmail.com',
+                            to: 'roseindustry11@gmail.com',
                             message: {
                                 subject: `Nuevo cliente suscrito al Plan ${selectedPlanDetails.name.toUpperCase()}`,
                                 text: `Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${selectedPlanDetails.name.toUpperCase()}.`,
@@ -644,7 +645,7 @@ export default {
 
                 // Notify Admin
                 const adminEmailPayload = {
-                    to: 'joselinq38@gmail.com',
+                    to: 'roseindustry11@gmail.com',
                     message: {
                         subject: `Nuevo cliente suscrito al Plan ${plan.name.toUpperCase()}`,
                         text: `Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${plan.name.toUpperCase()}.`,
@@ -729,6 +730,43 @@ export default {
                 this.paymentPreview = URL.createObjectURL(file);
             }
         },
+
+        async setExchange() {
+            if (confirm("¿Desea asignar este nueva tasa de cambio a la app?")) {
+                const creditRef = dbRef(db, `Exchange`);
+                try {
+                    const value = {
+                        value: parseFloat(this.exchange),
+                    }
+                    await update(creditRef, value);
+
+                    this.showToast('Tasa actualizada!');
+
+                    // Reset form fields
+                    await this.fetchCurrentExchange();
+                } catch (error) {
+                    console.error('Error setting exchange value:', error);
+                    alert('No se pudo editar el valor.');
+                }
+            }
+        },
+        async fetchCurrentExchange() {
+            try {
+                const exchangeRef = dbRef(db, `Exchange`);
+                const exchangeSnapshot = await get(exchangeRef);
+
+                if (exchangeSnapshot.exists()) {
+                    const exchangeData = exchangeSnapshot.val();
+                    this.exchange = parseFloat(exchangeData.value).toFixed(2);
+                } else {
+                    console.log('No exchange value found.');
+                    this.exchange = 0;
+                }
+            } catch (error) {
+                console.error('Error fetching current exchange value:', error);
+                this.exchange = 0;
+            }
+        },
     },
     async mounted() {
         const userStore = useUserStore();
@@ -739,6 +777,7 @@ export default {
 
         await this.fetchClients();
         await this.fetchPlans();
+        await this.fetchCurrentExchange();
     },
 };
 </script>
@@ -748,14 +787,16 @@ export default {
     </h2>
 
     <div v-if="this.role === 'admin'" class="container">
-        <!-- Button -->
+        <!-- Buttons -->
         <div class="d-flex justify-content-end align-items-center">
-            <a href="#" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#createPlan" style="margin: 14px;">
+            <a href="#" class="btn btn-theme me-2" data-bs-toggle="modal" data-bs-target="#createPlan">
                 <i class="fa fa-plus-circle fa-fw me-1"></i> Crear Plan
             </a>
-            <a href="#" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#assignModal"
-                style="margin: 14px;">
+            <a href="#" class="btn btn-theme me-2" data-bs-toggle="modal" data-bs-target="#assignModal">
                 <i class="fa fa-circle-check fa-fw me-1"></i> Asignar Plan
+            </a>
+            <a href="#" class="btn btn-theme me-2" data-bs-toggle="modal" data-bs-target="#setExchange">
+                <i class="fa fa-calculator fa-fw me-1"></i> Tasa de cambio
             </a>
         </div>
 
@@ -1068,6 +1109,30 @@ export default {
                 </div>
             </div>
         </div>
+        <!-- Modal to set the company's exchange ammount -->
+        <div class="modal fade" id="setExchange" tabindex="-1" aria-labelledby="setExchangeModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="setExchangeModalLabel">Editar Tasa</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <div class="input-group">
+                                <span class="input-group-text text-wrap" id="value-addon">Bs</span>
+                                <input id="exchangeValue" type="number" class="form-control" v-model.number="exchange"
+                                    aria-label="Monto" aria-describedby="value-addon" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="button" class="btn btn-theme" @click="setExchange()">Guardar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div v-if="this.role === 'cliente' || this.role === 'afiliado'" class="container">
@@ -1118,6 +1183,12 @@ export default {
                             <i :class="selectedPlan.icon"></i>
                             {{ selectedPlan.name.toUpperCase() }}
                         </h3>
+                        <h5 v-if="selectedPlan" class="mb-3">
+                            <strong>Tasa: {{ exchange }} Bs</strong>                            
+                        </h5>
+                        <h5  v-if="selectedPlan" class="mb-3">
+                            <strong>Monto a cancelar: {{ ((selectedPlan.price.toFixed(2)) * exchange).toFixed(2) }} Bs</strong>
+                        </h5>
 
                         <!-- Metodos de pago -->
                         <div class="card">

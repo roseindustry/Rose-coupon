@@ -209,7 +209,7 @@ export default defineComponent({
 
 				// Send an email notification to the admin through Firebase Cloud Functions
                 const emailPayload = {
-                    to: 'joselinq38@gmail.com',
+                    to: 'roseindustry11@gmail.com',
                     message: {
                         subject: `Nuevo ${this.role.charAt(0).toUpperCase() + this.role.slice(1)} registrado`,
                         text: `Hola administrador, el ${this.role.charAt(0).toUpperCase() + this.role.slice(1)} ${this.firstName} ${this.lastName} se ha registrado en Roseapp.`,

@@ -195,7 +195,7 @@ export default defineComponent({
                 // Send an email notification to the admin through Firebase Cloud Functions				
                 const appUrl = 'https://app.rosecoupon.com';
                 const emailPayload = {
-                    to: 'joselinq38@gmail.com',
+                    to: 'roseindustry11@gmail.com',
                     message: {
                         subject: "Usuario solicitó verificación",
                         text: `Hola administrador, el usuario ${this.userName} ha solicitado verificación de identidad en Roseapp.
