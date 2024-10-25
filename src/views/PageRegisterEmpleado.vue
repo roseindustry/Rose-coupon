@@ -51,6 +51,14 @@ export default defineComponent({
         appOption.appHeaderHide = false;
         appOption.appContentClass = '';
     },
+    computed: {
+        formattedIdentification: {
+            get() {
+                // Always return the value prefixed with 'REF-'
+                return `500${this.identification}`;
+            }
+        }
+    },
     methods: {
         async sendEmail(payload) {
             try {
@@ -242,7 +250,7 @@ export default defineComponent({
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Cedula / Identificacion <span class="text-danger">*</span></label>
-                    <input v-model="identification" type="number" class="form-control form-control-lg fs-15px"
+                    <input v-model="formattedIdentification" type="number" class="form-control form-control-lg fs-15px"
                         placeholder="e.g 20555444" value="" required />
                     <small v-if="formErrors.identificationUsed" class="text-danger">La identificación ya está en
                         uso.</small>

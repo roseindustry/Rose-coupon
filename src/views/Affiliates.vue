@@ -352,7 +352,7 @@ export default {
                         const oldImagePath = imageUrl.split('?')[0]; // Remove query params
                         const oldImageFileName = oldImagePath.substring(oldImagePath.lastIndexOf('/') + 1);
 
-                        const oldImageRef = storageRef(storage, `Logos/${affiliate.name}/${oldImageFileName}`);
+                        const oldImageRef = storageRef(storage, `Logos/${affiliate.companyName}/${oldImageFileName}`);
                         try {
                             await deleteObject(oldImageRef); // delete the old image 
                             console.log(`Deleted old image: ${oldImageFileName}`);
@@ -562,10 +562,10 @@ export default {
             let imageUrl = null;
             try {
                 // Create a file name based on the affiliate's name
-                const sanitizedAffiliateName = affiliate.name.trim().toLowerCase().replace(/\s+/g, '-');
+                const sanitizedAffiliateName = affiliate.companyName.trim().toLowerCase().replace(/\s+/g, '-');
                 const fileName = `${sanitizedAffiliateName}-logo.${imageFile.name.split('.').pop()}`; // Keep original file extension
 
-                const sRef = storageRef(storage, `Logos/${affiliate.name}/${fileName}`);
+                const sRef = storageRef(storage, `Logos/${affiliate.companyName}/${fileName}`);
 
                 const uploadResult = await uploadBytes(sRef, imageFile);
                 imageUrl = await getDownloadURL(uploadResult.ref);
@@ -1788,7 +1788,7 @@ export default {
                                     <div class="img" :style="{ backgroundImage: 'url(' + affiliate.image + ')' }"></div>
                                 </div>
                                 <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title text-truncate">{{ affiliate.name }}</h5>
+                                    <h5 class="card-title text-truncate">{{ affiliate.companyName }}</h5>
                                     <p class="card-text text-truncate flex-grow-1">
                                         <i class="fa-brands fa-whatsapp fa-lg"></i>
                                         {{ affiliate.phoneNumber }}

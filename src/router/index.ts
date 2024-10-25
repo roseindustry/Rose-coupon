@@ -6,7 +6,6 @@ import { ref, get } from 'firebase/database';
 const router = createRouter({
 	history: createWebHistory(import.meta.env.BASE_URL),
 	routes: [
-		// Admin routes
 		{
 			path: '/',
 			name: 'Dashboard',
@@ -37,8 +36,12 @@ const router = createRouter({
 			component: () => import('../views/Subscriptions.vue'),
 			meta: { roles: ['admin', 'cliente', 'afiliado'] }
 		},
-
-		// User's routes
+		{
+			path: '/payments',
+			name: 'Notificaciones de Pago',
+			component: () => import('../views/Payments.vue'),
+			meta: { roles: ['admin'] }
+		},
 		{
 			path: '/client-portal',
 			name: 'Portal de Cliente',
@@ -51,8 +54,6 @@ const router = createRouter({
 			component: () => import('../views/PageAffiliatePortal.vue'),
 			meta: { roles: ['afiliado'] }
 		},
-
-		// Customer satisfaction survey routes
 		{
 			path: '/customer-survey',
 			name: 'Encuesta de satisfaccion',
@@ -65,8 +66,6 @@ const router = createRouter({
 			component: () => import('../views/PageRatings.vue'),
 			meta: { roles: ['cliente', 'afiliado'] }
 		},
-
-		// Coupons routes
 		{
 			path: '/cupones',
 			name: 'Cupones',
@@ -85,16 +84,18 @@ const router = createRouter({
 			component: () => import('../views/RequestCoupons.vue'),
 			meta: { roles: ['cliente'] }
 		},
-
-		// Events routes
 		{
 			path: '/events',
 			name: 'Eventos',
 			component: () => import('../views/Events.vue'),
 			meta: { roles: ['admin', 'cliente', 'afiliado'] }
 		},
-		
-		// Reports routes
+		{
+			path: '/giveaways',
+			name: 'Sorteos',
+			component: () => import('../views/Giveaways.vue'),
+			meta: { roles: ['admin', 'cliente', 'afiliado'] }
+		},
 		{
 			path: '/page/reports-by-client',
 			name: 'Reportes por cliente',
@@ -108,7 +109,12 @@ const router = createRouter({
 			meta: { roles: ['admin'] }
 		},
 
-		// Generic routes
+		// Global routes
+		{
+			path: '/jobs',
+			name: 'Empleos',
+			component: () => import('../views/Jobs.vue')
+		},
 		{
 			path: '/page/coming-soon',
 			name: 'Coming soon',

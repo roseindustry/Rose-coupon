@@ -1,8 +1,11 @@
 <script>
-import { db } from '@/firebase/init';
+import { db, functions } from '@/firebase/init';
 import { ref as dbRef, get, update, orderByChild, query, equalTo } from 'firebase/database';
+import { httpsCallable } from 'firebase/functions';
 import { useUserStore } from "@/stores/user-role";
 import { Modal } from 'bootstrap';
+import Toastify from 'toastify-js'
+import 'toastify-js/src/toastify.css'
 
 export default {
 	data() {
@@ -307,6 +310,10 @@ export default {
 					},
 				};
 				await this.sendEmail(emailPayload);
+
+				// Hide the image Modal after approving
+				const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
+				modal.hide();
 
 				this.showToast('Usuario verificado con éxito.');
 				this.fetchIdFiles(client);

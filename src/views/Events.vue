@@ -356,7 +356,8 @@ export default {
 		formatDate(date) {
 			if (!date) return ''; // Handle invalid dates or null values
 			const d = new Date(date);
-			const day = String(d.getUTCDate()).padStart(2, '0'); // Ensure two-digit day
+            const localDateDay = new Date(d.getTime() + d.getTimezoneOffset() * 60000);
+            const day = String(localDateDay.getDate()).padStart(2, '0'); // Ensure two-digit day
 			const month = String(d.getUTCMonth() + 1).padStart(2, '0'); // Ensure two-digit month (months are zero-indexed)
 			const year = d.getUTCFullYear();
 			return `${day}/${month}/${year}`;
@@ -686,7 +687,7 @@ export default {
 					</div>
 				</div>
 				<div v-else>
-					<!-- Loop through affiliates and display them in cards -->
+					<!-- Loop through events and display them in cards -->
 					<div class="row">
 						<div v-for="evento in events" :key="evento.id" class="col-12 col-sm-6 col-md-4 mb-4">
 							<div class="card h-100 position-relative">
@@ -728,11 +729,6 @@ export default {
 				</div>
 			</div>
 		</div>
-	</div>
-
-	<!-- Affiliate view -->
-	<div v-if="this.role === 'afiliado'" class="container">
-
 	</div>
 </template>
 <style>

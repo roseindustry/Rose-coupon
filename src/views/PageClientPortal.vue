@@ -32,18 +32,19 @@ export default defineComponent({
                 { title: 'Cupones que te interesan', description: 'Cuentanos que te gusta.', link: '/preferencias', actionText: 'Cuentanos', notReady: false, bgImage: '/assets/img/rose_imgs/1.png' },
                 { title: 'Solicitar cupón', description: 'Solicita los cupones que deseas.', link: '/request-coupons', actionText: 'Solicitar', notReady: false, bgImage: '/assets/img/rose_imgs/1.png' },
                 { title: 'Eventos', description: 'Descubre nuestros próximos eventos.', link: '/events', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/3.png' },
-                { title: 'Sorteos', description: 'Descubre nuestros próximos sorteos.', link: '#', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/3.png' },
-                {
-                    title: 'Crédito',
-                    description: 'Solicite o modifique su crédito aquí.',
-                    link: '/creditos',
-                    actionText: 'Ver más',
-                    notReady: true,
-                    bgImage: '/assets/img/rose_imgs/2.png'
-                },
-                { title: 'Compras recientes', description: 'Ver sus compras recientes.', link: '#', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/5.png' },
-                { title: 'Mis Opiniones', description: 'Aqui se muestran tus reseñas y opiniones de lo que consumes.', link: '/clients-ratings', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
-                { title: 'Encuestas', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/customer-survey', actionText: 'Tomar Encuesta', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
+                { title: 'Sorteos', description: 'Descubre nuestros próximos sorteos.', link: '/giveaways', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/3.png' },
+                { title: 'Vacantes', description: 'Descubre vacantes aquí.', link: '/jobs', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/3.png' },
+                // {
+                //     title: 'Crédito',
+                //     description: 'Solicite o modifique su crédito aquí.',
+                //     link: '/creditos',
+                //     actionText: 'Ver más',
+                //     notReady: true,
+                //     bgImage: '/assets/img/rose_imgs/2.png'
+                // },
+                // { title: 'Compras recientes', description: 'Ver sus compras recientes.', link: '#', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/5.png' },
+                // { title: 'Mis Opiniones', description: 'Aqui se muestran tus reseñas y opiniones de lo que consumes.', link: '/clients-ratings', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
+                // { title: 'Encuestas', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/customer-survey', actionText: 'Tomar Encuesta', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
             ],
 
             subscriptionPlan: {},

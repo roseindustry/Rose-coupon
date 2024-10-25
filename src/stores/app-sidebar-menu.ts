@@ -28,6 +28,16 @@ export const useAppSidebarMenuStore = defineStore({
         url: "/cupones",
         icon: "fa fa-ticket",
         text: "Cupones",
+      },      
+      {
+        url: "/suscripciones",
+        icon: "fa fa-handshake",
+        text: "Suscripciones",
+      },
+      {
+        url: "/payments",
+        icon: "fa-solid fa-file-invoice-dollar",
+        text: "Notificaciones de Pago",
       },
       {
         url: "/creditos",
@@ -35,14 +45,14 @@ export const useAppSidebarMenuStore = defineStore({
         text: "Créditos",
       },
       {
-        url: "/suscripciones",
-        icon: "fa fa-handshake",
-        text: "Suscripciones",
-      },
-      {
         url: "/events",
         icon: "fa fa-pizza-slice",
         text: "Eventos",
+      },
+      {
+        url: "/giveaways",
+        icon: "fa fa-gift",
+        text: "Sorteos",
       },
       // {
       //   is_divider: true,

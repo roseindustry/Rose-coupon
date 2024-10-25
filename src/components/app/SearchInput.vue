@@ -8,7 +8,7 @@
             <div class="list-group">
                 <button type="button" class="list-group-item list-group-item-action" v-for="item in results"
                     :key="item.uid" @click.prevent="$emit('select', item)">
-                    {{ item.identification }} - {{ item.firstName }} {{ item.lastName }}
+                    {{ item.identification ? item.identification : item.rif }} - {{ item.firstName ? item.firstName : item.companyName }} {{ item.lastName ? item.lastName : '' }}
                 </button>
             </div>
         </div>

@@ -120,157 +120,161 @@ export default {
 
             try {
                 const snapshot = await get(clientRef);
+                if (!snapshot.exists()) {
+                    this.clients = [];
+                    return;
+                }
 
-                if (snapshot.exists()) {
-                    const users = snapshot.val();
+                const users = snapshot.val();
+                const getUserDetails = httpsCallable(functions, 'getUserDetails');
+                const clientPromises = [];
 
-                    // Create an array to hold clients and their creation timestamps
-                    const clientsWithTimestamp = [];
-                    const getUserDetails = httpsCallable(functions, 'getUserDetails');
-
-                    // Fetch authentication details for each user
-                    for (const [uid, user] of Object.entries(users)) {
-                        // Call Cloud Function to get user details
-                        const authUser = await getUserDetails(uid);
-
-                        // Push the user along with the creation timestamp
-                        clientsWithTimestamp.push({
+                // Create array of promises for parallel processing
+                for (const [uid, user] of Object.entries(users)) {
+                    clientPromises.push(
+                        getUserDetails(uid).then(authUser => ({
                             uid,
                             ...user,
-                            createdAt: authUser.data.creationTime // Use the creationTime from the function
-                        });
-                    }
-
-                    // Sort clients by createdAt in descending order
-                    this.clients = clientsWithTimestamp.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                    this.clientCoupons = {};
-                    this.clientPreferences = {};
-
-                    // Fetch coupons, subscriptions and Preferences for each client
-                    for (const client of this.clients) {
-
-                        // Initialize the coupons array for each client
-                        this.clientCoupons[client.uid] = [];
-
-                        // Fetch coupons for the client
-                        const couponsRef = dbRef(db, `Users/${client.uid}/coupons`);
-                        const couponsSnapshot = await get(couponsRef);
-
-                        if (couponsSnapshot.exists()) {
-                            const couponIds = couponsSnapshot.val(); // Coupon IDs
-
-                            // Check if Object.keys(couponIds) contains any keys
-                            const couponIdKeys = Object.keys(couponIds);
-
-                            // Fetch the details for each coupon ID from the Coupons table
-                            for (const couponId of couponIdKeys) {
-
-                                const couponRef = dbRef(db, `Coupons/${couponId}`);
-                                const couponDetailsSnapshot = await get(couponRef);
-
-                                if (couponDetailsSnapshot.exists()) {
-                                    const details = couponDetailsSnapshot.val();
-                                    // Add the actual coupon details to the client's coupons
-                                    this.clientCoupons[client.uid].push({ id: couponId, ...couponDetailsSnapshot.val() });
-                                }
-                            }
-                        } else {
-                            this.clientCoupons[client.uid] = []; // If no coupons, set an empty array
-                        }
-
-                        // Fetch subscription details for the client
-                        const subscriptionRef = dbRef(db, `Users/${client.uid}/subscription`);
-                        const subscriptionSnapshot = await get(subscriptionRef);
-
-                        if (subscriptionSnapshot.exists()) {
-                            client.subscription = subscriptionSnapshot.val();
-                            const subscriptionId = client.subscription.subscription_id;
-
-                            // Query the Suscriptions table to fetch the details
-                            const subscriptionDataRef = dbRef(db, `Suscriptions/${subscriptionId}`);
-                            const userSuscriptionSnapshot = await get(subscriptionDataRef);
-
-                            if (userSuscriptionSnapshot.exists()) {
-                                const userSubscription = userSuscriptionSnapshot.val();
-                                // Merge the userSubscription into the client's subscription object
-                                client.subscription = {
-                                    ...client.subscription,
-                                    ...userSubscription
-                                };
-                                if (client.subscription.lastPaymentDate) {
-                                    // In case the client made a payment
-                                    const paymentDate = (client.subscription.lastPaymentDate).split('T')[0];
-                                    this.fetchPaymentFiles(client, paymentDate);
-                                }
-                            }
-                        } else {
-                            // Set a default empty subscription if none exist
-                            client.subscription = null;
-                        }
-
-                        // Initialize the preferences array for each client
-                        this.clientPreferences[client.uid] = {};
-
-                        // Fetch preferences for the client
-                        const preferencesRef = dbRef(db, `Users/${client.uid}/preferences`);
-                        const prefSnapshot = await get(preferencesRef);
-
-                        if (prefSnapshot.exists()) {
-                            const preferences = prefSnapshot.val();
-
-                            // Fetch categories for the selectedCategories
-                            if (preferences.selectedCategories) {
-                                const selectedCategories = preferences.selectedCategories;
-
-                                // Initialize each category in clientPreferences
-                                for (const categoryId of selectedCategories) {
-                                    const categoryRef = dbRef(db, `Affiliate_categories/${categoryId}`);
-                                    const categoryDetailsSnapshot = await get(categoryRef);
-
-                                    if (categoryDetailsSnapshot.exists()) {
-                                        const categoryDetails = categoryDetailsSnapshot.val();
-                                        // Store the category details in clientPreferences
-                                        this.clientPreferences[client.uid][categoryId] = {
-                                            category: categoryDetails.name,
-                                            subcategories: [] // Initialize subcategories
-                                        };
-                                    }
-                                }
-                            }
-
-                            // Fetch subcategories for the selectedSubcategories
-                            if (preferences.selectedSubcategories) {
-                                const selectedSubcategories = preferences.selectedSubcategories;
-
-                                for (const subcategoryId of selectedSubcategories) {
-                                    const subcategoryRef = dbRef(db, `Affiliate_subcategories/${subcategoryId}`);
-                                    const subcategoryDetailsSnapshot = await get(subcategoryRef);
-
-                                    if (subcategoryDetailsSnapshot.exists()) {
-                                        const subcategoryDetails = subcategoryDetailsSnapshot.val();
-                                        // Find the category to add the subcategory to
-                                        for (const categoryId in this.clientPreferences[client.uid]) {
-                                            // Assuming subcategory is related to its category
-                                            if (subcategoryDetails.category_id === categoryId) {
-                                                this.clientPreferences[client.uid][categoryId].subcategories.push(subcategoryDetails.name);
-                                                break; // Break after adding to the correct category
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            this.clientPreferences[client.uid] = {};
-                        }
-                    }
-                } else {
-                    this.clients = [];
+                            createdAt: authUser.data.creationTime
+                        }))
+                    );
                 }
+
+                // Wait for all clients data to be fetched
+                const clientsWithTimestamp = await Promise.all(clientPromises);
+
+                this.clients = clientsWithTimestamp.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+                // Parallel fetching of coupons, subscriptions, preferences
+                // await Promise.all(this.clients.map(async (client) => {
+                //     await this.fetchClientCoupons(client);
+                //     await this.fetchClientSubscription(client);
+                //     await this.fetchClientPreferences(client);
+                // }));
+
             } catch (error) {
                 console.error('Error fetching clients:', error);
                 this.clients = [];
             } finally {
                 this.loading = false;
+            }
+        },
+
+        async fetchClientCoupons(client) {
+            const couponsRef = dbRef(db, `Users/${client.uid}/coupons`);
+            const couponsSnapshot = await get(couponsRef);
+            this.clientCoupons[client.uid] = couponsSnapshot.exists() ? Object.keys(couponsSnapshot.val()) : [];
+
+            // Further optimize fetching coupon details
+            if (this.clientCoupons[client.uid].length > 0) {
+                const couponPromises = this.clientCoupons[client.uid].map(async couponId => {
+                    const couponRef = dbRef(db, `Coupons/${couponId}`);
+                    const couponDetailsSnapshot = await get(couponRef);
+                    return couponDetailsSnapshot.exists() ? { id: couponId, ...couponDetailsSnapshot.val() } : null;
+                });
+                this.clientCoupons[client.uid] = (await Promise.all(couponPromises)).filter(Boolean);
+            }
+        },
+
+        async fetchClientSubscription(client) {
+            const subscriptionRef = dbRef(db, `Users/${client.uid}/subscription`);
+            const subscriptionSnapshot = await get(subscriptionRef);
+
+            if (subscriptionSnapshot.exists()) {
+                client.subscription = subscriptionSnapshot.val();
+                const subscriptionId = client.subscription.subscription_id;
+
+                // Query the Suscriptions table to fetch the details
+                const subscriptionDataRef = dbRef(db, `Suscriptions/${subscriptionId}`);
+                const userSuscriptionSnapshot = await get(subscriptionDataRef);
+
+                if (userSuscriptionSnapshot.exists()) {
+                    const userSubscription = userSuscriptionSnapshot.val();
+                    // Merge the userSubscription into the client's subscription object
+                    client.subscription = {
+                        ...client.subscription,
+                        ...userSubscription
+                    };
+                    if (client.subscription.lastPaymentDate) {
+                        // In case the client made a payment
+                        const paymentDate = (client.subscription.lastPaymentDate).split('T')[0];
+                        this.fetchPaymentFiles(client, paymentDate);
+                    }
+                }
+            } else {
+                // Set a default empty subscription if none exist
+                client.subscription = null;
+            }
+        },
+
+        async fetchClientCredit(client) {
+            const creditRef = dbRef(db, `Users/${client.uid}/credit`);
+            const creditSnapshot = await get(creditRef);
+            client.credit = creditSnapshot.exists() ? creditSnapshot.val() : null;
+
+
+        },
+
+        async fetchClientPreferences(client) {
+            try {
+                // Initialize the preferences array for each client
+                this.clientPreferences[client.uid] = {};
+
+                // Fetch the preferences from the user's data in Firebase Realtime Database
+                const preferencesRef = dbRef(db, `Users/${client.uid}/preferences`);
+                const prefSnapshot = await get(preferencesRef);
+
+                if (prefSnapshot.exists()) {
+                    const preferences = prefSnapshot.val();
+
+                    // Fetch categories for the selectedCategories
+                    if (preferences.selectedCategories) {
+                        const selectedCategories = preferences.selectedCategories;
+
+                        // Initialize each category in clientPreferences
+                        for (const categoryId of selectedCategories) {
+                            const categoryRef = dbRef(db, `Affiliate_categories/${categoryId}`);
+                            const categoryDetailsSnapshot = await get(categoryRef);
+
+                            if (categoryDetailsSnapshot.exists()) {
+                                const categoryDetails = categoryDetailsSnapshot.val();
+                                // Store the category details in clientPreferences
+                                this.clientPreferences[client.uid][categoryId] = {
+                                    category: categoryDetails.name,
+                                    subcategories: [] // Initialize subcategories
+                                };
+                            }
+                        }
+                    }
+
+                    // Fetch subcategories for the selectedSubcategories
+                    if (preferences.selectedSubcategories) {
+                        const selectedSubcategories = preferences.selectedSubcategories;
+
+                        for (const subcategoryId of selectedSubcategories) {
+                            const subcategoryRef = dbRef(db, `Affiliate_subcategories/${subcategoryId}`);
+                            const subcategoryDetailsSnapshot = await get(subcategoryRef);
+
+                            if (subcategoryDetailsSnapshot.exists()) {
+                                const subcategoryDetails = subcategoryDetailsSnapshot.val();
+                                // Find the category to add the subcategory to
+                                for (const categoryId in this.clientPreferences[client.uid]) {
+                                    // Assuming subcategory is related to its category
+                                    if (subcategoryDetails.category_id === categoryId) {
+                                        this.clientPreferences[client.uid][categoryId].subcategories.push(subcategoryDetails.name);
+                                        break; // Break after adding to the correct category
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    this.clientPreferences[client.uid] = {};
+                }
+
+            } catch (error) {
+                console.error("Error fetching client preferences: ", error);
+                this.clientPreferences[client.uid] = {};  // Ensure empty preferences on error
             }
         },
         async fetchIdFiles(client) {
@@ -298,7 +302,7 @@ export default {
         async fetchPaymentFiles(client, date) {
             try {
                 const userName = `${client.firstName} ${client.lastName}`;
-                const folderRef = storageRef(storage, `payment-captures/${client.uid}-${userName}`);
+                const folderRef = storageRef(storage, `payment-captures/${client.role}/${client.uid}-${userName}`);
 
                 // List all files in the client's payment-captures folder
                 const fileList = await listAll(folderRef);
@@ -330,6 +334,7 @@ export default {
 
             modal.show();
         },
+
         async createClient() {
             if (!this.client.firstName || !this.client.lastName || !this.client.identification || !this.client.email) {
                 alert('Por favor, complete todos los campos obligatorios: Nombre, Apellido, cedula o email.');
@@ -480,6 +485,7 @@ export default {
                 }
             }
         },
+
         resetForm() {
             // Reset form fields
             this.client = {
@@ -495,11 +501,13 @@ export default {
         formatDate(date) {
             if (!date) return ''; // Handle invalid dates or null values
             const d = new Date(date);
-            const day = String(d.getUTCDate()).padStart(2, '0'); // Ensure two-digit day
+            const localDateDay = new Date(d.getTime() + d.getTimezoneOffset() * 60000);
+            const day = String(localDateDay.getDate()).padStart(2, '0'); // Ensure two-digit day
             const month = String(d.getUTCMonth() + 1).padStart(2, '0'); // Ensure two-digit month (months are zero-indexed)
             const year = d.getUTCFullYear();
             return `${day}/${month}/${year}`;
         },
+
         openImgModal(imageUrl) {
             this.modalImageUrl = imageUrl;
             new Modal(document.getElementById('idImgModal')).show();
@@ -638,6 +646,7 @@ export default {
                 this.isSubmitting = false;
             }
         },
+
         async sendEmail(payload) {
             try {
                 const sendEmailFunction = httpsCallable(functions, 'sendEmail');
@@ -800,7 +809,8 @@ export default {
                                                         type="button" data-bs-toggle="collapse"
                                                         :data-bs-target="'#collapseCredit' + client.uid"
                                                         aria-expanded="false"
-                                                        :aria-controls="'collapseCredit' + client.uid">
+                                                        :aria-controls="'collapseCredit' + client.uid"
+                                                        @click="fetchClientCredit(client)">
                                                         <i class="fa-solid fa-dollar me-2"></i>Crédito
                                                     </button>
                                                 </h2>
@@ -818,10 +828,10 @@ export default {
                                                             </li>
                                                             <li class="list-group-item"><strong>Fecha de corte:</strong>
                                                             </li>
-                                                            <li class="list-group-item"><strong>Lista de productos
+                                                            <!-- <li class="list-group-item"><strong>Lista de productos
                                                                     adquiridos a
                                                                     crédito:</strong>
-                                                            </li>
+                                                            </li> -->
                                                             <!-- <a href="#" @click="openProductsModal()">Lista de productos</a> -->
                                                         </ul>
                                                         <!-- Fallback message if no subscription is found -->
@@ -838,7 +848,8 @@ export default {
                                                         type="button" data-bs-toggle="collapse"
                                                         :data-bs-target="'#collapsePreferences' + client.uid"
                                                         aria-expanded="false"
-                                                        :aria-controls="'collapsePreferences' + client.uid">
+                                                        :aria-controls="'collapsePreferences' + client.uid"
+                                                        @click="fetchClientPreferences(client)">
                                                         <i class="fa-solid fa-heart me-2"></i>Preferencias de
                                                         Categorias para cupones
                                                     </button>
@@ -848,8 +859,7 @@ export default {
                                                     class="accordion-collapse collapse"
                                                     :aria-labelledby="'headingPreferences' + client.uid">
                                                     <div class="accordion-body">
-                                                        <div
-                                                            v-if="Object.keys(clientPreferences[client.uid]).length > 0">
+                                                        <div v-if="clientPreferences[client.uid]">
                                                             <div
                                                                 class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-4">
                                                                 <div class="col"
@@ -885,7 +895,8 @@ export default {
                                                         type="button" data-bs-toggle="collapse"
                                                         :data-bs-target="'#collapseCoupons' + client.uid"
                                                         aria-expanded="false"
-                                                        :aria-controls="'collapseCoupons' + client.uid">
+                                                        :aria-controls="'collapseCoupons' + client.uid"
+                                                        @click="fetchClientCoupons(client)">
                                                         <i class="fa-solid fa-ticket me-2"></i>Cupones
                                                     </button>
                                                 </h2>
@@ -895,8 +906,7 @@ export default {
                                                     :aria-labelledby="'headingCoupons' + client.uid">
                                                     <div class="accordion-body">
                                                         <!-- Check if coupons exist -->
-                                                        <div
-                                                            v-if="clientCoupons[client.uid] && clientCoupons[client.uid].length > 0">
+                                                        <div v-if="clientCoupons[client.uid]">
                                                             <!-- Responsive grid of coupons -->
                                                             <div
                                                                 class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-4">
@@ -948,7 +958,8 @@ export default {
                                                         type="button" data-bs-toggle="collapse"
                                                         :data-bs-target="'#collapseSubscription' + client.uid"
                                                         aria-expanded="false"
-                                                        :aria-controls="'collapseSubscription' + client.uid">
+                                                        :aria-controls="'collapseSubscription' + client.uid"
+                                                        @click="fetchClientSubscription(client)">
                                                         <i class="fa-solid fa-handshake me-2"></i>Suscripción
                                                     </button>
                                                 </h2>
@@ -958,9 +969,9 @@ export default {
                                                     <div class="accordion-body">
                                                         <ul class="list-group" v-if="client.subscription">
                                                             <!-- Subscription Name -->
-                                                            <li class="list-group-item">
+                                                            <li class="list-group-item" v-if="client.subscription.name">
                                                                 <strong>Nivel: </strong> {{
-                                                                client.subscription.name.toUpperCase() }}
+                                                                    client.subscription.name.toUpperCase() }}
                                                             </li>
 
                                                             <!-- Subscription Status -->
@@ -976,7 +987,8 @@ export default {
                                                             </li>
 
                                                             <!-- Subscription Price -->
-                                                            <li class="list-group-item">
+                                                            <li class="list-group-item"
+                                                                v-if="client.subscription.price">
                                                                 <strong>Monto: </strong> ${{ client.subscription.price
                                                                 }}
                                                             </li>
@@ -989,28 +1001,26 @@ export default {
                                                                     Pagado
                                                                 </span>
                                                                 <span v-else-if="client.subscription.paymentUploaded">
-                                                                    <span class="badge bg-success ms-2">
-                                                                        Pago realizado
-                                                                    </span>
+                                                                    <span class="badge bg-success ms-2">Pago
+                                                                        realizado</span>
                                                                     <a class="validate btn btn-outline-success btn-sm ms-2"
                                                                         href="#"
                                                                         @click.prevent="openPaymentModal(client)">Validar</a>
                                                                 </span>
-                                                                <span v-else class="badge bg-danger ms-2">
-                                                                    Sin pagar
-                                                                </span>
+                                                                <span v-else class="badge bg-danger ms-2">Sin
+                                                                    pagar</span>
                                                             </li>
 
                                                             <!-- Subscription Renewal Date -->
-                                                            <li class="list-group-item">
-                                                                <strong>Fecha de Renovación: </strong>
-                                                                {{ formatDate(client.subscription.payDay) }}
+                                                            <li class="list-group-item"
+                                                                v-if="client.subscription.payDay">
+                                                                <strong>Fecha de Renovación: </strong> {{
+                                                                    formatDate(client.subscription.payDay) }}
                                                             </li>
                                                         </ul>
                                                         <!-- Fallback message if no subscription is found -->
                                                         <p v-else class="text-center">Este cliente no tiene una
-                                                            suscripción
-                                                            activa.</p>
+                                                            suscripción activa.</p>
                                                     </div>
                                                 </div>
                                             </div>

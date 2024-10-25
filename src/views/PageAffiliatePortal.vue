@@ -10,10 +10,12 @@ export default defineComponent({
         return {
             // data for portal items
             portalItems: [
-                { title: 'Cupones', description: 'Aplique cupones para sus clientes aquí.', link: '/cupones', actionText: 'Ver cupones', icon: 'fa-solid fa-ticket' },
-                { title: 'Encuentas de satisfacción', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', notReady: true, link: '/customer-survey', actionText: 'Tomar Encuesta', icon: 'fa-solid fa-comment-dots' },
-                { title: 'Crédito', description: 'Aquí puedes manejar el crédito de tu negocio.', notReady: true, link: '/creditos', actionText: 'Ver más', icon: 'fa-solid fa-dollar' },
-                { title: 'Soporte', description: 'Contacta con soporte aquí.', notReady: true, link: '#', actionText: 'Ver más', icon: 'fa-solid fa-phone' }
+                { title: 'Cupones', description: 'Aplique cupones para sus clientes aquí.', link: '/cupones', actionText: 'Acceder', icon: 'fa-solid fa-ticket' },
+                { title: 'Suscripciones', description: 'Administre su suscripción aquí.', link: '/suscripciones', actionText: 'Acceder', icon: 'fa-solid fa-handshake', notReady: false },
+                { title: 'Empleos', description: 'Publique vacantes.', link: '/jobs', actionText: 'Acceder', icon: 'fa-solid fa-suitcase' },                
+                // { title: 'Encuentas de satisfacción', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', notReady: true, link: '/customer-survey', actionText: 'Tomar Encuesta', icon: 'fa-solid fa-comment-dots' },
+                // { title: 'Crédito', description: 'Aquí puedes manejar el crédito de tu negocio.', notReady: true, link: '/creditos', actionText: 'Ver más', icon: 'fa-solid fa-dollar' },
+                // { title: 'Soporte', description: 'Contacta con soporte aquí.', notReady: true, link: '#', actionText: 'Ver más', icon: 'fa-solid fa-phone' }
             ],
         };
     },
@@ -36,15 +38,16 @@ export default defineComponent({
                         <div class="col" v-for="item in portalItems" :key="item.title">
                             <div class="card h-100 position-relative">
                                 <div class="card-body">
-                                    <h5 class="card-title">{{ item.title }} {{ item.notReady === true ?
-                                        `(Proximamente)` : '' }}</h5>
+                                    <h5 class="card-title">{{ item.title }}</h5>
+                                    <div v-if="item.notReady === true" class="ribbon">
+                                        <span>Proximamente</span>
+                                    </div>
                                     <p class="card-text">{{ item.description }}</p>
                                     <router-link :to="item.link" class="btn btn-theme"
                                         :class="{ 'disabled': item.notReady === true }">
                                         {{ item.actionText }}
                                     </router-link>
                                     <i :class="[item.icon, 'icon-circle']"></i>
-
                                 </div>
                             </div>
                         </div>
@@ -84,5 +87,17 @@ export default defineComponent({
 
 .card {
     overflow: hidden;
+}
+.ribbon {
+    position: absolute;
+    top: 25px;
+    right: -20px;
+    background: #8c042c;
+    color: #fff;
+    padding: 5px 15px;
+    font-size: 0.875rem;
+    font-weight: bold;
+    transform: rotate(45deg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 </style>

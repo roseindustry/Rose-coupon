@@ -61,6 +61,10 @@ export default defineComponent({
 			companyName: '',
 			rif: '',
 			address: '',
+			twitter: '',
+			instagram: '',
+			facebook: '',
+			tiktok: '',
 
 			// Edit states
 			editStates: {
@@ -76,6 +80,10 @@ export default defineComponent({
 				companyName: false,
 				rif: false,
 				address: false,
+				twitter: false,
+				instagram: false,
+				facebook: false,
+				tiktok: false,
 			},
 
 			//Verification data
@@ -126,8 +134,12 @@ export default defineComponent({
 
 		this.fetchUserData(userId);
 
-		// Await async functions
-		await this.fetchSubscriptionPlan();
+		if (role === 'cliente') {
+			await this.fetchClientPlan();
+		} else if (role === 'afiliado'){
+			await this.fetchAffiliatePlan();
+		}	
+		
 		await this.checkPaymentReset();
 
 		// Initialize ScrollSpy
@@ -163,15 +175,15 @@ export default defineComponent({
 			return `${day}/${month}/${year}`;
 		},
 		async sendEmail(payload) {
-            try {
-                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-                await sendEmailFunction(payload);
-            } catch (error) {
-                console.error('Error sending email:', error);
-            }
-        },
+			try {
+				const sendEmailFunction = httpsCallable(functions, 'sendEmail');
+				await sendEmailFunction(payload);
+			} catch (error) {
+				console.error('Error sending email:', error);
+			}
+		},
 
-		async fetchSubscriptionPlan() {
+		async fetchClientPlan() {
 			const userId = this.userId;
 
 			if (userId) {
@@ -208,15 +220,68 @@ export default defineComponent({
 									paymentVerified: subscriptionData.paymentVerified || null,
 									icon: userSuscription.icon || 'fa fa-times'
 								};
+								console.log('Plan details: ', this.subscriptionPlan)
+							}
+							else {
+								// Handle case where there is no subscription plan
+								this.subscriptionPlan = {
+									status: 'Sin suscripcion',
+									price: 0,
+								};
 							}
 						}
 
-					} else {
-						// Handle case where there is no subscription plan
-						this.subscriptionPlan = {
-							status: 'Sin suscripcion',
-							price: 0,
-						};
+					}
+				}
+			}
+		},
+		async fetchAffiliatePlan() {
+			const userId = this.userId;
+
+			if (userId) {
+				const userRef = dbRef(db, `Users/${userId}`);
+				const snapshot = await get(userRef);
+
+				if (snapshot.exists()) {
+					const user = snapshot.val();
+
+					// Check if the user has a subscription plan and it's an object
+					if (user.subscription) {
+						const userSubscriptionRef = dbRef(db, `Users/${this.userId}/subscription`);
+						const subscriptionSnapshot = await get(userSubscriptionRef);
+
+						if (subscriptionSnapshot.exists()) {
+							const subscriptionData = subscriptionSnapshot.val();
+							this.userSubscriptionId = subscriptionData.subscription_id;
+
+							// Query the Suscriptions collection
+							const subscriptionDataRef = dbRef(db, `Affiliate_suscriptions/${this.userSubscriptionId}`);
+							const userSuscriptionSnapshot = await get(subscriptionDataRef);
+
+							if (userSuscriptionSnapshot.exists()) {
+								const userSuscription = userSuscriptionSnapshot.val();
+
+								this.subscriptionPlan = {
+									name: userSuscription.name || 'Sin suscripcion',
+									status: subscriptionData.status || 'No Status',
+									price: userSuscription.price || 'Consultar precio',
+									payDay: subscriptionData.payDay || 'No PayDay',
+									lastPaymentDate: subscriptionData.lastPaymentDate || null,
+									isPaid: subscriptionData.isPaid || false,
+									paymentUploaded: subscriptionData.paymentUploaded || null,
+									paymentVerified: subscriptionData.paymentVerified || null,
+								};
+								console.log('Plan details: ', this.subscriptionPlan)
+							}
+							else {
+								// Handle case where there is no subscription plan
+								this.subscriptionPlan = {
+									status: 'Sin suscripcion',
+									price: 0,
+								};
+							}
+						}
+
 					}
 				}
 			}
@@ -297,7 +362,6 @@ export default defineComponent({
 			}
 
 			const user = auth.currentUser;
-			console.log(user);
 			const credential = EmailAuthProvider.credential(user.email, this.currentPassword);
 
 			try {
@@ -322,9 +386,9 @@ export default defineComponent({
 				alert('Error al actualizar la contraseña. Inténtalo de nuevo.');
 			}
 		},
-		async requestUpgrade() {
+		// async requestUpgrade() {
 
-		},
+		// },
 
 		//File uploads
 		handleFileUpload(event, type) {
@@ -355,10 +419,10 @@ export default defineComponent({
 			await uploadBytes(fileRef, file);
 			return getDownloadURL(fileRef);
 		},
-		async uploadPaymentFile(file, date) {
+		async uploadPaymentFile(file, date, role) {
 			// Define storage reference for front or back ID file
 			const fileName = `${date}-capture.${file.name.split('.').pop()}`;
-			const fileRef = storageRef(storage, `payment-captures/${this.userId}-${this.userName}/${fileName}`);
+			const fileRef = storageRef(storage, `payment-captures/${role}/${this.userId}-${this.userName}/${fileName}`);
 
 			// Upload the file and get the download URL
 			await uploadBytes(fileRef, file);
@@ -393,21 +457,21 @@ export default defineComponent({
 						'verificationFiles/Selfie': selfieUrl,
 						requestedVerification: true
 					});
-				
+
 				// Send an email notification to the admin through Firebase Cloud Functions				
-                const appUrl = 'https://app.rosecoupon.com';
+				const appUrl = 'https://app.rosecoupon.com';
 				const emailPayload = {
-                    to: 'roseindustry11@gmail.com',
-                    message: {
-                        subject: "Usuario solicitó verificación",
-                        text: `Hola administrador, el usuario ${this.userName} ha solicitado verificación de identidad en Roseapp.
+					to: 'roseindustry11@gmail.com',
+					message: {
+						subject: "Usuario solicitó verificación",
+						text: `Hola administrador, el usuario ${this.userName} ha solicitado verificación de identidad en Roseapp.
                         Para verificar el usuario, abre la app en el siguiente enlace: ${appUrl}`,
-                        html: `<p>Hola administrador,</p>
+						html: `<p>Hola administrador,</p>
 						<p>El usuario <strong>${this.userName}</strong> ha solicitado verificación de identidad en Roseapp.</p>
 						<p>Para verificar el usuario, por favor <a href="${appUrl}" target="_blank">abre la app</a>.</p>`
 					},
-                };
-                await this.sendEmail(emailPayload);
+				};
+				await this.sendEmail(emailPayload);
 
 				//Success toast
 				this.showToast('Archivos subidos!');
@@ -439,7 +503,7 @@ export default defineComponent({
 				this.isSubmitting = true;
 
 				// Upload capture
-				const paymentUrl = await this.uploadPaymentFile(this.paymentFile, this.paymentDate);
+				const paymentUrl = await this.uploadPaymentFile(this.paymentFile, this.paymentDate, this.role);
 				console.log('File uploaded successfully:', paymentUrl);
 
 				// Get the current date to set the paymentDate
@@ -456,7 +520,11 @@ export default defineComponent({
 
 				//Success toast
 				this.showToast('Archivo subido!');
-				this.fetchSubscriptionPlan();
+				if (this.role === 'cliente') {
+					this.fetchClientPlan();
+				} else if (this.role === 'afiliado') {
+					this.fetchAffiliatePlan();
+				}				
 
 				//reset the image previews
 				this.paymentPreview = null;
@@ -518,7 +586,7 @@ export default defineComponent({
 
 			try {
 				const userName = `${currentUser.firstName} ${currentUser.lastName}`;
-				const folderRef = storageRef(storage, `payment-captures/${this.userId}-${userName}`);
+				const folderRef = storageRef(storage, `payment-captures/${this.role}/${this.userId}-${userName}`);
 
 				// List all files in the client's payment-captures folder
 				const fileList = await listAll(folderRef);
@@ -534,9 +602,9 @@ export default defineComponent({
 					this.paymentUrl = paymentUrl || null;
 					console.log('Payment file fetched:', paymentUrl);
 				} else {
-                    console.log('No payment file found for the given date');
-                    this.paymentUrl = null;
-                }
+					console.log('No payment file found for the given date');
+					this.paymentUrl = null;
+				}
 			} catch (error) {
 				console.error('Error fetching payment file:', error.message || error);
 				this.paymentUrl = null;
@@ -546,7 +614,7 @@ export default defineComponent({
 			if (this.subscriptionPlan.lastPaymentDate) {
 
 				const paymentDate = (this.subscriptionPlan.lastPaymentDate).split('T')[0];
-				
+
 				this.fetchPaymentFiles(paymentDate);
 			}
 
@@ -586,6 +654,10 @@ export default defineComponent({
 					{ name: 'municipio', label: 'Municipio', value: this.municipio },
 					{ name: 'parroquia', label: 'Parroquia', value: this.parroquia },
 					{ name: 'address', label: 'Dirección', value: this.address, special: true },
+					{ name: 'twitter', label: 'Twitter', value: this.twitter },
+					{ name: 'instagram', label: 'Instagram', value: this.instagram },
+					{ name: 'facebook', label: 'Facebook', value: this.facebook },
+					{ name: 'tiktok', label: 'Tiktok', value: this.tiktok },
 				];
 			} else {
 				return [
@@ -668,7 +740,7 @@ export default defineComponent({
 				<button v-else class="btn btn-warning btn-sm ms-3" data-bs-toggle="modal"
 					data-bs-target="#verificationModal">
 					Solicitar Verificación
-				</button>				
+				</button>
 			</div>
 		</div>
 
@@ -751,7 +823,7 @@ export default defineComponent({
 				</div>
 
 				<!-- Subscription section -->
-				<div v-if="(this.role === 'cliente' || this.role === 'afiliado') && subscriptionPlan" class="col">
+				<div v-if="(this.role === 'cliente' || this.role === 'afiliado') && this.subscriptionPlan" class="col">
 					<h4><i class="fas fa-handshake fa-fw"></i> Suscripción</h4>
 					<p>Aqui estan los detalles de tu suscripción actual.</p>
 					<div class="card shadow-sm">

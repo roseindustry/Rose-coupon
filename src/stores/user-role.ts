@@ -45,7 +45,11 @@ export const useUserStore = defineStore('user-role', {
         const snapshot = await get(dbRef);
         if (snapshot.exists()) {
           this.role = snapshot.val().role || 'unknown'; // Default to 'unknown' or any other default role if role is not set
-          this.userName = snapshot.val().firstName + ' ' + snapshot.val().lastName;
+          if (this.role === 'cliente') {
+            this.userName = snapshot.val().firstName + ' ' + snapshot.val().lastName;
+          } else if (this.role === 'afiliado') {
+            this.userName = snapshot.val().companyName;
+          }
           this.isVerified = snapshot.val().isVerified;
         } else {
           console.log("No data available");

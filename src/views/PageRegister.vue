@@ -62,11 +62,6 @@ export default defineComponent({
             get() {
                 // Always return the value prefixed with 'REF-'
                 return `REF-${this.referralCode.toUpperCase()}`;
-            },
-            set(value) {
-                // Ensure only the part after 'REF-' is processed, and keep only valid characters
-        const cleanedValue = value.replace(/^REF-/, ''); // Remove 'REF-' if it exists
-        this.referralCode = cleanedValue.toUpperCase(); // Store the rest in uppercase
             }
         }
     },
@@ -131,6 +126,7 @@ export default defineComponent({
 				// Referral code validation: Fetch users with role 'mesero' or 'promotora'
 				let referredByEmployee = null;
 				if (this.referralCode) {
+					console.log(this.referralCode)
 					const employees = ['mesero', 'promotora'];
 
 					// Query for 'mesero' role users
@@ -143,10 +139,13 @@ export default defineComponent({
 
 					// Combine results from both queries
 					const employeeResults = { ...(meseroSnapshot.exists() ? meseroSnapshot.val() : {}), ...(promotoraSnapshot.exists() ? promotoraSnapshot.val() : {}) };
+					console.log(employeeResults)
 
 					// Check if referral code matches any employee
 					for (const empUid in employeeResults) {
+						console.log(employeeResults[empUid].codigoReferido)
 						if (employeeResults[empUid].codigoReferido === this.referralCode) {
+							console.log(employeeResults[empUid].codigoReferido)
 							referredByEmployee = empUid;
 							break;
 						}
