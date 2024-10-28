@@ -170,6 +170,27 @@ export default {
         totalPages() {
             return Math.ceil(this.clients.length / this.itemsPerPage);
         },
+
+        visiblePages() {
+            // Adjust the number of visible page links based on screen width
+            const totalPages = this.totalPages;
+            const currentPage = this.currentPage;
+            const maxPagesToShow = window.innerWidth < 768 ? 3 : 5;
+
+            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+            let endPage = Math.min(totalPages, currentPage + Math.floor(maxPagesToShow / 2));
+
+            // Adjust the start and end if they go out of bounds
+            if (endPage - startPage + 1 < maxPagesToShow) {
+                if (currentPage < totalPages / 2) {
+                    endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+                } else {
+                    startPage = Math.max(1, endPage - maxPagesToShow + 1);
+                }
+            }
+
+            return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+        }
     },
     methods: {
         showToast(message) {
@@ -1105,12 +1126,12 @@ export default {
                             </table>
                             <!-- Pagination Controls -->
                             <nav class="mt-4" v-if="totalPages > 1" aria-label="Page navigation">
-                                <ul class="pagination justify-content-center">
+                                <ul class="pagination justify-content-center flex-wrap">
                                     <li class="page-item" :class="{ disabled: currentPage === 1 }">
                                         <button class="page-link" @click="goToPage(currentPage - 1)"
                                             :disabled="currentPage === 1">Anterior</button>
                                     </li>
-                                    <li class="page-item" v-for="page in totalPages" :key="page"
+                                    <li v-for="page in visiblePages" :key="page" class="page-item"
                                         :class="{ active: page === currentPage }">
                                         <button class="page-link" @click="goToPage(page)">{{ page }}</button>
                                     </li>
@@ -1165,7 +1186,7 @@ export default {
                                         <button class="page-link" @click="goToPage(currentPage - 1)"
                                             :disabled="currentPage === 1">Anterior</button>
                                     </li>
-                                    <li class="page-item" v-for="page in totalPages" :key="page"
+                                    <li v-for="page in visiblePages" :key="page" class="page-item"
                                         :class="{ active: page === currentPage }">
                                         <button class="page-link" @click="goToPage(page)">{{ page }}</button>
                                     </li>
@@ -1244,7 +1265,7 @@ export default {
                                         <button class="page-link" @click="goToPage(currentPage - 1)"
                                             :disabled="currentPage === 1">Anterior</button>
                                     </li>
-                                    <li class="page-item" v-for="page in totalPages" :key="page"
+                                    <li v-for="page in visiblePages" :key="page" class="page-item"
                                         :class="{ active: page === currentPage }">
                                         <button class="page-link" @click="goToPage(page)">{{ page }}</button>
                                     </li>
@@ -1300,7 +1321,7 @@ export default {
                                         <button class="page-link" @click="goToPage(currentPage - 1)"
                                             :disabled="currentPage === 1">Anterior</button>
                                     </li>
-                                    <li class="page-item" v-for="page in totalPages" :key="page"
+                                    <li v-for="page in visiblePages" :key="page" class="page-item"
                                         :class="{ active: page === currentPage }">
                                         <button class="page-link" @click="goToPage(page)">{{ page }}</button>
                                     </li>

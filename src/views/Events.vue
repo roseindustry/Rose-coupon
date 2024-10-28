@@ -15,6 +15,7 @@ export default {
 			role: '',
 
 			event: {
+				order: 0,
 				name: '',
 				desc: '',
 				status: false,
@@ -49,6 +50,38 @@ export default {
 					background: 'linear-gradient(to right, #00b09b, #96c93d)',
 				},
 			}).showToast();
+		},
+		sortEventsByOrder(order = 'asc') {
+			this.events.sort((a, b) => {
+				if (order === 'asc') {
+					return a.order - b.order;
+				} else {
+					return b.order - a.order;
+				}
+			});
+
+		},
+		async getNextEventOrder() {
+			try {
+				// Fetch the events to get the highest order value
+				const eventsSnapshot = await get(query(dbRef(db, 'Events')));
+
+				let maxOrder = 0;
+				if (eventsSnapshot.exists()) {
+					const events = eventsSnapshot.val();
+					// Loop through the events to find the highest order number
+					Object.values(events).forEach(event => {
+						if (event.order && event.order > maxOrder) {
+							maxOrder = event.order;
+						}
+					});
+				}
+
+				// Increment the max order value by 1 for the new affiliate
+				this.event.order = maxOrder + 1;
+			} catch (error) {
+				console.error("Error fetching events to calculate order:", error);
+			}
 		},
 
 		// Fetch data
@@ -85,7 +118,11 @@ export default {
 										const affiliateDataSnapshot = await get(affiliateDataRef);
 
 										if (affiliateDataSnapshot.exists()) {
-											return affiliateDataSnapshot.val();
+											// Return the affiliate data along with the affiliateId
+											return {
+												id: affiliateId, // Add the affiliateId field
+												...affiliateDataSnapshot.val()
+											};
 										}
 										return null; // Return null if affiliate data is not found
 									})
@@ -149,6 +186,7 @@ export default {
 
 				// Prepare the data for submission
 				const data = {
+					order: this.event.order,
 					name: this.event.name,
 					desc: this.event.desc,
 					status: this.event.status,
@@ -218,6 +256,10 @@ export default {
 				...event,
 			};
 
+			console.log(this.editEventData.affiliates);
+			// Initialize selectedAffiliateIds from the event's affiliates
+			this.selectedAffiliateIds = event.affiliates.map(aff => aff.id);
+
 			// Open the modal
 			const modal = new Modal(document.getElementById('editEventModal'));
 			modal.show();
@@ -240,6 +282,10 @@ export default {
 				const updateData = {};
 
 				// Check for changes in the fields
+				if (this.editEventData.order !== existingEventData.order) {
+					updateData.order = this.editEventData.order;
+				}
+
 				if (this.editEventData.name !== existingEventData.name) {
 					updateData.name = this.editEventData.name;
 				}
@@ -282,22 +328,27 @@ export default {
 				this.isSubmitting = false;
 			}
 		},
-		// Affiliate update logic moved into its own method
 		async updateAffiliates(eventId) {
 			try {
-				// If affiliates have changed, update them in Firebase
-				if (this.affiliatesChanged) {
-					const affiliatesRef = dbRef(db, `Events/${eventId}/Affiliates`);
+				const affiliatesRef = dbRef(db, `Events/${eventId}/Affiliates`);
+				const affiliatesSnapshot = await get(affiliatesRef);
+				const existingAffiliates = affiliatesSnapshot.exists() ? Object.keys(affiliatesSnapshot.val()) : [];
 
-					// Clear existing affiliates in Firebase (optional, if you want to remove old affiliates)
-					//await set(affiliatesRef, null);
+				// Prepare new and removed affiliates
+				const newAffiliateIds = this.selectedAffiliateIds;
+				const removedAffiliateIds = existingAffiliates.filter(id => !newAffiliateIds.includes(id));
 
-					// Add new affiliate IDs as properties with the same value
-					if (this.editEventData.affiliates.length > 0) {
-						for (let affiliateId of this.editEventData.affiliates) {
-							const affiliateRef = dbRef(db, `Events/${eventId}/Affiliates/${affiliateId}`);
-							await set(affiliateRef, affiliateId); // Store just the ID as both key and value
-						}
+				// Remove affiliates that are no longer selected
+				for (let affiliateId of removedAffiliateIds) {
+					const affiliateRef = dbRef(db, `Events/${eventId}/Affiliates/${affiliateId}`);
+					await set(affiliateRef, null); // Remove the affiliate from Firebase
+				}
+
+				// Add new affiliates that were selected
+				for (let affiliateId of newAffiliateIds) {
+					if (!existingAffiliates.includes(affiliateId)) {
+						const affiliateRef = dbRef(db, `Events/${eventId}/Affiliates/${affiliateId}`);
+						await set(affiliateRef, affiliateId); // Add the new affiliate
 					}
 				}
 
@@ -309,22 +360,29 @@ export default {
 
 		// Add affiliate and track changes
 		addSelectedAffiliate() {
-			this.selectedAffiliateIds.forEach(id => {
-				if (!this.editEventData.affiliates.includes(id)) {
-					this.editEventData.affiliates.push(id); // Only store the ID
-					this.affiliatesChanged = true; // Mark affiliates as changed
-				}
-			});
-			this.selectedAffiliateIds = []; // Clear selection after adding
+			// this.selectedAffiliateIds.forEach(id => {
+			// 	if (!this.editEventData.affiliates.includes(id)) {
+			// 		this.editEventData.affiliates.push(id); // Only store the ID
+			// 		this.affiliatesChanged = true; // Mark affiliates as changed
+			// 	}
+			// });
+			// this.selectedAffiliateIds = []; // Clear selection after adding
+			this.affiliatesChanged = true;
+			this.editEventData.affiliates = this.affiliates.filter(aff => this.selectedAffiliateIds.includes(aff.id));
 		},
-
 		// Remove affiliate and track changes
 		removeAffiliate(index) {
 			// Remove the affiliate from the local list to update the UI
 			this.editEventData.affiliates.splice(index, 1);
 
-			// Mark affiliates as changed so the updateEvent method knows there's a change
+			// Update selectedAffiliateIds to remove the corresponding affiliate ID
+			this.selectedAffiliateIds = this.editEventData.affiliates.map(aff => aff.id);
+
 			this.affiliatesChanged = true;
+		},
+		// Helper method to find an affiliate by ID
+		getAffiliateById(affiliateId) {
+			return this.affiliates.find(affiliate => affiliate.id === affiliateId) || { companyName: '' }; // Default to empty object if not found
 		},
 
 		resetForm() {
@@ -335,6 +393,7 @@ export default {
 				status: false,
 				date: new Date(),
 			};
+			this.selectedAffiliateIds = null;
 			// Reset image upload state if there's one
 			this.uploadImage = false;
 			this.imagePreview = null;
@@ -356,8 +415,8 @@ export default {
 		formatDate(date) {
 			if (!date) return ''; // Handle invalid dates or null values
 			const d = new Date(date);
-            const localDateDay = new Date(d.getTime() + d.getTimezoneOffset() * 60000);
-            const day = String(localDateDay.getDate()).padStart(2, '0'); // Ensure two-digit day
+			const localDateDay = new Date(d.getTime() + d.getTimezoneOffset() * 60000);
+			const day = String(localDateDay.getDate()).padStart(2, '0'); // Ensure two-digit day
 			const month = String(d.getUTCMonth() + 1).padStart(2, '0'); // Ensure two-digit month (months are zero-indexed)
 			const year = d.getUTCFullYear();
 			return `${day}/${month}/${year}`;
@@ -370,6 +429,7 @@ export default {
 		this.userId = userStore.userId;
 
 		await this.fetchEvents();
+		this.sortEventsByOrder();
 	}
 }
 </script>
@@ -382,7 +442,7 @@ export default {
 	<div v-if="this.role === 'admin'" class="container">
 		<div class="d-flex justify-content-end align-items-center">
 			<a href="#" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#createEventModal"
-				style="margin: 14px;" @click.prevent="fetchAffiliates()">
+				style="margin: 14px;" @click.prevent="fetchAffiliates(), getNextEventOrder()">
 				<i class="fa fa-plus-circle fa-fw me-1"></i> Crear Evento
 			</a>
 		</div>
@@ -431,16 +491,15 @@ export default {
 									<p class="card-text"><strong>Comercios Afiliados:</strong></p>
 									<div class="row">
 										<div v-for="affiliate in evento.affiliates" :key="affiliate.id"
-											class="col-sm-6 mb-3">
-											<div class="card h-100">
+											class="col mb-3">
+											<div class="affiliate-logo" style="max-width: 80px; margin: 0 auto;">
 												<!-- Affiliate Image -->
-												<div v-if="affiliate.image" class="card-img-top"
-													:style="{ backgroundImage: 'url(' + affiliate.image + ')', backgroundSize: 'cover', backgroundPosition: 'center', height: '100px' }">
+												<div v-if="affiliate.image" class="img-thumbnail p-1"
+													:style="{ backgroundImage: 'url(' + affiliate.image + ')', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', height: '50px', width: '50px', borderRadius: '50%' }">
 												</div>
-
 												<!-- Affiliate Info -->
-												<div class="card-body p-2">
-													<h6 class="card-title text-center text-truncate">
+												<div class="mt-2">
+													<h6 class="small">
 														<strong>{{ affiliate.companyName }}</strong>
 													</h6>
 												</div>
@@ -450,10 +509,10 @@ export default {
 
 									<!-- Action Buttons -->
 									<div class="d-flex justify-content-end mt-2">
-										<!-- <button class="btn btn-sm btn-outline-info me-1"
+										<button class="btn btn-sm btn-outline-info me-1"
 											@click="editEvent(evento), fetchAffiliates()">
 											<i class="fa-solid fa-pencil"></i>
-										</button> -->
+										</button>
 										<button class="btn btn-sm btn-outline-danger"
 											@click="deleteEvent(evento.id, index)">
 											<i class="fa-solid fa-trash"></i>
@@ -510,15 +569,20 @@ export default {
 									</div>
 								</div>
 
-								<!-- Name -->
+								<!-- Order -->
 								<div class="col-lg-6 col-md-6 col-sm-12 mb-3">
-									<label for="eventName" class="form-label">Nombre</label>
-									<input type="text" class="form-control" id="eventName" v-model="event.name" />
+									<label for="eventOrder" class="form-label">Orden</label>
+									<input type="number" class="form-control" id="eventOrder" v-model="event.order" />
 								</div>
 							</div>
 
 							<!-- Second Row -->
 							<div class="row">
+								<!-- Name -->
+								<div class="col-lg-6 col-md-6 col-sm-12 mb-3">
+									<label for="eventName" class="form-label">Nombre</label>
+									<input type="text" class="form-control" id="eventName" v-model="event.name" />
+								</div>
 								<!-- Descripcion -->
 								<div class="col-lg-6 col-md-6 col-sm-12 mb-3">
 									<label for="eventDesc" class="form-label">Descripción</label>
@@ -592,6 +656,10 @@ export default {
 						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 					</div>
 					<div class="modal-body">
+						<div class="mb-3">
+							<label class="form-label">Orden</label>
+							<input v-model="editEventData.order" type="number" class="form-control" />
+						</div>
 						<div class="mb-3">
 							<label class="form-label">Nombre</label>
 							<input v-model="editEventData.name" type="text" class="form-control" />
@@ -701,27 +769,32 @@ export default {
 								<div class="card-body d-flex flex-column">
 									<h5 class="card-title text-truncate">{{ evento.name }}</h5>
 									<p class="card-text"><strong>Fecha: </strong>{{ formatDate(evento.date) }}</p>
-									
+
 									<!-- Event's Affiliates -->
 									<p class="card-text"><strong>Comercios Afiliados:</strong></p>
 									<div class="row">
 										<div v-for="affiliate in evento.affiliates" :key="affiliate.id"
-											class="col-sm-6 mb-3">
-											<div class="card h-100">
+											class="col mb-3">
+											<div class="affiliate-logo" style="max-width: 80px; margin: 0 auto;">
 												<!-- Affiliate Image -->
-												<div v-if="affiliate.image" class="card-img-top"
-													:style="{ backgroundImage: 'url(' + affiliate.image + ')', backgroundSize: 'cover', backgroundPosition: 'center', height: '100px' }">
+												<div v-if="affiliate.image" class="img-thumbnail p-1"
+													:style="{ backgroundImage: 'url(' + affiliate.image + ')', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', height: '50px', width: '50px', borderRadius: '50%' }">
 												</div>
-
 												<!-- Affiliate Info -->
-												<div class="card-body p-2">
-													<h6 class="card-title text-center text-truncate">
+												<div class="mt-2">
+													<h6 class="small">
 														<strong>{{ affiliate.companyName }}</strong>
 													</h6>
 												</div>
 											</div>
 										</div>
 									</div>
+								</div>
+								<div v-if="evento.name === 'Lolita Pool Fest'" class="card-footer text-center">
+									<a :href="`https://wa.me/584120620387?text=Hola,%20deseo%20realizar%20una%20reserva.%20Y%20obtener%20mi%20cupon%20de%20rose%20app`"
+										target="_blank" class="btn btn-outline-success">
+										<i class="fa-brands fa-whatsapp"></i> Comprar entrada
+									</a>
 								</div>
 							</div>
 						</div>

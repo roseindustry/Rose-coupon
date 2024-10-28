@@ -73,6 +73,12 @@ const router = createRouter({
 			meta: { roles: ['admin', 'cliente', 'afiliado'] }
 		},
 		{
+			path: '/giftcards',
+			name: 'Giftcards',
+			component: () => import('../views/Giftcards.vue'),
+			meta: { roles: ['admin', 'cliente', 'afiliado'] }
+		},
+		{
 			path: '/preferencias',
 			name: 'Preferencias de cupones',
 			component: () => import('../views/CouponPreferences.vue'),

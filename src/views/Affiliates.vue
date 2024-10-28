@@ -163,6 +163,29 @@ export default {
             });
 
         },
+        async getNextAffiliateOrder() {
+            const role = 'afiliado';
+            try {
+                // Fetch the affiliates to get the highest order value
+                const affiliatesSnapshot = await get(query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role)));
+
+                let maxOrder = 0;
+                if (affiliatesSnapshot.exists()) {
+                    const affiliates = affiliatesSnapshot.val();
+                    // Loop through the affiliates to find the highest order number
+                    Object.values(affiliates).forEach(affiliate => {
+                        if (affiliate.order && affiliate.order > maxOrder) {
+                            maxOrder = affiliate.order;
+                        }
+                    });
+                }
+
+                // Increment the max order value by 1 for the new affiliate
+                this.affiliate.order = maxOrder + 1;
+            } catch (error) {
+                console.error("Error fetching affiliates to calculate order:", error);
+            }
+        },
 
         // Filter affiliates
         habilitateFilters() {
@@ -930,29 +953,7 @@ export default {
                 this.affiliate.rif = rif;
             }
         },
-        async getNextAffiliateOrder() {
-            const role = 'afiliado';
-            try {
-                // Fetch the affiliates to get the highest order value
-                const affiliatesSnapshot = await get(query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role)));
-
-                let maxOrder = 0;
-                if (affiliatesSnapshot.exists()) {
-                    const affiliates = affiliatesSnapshot.val();
-                    // Loop through the affiliates to find the highest order number
-                    Object.values(affiliates).forEach(affiliate => {
-                        if (affiliate.order && affiliate.order > maxOrder) {
-                            maxOrder = affiliate.order;
-                        }
-                    });
-                }
-
-                // Increment the max order value by 1 for the new affiliate
-                this.affiliate.order = maxOrder + 1;
-            } catch (error) {
-                console.error("Error fetching affiliates to calculate order:", error);
-            }
-        },
+        
     }
 }
 </script>

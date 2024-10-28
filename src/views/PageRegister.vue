@@ -58,22 +58,33 @@ export default defineComponent({
 		appOption.appContentClass = '';
 	},
 	computed: {
-        formattedReferralCode: {
-            get() {
-                // Always return the value prefixed with 'REF-'
-                return `REF-${this.referralCode.toUpperCase()}`;
-            }
-        }
-    },
+		formattedReferralCode: {
+			get() {
+				// Add 'REF-' if it doesn't already start with it
+				if (!this.referralCode.startsWith('REF-')) {
+					return `REF-${this.referralCode.toUpperCase()}`;
+				}
+				return this.referralCode.toUpperCase();
+			},
+			set(value) {
+				// Remove any extra 'REF-' if the user enters it manually
+				if (value.toUpperCase().startsWith('REF-')) {
+					this.referralCode = value.toUpperCase().substring(4); // Remove 'REF-' from the input
+				} else {
+					this.referralCode = value.toUpperCase(); // Set the value without 'REF-'
+				}
+			}
+		}
+	},
 	methods: {
 		async sendEmail(payload) {
-            try {
-                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-                await sendEmailFunction(payload);
-            } catch (error) {
-                console.error('Error sending email:', error);
-            }
-        },
+			try {
+				const sendEmailFunction = httpsCallable(functions, 'sendEmail');
+				await sendEmailFunction(payload);
+			} catch (error) {
+				console.error('Error sending email:', error);
+			}
+		},
 
 		async submitForm() {
 			// Password length validation
@@ -125,8 +136,7 @@ export default defineComponent({
 
 				// Referral code validation: Fetch users with role 'mesero' or 'promotora'
 				let referredByEmployee = null;
-				if (this.referralCode) {
-					console.log(this.referralCode)
+				if (this.formattedReferralCode) {
 					const employees = ['mesero', 'promotora'];
 
 					// Query for 'mesero' role users
@@ -139,12 +149,11 @@ export default defineComponent({
 
 					// Combine results from both queries
 					const employeeResults = { ...(meseroSnapshot.exists() ? meseroSnapshot.val() : {}), ...(promotoraSnapshot.exists() ? promotoraSnapshot.val() : {}) };
-					console.log(employeeResults)
-
+				
 					// Check if referral code matches any employee
 					for (const empUid in employeeResults) {
 						console.log(employeeResults[empUid].codigoReferido)
-						if (employeeResults[empUid].codigoReferido === this.referralCode) {
+						if (employeeResults[empUid].codigoReferido === this.formattedReferralCode) {
 							console.log(employeeResults[empUid].codigoReferido)
 							referredByEmployee = empUid;
 							break;
@@ -207,14 +216,14 @@ export default defineComponent({
 				}
 
 				// Send an email notification to the admin through Firebase Cloud Functions
-                const emailPayload = {
-                    to: 'roseindustry11@gmail.com',
-                    message: {
-                        subject: `Nuevo ${this.role.charAt(0).toUpperCase() + this.role.slice(1)} registrado`,
-                        text: `Hola administrador, el ${this.role.charAt(0).toUpperCase() + this.role.slice(1)} ${this.firstName} ${this.lastName} se ha registrado en Roseapp.`,
-                    },
-                };
-                await this.sendEmail(emailPayload);
+				const emailPayload = {
+					to: 'roseindustry11@gmail.com',
+					message: {
+						subject: `Nuevo ${this.role.charAt(0).toUpperCase() + this.role.slice(1)} registrado`,
+						text: `Hola administrador, el ${this.role.charAt(0).toUpperCase() + this.role.slice(1)} ${this.firstName} ${this.lastName} se ha registrado en Roseapp.`,
+					},
+				};
+				await this.sendEmail(emailPayload);
 
 				// Toastify success message
 				Toastify({
@@ -323,8 +332,7 @@ export default defineComponent({
 				<div v-else>
 					<div class="mb-3">
 						<label class="form-label">Código de referido </label>
-						<input v-model="formattedReferralCode" class="form-control form-control-lg fs-15px"
-							value="" />
+						<input v-model="formattedReferralCode" class="form-control form-control-lg fs-15px" value="" />
 					</div>
 					<div class="mb-3">
 						<label class="form-label">Nombre <span class="text-danger">*</span></label>

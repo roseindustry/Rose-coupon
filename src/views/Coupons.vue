@@ -40,6 +40,9 @@ export default {
             affiliates: [],
             categories: [],
             coupons: [],
+            allCoupons: [],
+            appliedCoupons: [],
+            pendingPaymentCoupons: [],
             searchClientResults: [],
 
             // Assigning data
@@ -307,22 +310,47 @@ export default {
                 if (couponsSnapshot.exists()) {
                     const couponsData = couponsSnapshot.val();
 
-                    // Extracting the correct structure from Firebase
-                    const appliedCoupons = await Promise.all(Object.keys(couponsData).flatMap(couponId =>
-                        Object.keys(couponsData[couponId]).map(async (redemptionId) => {
-                            const couponDetails = couponsData[couponId][redemptionId];
-                            const clientName = await this.fetchClientName(couponDetails.client_id); // Fetch client's name
+                    // Object.keys(couponsData).flatMap(couponId =>
+                    //     Object.keys(couponsData[couponId]).map(async (redemptionId) => {
+                    //     const couponDetails = couponsData[couponId][redemptionId];
+                    //     const clientName = await this.fetchClientName(couponDetails.client_id); // Fetch client's name
 
-                            return {
-                                couponId,  // Coupon reference
-                                couponCode: couponDetails.couponCode,
-                                clientId: couponDetails.client_id,
-                                appliedDate: couponDetails.appliedDate,
-                                clientName: clientName,
-                            };
-                        })
-                    ));
-                    return appliedCoupons;
+                    //     return {
+                    //         couponId,  // Coupon reference
+                    //         couponCode: couponDetails.couponCode,
+                    //         clientId: couponDetails.client_id,
+                    //         appliedDate: couponDetails.appliedDate,
+                    //         clientName: clientName,
+                    //     };
+                    // })
+
+                    // Fetch details for each applied coupon
+                    const appliedCoupons = await Promise.all(
+                        Object.keys(couponsData).flatMap(couponId =>
+                            Object.keys(couponsData[couponId]).map(async (clientId) => {
+                                const couponDetails = couponsData[couponId][clientId];
+                                const clientName = await this.fetchClientName(clientId); // Fetch client's name
+
+                                // Fetch coupon details
+                                const couponRef = dbRef(db, `Coupons/${couponId}`);
+                                const couponSnapshot = await get(couponRef);
+
+                                if (couponSnapshot.exists()) {
+                                    const coupon = couponSnapshot.val();
+
+                                    return {
+                                        id: couponId,  // Coupon reference
+                                        ...coupon,
+                                        appliedDate: couponDetails.appliedDate,
+                                        clientName: clientName,
+                                    };
+                                } else {
+                                    console.warn(`Coupon ${couponId} details not found`);
+                                    return null;
+                                }
+                            })
+                        ));
+                    this.appliedCoupons = appliedCoupons.filter(gc => gc !== null);
                 } else {
                     console.log('No applied coupons found for the user');
                     return [];
@@ -376,12 +404,10 @@ export default {
 
                     try {
                         const couponsSnapshot = await get(couponsRef);
-                        const userAppliedCoupons = await this.fetchUserAppliedCoupons();
 
                         if (couponsSnapshot.exists()) {
                             const couponsData = couponsSnapshot.val();
                             let allCoupons = [];
-                            const appliedCoupons = [];
                             const pendingPaymentCoupons = [];
 
                             allCoupons = Object.keys(couponsData).map(couponId => ({
@@ -389,58 +415,38 @@ export default {
                                 ...couponsData[couponId],
                             }));
 
-                            for (const appliedCoupon of userAppliedCoupons) {
+                            this.allCoupons = allCoupons;
+
+                            for (const appliedCoupon of this.appliedCoupons) {
                                 // Find the corresponding coupon in allCoupons
-                                const coupon = allCoupons.find(c => c.id === appliedCoupon.couponId);
+                                const coupon = allCoupons.find(c => c.id === appliedCoupon.id);
 
                                 if (coupon) {
-                                    // Only process if the coupon exists
-                                    if (coupon.applied === true) {
-                                        const clientName = await this.fetchClientName(appliedCoupon.clientId); // Fetch the client's name
-                                        appliedCoupons.push({
-                                            ...coupon,
-                                            couponCode: appliedCoupon.couponCode,
-                                            clientId: appliedCoupon.clientId,
-                                            appliedDate: appliedCoupon.appliedDate,
-                                            clientName: clientName, // Add client name
-                                        });
-                                    }
-
                                     // Check for pending payment
-                                    if (coupon.isPaid === false) {
+                                    if (coupon.onlyInStore === true && coupon.isPaid === false) {
                                         pendingPaymentCoupons.push({
                                             ...coupon,
-                                            couponCode: appliedCoupon.couponCode,
-                                            clientId: appliedCoupon.clientId,
                                             appliedDate: appliedCoupon.appliedDate,
-                                            clientName: await this.fetchClientName(appliedCoupon.clientId), // Fetch the client's name
+                                            clientName: appliedCoupon.clientName,
                                         });
                                     }
                                 } else {
                                     // Log or handle the case where the coupon has been deleted
-                                    console.warn(`Coupon with ID ${appliedCoupon.couponId} was deleted from the database.`);
+                                    console.warn(`Coupon with ID ${appliedCoupon.id} was deleted from the database.`);
                                 }
                             }
 
                             // Display filtered coupons based on the selected option
-                            if (this.selectedCouponOption === 'option1') {
-                                // Applied Coupons
-                                this.coupons = appliedCoupons;
-                                console.log('applied coupons:', this.coupons);
-                            } else if (this.selectedCouponOption === 'option2') {
+                            if (this.selectedCouponOption === 'option2') {
                                 // Pending Payment Coupons
-                                this.coupons = pendingPaymentCoupons;
-                                console.log('pending Payment coupons:', this.coupons);
-                            } else {
-                                this.coupons = allCoupons;
+                                this.pendingPaymentCoupons = pendingPaymentCoupons;
+                                console.log('pending Payment coupons:', this.pendingPaymentCoupons);
                             }
                         } else {
-                            console.log('No coupons found for affiliate');
-                            this.coupons = [];
+                            console.log('No coupons found.');
                         }
                     } catch (error) {
-                        console.error('Error fetching coupons for affiliate:', error);
-                        this.coupons = [];
+                        console.error('Error fetching coupons.', error);
                     } finally {
                         this.loading = false;
                     }
@@ -484,10 +490,10 @@ export default {
                         const couponPromises = Object.keys(affiliate.appliedCoupons).map(async (couponId) => {
                             const redemptions = affiliate.appliedCoupons[couponId];
 
-                            // Process each redemptionId under the couponId
-                            const redemptionPromises = Object.keys(redemptions).map(async (redemptionId) => {
-                                const couponDetails = redemptions[redemptionId];
-                                const clientName = await this.fetchClientName(couponDetails.client_id); // Fetch client's name
+                            // Process each redemption (that is a client id) under the couponId
+                            const redemptionPromises = Object.keys(redemptions).map(async (clientId) => {
+                                const couponDetails = redemptions[clientId];
+                                const clientName = await this.fetchClientName(clientId); // Fetch client's name
 
                                 // Fetch additional coupon details from the Coupons table
                                 const couponRef = dbRef(db, `Coupons/${couponId}`);
@@ -501,8 +507,7 @@ export default {
                                 // Return the coupon data for this redemption
                                 return {
                                     couponId,
-                                    redemptionId,
-                                    clientId: couponDetails.client_id,
+                                    clientId: clientId,
                                     clientName,
                                     appliedDate: couponDetails.appliedDate,
                                     ...fullCouponData // Merge full coupon data from Coupons table
@@ -772,14 +777,23 @@ export default {
             }
 
             try {
+                const today = new Date();
+                const expiration = new Date(this.selectedCoupon.expiration);
+                const localExpiration = new Date(expiration.getTime() + expiration.getTimezoneOffset() * 60000);
                 const couponId = this.selectedCoupon.id;
 
                 // Fetch the selected coupon's redeemCount and timesUsed
                 const couponRef = dbRef(db, `Coupons/${couponId}`);
                 const couponSnapshot = await get(couponRef);
 
+                // Check to see if coupon exists in database
                 if (!couponSnapshot.exists()) {
-                    alert('El cupon seleccionado no existe.');
+                    alert('El cupón seleccionado no existe.');
+                    return;
+                }
+                // Check to see if coupon is valid or expired
+                if (localExpiration < today) {
+                    alert('No puede asignar un cupón expirado.');
                     return;
                 }
 
@@ -853,7 +867,7 @@ export default {
                 }
             }
             this.assignedCount = couponAssignedCount;
-            console.log('El cupon: ', couponId, 'Ha sido asignado: ', couponAssignedCount, 'veces.');
+            console.log('El cupon: ', couponId, 'Lo tienen asignado: ', couponAssignedCount, 'clientes, sin usar.');
         },
         async createAndAssignCoupon() {
 
@@ -908,6 +922,11 @@ export default {
                 await set(newCouponRef, couponData);
 
                 // Assign coupon to client if required
+
+                // Validations
+
+                
+
                 if (this.assignTheCoupon && this.selectedClients) {
                     for (const clientId of this.selectedClients) {
                         // Assign existing coupon
@@ -1073,33 +1092,52 @@ export default {
         },
         async applyCoupon() {
             const client = this.selectedClient;
-            const coupons = this.coupons;
+            const coupons = this.allCoupons;
             let selectedCoupon = null;
+
+            // Alert if the coupon code was not entered
+            if (!this.appliedCode) {
+                alert('Primero ingrese un código de cupón válido.');
+                console.log('No coupon code entered');
+                this.loading = false;
+                return;
+            }
 
             // Find the coupon by its code
             coupons.forEach(coupon => {
                 if (coupon.couponCode === this.appliedCode) {
                     selectedCoupon = coupon;
+                    console.log(selectedCoupon)
                 }
             });
 
             try {
                 this.loading = true;
 
-                // Alert if the coupon code was not entered
-                if (!this.appliedCode) {
-                    alert('Primero ingrese un código de cupón válido.');
-                    console.log('No coupon code entered');
+                // Alert if coupon doesnt exists anymore
+                if (!selectedCoupon) {
+                    alert('El Cupón ya no existe.');
+                    console.log('This coupon does not exists or its been deleted.');
+                    this.loading = false;
+                    return;
+                }
+
+                // Check if the coupon its still valid
+                const today = new Date();
+                const expiration = new Date(selectedCoupon.expiration);
+                const localExpiration = new Date(expiration.getTime() + expiration.getTimezoneOffset() * 60000);
+                if (today > localExpiration) {
+                    alert('Este cupón ya expiró.');
+                    this.loading = false;
                     return;
                 }
 
                 // Check if the coupon can still be redeemed
                 const redeemCount = selectedCoupon.redeemCount;
                 const timesUsed = selectedCoupon.hasOwnProperty('timesUsed') ? selectedCoupon.timesUsed : 0;
-
-
                 if (timesUsed >= redeemCount) {
                     alert('Este cupón ya fue aplicado las veces permitidas.');
+                    this.loading = false;
                     return;
                 }
 
@@ -1107,6 +1145,7 @@ export default {
                 if (!client.coupons || !client.coupons[selectedCoupon.id]) {
                     console.error('Client does not have this coupon assigned');
                     alert('El cliente no tiene el cupon asignado');
+                    this.loading = false;
                     return;
                 }
 
@@ -1118,26 +1157,24 @@ export default {
                     const appliedCoupons = appliedCouponsSnapshot.val();
 
                     // Iterate through the entries of appliedCoupons to check for the selectedCoupon and selectedClient
-                    const couponAlreadyApplied = Object.entries(appliedCoupons).some(([redemptionId, coupon]) => {
-                        // Check if couponId matches selectedCoupon.id and clientId matches selectedClient.id
-                        return coupon.couponId === selectedCoupon.id && coupon.clientId === client.id;
+                    const couponAlreadyApplied = Object.keys(appliedCoupons).some(couponId => {
+                        // Check if couponId matches selectedCoupon.id and the client id (redemption entry key) matches selectedClient.id
+                        const coupon = appliedCoupons[couponId];
+                        return couponId === selectedCoupon.id && coupon.hasOwnProperty(client.id);
                     });
+
 
                     if (couponAlreadyApplied) {
                         console.error('Coupon already applied by this client');
-                        alert('El cliente va ha aplicado este cupon.');
+                        alert('El cliente ya usó este cupon.');
+                        this.loading = false;
                         return;
                     }
                 }
 
-                // Generate a unique key for each redemption (using timestamp here for simplicity)
-                const redemptionId = new Date().getTime();
-
                 // Apply the coupon to the affiliate's 'appliedCoupons' object                
-                const newAppliedCouponRef = dbRef(db, `Users/${this.userId}/appliedCoupons/${selectedCoupon.id}/${redemptionId}`);
+                const newAppliedCouponRef = dbRef(db, `Users/${this.userId}/appliedCoupons/${selectedCoupon.id}/${client.id}`);
                 await set(newAppliedCouponRef, {
-                    client_id: client.id,
-                    couponCode: selectedCoupon.couponCode,
                     appliedDate: new Date().toISOString(),
                 });
 
@@ -1239,25 +1276,33 @@ export default {
         },
         filterCouponsByDate() {
             let appliedCoupons;
+
+            // If either date is missing, return all coupons
             if (!this.startDate || !this.endDate) {
-                // If either date is missing, return all coupons
                 this.filteredAppliedCoupons = this.allAppliedCoupons;
                 return;
             }
 
+            // Set start and end date
             const start = new Date(this.startDate);
+            const localStart = new Date(start.getTime() + start.getTimezoneOffset() * 60000);
+            localStart.setHours(0, 0, 0, 0);
+            console.log(localStart)
+
             const end = new Date(this.endDate);
-            end.setHours(23, 59, 59, 999); // Include the entire end date
+            const localEnd = new Date(end.getTime() + end.getTimezoneOffset() * 60000);
+            localEnd.setHours(23, 59, 59, 999); // Include the entire end date
+            console.log(localEnd)
 
             // Filter coupons based on the appliedDate
             appliedCoupons = this.allAppliedCoupons.filter(coupon => {
-
                 const couponDate = new Date(coupon.appliedDate); // Convert ISOString to Date object
-                return couponDate >= start && couponDate <= end;
+                return couponDate >= localStart && couponDate <= localEnd;
             });
 
+            // Assign the filtered coupons
             this.filteredAppliedCoupons = appliedCoupons;
-            console.log(this.filteredAppliedCoupons)
+            console.log(this.filteredAppliedCoupons);
         },
         clearDateFilter() {
             this.startDate = null;
@@ -1637,9 +1682,14 @@ export default {
                                                             :data-bs-parent="'#couponAccordion' + index">
                                                             <div class="accordion-body">
                                                                 <!-- Cantidad de clientes que tienen el cupon asignado -->
-                                                                <p class="card-text">
-                                                                    <strong>Veces asignado: </strong>
+                                                                <!-- <p class="card-text">
+                                                                    <strong>Clientes con este cupon: </strong>
                                                                     {{ assignedCount ? assignedCount : 0 }}
+                                                                </p> -->
+                                                                <!-- Cantidad de veces que ha sido usado -->
+                                                                <p class="card-text">
+                                                                    <strong>Veces canjeado: </strong>
+                                                                    {{ coupon.timesUsed ? coupon.timesUsed : 0 }}
                                                                 </p>
 
                                                                 <!-- Conditional Balance / Percentage -->
@@ -1782,9 +1832,10 @@ export default {
                             </div>
                             <div class="col-12 col-md-6 col-lg-3 mb-3">
                                 <label class="form-label">Tipo de cupón <span class="text-danger">*</span></label>
-                                <select v-model="couponType" class="form-select" aria-label="Default select example">
-                                    <option value="saldo">Saldo</option>
-                                    <option value="porcentaje">Porcentaje</option>
+                                <select v-model="couponType" class="form-select text-white"
+                                    aria-label="Default select example">
+                                    <option class=" text-white" value="saldo">Saldo</option>
+                                    <option class=" text-white" value="porcentaje">Porcentaje</option>
                                 </select>
                             </div>
                             <div class="col-12 col-md-6 col-lg-3 mb-3">
@@ -2437,7 +2488,7 @@ export default {
                 <!-- Options -->
                 <div class="mb-3 form-check form-check-inline">
                     <input class="form-check-input" type="radio" name="couponOptions" id="inlineRadio1" value="option1"
-                        v-model="selectedCouponOption" @click="loadCoupons()">
+                        v-model="selectedCouponOption" @click="fetchUserAppliedCoupons()">
                     <label class="form-check-label" for="inlineRadio1">Cupones aplicados</label>
                 </div>
                 <div class="mb-3 form-check form-check-inline">
@@ -2448,7 +2499,8 @@ export default {
 
                 <!-- Option 1 = Applied coupons -->
                 <div v-if="selectedCouponOption === 'option1'" class="mt-3">
-                    <div class="col-12 col-md-3" v-if="coupons.length > 0" v-for="coupon in coupons" :key="coupon.id">
+                    <div class="col-12 col-md-3" v-if="appliedCoupons.length > 0" v-for="coupon in appliedCoupons"
+                        :key="coupon.id">
                         <div class="card mb-3 position-relative">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between mb-3">
@@ -2463,16 +2515,19 @@ export default {
                                 </div>
                                 <hr>
                                 <p class="card-text"><strong>Código:</strong> {{ coupon.couponCode }}</p>
-                                <p class="card-text"><strong>Saldo:</strong> ${{ coupon.balance }}</p>
+                                <p class="card-text">
+                                    <strong>Saldo:</strong>
+                                    ${{ coupon.balance }}
+                                </p>
                                 <p class="card-text"><strong>Aplicado el dia: </strong>{{ formatDate(coupon.appliedDate)
                                     }}
                                 </p>
                                 <p class="card-text"><strong>Expiración:</strong> {{ formatDate(coupon.expiration) }}
                                 </p>
-                                <!-- <p class="card-text"><strong>Veces que se puede aplicar: </strong>{{ coupon.redeemCount
+                                <p class="card-text"><strong>Veces que se puede aplicar: </strong>{{ coupon.redeemCount
                                     }}
                                 </p>
-                                <p class="card-text"><strong>Veces aplicado: </strong>{{ coupon.timesUsed }}</p> -->
+                                <p class="card-text"><strong>Veces aplicado: </strong>{{ coupon.timesUsed }}</p>
                             </div>
                         </div>
                     </div>
@@ -2481,7 +2536,8 @@ export default {
 
                 <!-- Option 2 = Pending payment coupons -->
                 <div v-if="selectedCouponOption === 'option2'" class="mt-3">
-                    <div class="col-12 col-md-3" v-if="coupons.length > 0" v-for="coupon in coupons" :key="coupon.id">
+                    <div class="col-12 col-md-3" v-if="pendingPaymentCoupons.length > 0"
+                        v-for="coupon in pendingPaymentCoupons" :key="coupon.id">
                         <div class="card mb-3 position-relative">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between mb-3">
@@ -2492,8 +2548,11 @@ export default {
                                     <img :src="coupon.qrFileUrl" alt="QR Code" class="img-fluid img-thumbnail"
                                         style="max-height: 150px;">
                                 </div>
-                                <p class="card-text"><strong>Código:</strong> {{ coupon.couponCode }}</p>
-                                <p class="card-text"><strong>Saldo:</strong> ${{ coupon.balance }}</p>
+                                <p class="card-text"><strong>Código:</strong> {{ coupon.code }}</p>
+                                <p class="card-text">
+                                    <strong>Saldo:</strong>
+                                    ${{ coupon.balance }}
+                                </p>
                                 <p class="card-text"><strong>Aplicado el dia: </strong>{{ formatDate(coupon.appliedDate)
                                     }}
                                 </p>

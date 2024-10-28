@@ -30,6 +30,11 @@ export const useAppSidebarMenuStore = defineStore({
         text: "Cupones",
       },      
       {
+        url: "/giftcards",
+        icon: "fa-solid fa-money-bill",
+        text: "Giftcards",
+      },  
+      {
         url: "/suscripciones",
         icon: "fa fa-handshake",
         text: "Suscripciones",
@@ -156,15 +161,30 @@ export const useAppSidebarMenuStore = defineStore({
         text: "Cupones",
       },
       {
-        url: "/clients-ratings",
-        icon: "fa fa-comment-dots",
-        text: "Opiniones",
+        url: "/giftcards",
+        icon: "fa fa-money-bill",
+        text: "Giftcards",
+      },      
+      {
+        url: "/suscriptions",
+        icon: "fa fa-handshake",
+        text: "Suscripciones",
       },
       {
-        url: "/creditos",
-        icon: "fa fa-dollar",
-        text: "Crédito",
+        url: "/jobs",
+        icon: "fa fa-suitcase",
+        text: "Empleos",
       },
+      // {
+      //   url: "/clients-ratings",
+      //   icon: "fa fa-comment-dots",
+      //   text: "Opiniones",
+      // },
+      // {
+      //   url: "/creditos",
+      //   icon: "fa fa-dollar",
+      //   text: "Crédito",
+      // },
       {
         is_divider: true,
       },

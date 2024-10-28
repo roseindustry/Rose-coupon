@@ -179,6 +179,7 @@ export default {
 					if (this.userDetails.referidos && typeof this.userDetails.referidos === 'object') {
 						// Count the number of entries in the referidos object
 						const referralIds = Object.keys(this.userDetails.referidos);
+						console.log(referralIds)
 						this.userReferralsLength = referralIds.length;
 
 						this.referralClients = [];
@@ -208,6 +209,7 @@ export default {
 								}
 
 								this.referralClients.push(referralData);
+								console.log(this.referralClients)
 							} else {
 								console.log(`Referral client with ID ${referralId} not found.`);
 							}
@@ -464,9 +466,9 @@ export default {
 		}
 
 		if (this.role === 'mesero' || this.role === 'promotora') {
-			await this.fetchCurrentUserData();
+			await this.fetchCurrentUserData();			
 		}
-
+		// console.log(this.userId)
 	}
 }
 </script>

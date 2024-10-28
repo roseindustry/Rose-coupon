@@ -11,6 +11,7 @@ export default defineComponent({
             // data for portal items
             portalItems: [
                 { title: 'Cupones', description: 'Aplique cupones para sus clientes aquí.', link: '/cupones', actionText: 'Acceder', icon: 'fa-solid fa-ticket' },
+                { title: 'Giftcards', description: 'Aplique tarjetas de regalo para sus clientes aquí.', link: '/giftcards', actionText: 'Acceder', icon: 'fa-solid fa-money-bill' },
                 { title: 'Suscripciones', description: 'Administre su suscripción aquí.', link: '/suscripciones', actionText: 'Acceder', icon: 'fa-solid fa-handshake', notReady: false },
                 { title: 'Empleos', description: 'Publique vacantes.', link: '/jobs', actionText: 'Acceder', icon: 'fa-solid fa-suitcase' },                
                 // { title: 'Encuentas de satisfacción', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', notReady: true, link: '/customer-survey', actionText: 'Tomar Encuesta', icon: 'fa-solid fa-comment-dots' },
