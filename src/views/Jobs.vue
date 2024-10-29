@@ -30,6 +30,7 @@ export default {
 
             jobs: [],
             filteredJobs: [],
+            currentUserJobs: [],
             categories: [],
 
             filterByDate: false,
@@ -132,9 +133,16 @@ export default {
                 alert('Ingrese un rango de fecha');
             }
 
+            // Set start and end date
             const start = new Date(this.startDate);
+            const localStart = new Date(start.getTime() + start.getTimezoneOffset() * 60000);
+            localStart.setHours(0, 0, 0, 0);
+            console.log(localStart)
+
             const end = new Date(this.endDate);
-            end.setHours(23, 59, 59, 999); // Include the entire end date
+            const localEnd = new Date(end.getTime() + end.getTimezoneOffset() * 60000);
+            localEnd.setHours(23, 59, 59, 999); // Include the entire end
+            console.log(localEnd)
 
             this.filteredJobs = this.filteredJobs.filter(job => {
                 if (!job.publishedAt) return false; // Skip jobs without a publishedAt date
@@ -143,7 +151,7 @@ export default {
                 const jobDate = new Date(job.publishedAt);
                 const adjustedJobDate = new Date(jobDate.getTime() + jobDate.getTimezoneOffset() * 60000);
 
-                return adjustedJobDate >= start && adjustedJobDate <= end;
+                return adjustedJobDate >= localStart && adjustedJobDate <= localEnd;
             });
 
             console.log(this.filteredJobs);
@@ -200,7 +208,6 @@ export default {
 
                                 if (affiliateSnapshot.exists()) {
                                     job.affiliate = affiliateSnapshot.val();
-                                    console.log(job.affiliate)
                                 } else {
                                     job.affiliate = null;  // Handle case where affiliate not found
                                 }
@@ -208,8 +215,9 @@ export default {
 
                             return job;
                         })
-                    );
+                    );                    
                     this.filteredJobs = this.jobs;
+                    this.currentUserJobs = this.jobs.filter((job) => job.affiliate_id === this.userId);
                 } else {
                     this.jobs = [];  // No jobs found
                 }
@@ -334,7 +342,7 @@ export default {
         this.userId = userStore.userId;
         this.userName = userStore.userName;
 
-        await this.fetchJobs();        
+        await this.fetchJobs();
         await this.fetchCategories();
     }
 }
@@ -360,7 +368,7 @@ export default {
             </a>
         </div>
 
-        <div v-if="jobs.length === 0" class="d-flex justify-content-center align-items-center">
+        <div v-if="currentUserJobs.length === 0" class="d-flex justify-content-center align-items-center">
             <div class="text-center">
                 <div class="mb-3 mt-n5">
                     <i class="fa-solid fa-suitcase text-body text-opacity-25" style="font-size: 5em"></i>
@@ -368,51 +376,52 @@ export default {
                 <h5>No hay Vacantes registradas.</h5>
             </div>
         </div>
-        <div v-else>
+
+        <div v-else class="d-flex flex-column align-items-center">
             <!-- Jobs list -->
-            <div v-for="(job, index) in jobs" :key="job.id">
-                <div class="card p-4 mb-4" style="position: relative; z-index: 0;">
-                    <!-- Edit and Delete Icons -->
-                    <div class="d-flex justify-content-end" style="z-index: 1; position: relative;">
-                        <button class="btn btn-sm btn-outline-info me-1" @click="editJob(job)">
-                            <i class="fa-solid fa-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" @click="deleteJob(job.id, index)">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
-                    </div>
-                    <div class="row g-4">
-                        <div class="col-sm-12 col-md-8 d-flex align-items-center">
-                            <!-- <img class="flex-shrink-0 img-fluid border rounded" :src="job.affiliate.image"
-                                alt="comercio" style="width: 80px; height: 80px;"> -->
-                            <div class="text-start ps-4">
-                                <h5 class="mb-3">{{ job.title.charAt(0).toUpperCase() + job.title.slice(1) }}</h5>
-                                <span class="text-truncate me-3">
-                                    <i class="far fa-clock text-primary me-2"></i>
-                                    {{ job.type ? job.type.charAt(0).toUpperCase() + job.type.slice(1) : 
+            <div v-for="(job, index) in currentUserJobs" :key="job.id" class="card job-card p-4 mb-4 w-100"
+                style="max-width: 800px;">
+                <!-- Edit and Delete buttons -->
+                <div class="d-flex justify-content-end">
+                    <button class="btn btn-sm btn-outline-info me-1" @click="editJob(job)">
+                        <i class="fa-solid fa-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" @click="deleteJob(job.id, index)">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+
+                <!-- Job content -->
+                <div class="row g-4">
+                    <div class="col-12 col-md-8 d-flex align-items-center">
+                        <img class="flex-shrink-0 img-fluid border rounded" :src="job.affiliate.image"
+                                alt="comercio" style="width: 80px; height: 80px;">
+                        <div class="text-start ps-4">
+                            <h5 class="mb-3">{{ job.title.charAt(0).toUpperCase() + job.title.slice(1) }}</h5>
+                            <span class="text-truncate me-3">
+                                <i class="far fa-clock text-primary me-2"></i>
+                                {{ job.type ? job.type.charAt(0).toUpperCase() + job.type.slice(1) :
                                     'Sin especificar' }}
-                                </span>
-                                <!-- <span class="text-truncate me-0">
+                            </span>
+                            <!-- <span class="text-truncate me-0">
                                 <i class="far fa-money-bill-alt text-primary me-2"></i>
                                 ${{ job.offer }}
                             </span> -->
-                            </div>
                         </div>
-                        <div
-                            class="col-sm-12 col-md-4 d-flex flex-column align-items-start align-items-md-end justify-content-center">
-                            <!-- <div class="d-flex mb-3">
+                    </div>
+                    <div class="col-12 col-md-4 d-flex flex-column align-items-start align-items-md-end justify-content-center">
+                        <!-- <div class="d-flex mb-3">
                             <a class="btn btn-light btn-square me-3" href=""><i
                                     class="far fa-heart text-primary"></i></a>
                             <a class="btn btn-primary" href="">Apply Now</a>
                         </div> -->
-                            <p>
-                                {{ job.desc }}
-                            </p>
-                            <small class="text-truncate">
-                                <i class="far fa-calendar-alt text-primary me-2"></i>
-                                Publicado el día: {{ job.publishedAtFormatted }}
-                            </small>
-                        </div>
+                        <p>
+                            {{ job.desc }}
+                        </p>
+                        <small class="text-truncate">
+                            <i class="far fa-calendar-alt text-primary me-2"></i>
+                            Publicado el día: {{ job.publishedAtFormatted }}
+                        </small>
                     </div>
                 </div>
             </div>

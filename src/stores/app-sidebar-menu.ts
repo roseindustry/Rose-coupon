@@ -100,6 +100,16 @@ export const useAppSidebarMenuStore = defineStore({
         text: "Comercios Afiliados",
       },
       {
+        url: "/events",
+        icon: "fa fa-pizza-slice",
+        text: "Eventos",
+      },
+      {
+        url: "/giveaways",
+        icon: "fa fa-gifts",
+        text: "Sorteos",
+      },
+      {
         url: "/cupones",
         icon: "fa fa-ticket",
         text: "Mis cupones",
@@ -113,6 +123,16 @@ export const useAppSidebarMenuStore = defineStore({
         url: "/request-coupons",
         icon: "fa-solid fa-bell-concierge",
         text: "Solicitar cupones",
+      },
+      {
+        url: "/suscripciones",
+        icon: "fa-solid fa-handshake",
+        text: "Suscripciones",
+      },
+      {
+        url: "/jobs",
+        icon: "fa-solid fa-suitcase",
+        text: "Empleos / vacantes",
       },
       // {
       //   url: "/clients-ratings",
@@ -166,7 +186,7 @@ export const useAppSidebarMenuStore = defineStore({
         text: "Giftcards",
       },      
       {
-        url: "/suscriptions",
+        url: "/suscripciones",
         icon: "fa fa-handshake",
         text: "Suscripciones",
       },

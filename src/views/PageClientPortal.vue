@@ -6,8 +6,10 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage
 import { ref as dbRef, get, update } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
+import { createPopper } from '@popperjs/core';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
+import { RouterLink } from 'vue-router';
 
 export default defineComponent({
     data() {
@@ -115,6 +117,7 @@ export default defineComponent({
                                 const userSuscription = userSuscriptionSnapshot.val();
 
                                 this.subscriptionPlan = {
+                                    id: this.userSubscriptionId,
                                     name: userSuscription.name || 'Sin suscripcion',
                                     status: subscriptionData.status || 'No Status',
                                     price: userSuscription.price || 'No Price',
@@ -165,6 +168,14 @@ export default defineComponent({
             return getDownloadURL(fileRef);
         },
 
+        redirectToSubs(subscriptionPlan) {
+            console.log(subscriptionPlan.id);
+            this.$router.push({
+                path: '/suscripciones',
+                query: { clientSubscriptionId: subscriptionPlan.id }
+            });
+        },
+        
         async submitVerification() {
             if (!this.idFrontFile || !this.idBackFile || !this.selfieFile) {
                 this.errorMessage = 'Ambos archivos de la identificación son requeridos.';
@@ -253,46 +264,56 @@ export default defineComponent({
 </script>
 <template>
     <div class="container">
-        <!-- Add an install button in your template
-        <button id="install-button" style="display: none;">Instale acceso a Rose Coupon</button> -->
 
-        <!-- Subscription Badge -->
-        <div class="subscription-badge-container position-absolute text-muted text-center top-0 end-0 m-3">
-            <div class="d-flex justify-content-end align-items-center gap-2 flex-wrap">
+        <!-- Badges -->
+        <div class="subscription-badge-container position-absolute text-muted text-center top-0 end-0 m-3 mb-4 w-100">
+            <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap w-100">
 
-                <!-- Subscription Plan Badge -->
-                <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name">
-                    <span class="badge bg-transparent border border-success text-success d-flex align-items-center p-2"
-                        style="width: auto;">
-                        <i :class="subscriptionPlan.icon" class="me-2"></i>
-                        {{ subscriptionPlan.name.toUpperCase() }}
-                    </span>
+                <!-- Subscription Plan Badge (Left) -->
+                <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
+                    class="d-flex align-items-center ms-3">
+                    <a href="#" @click.prevent="redirectToSubs(subscriptionPlan)" id="subscription-button" class="btn">
+                        <span
+                            class="badge bg-light border border-success text-success d-flex align-items-center px-3 py-2 shadow-sm rounded-pill"
+                            style="width: auto;">
+                            <i :class="subscriptionPlan.icon" class="me-2" style="font-size: 1.2rem;"></i>
+                            {{ subscriptionPlan.name.toUpperCase() }}
+                        </span>
+                    </a>
+                    <small class="text-muted d-block ms-2">Haz clic para cambiar tu suscripción</small>
                 </div>
-                <div v-else>
-                    <span class="badge bg-transparent border border-danger text-danger d-flex align-items-center p-2"
-                        style="width: auto;">
-                        <i class="me-2" style="font-size: 1.5rem;"></i>
-                        Sin suscripción activa
-                    </span>
+                <div v-else class="d-flex align-items-center">
+                    <RouterLink to="/suscripciones" class="btn">
+                        <span
+                            class="badge bg-light border border-danger text-danger d-flex align-items-center px-3 py-2 shadow-sm rounded-pill"
+                            style="width: auto;">
+                            <i class="me-2 fa-solid fa-exclamation-circle" style="font-size: 1.2rem;"></i>
+                            Click para suscribirte
+                        </span>
+                    </RouterLink>
                 </div>
 
-                <!-- User Verification Badge -->
-                <div>
-                    <span v-if="userVerified" class="badge bg-transparent border 
-                        border-success text-success d-flex 
-                        justify-content-center align-items-center p-2">
-                        <i class="fa-solid fa-user-check"></i>
-                    </span>
-                    <span v-else class="badge bg-transparent border 
-                        border-danger text-danger 
-                        d-flex justify-content-center align-items-center p-2">
-                        <i class="fa-solid fa-user-xmark"></i>
+                <!-- User Verification Badge (Right) -->
+                <div class="d-flex align-items-center ms-5">
+                    <a id="verify-identity" v-if="!userVerified" href="#" data-bs-toggle="modal"
+                        data-bs-target="#verificationModal">
+                        <span class="badge bg-light border border-danger text-danger d-flex justify-content-center 
+                align-items-center px-3 py-2 shadow-sm rounded-circle">
+                            <i class="fa-solid fa-user-xmark" style="font-size: 1.2rem;"></i>
+                        </span>
+                    </a>
+                    <small class="text-muted d-block ms-2" v-if="!userVerified">Haz clic para verificar tu
+                        cuenta</small>
+
+                    <span v-else class="badge bg-light border border-success text-success d-flex justify-content-center 
+            align-items-center px-3 py-2 shadow-sm rounded-circle">
+                        <i class="fa-solid fa-user-check" style="font-size: 1.2rem;"></i>
                     </span>
                 </div>
             </div>
         </div>
 
-        <div class="row justify-content-center align-items-center h-100">
+        <div class="row justify-content-center align-items-center h-100 mt-5">
             <div class="col-12">
                 <div class="pb-5 pt-5 pt-md-5 pt-lg-5">
                     <h2 class="mb-4 text-center">Portal de Clientes</h2>
@@ -407,6 +428,7 @@ export default defineComponent({
     </div>
 </template>
 <style scoped>
+
 .btn-theme {
     background-color: purple;
     border-color: purple;
@@ -448,5 +470,11 @@ export default defineComponent({
     font-weight: bold;
     transform: rotate(45deg);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.badge:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+    /* Light hover effect */
+    transition: background-color 0.3s ease;
 }
 </style>

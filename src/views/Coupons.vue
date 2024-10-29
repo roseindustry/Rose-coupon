@@ -1287,12 +1287,10 @@ export default {
             const start = new Date(this.startDate);
             const localStart = new Date(start.getTime() + start.getTimezoneOffset() * 60000);
             localStart.setHours(0, 0, 0, 0);
-            console.log(localStart)
 
             const end = new Date(this.endDate);
             const localEnd = new Date(end.getTime() + end.getTimezoneOffset() * 60000);
             localEnd.setHours(23, 59, 59, 999); // Include the entire end date
-            console.log(localEnd)
 
             // Filter coupons based on the appliedDate
             appliedCoupons = this.allAppliedCoupons.filter(coupon => {
@@ -1302,7 +1300,6 @@ export default {
 
             // Assign the filtered coupons
             this.filteredAppliedCoupons = appliedCoupons;
-            console.log(this.filteredAppliedCoupons);
         },
         clearDateFilter() {
             this.startDate = null;

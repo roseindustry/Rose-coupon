@@ -179,8 +179,7 @@ export default {
 					if (this.userDetails.referidos && typeof this.userDetails.referidos === 'object') {
 						// Count the number of entries in the referidos object
 						const referralIds = Object.keys(this.userDetails.referidos);
-						console.log(referralIds)
-						this.userReferralsLength = referralIds.length;
+						// console.log(referralIds)
 
 						this.referralClients = [];
 						// Loop through each referralId and fetch corresponding user data
@@ -209,7 +208,6 @@ export default {
 								}
 
 								this.referralClients.push(referralData);
-								console.log(this.referralClients)
 							} else {
 								console.log(`Referral client with ID ${referralId} not found.`);
 							}
@@ -763,7 +761,7 @@ export default {
 					<div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
 						<div class="card-body text-center py-5">
 							<h5 class="card-title mb-3">Clientes referidos</h5>
-							<h3><strong>{{ this.userReferralsLength || 0 }}</strong></h3>
+							<h3><strong>{{ this.referralClients.length || 0 }}</strong></h3>
 							<a href="#" class="btn btn-theme btn-lg px-4 mt-3 shadow-sm"
 								@click.prevent="openClientsModal()">Ver lista de referidos</a>
 						</div>

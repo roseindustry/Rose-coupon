@@ -92,6 +92,8 @@ export default {
             errorMessage: '',
             paymentModal: null,
             activeTab: 'null',
+
+            currentSub: null
         };
     },
     computed: {
@@ -1006,6 +1008,7 @@ export default {
                 this.exchange = 0;
             }
         },
+
         setActiveTab(type) {
             if (type === 'clients') {
                 this.activeTab = type;
@@ -1024,6 +1027,18 @@ export default {
 
         if (this.role === 'admin') {
             this.activeTab = 'clients';
+        }
+
+        if (this.role === 'cliente' || this.role === 'afiliado') {
+            // Handle client selection from query params
+            const clientSubscriptionId = this.$route.query.clientSubscriptionId;
+
+            if (clientSubscriptionId) {
+                // this.loading = true;
+                this.currentSub = clientSubscriptionId;
+                console.log(clientSubscriptionId);
+                // await this.fetchUserSubscription(clientSubscriptionId);
+            }
         }
 
         await this.fetchClients();
@@ -1681,7 +1696,7 @@ export default {
     <div v-if="this.role === 'cliente'" class="container">
 
         <!-- Lista de suscripciones -->
-        <div class="container-fluid my-4 fade-in" style="padding: 20px;" id="price-table">
+        <div class="container-fluid my-4" style="padding: 20px;" id="price-table">
             <div class="row g-4 justify-content-center">
                 <div v-for="(plan, index) in sortedPlans" :key="plan.id" class="col-md-3">
                     <div :class="['card h-100 text-center py-4 d-flex flex-column justify-content-between', {
@@ -1692,6 +1707,12 @@ export default {
                         : ''">
                         <div v-if="plan.name === 'plata'" class="ribbon">
                             <span>Popular</span>
+                        </div>
+
+                        <div v-if="plan.id === currentSub"
+                            class="badge border border-success text-success align-items-center px-3 py-2 shadow-sm rounded-pill mb-3"
+                            style="width: auto; display: inline-flex; max-width: fit-content;">
+                            <span>Suscripción actual</span>
                         </div>
 
                         <i class="fa-lg" :class="plan.icon"></i>
@@ -1717,9 +1738,9 @@ export default {
     <div v-if="this.role === 'afiliado'" class="container">
 
         <!-- Lista de suscripciones -->
-        <div class="container-fluid my-4 fade-in" style="padding: 20px;" id="price-table">
+        <div class="container-fluid" style="padding: 20px;" id="price-table">
             <div class="row g-4 justify-content-center">
-                <div v-for="(plan, index) in sortedPlans" :key="plan.id" class="col-md-3">
+                <div v-for="(plan, index) in sortedPlans" :key="plan.id" class="col-md-4">
                     <div :class="['card h-100 text-center py-4 d-flex flex-column justify-content-between', {
                         'border-primary': plan.name === 'Intermedio',
                         'shadow-sm': true,
@@ -1728,6 +1749,12 @@ export default {
                         : ''">
                         <div v-if="plan.name === 'Intermedio'" class="ribbon">
                             <span>Popular</span>
+                        </div>
+
+                        <div v-if="plan.id === currentSub"
+                            class="badge border border-success text-success align-items-center px-3 py-2 shadow-sm rounded-pill mb-3"
+                            style="width: auto; display: inline-flex; max-width: fit-content;">
+                            <span>Suscripción actual</span>
                         </div>
 
                         <i class="fa-lg" :class="plan.icon"></i>
