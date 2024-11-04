@@ -136,7 +136,7 @@ export default defineComponent({
 
 				// Referral code validation: Fetch users with role 'mesero' or 'promotora'
 				let referredByEmployee = null;
-				if (this.formattedReferralCode) {
+				if (this.formattedReferralCode && this.formattedReferralCode !== "REF-") {
 					const employees = ['mesero', 'promotora'];
 
 					// Query for 'mesero' role users
@@ -148,11 +148,13 @@ export default defineComponent({
 					const promotoraSnapshot = await get(promotoraQuery);
 
 					// Combine results from both queries
-					const employeeResults = { ...(meseroSnapshot.exists() ? meseroSnapshot.val() : {}), ...(promotoraSnapshot.exists() ? promotoraSnapshot.val() : {}) };
+					const employeeResults = { 
+						...(meseroSnapshot.exists() ? meseroSnapshot.val() : {}), 
+						...(promotoraSnapshot.exists() ? promotoraSnapshot.val() : {}) 
+					};
 				
 					// Check if referral code matches any employee
 					for (const empUid in employeeResults) {
-						console.log(employeeResults[empUid].codigoReferido)
 						if (employeeResults[empUid].codigoReferido === this.formattedReferralCode) {
 							console.log(employeeResults[empUid].codigoReferido)
 							referredByEmployee = empUid;

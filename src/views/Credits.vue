@@ -19,28 +19,52 @@ export default {
             role: '',
 
             affiliates: [],
+            allAffiliates: [],
+            clientsWithAffiliatePurchases: [],
             clients: [],
             allClients: [],
-            selectedClient: null,
             searchClientResults: [],
+            searchEntityResults: [],
+            creditType: '',
+
+            selectedClient: null,
+            selectedEntity: null,
 
             searchQuery: '',
             searchClient: '',
+            searchEntity: '',
             filterClients: '',
 
+            appCreditType: '',
             creditValue: 0, // data to assign credit to the App
-            totalCapital: 0, // Total credit assigned to the app for display
 
-            creditUsed: 0, // Total credit used by clients
-            creditAvailable: 0, // Remaining credit after usage
-            assignedCapital: 0, // Total assigned credit to clients
-            availableToAssign: 0, // Credit still available to assign to clients
+            // For clients 
+            // Main credit line data properties
+            totalMainCapital: 0, // Total credit assigned to the app for Main credit lines
+            mainCreditUsed: 0, // Total credit used by clients
+            mainCreditAvailable: 0, // Remaining credit after usage
+            mainAssignedCapital: 0, // Total assigned credit to clients
+            mainAvailableToAssign: 0, // Credit still available to assign to clients
 
+            // Plus credit line data properties
+            totalPlusCapital: 0, // Total credit assigned to the app for Plus credit lines
+            totalAffiliatePlusCapital: 0,
+            plusCreditUsed: 0, // Total credit used by clients
+            plusCreditAvailable: 0, // Remaining credit after usage
+            plusAssignedCapital: 0, // Total assigned credit to clients
+            plusAvailableToAssign: 0, // Credit still available to assign to clients
+
+            // For affiliates
+            // Main credit line  
+            totalAffiliateMainCapital: 0,
+            affMainCreditUsed: 0, // Total credit used by clients
+            affMainCreditAvailable: 0, // Remaining credit after usage
+            affMainAssignedCapital: 0, // Total assigned credit to clients
+            affMainAvailableToAssign: 0, // Credit still available to assign to clients
 
             clientId: '',
             clientCredit: 0,
 
-            //Client data
             clientApprovedCred: null,
             clientUsedCred: null,
             requestedAmount: 0,
@@ -51,25 +75,36 @@ export default {
             itemsPerPage: 9,
 
             loading: false,
+            waiting: false,
+            verificationRequested: false,
+            verificationCode: '',
 
             creditAmount: 0,
             creditLine: '',
 
-            purchaseName: '',
-            purchaseDate: '',
+            productName: '',
+            productPrice: 0,
+
+            purchaseDate: new Date().toLocaleDateString('en-CA'),
             purchaseAmount: 0,
             calc: false,
-            quotesAmount: 0,
             terms: 2, // default to 2 cuota
-            frequency: 2,
+            frequency: 2, // default to bi-weekly payments
             cuotaDates: [],
+            quotesAmount: [],
 
             clientDetails: null,
-        }
-    },
-    watch: {
-        terms(newValue) {
-            this.updateCuotaDates();
+            currentClient: null,
+            currentAffiliate: null,
+
+            selectedAffiliate: null,
+            selectedAffiliateClients: [],
+
+            pendingPayments: [],
+            paidPurchases: [],
+
+            showPurchases: false,
+            purchaseWithAffiliateData: []
         }
     },
     computed: {
@@ -111,6 +146,10 @@ export default {
                     background: 'linear-gradient(to right, #00b09b, #96c93d)',
                 },
             }).showToast();
+        },
+        formatDate(dateString) {
+            const [year, month, day] = dateString.split("-");
+            return `${day}-${month}-${year}`;
         },
         goToPage(page, type) {
             if (type === 'client') {
@@ -163,39 +202,33 @@ export default {
                 console.error('Error sending email:', error);
             }
         },
-        updateCuotaDates() {
-            const newTerms = parseInt(this.terms);
-
-            // If the terms number has increased, add more date placeholders
-            if (newTerms > this.cuotaDates.length) {
-                for (let i = this.cuotaDates.length; i < newTerms; i++) {
-                    this.cuotaDates.push(''); // add an empty date input
-                }
-            } else if (newTerms < this.cuotaDates.length) {
-                // If the terms number has decreased, remove excess date fields
-                this.cuotaDates.splice(newTerms);
-            }
-        },
 
         //FOR ADMIN USE
         //Fetch data 
         async fetchCurrentTotalCredit() {
             try {
-                const creditRef = dbRef(db, `Users/${this.userId}/credit`);
+                const creditRef = dbRef(db, `AppCapital`);
                 const creditSnapshot = await get(creditRef);
 
                 if (creditSnapshot.exists()) {
                     const creditData = creditSnapshot.val();
-                    this.totalCapital = parseFloat(creditData.value).toFixed(2);
+                    this.totalMainCapital = creditData.main?.value ? parseFloat(creditData.main.value).toFixed(2) : 0;
+                    this.totalPlusCapital = creditData.plus?.value ? parseFloat(creditData.plus.value).toFixed(2) : 0;
+                    this.totalAffiliateMainCapital = creditData.affiliateMain?.value ? parseFloat(creditData.affiliateMain.value).toFixed(2) : 0;
                 } else {
-                    console.log('No credit data found for the user.');
-                    this.totalCapital = 0;
+                    console.log('No credit data found.');
+                    this.totalMainCapital = 0;
+                    this.totalPlusCapital = 0;
+                    this.totalAffiliateMainCapital = 0;
                 }
             } catch (error) {
-                console.error('Error fetching current credit:', error);
-                this.totalCapital = 0;
+                console.error('Error fetching current capital:', error);
+                this.totalMainCapital = 0;
+                this.totalPlusCapital = 0;
+                this.totalAffiliateMainCapital = 0;
             }
         },
+
         async fetchClients() {
             const role = 'cliente';
             const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
@@ -208,7 +241,7 @@ export default {
 
                     // Map Firebase data to an array of promises
                     const clientPromises = Object.keys(users).map(async key => {
-                        const clientCredit = await this.fetchClientCredit(key);
+                        const clientCredit = await this.fetchCredit(key);
 
                         const client = {
                             id: key,
@@ -251,55 +284,20 @@ export default {
 
                     this.allClients = allClients;
 
-                    this.clients = allClients.filter((client) => client.credit?.mainCredit > 0 || client.credit?.plusCredit > 0);
+                    this.clients = allClients.filter((client) => client.credit?.mainCredit > 0 || client.credit?.plusCredit > 0 || client.credit?.mainPurchases); // || client.credit?.plusPurchases
+                    // console.log('Clients with Credit:', this.clients);                 
 
-                    // console.log('Clients with Credit:', this.clients); // Debugging: clients with credit
+                    this.calculateMainCredits();
+                    this.calculatePlusCredits();
 
-                    this.calculateCredits();
                 } else {
                     this.allClients = [];
                     this.clients = [];
-                    this.creditUsed = 0;
                 }
             } catch (error) {
                 console.error('Error fetching clients:', error);
                 this.allClients = [];
                 this.clients = [];
-                this.creditUsed = 0;
-            }
-        },
-        async fetchClientCredit(clientId) {
-            try {
-                const clientCreditRef = dbRef(db, `Users/${clientId}/credit`);
-                const creditSnapshot = await get(clientCreditRef);
-
-                if (creditSnapshot.exists()) {
-                    const creditData = creditSnapshot.val();
-
-                    // Check if the mainCredit and plusCredit exist and are greater than 0
-                    const mainCredit = creditData?.main?.totalCredit || 0;
-                    const availableMainCredit = creditData?.main?.availableCredit || 0;
-
-                    const plusCredit = creditData?.plus?.totalCredit || 0;
-                    const availablePlusCredit = creditData?.plus?.availableCredit || 0;
-
-                    // Only return the client credit if either credit line is assigned
-                    if (mainCredit > 0 || plusCredit > 0) {
-                        return {
-                            mainCredit,
-                            availableMainCredit,
-                            plusCredit,
-                            availablePlusCredit
-                        };
-                    } else {
-                        return null; // No credit assigned, skip this client
-                    }
-                } else {
-                    return null; // No credit assigned
-                }
-            } catch (error) {
-                console.error('Error fetching client credit:', error);
-                return null;
             }
         },
         async fetchAffiliates() {
@@ -312,79 +310,219 @@ export default {
                 if (snapshot.exists()) {
                     const users = snapshot.val();
 
-                    // Since Firebase data is an object, map to array for easier use
-                    const allAffiliates = Object.keys(users).map(key => ({
-                        id: key,
-                        ...users[key]
-                    }));
+                    // Map Firebase data to an array of promises
+                    const affiliatePromises = Object.keys(users).map(async key => {
+                        const affiliateCredit = await this.fetchCredit(key);
 
-                    this.affiliates = allAffiliates.filter((aff) => aff.credit);
+                        const affiliate = {
+                            id: key,
+                            ...users[key],
+                        };
+
+                        if (affiliate.credit) {
+                            affiliate.credit = affiliateCredit
+                        }
+
+                        // Fetch the affiliate's subscription ID
+                        const subRef = dbRef(db, `Users/${key}/subscription`);
+                        const subSnapshot = await get(subRef);
+
+                        if (subSnapshot.exists()) {
+                            const subId = subSnapshot.val().subscription_id;
+                            const isPaid = subSnapshot.val().isPaid;
+
+                            // Fetch subscription details
+                            const subDataRef = dbRef(db, `Affiliate_suscriptions/${subId}`);
+                            const subDataSnapshot = await get(subDataRef);
+
+                            if (subDataSnapshot.exists()) {
+                                const subData = subDataSnapshot.val();
+                                affiliate.subscription = {
+                                    ...subData,
+                                    subId, // Include the subscription ID
+                                    isPaid
+                                };
+                            } else {
+                                affiliate.subscription = null; // Handle case where subscription data is not found
+                            }
+                        } else {
+                            affiliate.subscription = null; // Client does not have a subscription
+                        }
+
+                        return affiliate; // Return the complete client object with subscription and credit
+                    });
+
+                    // Await for all promises to resolve
+                    const allAffiliates = await Promise.all(affiliatePromises);
+
+                    this.allAffiliates = allAffiliates;
+
+                    this.affiliates = allAffiliates.filter((aff) => aff.credit?.mainCredit > 0 || aff.credit?.plusCredit > 0);
+
+                    this.calculateAffiliatesCredits();
                 } else {
                     this.affiliates = [];
                 }
             } catch (error) {
                 console.error('Error fetching affiliates:', error);
                 this.affiliates = [];
+                this.allAffiliates = [];
+            }
+        },
+        async fetchCredit(userId) {
+            try {
+                const clientCreditRef = dbRef(db, `Users/${userId}/credit`);
+                const creditSnapshot = await get(clientCreditRef);
+
+                if (creditSnapshot.exists()) {
+                    const creditData = creditSnapshot.val();
+
+                    // Check if the mainCredit and plusCredit exist and are greater than 0
+                    const mainCredit = creditData?.main?.totalCredit || null;
+                    const availableMainCredit = creditData?.main?.availableCredit || null;
+                    const mainPurchases = creditData?.main?.purchases || null;
+
+                    const plusCredit = creditData?.plus?.totalCredit || null;
+                    const availablePlusCredit = creditData?.plus?.availableCredit || null;
+                    const plusPurchases = creditData?.plus?.purchases || null;
+
+                    // Only return the user credit if either credit line is assigned
+                    if (mainCredit > 0 || plusCredit > 0 || mainPurchases || plusPurchases) {
+                        return {
+                            mainCredit,
+                            availableMainCredit,
+                            mainPurchases,
+                            plusCredit,
+                            availablePlusCredit,
+                            plusPurchases
+                        };
+                    }
+                }
+                return null; // No credit assigned, return null
+            } catch (error) {
+                console.error('Error fetching users credit:', error);
+                return null;
+            }
+        },
+        async fetchAffiliateSales(affiliateId) {
+            try {
+                const affiliateSalesRef = dbRef(db, `Users/${affiliateId}/credit/sales`);
+                const affiliateSnapshot = await get(affiliateSalesRef);
+
+                if (affiliateSnapshot.exists()) {
+                    const saleData = affiliateSnapshot.val();
+
+                    // Check if the sales exist, if no return an empty object
+                    const sales = saleData || {};
+
+                    // Only return the sales if they exist
+                    if (sales) {
+                        return {
+                            sales
+                        };
+                    }
+                }
+                return null; // No sales made, return null
+            } catch (error) {
+                console.error('Error fetching affiliates sales:', error);
+                return null;
             }
         },
 
         // Calculate total credit usage, available credit, and available to assign
-        calculateCredits() {
+        calculateMainCredits() {
             // Calculate the total credit already used by clients
-            this.creditUsed = this.clients.reduce((total, client) => {
+            this.mainCreditUsed = this.clients.reduce((total, client) => {
                 const mainCreditSpent = (client.credit?.mainCredit || 0) - (client.credit?.availableMainCredit || 0);
-                // const plusCreditSpent = (client.credit?.main?.totalCredit || 0) - (client.credit?.plus?.availableCredit || 0);
 
-                return total + mainCreditSpent; // + plusCreditSpent
+                // console.log(client.credit?.mainCredit);
+
+                return total + mainCreditSpent;
             }, 0);
 
+            // console.log(this.mainCreditUsed)
+
             // The remaining available credit in the app
-            this.creditAvailable = this.totalCapital - this.creditUsed;
+            this.mainCreditAvailable = this.totalMainCapital - this.mainCreditUsed;
 
             // The total capital that has been assigned (but not necessarily used)
-            this.assignedCapital = this.clients.reduce((total, client) => {
+            this.mainAssignedCapital = this.clients.reduce((total, client) => {
                 const mainCreditAssigned = client.credit?.mainCredit || 0;
-                // const plusCreditAssigned = client.credit?.plus?.totalCredit || 0;
 
-                return total + mainCreditAssigned; // + plusCreditAssigned
+                return total + mainCreditAssigned;
             }, 0);
 
             // Calculate the available capital left for assignment
-            this.availableToAssign = this.totalCapital - this.assignedCapital;
+            this.mainAvailableToAssign = this.totalMainCapital - this.mainAssignedCapital;
+        },
+        calculatePlusCredits() {
+            // Calculate the total credit already used by clients
+            this.plusCreditUsed = this.clients.reduce((total, client) => {
+                const plusCreditSpent = (client.credit?.plusCredit || 0) - (client.credit?.availablePlusCredit || 0);
+
+                return total + plusCreditSpent;
+            }, 0);
+
+            // The remaining available credit in the app
+            this.plusCreditAvailable = this.totalPlusCapital - this.plusCreditUsed;
+
+            // The total capital that has been assigned (but not necessarily used)
+            this.plusAssignedCapital = this.clients.reduce((total, client) => {
+                const plusCreditAssigned = client.credit?.plusCredit || 0;
+
+                return total + plusCreditAssigned;
+            }, 0);
+
+            // Calculate the available capital left for assignment
+            this.plusAvailableToAssign = this.totalPlusCapital - this.plusAssignedCapital;
+        },
+        calculateAffiliatesCredits() {
+            // Calculate the total credit already used by clients
+            this.affMainCreditUsed = this.affiliates.reduce((total, affiliate) => {
+                const mainCreditSpent = (affiliate.credit?.mainCredit || 0) - (affiliate.credit?.availableMainCredit || 0);
+
+                return total + mainCreditSpent;
+            }, 0);
+
+            // The remaining available credit in the app
+            this.affMainCreditAvailable = this.totalAffiliateMainCapital - this.affMainCreditUsed;
+
+            // The total capital that has been assigned (but not necessarily used)
+            this.affMainAssignedCapital = this.affiliates.reduce((total, affiliate) => {
+                const mainCreditAssigned = affiliate.credit?.mainCredit || 0;
+
+                return total + mainCreditAssigned;
+            }, 0);
+
+            // Calculate the available capital left for assignment
+            this.affMainAvailableToAssign = this.totalAffiliateMainCapital - this.affMainAssignedCapital;
         },
 
-        searchClients() {
-            if (!this.searchClient.trim()) {
-                this.searchClientResults = [];
-                return;
-            }
-
-            const searchQuery = this.searchClient.toLowerCase();
-
-            this.searchClientResults = this.allClients.filter(client => {
-                // Ensure client.identification and other fields are strings
-                const identification = (client.identification || '').toString().toLowerCase();
-                const name = (client.firstName + ' ' + client.lastName).toLowerCase();
-
-                return identification.includes(searchQuery) || name.includes(searchQuery);
-            });
-        },
-        selectClient(client) {
-            this.selectedClient = client;
-            this.fetchClientCredit(client.id);
-            console.log('Selected client:', client.identification);
-            this.searchClient = '';
-            this.searchClientResults = [];
-        },
-
-        initializeCreditValue() {
+        initializeCreditValue(creditType) {
             // Set the input value in the modal to reflect the current credit
-            this.creditValue = parseFloat(this.totalCapital); // Ensure it's a number
-        },
+            if (creditType === 'main') {
+                this.creditValue = parseFloat(this.totalMainCapital);
+            } else if (creditType === 'plus') {
+                this.creditValue = parseFloat(this.totalPlusCapital);
+            } else if (creditType === 'affiliateMain') {
+                this.creditValue = parseFloat(this.totalAffiliateMainCapital);
+            }
+            // else if (creditType === 'affiliatePlus') {
+            //     this.creditValue = parseFloat(this.totalAffiliatePlusCapital);
+            // }
 
-        async setCredit() {
-            if (confirm("¿Desea asignar este nuevo monto a la App?")) {
-                const creditRef = dbRef(db, `Users/${this.userId}/credit`);
+        },
+        openAppCreditModal(creditLine) {
+            this.appCreditType = creditLine;
+
+            const modal = new Modal(document.getElementById('set-credit'));
+            modal.show();
+        },
+        // Set App's total credit capital
+        async setCredit(creditLine) {
+            if (confirm("¿Desea asignar este nuevo capital a la App?")) {
+
+                const creditRef = dbRef(db, `AppCapital/${creditLine}`);
                 try {
                     const value = {
                         value: parseFloat(this.creditValue),
@@ -402,32 +540,157 @@ export default {
                 }
             }
         },
-        async assignCreditToClient() {
-            // Check if the fields are empty
-            if (!this.selectedClient || this.creditAmount <= 0) {
-                alert('Por favor seleccione un cliente y un monto a asignar.');
+
+        searchClients() {
+            if (!this.searchClient.trim()) {
+                this.searchClientResults = [];
+                return;
+            }
+            const searchQuery = this.searchClient.toLowerCase();
+
+            this.searchClientResults = this.clients.filter(client => {
+                // Ensure client.identification and other fields are strings
+                const identification = (client.identification || '').toString().toLowerCase();
+                const name = (client.firstName + ' ' + client.lastName).toLowerCase();
+
+                return identification.includes(searchQuery) || name.includes(searchQuery);
+            });
+        },
+        async selectClient(client) {
+            try {
+                this.selectedClient = client;
+                this.fetchCredit(client.id);
+                console.log('Selected client:', client.identification);
+                this.searchClient = '';
+                this.searchClientResults = [];
+            } catch (error) {
+                console.error("Error selecting client:", error);
+            }
+
+        },
+
+        searchEntities() {
+            // Clear results if the search query is empty
+            if (!this.searchEntity.trim()) {
+                this.searchEntityResults = [];
                 return;
             }
 
-            // Check if the client has verified their account
-            if (!this.selectedClient.isVerified) {
-                alert('El cliente no está verificado.');
+            const searchQuery = this.searchEntity.toLowerCase();
+
+            // Determine which list to search based on the creditType ('client' or 'affiliate')
+            const userList = this.creditType === 'client' ? this.allClients : this.allAffiliates;
+
+            // Filter by search query, applying different filters for clients and affiliates
+            this.searchEntityResults = userList.filter(user => {
+                let matches = false;
+
+                // Check filters for clients
+                if (this.creditType === 'client') {
+                    const isVerified = user.isVerified === true;
+                    const hasSubscription = user.subscription && user.subscription.price > 0;
+
+                    // Ensure the client is verified and has a subscription before checking search query
+                    if (!isVerified || !hasSubscription) {
+                        return false;
+                    }
+
+                    // Search by identification and full name for clients
+                    const identification = (user.identification || '').toString().toLowerCase();
+                    const name = (user.firstName + ' ' + user.lastName).toLowerCase();
+                    matches = identification.includes(searchQuery) || name.includes(searchQuery);
+
+                }
+                // Check only subscription filter for affiliates
+                else if (this.creditType === 'affiliate') {
+                    const hasSubscription = user.subscription && user.subscription.isPaid;
+
+                    // Ensure the affiliate has a subscription before checking search query
+                    if (!hasSubscription) {
+                        return false;
+                    }
+
+                    // Search by rif and company name for affiliates
+                    const rif = (user.rif || '').toString().toLowerCase();
+                    const companyName = (user.companyName || '').toLowerCase();
+                    matches = rif.includes(searchQuery) || companyName.includes(searchQuery);
+
+                }
+
+                return matches;
+            });
+        },
+
+        selectEntity(user) {
+            // Set selected client or affiliate based on userType
+            if (this.creditType === 'client') {
+                this.selectedEntity = {
+                    name: `${user.firstName} ${user.lastName}`,
+                    identification: user.identification,
+                    ...user
+                };
+
+            } else if (this.creditType === 'affiliate') {
+                this.selectedEntity = {
+                    name: user.companyName,
+                    identification: user.rif,
+                    ...user
+                };
+                // this.selectedEntity.credit = this.fetchAffiliateCredit(user.id);
             }
 
-            // Check if the client has a subscription
-            if (!this.selectedClient.subscription) {
-                alert('El cliente no cuenta con una suscripción.');
+            console.log(`Selected ${this.creditType}:`, user.id);
+
+            // Clear the search input and results after selection
+            this.searchEntity = '';
+            this.searchEntityResults = [];
+        },
+
+        openCreditModal(type) {
+            this.creditType = type;
+            const modal = new Modal(document.getElementById('set-credit-modal'));
+            modal.show();
+        },
+        // Set an affiliate or client's credit
+        async assignCredit() {
+            if (this.creditLine === 'plus') {
+                // this.calculatePlusCredits()
+                alert('Esta opción no está disponible por el momento.');
                 return;
             }
 
-            // If the client has a subscription, then check if it's paid
-            if (this.selectedClient.subscription.price <= 0) {
-                alert('El cliente no cuenta con una suscripción paga.');
-                return;
+            if (!this.selectedEntity || this.creditAmount <= 0) {
+                if (this.creditType === 'client') {
+                    alert('Por favor seleccione un cliente y un monto a asignar.');
+                    return;
+                } else {
+                    alert('Por favor seleccione un comercio y un monto a asignar.');
+                    return;
+                }
+
+            }
+
+            // REMOVE THIS VALIDATIONS, ONLY ASSIGN TO SUBSCRIBED AND VERIFIED USERS
+            // Check if selected entity is verified and has a subscription if it's a client
+            if (this.creditType === 'client') {
+                if (!this.selectedEntity.isVerified) {
+                    alert('El cliente no está verificado.');
+                    return;
+                }
+
+                if (!this.selectedEntity.subscription) {
+                    alert('El cliente no cuenta con una suscripción.');
+                    return;
+                }
+
+                if (this.selectedEntity.subscription.price <= 0) {
+                    alert('El cliente no cuenta con una suscripción paga.');
+                    return;
+                }
             }
 
             // Check if there is available credit to assign in the app
-            if (this.creditAmount > this.availableToAssign) {
+            if (this.creditAmount > this.mainAvailableToAssign) {
                 alert('No hay suficiente capital para asignar.');
                 return;
             }
@@ -438,93 +701,288 @@ export default {
                     return;
                 }
 
-                let clientCreditsRef;
-                if (this.creditLine === 'main') {
-                    clientCreditsRef = dbRef(db, `Users/${this.selectedClient.id}/credit/main`);
-                } else if (this.creditLine === 'plus') {
-                    clientCreditsRef = dbRef(db, `Users/${this.selectedClient.id}/credit/plus`);
-                }
+                // Determine credit path based on entity type
+                const entityCreditPath = `Users/${this.selectedEntity.id}/credit/${this.creditLine}`;
 
-                // Update client's credit
-                const newClientCredit = this.creditAmount;
-                await set(clientCreditsRef,
-                    {
-                        totalCredit: newClientCredit,
-                        availableCredit: newClientCredit
-                    });
+                // Update the selected entity's credit
+                const newEntityCredit = this.creditAmount;
 
-                // Update the company's assigned capital (deduct the assigned amount from available to assign)
-                const newAssignedCapital = this.assignedCapital + this.creditAmount;
-                this.assignedCapital = newAssignedCapital;
+                await update(dbRef(db, entityCreditPath), {
+                    totalCredit: newEntityCredit,
+                    availableCredit: newEntityCredit
+                });
 
-                // Update available to assign
-                this.availableToAssign = this.totalCapital - newAssignedCapital;
+                this.calculateMainCredits();
+                this.calculateAffiliatesCredits();
 
-                // Save updated available credit to the database
-                const companyCreditRef = dbRef(db, `Users/${this.userId}/credit`);
-                await update(companyCreditRef,
-                    {
-                        availableCredit: this.availableToAssign,
-                    });
-
-                this.showToast(`Al cliente ${this.selectedClient.firstName} ${this.selectedClient.lastName} se le asigno un credito de $${newClientCredit}`);
+                this.showToast(`Al ${this.creditType === 'client' ? 'cliente' : 'comercio'} ${this.selectedEntity.name} se le asigno un credito de $${newEntityCredit}`);
 
                 // Reset after assignment
-                this.selectedClient = null;
+                this.selectedEntity = null;
                 this.creditAmount = 0;
                 await this.fetchClients();
+                await this.fetchAffiliates();
             } catch (error) {
                 console.error('Error assigning credit:', error);
                 alert('No se pudo asignar el crédito.');
             }
         },
-        async savePurchase() {
-            // Check if the fields are empty
-            if (!this.selectedClient || this.purchaseAmount <= 0) {
-                alert('Por favor seleccione un cliente y un monto a prestar.');
-                return;
+
+        calcs(client) {
+
+            if (this.calc) {
+                // Toggle off: reset the fields
+                this.calc = false;
+                this.purchaseAmount = 0;
+                this.quotesAmount = [];
+                this.cuotaDates = [];
+            } else if (this.productPrice > 0) {
+                if (!client) {
+                    alert('Debe seleccionar un cliente para calcular sus cuotas.');
+                    return;
+                }
+                // Toggle on: perform calculations
+                this.calc = true;
+
+                // Calculate the initial purchase amount (half of the product price)
+                this.purchaseAmount = this.productPrice / 2;
+
+                // Adjust the remaining amount based on the client's subscription tier
+                let additionalAmount = 0;
+                if (client.subscription.order == 2) {
+                    additionalAmount = 3;
+                } else if (client.subscription.order == 3) {
+                    additionalAmount = 1;
+                }
+
+                // Calculate the remaining amount with the subscription adjustment
+                const remainingAmount = (this.productPrice / 2) + additionalAmount;
+
+                // Divide the remaining amount into terms and set quotesAmount array
+                this.quotesAmount = Array(this.terms).fill(remainingAmount / this.terms);
+
+                // Calculate the payment dates based on frequency
+                this.cuotaDates = this.calculatePaymentDates(this.purchaseDate, this.terms, this.frequency);
+            } else {
+                alert('Ingrese el precio del producto para calcular.');
+            }
+        },
+        calculatePaymentDates(startDate, terms, frequency) {
+            let paymentDates = [];
+            let paymentDate = new Date(new Date(startDate).toISOString());
+
+            for (let i = 0; i < terms; i++) {
+                if (frequency == '2') { // Bi-weekly (quincenal)
+                    paymentDate.setUTCDate(paymentDate.getUTCDate() + 15); // Add 15 days for each term
+                } else if (frequency == '1') { // Monthly (mensual)
+                    paymentDate.setUTCMonth(paymentDate.getUTCMonth() + 1); // Add 1 month for each term
+                }
+
+                // Convert to local date in YYYY-MM-DD format for display
+                const localDate = new Date(paymentDate.getTime() - paymentDate.getTimezoneOffset() * 60000)
+                    .toISOString().split('T')[0];
+
+                paymentDates.push(localDate);
             }
 
-            // Check if the client has available credit
-            if (this.selectedClient.credit.availableMainCredit < this.purchaseAmount) {
-                alert('El valor de la compra supera el monto de crédito disponible.');
-                return;
-            }
+            return paymentDates;
+        },
 
+        // Make purchase logic
+        async generateAndStoreCode(clientId) {
+            const verificationCode = Math.floor(100000 + Math.random() * 900000); // Generate 6-digit code
+
+            // Store the code temporarily in Firebase
+            await set(dbRef(db, `verificationCodes/${clientId}`), {
+                code: verificationCode,
+                createdAt: Date.now()
+            });
+
+            return verificationCode;
+        },
+        async askForCode(client) {
             try {
+                this.waiting = true;
 
+                if (!client) {
+                    alert('Primero seleccione un cliente');
+                }
+
+                // Send the verification code to the selected client
+                if (!this.verificationRequested) {
+                    await this.sendVerificationCode(client);
+                    this.verificationRequested = true;
+                    alert("El Código de verificación se ha enviado al correo del cliente. Espere el código para proceder.");
+                }
+            } catch (error) {
+                console.error('Error sending the verification code to the client.', error);
+            } finally {
+                this.waiting = false;
+            }
+        },
+        async sendVerificationCode(client) {
+            const verificationCode = await this.generateAndStoreCode(client.id);
+
+            const payload = {
+                to: client.email,
+                message: {
+                    subject: `Su Código de verificación`,
+                    text: `Hola ${client.firstName}, tu código de verificación de RoseCoupon es: ${verificationCode}.`,
+                    html: `<p>Hola ${client.firstName}, tu código de verificación de RoseCoupon es: ${verificationCode}.</p>`
+                },
+            };
+
+            // Send via Email
+            if (client.email) {
+                await this.sendEmail(payload);
+            }
+        },
+        async verifyCode(clientId, enteredCode) {
+            try {
+                const snapshot = await get(dbRef(db, `verificationCodes/${clientId}`));
+
+                if (!snapshot.exists()) {
+                    alert("El código no existe. Por favor, solicite uno nuevo.");
+                    return false;
+                }
+
+                const { code: storedCode, createdAt: codeTimestamp } = snapshot.val();
+
+                // Check if the entered code matches the stored code
+                if (storedCode !== enteredCode) {
+                    alert('Código incorrecto.');
+                    return false;
+                }
+
+                // Check if the code is within the 5-minute validity window
+                const fiveMinutes = 5 * 60 * 1000;
+                if (Date.now() - codeTimestamp > fiveMinutes) {
+                    alert("El código de verificación ha expirado. Por favor, solicite uno nuevo.");
+                    return false;
+                }
+
+                // If both checks pass, verification is successful
+                return true;
+
+            } catch (error) {
+                console.error("Error verifying code:", error);
+                alert("Error al verificar el código. Inténtelo de nuevo.");
+                return false;
+            }
+        },
+        async savePurchase() {
+            try {
+                this.loading = true;
+
+                // Check if the required fields are present and the purchase amount is positive
+                if (!this.selectedClient || this.purchaseAmount <= 0) {
+                    alert('Por favor seleccione un cliente y un monto de compra.');
+                    this.loading = false;
+                    return;
+                }
+
+                // Prompt for verification code input
+                const isVerified = await this.verifyCode(this.selectedClient.id, this.verificationCode);
+
+                if (!isVerified) {
+                    this.loading = false;
+                    return;
+                }
+
+                // Verify that the affiliates's available credit can cover the purchase
+                if (this.currentAffiliate.availableMainCredit < this.purchaseAmount) {
+                    alert('El valor de la compra supera el monto de crédito disponible del comercio.');
+                    this.loading = false;
+                    return;
+                }
+
+                // Verify that the client's available credit is sufficient for the purchase
+                if (this.selectedClient.credit.availableMainCredit < this.purchaseAmount) {
+                    alert('El valor de la compra supera el monto de crédito disponible del cliente.');
+                    this.loading = false;
+                    return;
+                }
+
+                // Deduct the purchase amount from the client's available credit
                 const clientCreditsRef = dbRef(db, `Users/${this.selectedClient.id}/credit/main`);
                 const snapshot = await get(clientCreditsRef);
 
                 if (snapshot.exists()) {
                     const availableCredit = snapshot.val().availableCredit;
 
-                    // Update client's credit
-                    const purchase = this.purchaseAmount;
+                    const updatedCredit = availableCredit - this.purchaseAmount;
                     await update(clientCreditsRef,
                         {
-                            availableCredit: availableCredit - purchase,
+                            availableCredit: updatedCredit,
                         });
 
-                    // Register the purchase in the client's collection
-                    const purchaseDate = new Date().toISOString().split('T')[0];
-
-                    const clientPurchaseRef = dbRef(db, `Users/${this.selectedClient.id}/credit/main/purchases/${purchaseDate}`);
-                    await update(clientPurchaseRef,
-                        {
-                            affiliate_id: this.userId,
-                            quotesAmount: this.quotesAmount,
-                            terms: this.terms,
-                            frequency: this.frequency,
-                            cuotaDates: this.cuotaDates
-                        });
                 }
+
+                // Deduct the purchase amount from the affiliates's available credit
+                const affCreditsRef = dbRef(db, `Users/${this.userId}/credit/main`);
+                const affSnapshot = await get(affCreditsRef);
+
+                if (affSnapshot.exists()) {
+                    const availableAffCredit = affSnapshot.val().availableCredit;
+
+                    const updatedCredit = availableAffCredit - this.purchaseAmount;
+                    await update(affCreditsRef,
+                        {
+                            availableCredit: updatedCredit,
+                        });
+
+                }
+
+                // Generate a unique purchase ID for tracking
+                const purchaseId = `purchase_${Date.now()}`;
+
+                // Format cuotas as an array of objects with amount, date, and paid fields
+                const cuotas = this.quotesAmount.map((amount, index) => ({
+                    cuote: index + 1,
+                    amount: amount,
+                    date: this.cuotaDates[index],
+                    paid: false // default unpaid
+                }));
+
+                // Create a purchase object with necessary details
+                const purchaseData = {
+                    affiliate_id: this.userId,
+                    client_id: this.selectedClient.id,
+                    productName: this.productName,
+                    productPrice: this.productPrice,
+                    purchaseAmount: this.purchaseAmount,
+                    terms: this.terms,
+                    frequency: this.frequency,
+                    cuotas: cuotas,
+                    purchaseDate: new Date(this.purchaseDate).toISOString().split('T')[0],
+                    paid: false // default status
+                };
+
+                // Register the purchase in the client's purchases collection
+                const clientPurchaseRef = dbRef(db, `Users/${this.selectedClient.id}/credit/main/purchases/${purchaseId}`);
+                await set(clientPurchaseRef, purchaseData);
+
+                // Register the purchase in the affiliate's sales collection
+                const affiliatePurchaseRef = dbRef(db, `Users/${this.userId}/credit/sales/${purchaseId}`);
+                await set(affiliatePurchaseRef, purchaseData);
+
+                this.showToast('Compra registrada!');
+
+                // Reset form fields
+                this.selectedClient = null;
+                this.productName = '';
+                this.productPrice = 0;
+                this.calcs();
+                this.fetchClients();
 
             } catch (error) {
                 console.error('Error making purchase:', error);
                 alert('No se pudo registrar la compra.');
+            } finally {
+                this.loading = false;
+                this.verificationCode = '';
+                this.verificationRequested = false;
             }
-
         },
 
         openDetails(client) {
@@ -536,25 +994,47 @@ export default {
                 modal.show();
             });
         },
-        async cancelCredit(client) {
-            if (confirm("¿Desea revocar el crédito de este cliente?")) {
+        getAffiliateName(affiliateId) {
+            const affiliate = this.allAffiliates.find(a => a.id === affiliateId);
+            return affiliate ? affiliate.companyName : "Unknown Affiliate";
+        },
+        getClientName(clientId) {
+            const client = this.allClients.find(c => c.id === clientId);
+            return client ? client.firstName + ' ' + client.lastName : "Unknown Client";
+        },
+
+        async cancelCredit(user, userType, creditLine) {
+            if (confirm("¿Desea revocar el crédito de este cliente? Sus compras seguiran registradas.")) {
                 try {
                     this.loading = true;
+                    let userName = '';
 
-                    const clientRef = dbRef(db, `Users/${client.id}/credit`);
-                    await remove(clientRef);
+                    if (userType === 'client') {
+                        userName = `${user.firstName} ${user.lastName}`;
+                    } else if (userType === 'affiliate') {
+                        userName = `${user.companyName}`;
+                    }
 
-                    this.showToast(`Línea de crédito removida para ${client.firstName} ${client.lastName}`)
-                    this.fetchClients();
+                    const clientRef = dbRef(db, `Users/${user.id}/credit/${creditLine}`);
+                    await update(clientRef, {
+                        deletedAt: new Date().toISOString()
+                    });
 
-                    // Notify the client
+                    this.showToast(`Línea de crédito removida para ${userName}`);
+                    if (userType === 'client') {
+                        this.fetchClients();
+                    } else if (userType === 'affiliate') {
+                        this.fetchAffiliates();
+                    }
+
+                    // Notify the user
                     const clientEmailPayload = {
-                        to: client.email,
+                        to: user.email,
                         message: {
                             subject: `Línea de crédito cancelada en Roseapp`,
-                            text: `Hola ${client.firstName} ${client.lastName}, se le ha revocado su línea de crédito en Roseapp.                        
+                            text: `Hola ${userName}, se le ha revocado su línea de crédito en Roseapp.                        
                         Comunícate con soporte si tienes alguna duda.`,
-                            html: `<p>Hola ${client.firstName} ${client.lastName}, se le ha revocado su línea de crédito en Roseapp.</p>
+                            html: `<p>Hola ${userName}, se le ha revocado su línea de crédito en Roseapp.</p>
                         <p>Comunícate con soporte si tienes alguna duda.</p>`
                         },
                     };
@@ -566,28 +1046,116 @@ export default {
                 }
             }
         },
-        calcTerms() {
-            if (this.purchase > 0) {
-                this.calc = true;
-            } else {
-                alert('Ingrese un monto para calcular.');
-                return;
+
+        async affiliateActivity(affiliate) {
+            this.clientsWithAffiliatePurchases = [];
+            this.selectedAffiliate = affiliate;
+
+            // Fetch sales data for the affiliate from their 'credit' object
+            const affiliateSalesData = await this.fetchAffiliateSales(affiliate.id);
+
+            if (affiliateSalesData && affiliateSalesData.sales) {
+                for (const [purchaseId, purchase] of Object.entries(affiliateSalesData.sales)) {
+                    // Find client details based on clientId in each purchase
+                    const client = this.allClients.find(c => c.id === purchase.client_id);
+
+                    if (client) {
+                        // Group purchases by client
+                        let clientPurchases = this.clientsWithAffiliatePurchases.find(c => c.client_id === client.id);
+
+                        // If client not already added, initialize their purchases array
+                        if (!clientPurchases) {
+                            clientPurchases = {
+                                clientId: client.id,
+                                clientName: `${client.firstName} ${client.lastName}`,
+                                purchases: []
+                            };
+                            this.clientsWithAffiliatePurchases.push(clientPurchases);
+                        }
+
+                        // Push purchase details with the client name and purchase date
+                        clientPurchases.purchases.push({
+                            purchaseId,
+                            productName: purchase.productName,
+                            productPrice: purchase.productPrice,
+                            purchaseAmount: purchase.purchaseAmount,
+                            purchaseDate: purchase.purchaseDate,
+                            terms: purchase.terms,
+                            frequency: purchase.frequency,
+                            cuotas: purchase.cuotas
+                        });
+                    }
+                }
+            }
+
+            this.selectedAffiliateClients = this.clientsWithAffiliatePurchases;
+
+            const modal = new Modal(document.getElementById('affiliatesActivityModal'));
+            modal.show();
+        },
+        async markPaid(purchaseId, purchaseData) {
+            if (confirm("¿Desea marcar como pagado?")) {
+                try {
+                    const affiliateId = this.selectedAffiliate.id;
+
+                    const purchaseRef = dbRef(db, `Users/${affiliateId}/credit/sales/${purchaseId}`);
+
+                    // Update the 'paid' field to true
+                    await update(purchaseRef, { paid: true });
+
+                    // Optionally update the UI to reflect the change
+                    purchaseData.paid = true;
+
+                    this.showToast("Purchase marked as paid successfully.");
+                } catch (error) {
+                    console.error("Error marking purchase as paid:", error);
+                    alert("An error occurred while marking the purchase as paid.");
+                }
             }
         },
 
-        setActiveTab(type) {
-            if (type === 'main') {
-                this.activeTab = type;
-                console.log(this.activeTab)
-            } else if ('plus') {
-                this.activeTab = type;
-                console.log(this.activeTab)
-            }
+        async setActiveTab(type) {
+            if (!type) return;
+
+            this.activeTab = type;
+            console.log(this.activeTab);
+
+            // Fetch and filter sales based on tab type
+            const sales = await this.fetchAffiliateSales(this.userId);
+            const salesArray = Object.entries(sales.sales || {}).map(([purchaseId, purchaseData]) => ({
+                purchaseId,
+                ...purchaseData,
+            }));
+
+            // Filter sales based on paid status
+            this[type === 'pendingPayments' ? 'pendingPayments' : 'paidPurchases'] =
+                salesArray.filter((purchase) => (type === 'pendingPayments' ? !purchase.paid : purchase.paid));
         },
         resetModal() {
-            this.selectedClient = null;
+            this.selectedEntity = null;
             this.creditAmount = 0;
-        }
+        },
+
+        openPurchases(purchases) {
+            this.showPurchases = !this.showPurchases;
+
+            if (this.showPurchases) {
+                this.purchaseWithAffiliateData = Object.entries(purchases).map(([purchaseId, purchaseData]) => {
+                    // Find affiliate data based on affiliate_id
+                    const affiliate = this.allAffiliates.find(aff => aff.id === purchaseData.affiliate_id) || {};
+
+                    // Merge purchase data with affiliate details
+                    return {
+                        purchaseId,
+                        ...purchaseData,
+                        affiliateName: affiliate.companyName || 'Unknown',
+                        affiliateImage: affiliate.image || ''
+                    };
+                });
+
+                console.log(this.purchaseWithAffiliateData); // Verify enriched data
+            }
+        },
 
         //FOR CLIENT USE
         // async requestCredit() {
@@ -623,9 +1191,12 @@ export default {
             await this.fetchClients();
             await this.fetchAffiliates();
         } else if (this.role === 'afiliado') {
+            this.currentAffiliate = await this.fetchCredit(this.userId) || {};
             await this.fetchClients();
+        } else if (this.role === 'cliente') {
+            this.currentClient = await this.fetchCredit(this.userId) || {};
+            await this.fetchAffiliates();
         }
-
     }
 }
 
@@ -636,14 +1207,40 @@ export default {
     </h2>
 
     <div v-if="this.role === 'admin'" class="container">
-        <div class="row justify-content-center mb-4">
-            <div class="col-12 col-md-6 col-lg-4">
+        <!-- App's Predefined Credit -->
+        <div class="row g-3 justify-content-center mb-3">
+            <!-- Capital de Rose Credit -->
+            <div class="col-12 col-sm-6 col-md-4">
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
-                    <div class="card-body text-center py-5">
-                        <h5 class="card-title mb-3">Capital Total</h5>
-                        <h3><strong>${{ this.totalCapital }}</strong></h3>
-                        <a href="#" class="btn btn-theme btn-lg px-4 mt-3 shadow-sm" data-bs-toggle="modal"
-                            data-bs-target="#set-credit" @click="initializeCreditValue">Administrar</a>
+                    <div class="card-body text-center py-4 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital de Rose Credit</h6>
+                        <h4 class="mb-3"><strong>${{ this.totalMainCapital }}</strong></h4>
+                        <a href="#" class="btn btn-theme btn-sm px-3 mt-2 shadow-sm"
+                            @click="initializeCreditValue('main'), openAppCreditModal('main')">Administrar</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Capital de Rose Credit Plus -->
+            <div class="col-12 col-sm-6 col-md-4">
+                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                    <div class="card-body text-center py-4 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital de Rose Credit Plus</h6>
+                        <h4 class="mb-3"><strong>${{ this.totalPlusCapital }}</strong></h4>
+                        <a href="#" class="btn btn-theme btn-sm px-3 mt-2 shadow-sm"
+                            @click="initializeCreditValue('plus'), openAppCreditModal('plus')">Administrar</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Capital de Rose Credit para Comercios -->
+            <div class="col-12 col-sm-6 col-md-4">
+                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                    <div class="card-body text-center py-4 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital de Rose Credit para Comercios</h6>
+                        <h4 class="mb-3"><strong>${{ this.totalAffiliateMainCapital }}</strong></h4>
+                        <a href="#" class="btn btn-theme btn-sm px-3 mt-2 shadow-sm"
+                            @click="initializeCreditValue('affiliateMain'), openAppCreditModal('affiliateMain')">Administrar</a>
                     </div>
                 </div>
             </div>
@@ -652,37 +1249,112 @@ export default {
         <hr class="mt-5">
 
         <!-- Credit breakdown -->
-        <div class="row g-4">
-            <h5>Desglose de Crédito</h5>
-            <div class="col-12 col-md-6 col-lg-3">
+        <!-- Main line -->
+        <div class="row g-3 mb-3">
+            <h6 class="ps-2">Línea Rose Credit</h6>
+            <div class="col-12 col-sm-6 col-md-3">
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
-                    <div class="card-body text-center py-4">
-                        <h5 class="card-title mb-3">Capital Usado</h5>
-                        <h3><strong>${{ this.creditUsed }}</strong></h3>
+                    <div class="card-body text-center py-3 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital Usado</h6>
+                        <h5><strong>${{ mainCreditUsed }}</strong></h5>
                     </div>
                 </div>
             </div>
-            <div class="col-12 col-md-6 col-lg-3">
+            <div class="col-12 col-sm-6 col-md-3">
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
-                    <div class="card-body text-center py-4">
-                        <h5 class="card-title mb-3">Capital Disponible</h5>
-                        <h3><strong>${{ creditAvailable }}</strong></h3>
+                    <div class="card-body text-center py-3 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital Disponible</h6>
+                        <h5><strong>${{ mainCreditAvailable }}</strong></h5>
                     </div>
                 </div>
             </div>
-            <div class="col-12 col-md-6 col-lg-3">
+            <div class="col-12 col-sm-6 col-md-3">
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
-                    <div class="card-body text-center py-4">
-                        <h5 class="card-title mb-3">Capital Asignado</h5>
-                        <h3><strong>${{ assignedCapital }}</strong></h3>
+                    <div class="card-body text-center py-3 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital Asignado</h6>
+                        <h5><strong>${{ mainAssignedCapital }}</strong></h5>
                     </div>
                 </div>
             </div>
-            <div class="col-12 col-md-6 col-lg-3">
+            <div class="col-12 col-sm-6 col-md-3">
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
-                    <div class="card-body text-center py-4">
-                        <h5 class="card-title mb-3">Capital Disponible para Asignar</h5>
-                        <h3><strong>${{ availableToAssign }}</strong></h3>
+                    <div class="card-body text-center py-3 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital Disponible para Asignar</h6>
+                        <h5><strong>${{ mainAvailableToAssign }}</strong></h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Plus line -->
+        <div class="row g-3 mb-3">
+            <h6 class="ps-2">Línea Rose Credit Plus</h6>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                    <div class="card-body text-center py-3 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital Usado</h6>
+                        <h5><strong>${{ plusCreditUsed }}</strong></h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                    <div class="card-body text-center py-3 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital Disponible</h6>
+                        <h5><strong>${{ plusCreditAvailable }}</strong></h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                    <div class="card-body text-center py-3 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital Asignado</h6>
+                        <h5><strong>${{ plusAssignedCapital }}</strong></h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                    <div class="card-body text-center py-3 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital Disponible para Asignar</h6>
+                        <h5><strong>${{ plusAvailableToAssign }}</strong></h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Affiliates line -->
+        <div class="row g-3 mb-3">
+            <h6 class="ps-2">Línea para Comercios</h6>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                    <div class="card-body text-center py-3 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital Usado</h6>
+                        <h5><strong>${{ affMainCreditUsed }}</strong></h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                    <div class="card-body text-center py-3 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital Disponible</h6>
+                        <h5><strong>${{ affMainCreditAvailable }}</strong></h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                    <div class="card-body text-center py-3 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital Asignado</h6>
+                        <h5><strong>${{ affMainAssignedCapital }}</strong></h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                    <div class="card-body text-center py-3 px-2">
+                        <h6 class="card-title mb-2 text-muted">Capital Disponible para Asignar</h6>
+                        <h5><strong>${{ affMainAvailableToAssign }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -696,12 +1368,12 @@ export default {
             <h5>Estado de crédito por Cliente</h5>
 
             <div class="d-flex justify-content-end align-items-center mb-4 mt-3">
-                <a href="#" class="btn btn-theme me-2" data-bs-toggle="modal" @click="updateCuotaDates"
-                    data-bs-target="#set-credit-toclient">Asignar Credito a Cliente
+                <a href="#" class="btn btn-theme me-2" @click.prevent="openCreditModal('client')">Asignar Credito a
+                    Cliente
                 </a>
             </div>
 
-            <!-- Search Bar to Filter Affiliates -->
+            <!-- Search Bar to Filter clients -->
             <div>
                 <input type="text" class="form-control" v-model="filterClients"
                     placeholder="Buscar cliente por nombre o cedula..." />
@@ -719,58 +1391,144 @@ export default {
                                 }}
                             </span>
 
-                            <h5 class="card-title mb-3">
+                            <h5 class="card-title text-center mb-3">
                                 {{ client.firstName }} {{ client.lastName }}
                             </h5>
 
                             <p class="card-text"><strong>Cédula: </strong> V{{ client.identification }}</p>
 
+                            <!-- Crédito aprobado -->
                             <div class="row">
-                                <!-- Main Credit Card -->
+                                <!-- Main approved Credit Card -->
                                 <div class="col-6 d-flex">
                                     <div class="card text-center w-100 equal-height">
+                                        <div class="card-header text-center py-3 px-2">
+                                            <h6><strong>Crédito Principal Aprobado</strong></h6>
+                                        </div>
                                         <div class="card-body">
-                                            <h5 class="card-title"><strong>Crédito Principal Aprovado</strong></h5>
-                                            <h5 class="text-success" v-if="client.credit.mainCredit">
-                                                ${{ client.credit.mainCredit || client.credit.value }}
-                                            </h5>
-                                            <h5 v-else class="text-muted">No credit available</h5>
-                                            <!-- Optional message for no credit -->
+                                            <p v-if="client.credit.mainCredit">
+                                                <span class="badge"
+                                                    :class="client.credit.mainCredit.isDeleted ? 'bg-danger' : 'bg-success'"
+                                                    style="font-size: 1rem;">
+                                                    ${{ client.credit.mainCredit }}
+                                                </span>
+
+                                            <div class="d-flex justify-content-center mt-2"
+                                                style="position: relative; z-index: 10;">
+                                                <button class="btn btn-sm btn-outline-info me-1"
+                                                    @click="editCredit(client, 'main')">
+                                                    <i class="fa-solid fa-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger"
+                                                    @click="cancelCredit(client, 'client', 'main')">
+                                                    <i class="fa-solid fa-times"></i>
+                                                </button>
+                                            </div>
+                                            </p>
+                                            <p v-else>
+                                                <span class="badge bg-secondary text-black text-center p-2" 
+                                                style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
+                                                    Sin Crédito aprobado
+                                                </span>
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
 
-                                <!-- Plus Credit Card -->
+                                <!-- Plus approved Credit Card -->
                                 <div class="col-6 d-flex">
                                     <div class="card text-center w-100 equal-height">
+                                        <div class="card-header text-center py-3 px-2">
+                                            <h6><strong>Crédito Plus Aprobado</strong></h6>
+                                        </div>
                                         <div class="card-body">
-                                            <h5 class="card-title"><strong>Crédito Plus Aprovado</strong></h5>
-                                            <h5 class="text-success" v-if="client.credit.plusCredit">
-                                                ${{ client.credit.plusCredit || client.credit.value }}
-                                            </h5>
-                                            <h5 v-else class="text-muted">No credit available</h5>
-                                            <!-- Optional message for no credit -->
+                                            <p v-if="client.credit.plusCredit">
+                                                <span class="badge"
+                                                    :class="client.credit.mainCredit.isDeleted ? 'bg-danger' : 'bg-success'"
+                                                    style="font-size: 1rem;">
+                                                    ${{ client.credit.plusCredit }}
+                                                </span>
+
+                                            <div class="d-flex justify-content-center mt-2"
+                                                style="position: relative; z-index: 10;">
+                                                <button class="btn btn-sm btn-outline-info me-1"
+                                                    @click="editCredit(client, 'plus')">
+                                                    <i class="fa-solid fa-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger"
+                                                    @click="cancelCredit(client, 'client', 'plus')">
+                                                    <i class="fa-solid fa-times"></i>
+                                                </button>
+                                            </div>
+                                            </p>
+                                            <p v-else>
+                                                <span
+                                                    class="badge bg-secondary text-black text-center p-2"
+                                                    style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
+                                                    Sin Crédito Plus aprobado
+                                                </span>
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
+                            <!-- Crédito restante -->
+                            <div class="row mt-3">
+                                <!-- Main available Credit Card -->
+                                <div class="col-6 d-flex">
+                                    <div class="card text-center w-100 equal-height">
+                                        <div class="card-header text-center py-3 px-2">
+                                            <h6><strong>Crédito Principal Restante</strong></h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <h5 v-if="client.credit.availableMainCredit">
+                                                <span class="badge"
+                                                    :class="client.credit.mainCredit.isDeleted ? 'bg-danger' : 'bg-success'"
+                                                    style="font-size: 1rem;">
+                                                    ${{ client.credit.availableMainCredit }}
+                                                </span>
+                                            </h5>
+                                            <p v-else>
+                                                <span class="badge bg-secondary text-black text-center p-2" 
+                                                style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
+                                                    Crédito consumido
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Plus available Credit Card -->
+                                <div class="col-6 d-flex">
+                                    <div class="card text-center w-100 equal-height">
+                                        <div class="card-header text-center py-3 px-2">
+                                            <h6><strong>Crédito Plus Restante</strong></h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <h5 v-if="client.credit.availablePlusCredit">
+                                                <span class="badge"
+                                                    :class="client.credit.mainCredit.isDeleted ? 'bg-danger' : 'bg-success'"
+                                                    style="font-size: 1rem;">
+                                                    ${{ client.credit.availablePlusCredit }}
+                                                </span>
+                                            </h5>
+                                            <p v-else>
+                                                <span class="badge bg-secondary text-black text-center p-2"
+                                                    style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
+                                                    Sin Crédito Plus aprobado
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- action buttons -->
                             <div class="row justify-content-center">
                                 <button class="btn btn-outline-success btn-md mt-3 me-2" @click="openDetails(client)"
                                     style="width: auto;">
-                                    Ver detalles
-                                </button>
-                                <button :disabled="loading" class="btn btn-outline-primary btn-md mt-3 me-2"
-                                    @click.prevent="editCredit(client)" style="width: auto;">
-                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
-                                        aria-hidden="true"></span>
-                                    <span>Ajustar</span>
-                                </button>
-                                <button :disabled="loading" class="btn btn-outline-danger btn-md mt-3"
-                                    @click.prevent="cancelCredit(client)" style="width: auto;">
-                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
-                                        aria-hidden="true"></span>
-                                    <span>Cancelar crédito</span>
+                                    Ver Actividad
                                 </button>
                             </div>
                         </div>
@@ -800,16 +1558,23 @@ export default {
                     <div class="mb-3">
                         <i class="fa-solid fa-buildings text-body text-opacity-25" style="font-size: 5em"></i>
                     </div>
-                    <h5>No hay Clientes con credito aprovado.</h5>
+                    <h5>No hay Clientes con credito aprobado.</h5>
                 </div>
             </div>
         </div>
 
         <hr class="mt-5">
 
-        <!-- Payment status for Affiliates -->
+        <!-- Credit status for Affiliates -->
         <div class="row">
-            <h5 class="mb-4">Pago de Creditos por Comercio Afiliado</h5>
+            <h5 class="mb-4">Estado de Crédito por Comercio Afiliado</h5>
+
+            <div class="d-flex justify-content-end align-items-center mb-4 mt-3">
+                <a href="#" class="btn btn-theme me-2" @click.prevent="openCreditModal('affiliate')">Asignar Credito a
+                    Comercio
+                </a>
+            </div>
+
             <!-- Search Bar to Filter Affiliates -->
             <div>
                 <input type="text" class="form-control" v-model="searchQuery"
@@ -817,36 +1582,93 @@ export default {
             </div>
 
             <div class="row mt-4">
-                <div class="col-12 col-md-6 col-lg-4 mb-3" v-for="(aff, index) in paginatedAffiliates" :key="aff.id">
+                <div class="col-12 col-md-12 col-lg-4 mb-3" v-for="(aff, index) in paginatedAffiliates" :key="aff.id">
                     <div class="card h-100">
-                        <div class="card-body position-relative">
-                            <!-- Badge for status -->
-                            <span v-if="aff.status" class="badge position-absolute top-0 start-100 translate-middle"
-                                :class="aff.status ? 'bg-success' : 'bg-danger'">
-                                {{ aff.status ? 'Activo' : 'Inactivo' }}
-                            </span>
+                        <div class="card-body d-flex flex-column position-relative">
 
-                            <div class="d-flex justify-content-between mb-3">
-                                <h6 class="card-title mb-0">
-                                    {{ aff.companyName }}
-                                </h6>
-                                <div class="btn-group" role="group">
-                                    <button class="btn btn-transparent btn-md me-1">
-                                        <!-- @click.prevent="enableEditMode(aff)" -->
-                                        <i class="fa-solid fa-check text-success"></i>
-                                    </button>
-                                </div>
-                            </div>
+                            <h5 class="card-title text-center mb-3">
+                                {{ aff.companyName }}
+                            </h5>
 
-                            <!-- Image Display -->
-                            <div class="img-container justify-content-end mb-3" v-if="aff.image">
-                                <img :src="aff.image" alt="logo" class="img-fluid img-thumbnail"
-                                    style="max-height: 150px;">
+                            <!-- Circular Image Display with Fixed Dimensions -->
+                            <div class="img-container justify-content-center mb-3 d-flex align-items-center"
+                                v-if="aff.image">
+                                <img :src="aff.image" alt="logo" class="img-fluid img-thumbnail rounded-circle"
+                                    style="width: 120px; height: 120px; object-fit: cover;">
                             </div>
 
                             <p class="card-text"><strong>RIF: </strong> {{ aff.rif }}</p>
-                            <h3 v-if="aff.approvedCredit"><strong>Credito aprovado: </strong>
-                                ${{ aff.credit.value || 0 }}</h3>
+
+                            <!-- Crédito aprobado -->
+                            <div class="row">
+                                <!-- Main approved Credit Card -->
+                                <div class="col-6 d-flex">
+                                    <div class="card text-center w-100 equal-height">
+                                        <div class="card-header">
+                                            <h6><strong>Crédito Principal Aprobado</strong></h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <p v-if="aff.credit.mainCredit">
+                                                <span class="badge"
+                                                    :class="aff.credit.mainCredit.isDeleted ? 'bg-danger' : 'bg-success'"
+                                                    style="font-size: 1rem;">
+                                                    ${{ aff.credit.mainCredit }}
+                                                </span>
+
+                                            <div class="d-flex justify-content-center mt-2"
+                                                style="position: relative; z-index: 10;">
+                                                <button class="btn btn-sm btn-outline-info me-1"
+                                                    @click="editCredit(aff, 'main')">
+                                                    <i class="fa-solid fa-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger"
+                                                    @click="cancelCredit(aff, 'affiliate', 'main')">
+                                                    <i class="fa-solid fa-times"></i>
+                                                </button>
+                                            </div>
+                                            </p>
+                                            <p v-else>
+                                                <span class="badge bg-secondary text-black text-center p-2" 
+                                                style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
+                                                    Sin Crédito aprobado
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Main available Credit Card -->
+                                <div class="col-6 d-flex">
+                                    <div class="card text-center w-100 equal-height">
+                                        <div class="card-header">
+                                            <h6><strong>Crédito Principal Restante</strong></h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <p v-if="aff.credit.availableMainCredit">
+                                                <span class="badge"
+                                                    :class="aff.credit.mainCredit.isDeleted ? 'bg-danger' : 'bg-success'"
+                                                    style="font-size: 1rem;">
+                                                    ${{ aff.credit.availableMainCredit }}
+                                                </span>
+                                            </p>
+                                            <p v-else>
+                                                <span class="badge bg-secondary text-black text-center p-2" 
+                                                style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
+                                                    Crédito consumido
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Align button to the bottom -->
+                            <div class="row justify-content-center">
+                                <button class="btn btn-outline-success btn-md mt-3 me-2" @click="affiliateActivity(aff)"
+                                    style="width: auto;">
+                                    Ver Actividad
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -874,17 +1696,20 @@ export default {
                     <div class="mb-3">
                         <i class="fa-solid fa-buildings text-body text-opacity-25" style="font-size: 5em"></i>
                     </div>
-                    <h5>No hay Comercios pendientes por pago.</h5>
+                    <h5>No hay Comercios con crédito aprobado.</h5>
                 </div>
             </div>
         </div>
 
-        <!-- Modal to set the company's Credit loan -->
+        <!-- Modal to set the company's Credit capital -->
         <div class="modal fade" id="set-credit" tabindex="-1" aria-labelledby="setCreditModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="setCreditModalLabel">Editar crédito</h5>
+                        <h5 class="modal-title" id="setCreditModalLabel">Editar Crédito {{ this.appCreditType === 'main'
+                            || this.appCreditType === 'affiliateMain'
+                            ? 'Principal' : 'Plus' }} {{ this.appCreditType === 'affiliateMain' ? 'de Comercio' : '' }}
+                        </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
@@ -898,46 +1723,67 @@ export default {
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="setCredit()">Guardar</button>
+                        <button type="button" class="btn btn-theme"
+                            @click="setCredit(this.appCreditType)">Guardar</button>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Modal to set client's credit -->
-        <div class="modal fade" id="set-credit-toclient" tabindex="-1" aria-labelledby="setClientCreditModalLabel"
+        <div class="modal fade" id="set-credit-modal" tabindex="-1" aria-labelledby="setCreditModalLabel"
             aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header text-center">
-                        <h5 class="modal-title" id="setClientCreditModalLabel">Asignar crédito a Cliente</h5>
+                        <h5 class="modal-title" id="setCreditModalLabel">Asignar crédito a {{ creditType === 'client' ?
+                            'Cliente' : 'Comercio' }}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"
                             @click="resetModal()"></button>
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
                             <!-- Searching input -->
-                            <SearchInput v-model="searchClient" :results="searchClientResults"
-                                placeholder="Busque un cliente por su cédula..." @input="searchClients"
-                                @select="selectClient" class="form-control mb-3" />
-                            <!-- Display selected client information -->
-                            <div v-if="selectedClient" class="mb-3 p-3 border rounded">
-                                <h5>Información del cliente seleccionado</h5>
-                                <p><strong>Nombre:</strong> {{ selectedClient.firstName + ' ' +
-                                    selectedClient.lastName }}</p>
-                                <p><strong>Cédula:</strong> {{ selectedClient.identification }}</p>
-                                <hr>
-                                <p>
-                                    <strong>Crédito actual</strong>
-                                </p>
-                                <p>
-                                    <strong>Linea Principal: </strong> ${{ selectedClient.credit ?
-                                        selectedClient.credit.mainCredit : 0 }}
-                                </p>
-                                <p>
-                                    <strong>Linea Plus: </strong> ${{ selectedClient.credit ?
-                                        selectedClient.credit.plusCredit : 0 }}
-                                </p>
+                            <SearchInput v-model="searchEntity" :results="searchEntityResults"
+                                :placeholder="creditType === 'client' ? 'Busque un cliente por su cédula...' : 'Busque un comercio por su nombre...'"
+                                @input="searchEntities" @select="selectEntity" class="form-control mb-3" />
+                            <!-- Display selected entity information -->
+                            <div v-if="selectedEntity" class="mb-3 p-3 border rounded">
+                                <h5>Información del {{ creditType === 'client' ? 'cliente' : 'comercio' }} seleccionado
+                                </h5>
+                                <p><strong>Nombre:</strong> {{ selectedEntity.name }}</p>
+                                <p><strong>{{ creditType === 'client' ? 'Identificación' : 'RIF' }}</strong> {{
+                                    selectedEntity.identification }}</p>
+
+                                <div v-if="selectedEntity.credit">
+                                    <hr>
+
+                                    <h6>
+                                        <strong>Crédito actual Aprobado</strong>
+                                    </h6>
+                                    <p>
+                                        <strong>Línea Principal: </strong> {{ selectedEntity.credit.mainCredit ?
+                                            `$${selectedEntity.credit.mainCredit}` : 'No posee línea de Rose Credit' }}
+                                    </p>
+                                    <p>
+                                        <strong>Disponible: </strong> {{ selectedEntity.credit.availableMainCredit ?
+                                            `$${selectedEntity.credit.availableMainCredit}` :
+                                            `No posee línea de Rose Credit` }}
+                                    </p>
+                                    <p>
+                                        <strong>Línea Plus: </strong> {{ selectedEntity.credit.plusCredit ?
+                                            `$${selectedEntity.credit.plusCredit}` : 'No posee línea de Rose Credit Plus' }}
+                                    </p>
+                                    <p>
+                                        <strong>Disponible: </strong> {{ selectedEntity.credit.availablePlusCredit ?
+                                            `$${selectedEntity.credit.availablePlusCredit}` : '$0' }}
+                                    </p>
+                                </div>
+                                <div v-else>
+                                    <hr>
+
+                                    <p class="text-center">El cliente no posee Líneas de Crédito.</p>
+                                </div>
                             </div>
 
                             <div class="mb-3">
@@ -965,11 +1811,12 @@ export default {
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
                             @click="resetModal()">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="assignCreditToClient()">Guardar</button>
+                        <button type="button" class="btn btn-theme" @click="assignCredit()">Guardar</button>
                     </div>
                 </div>
             </div>
         </div>
+
         <!-- Modal to see client's credit details -->
         <div v-if="clientDetails" class="modal fade" id="creditDetailsModal" tabindex="-1"
             aria-labelledby="creditDetailsModalLabel" aria-hidden="true">
@@ -981,10 +1828,66 @@ export default {
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
+                        <h3 class="text-center">Compras realizadas</h3>
                         <div class="row g-3">
                             <div class="col-12">
-                                <div class="card text-center m-3" style="width: auto;">
-                                    ${{ clientDetails.credit.value }}
+                                <div
+                                    v-if="clientDetails.credit.mainPurchases && Object.keys(clientDetails.credit.mainPurchases).length">
+                                    <div v-for="(purchase, purchaseId) in clientDetails.credit.mainPurchases"
+                                        :key="purchaseId">
+                                        <div class="card m-3 shadow-sm">
+                                            <div class="card-body">
+                                                <h5 class="card-title mb-3"><strong>Nombre del producto: </strong>{{
+                                                    purchase.productName }}</h5>
+
+                                                <div class="row mb-2">
+                                                    <div class="col-md-6">
+                                                        <p class="mb-1"><strong>Fecha de compra:</strong> {{
+                                                            formatDate(purchase.purchaseDate) }}</p>
+                                                        <p class="mb-1"><strong>Comercio:</strong> {{
+                                                            getAffiliateName(purchase.affiliate_id) }}</p>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <p class="mb-1"><strong>Precio del producto:</strong> ${{
+                                                            purchase.productPrice }}</p>
+                                                        <p class="mb-1"><strong>Precio de compra:</strong> ${{
+                                                            purchase.purchaseAmount }}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div class="row mb-3">
+                                                    <div class="col-md-6">
+                                                        <p class="mb-1"><strong>Plazo:</strong> {{ purchase.terms }}
+                                                            cuotas</p>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <p class="mb-1"><strong>Frecuencia de pago:</strong> {{
+                                                            purchase.frequency === 2 ? 'Quincenal' : 'Mensual' }}</p>
+                                                    </div>
+                                                </div>
+
+                                                <h6><strong>Plan de Pago:</strong></h6>
+                                                <ul class="list-group list-group-flush">
+                                                    <li v-for="(cuota, index) in purchase.cuotas" :key="index"
+                                                        class="list-group-item d-flex justify-content-between align-items-center">
+                                                        <div>
+                                                            <strong>Cuota {{ index + 1 }}:</strong> ${{
+                                                                cuota.amount.toFixed(2) }}
+                                                        </div>
+                                                        <div>
+                                                            <strong>Fecha:</strong> {{ formatDate(cuota.date) }}
+                                                        </div>
+                                                        <div>
+                                                            <strong>Pagado:</strong> {{ cuota.paid ? 'Sí' : 'No' }}
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-else>
+                                    <p>El cliente aun no tiene compras.</p>
                                 </div>
                             </div>
                         </div>
@@ -993,95 +1896,316 @@ export default {
             </div>
         </div>
 
-        <!-- Modal to set affiliate's credit -->
+        <!-- Modal to see Client's purchases in the selected affiliate -->
+        <div v-if="selectedAffiliateClients" class="modal fade" id="affiliatesActivityModal" tabindex="-1"
+            aria-labelledby="affiliatesActivityModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header text-center">
+                        <h5 class="modal-title" id="affiliatesActivityModalLabel">Actividad</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div v-if="selectedAffiliateClients.length">
+                            <div class="accordion" id="clientsAccordion">
+                                <div v-for="(client, clientIndex) in selectedAffiliateClients" :key="client.clientId"
+                                    class="accordion-item">
+                                    <h2 class="accordion-header" :id="`heading-${clientIndex}`">
+                                        <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse" :data-bs-target="`#collapse-${clientIndex}`"
+                                            aria-expanded="false" :aria-controls="`collapse-${clientIndex}`">
+                                            {{ client.clientName }}
+                                        </button>
+                                    </h2>
+                                    <div :id="`collapse-${clientIndex}`" class="accordion-collapse collapse"
+                                        :aria-labelledby="`heading-${clientIndex}`" data-bs-parent="#clientsAccordion">
+                                        <div class="accordion-body">
+                                            <div v-if="client.purchases.length">
+                                                <div class="accordion" :id="`purchasesAccordion-${client.clientId}`">
+                                                    <div v-for="(purchase, purchaseIndex) in client.purchases"
+                                                        :key="purchase.purchaseId" class="accordion-item">
+                                                        <h2 class="accordion-header"
+                                                            :id="`purchase-heading-${clientIndex}-${purchaseIndex}`">
+                                                            <button class="accordion-button collapsed" type="button"
+                                                                data-bs-toggle="collapse"
+                                                                :data-bs-target="`#purchase-collapse-${clientIndex}-${purchaseIndex}`"
+                                                                aria-expanded="false"
+                                                                :aria-controls="`purchase-collapse-${clientIndex}-${purchaseIndex}`">
+                                                                {{ purchase.productName }} / {{
+                                                                    formatDate(purchase.purchaseDate) }}
+                                                            </button>
+                                                        </h2>
+                                                        <div :id="`purchase-collapse-${clientIndex}-${purchaseIndex}`"
+                                                            class="accordion-collapse collapse"
+                                                            :aria-labelledby="`purchase-heading-${clientIndex}-${purchaseIndex}`"
+                                                            :data-bs-parent="`#purchasesAccordion-${client.clientId}`">
+                                                            <div class="accordion-body">
+                                                                <p><strong>Nombre del producto:</strong> {{
+                                                                    purchase.productName }}</p>
+                                                                <p><strong>Fecha de compra:</strong> {{
+                                                                    formatDate(purchase.purchaseDate) }}</p>
+                                                                <p><strong>Precio del producto:</strong> ${{
+                                                                    purchase.productPrice }}</p>
+                                                                <hr>
+                                                                <p><strong>Precio de la compra:</strong> ${{
+                                                                    purchase.purchaseAmount }}</p>
+                                                                <p><strong>Plazo:</strong> {{ purchase.terms }} cuotas
+                                                                </p>
+                                                                <p><strong>Frecuencia de pago:</strong> {{
+                                                                    purchase.frequency === 2 ? 'Quincenal' : 'Mensual'
+                                                                }}</p>
+                                                                <h6><strong>Plan de Pago:</strong></h6>
+                                                                <ul class="list-group list-group-flush">
+                                                                    <li v-for="(cuota, index) in purchase.cuotas"
+                                                                        :key="index"
+                                                                        class="list-group-item d-flex justify-content-between align-items-center">
+                                                                        <div>
+                                                                            <strong>Cuota {{ index + 1 }}:</strong> ${{
+                                                                                cuota.amount.toFixed(2) }}
+                                                                        </div>
+                                                                        <div>
+                                                                            <strong>Fecha:</strong> {{
+                                                                                formatDate(cuota.date) }}
+                                                                        </div>
+                                                                        <div>
+                                                                            <strong>Pagado:</strong> {{ cuota.paid ?
+                                                                                'Sí' : 'No' }}
+                                                                        </div>
+                                                                    </li>
+                                                                </ul>
+                                                                <button v-if="!purchase.paid"
+                                                                    class="btn btn-outline-success mt-3"
+                                                                    @click="markPaid(purchase.purchaseId, purchase)">
+                                                                    Marcar Pagado
+                                                                </button>
+                                                                <button v-else class="btn btn-outline-success mt-3"
+                                                                    disabled>
+                                                                    Pagado
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div v-else>
+                                                <p>Este cliente no ha hecho compras en este comercio.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else>
+                            <p>Clientes no han hecho compras a cuotas en este comercio.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
     </div>
 
     <div v-if="this.role === 'cliente'" class="container">
-
-        <!-- Tabs to toggle between main credit line and plus line -->
-        <div class="mb-4">
-            <ul class="nav nav-tabs nav-fill">
-                <li class="nav-item">
-                    <a @click.prevent="setActiveTab('main')" class="nav-link active" href="#" data-bs-toggle="tab"
-                        data-bs-target="#main">
-                        Principal
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a @click.prevent="setActiveTab('plus')" class="nav-link" href="#" data-bs-toggle="tab"
-                        data-bs-target="#plus">
-                        Plus
-                    </a>
-                </li>
-            </ul>
+        <div v-if="!currentClient">
+            <h3 class="text-center">Loading...</h3>
         </div>
+        <div v-else>
+            <div v-if="!currentClient.mainCredit && !currentClient.plusCredit">
+                <h3 class="text-center">Usted no posee una linea de credito aprovada</h3>
+            </div>
+            <div v-else>
+                <!-- Tabs to toggle between main credit line and plus line -->
+                <div class="mb-4">
+                    <ul class="nav nav-tabs nav-fill">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#" data-bs-toggle="tab" data-bs-target="#main">
+                                Principal
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#plus">
+                                Plus
+                            </a>
+                        </li>
+                    </ul>
+                </div>
 
-        <div class="tab-content">
-            <div class="tab-pane fade show active" id="main">
-                <div class="row justify-content-center mb-4">
-                    <div class="col-12 col-md-6 col-lg-4 mt-3">
-                        <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
-                            <div class="card-body text-center py-5">
-                                <h5 class="card-title mb-3">Crédito aprobado</h5>
-                                <h3><strong>${{ this.clientApprovedCred || 0 }}</strong></h3>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="main">
+
+                        <div class="row justify-content-center mb-4">
+                            <div class="col-12 col-md-6 col-lg-4 mt-3">
+                                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                                    <div class="card-body text-center py-5">
+                                        <h5 class="card-title mb-3">Crédito aprobado</h5>
+                                        <h3><strong>${{ currentClient.mainCredit || 0 }}</strong></h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 col-lg-4 mt-3">
+                                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                                    <div class="card-body text-center py-5">
+                                        <h5 class="card-title mb-3">Crédito Restante</h5>
+                                        <h3><strong>${{ currentClient.availableMainCredit || 0 }}</strong></h3>
+                                        <button v-if="currentClient.mainPurchases" class="btn btn-info mt-3"
+                                            @click="openPurchases(currentClient.mainPurchases)">
+                                            <span v-if="this.showPurchases">
+                                                Ocultar
+                                            </span>
+                                            <span v-else>
+                                                Mis compras
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="showPurchases">
+                            <hr>
+                            <h2 class="text-center">Mis Compras a Cuotas</h2>
+
+                            <!-- tabs -->
+                            <div class="mb-4 mt-4">
+                                <ul class="nav nav-tabs nav-fill">
+                                    <li class="nav-item">
+                                        <a class="nav-link active" href="#" data-bs-toggle="tab"
+                                            data-bs-target="#toPay">
+                                            Por pagar
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#paid">
+                                            Finalizadas
+                                        </a>
+                                    </li>
+                                    <!-- <li class="nav-item">
+                                        <a class="nav-link" href="#"
+                                            data-bs-toggle="tab" data-bs-target="#cancelledPurchases">
+                                            Canceladas
+                                        </a>
+                                    </li> -->
+                                </ul>
+                            </div>
+
+                            <div class="tab-content">
+                                <div class="tab-pane fade show active" id="toPay">
+                                    <div class="row mt-4">
+                                        <div class="col-12 col-lg-6">
+                                            <div v-for="purchase in purchaseWithAffiliateData"
+                                                :key="purchase.purchaseId" class="card m-3 shadow-sm">
+                                                <div class="card-body">
+                                                    <h5 class="card-title text-end mb-3">{{
+                                                        formatDate(purchase.purchaseDate) }}</h5>
+
+                                                    <div class="img-container justify-content-center mb-3 d-flex align-items-center"
+                                                        v-if="purchase.affiliateImage">
+                                                        <img :src="purchase.affiliateImage" alt="logo"
+                                                            class="img-fluid img-thumbnail rounded-circle"
+                                                            style="width: 120px; height: 120px; object-fit: cover;" />
+
+                                                    </div>
+                                                    <h4 class="text-center">{{ purchase.affiliateName }}</h4>
+
+                                                    <div class="row mt-4 mb-2">
+                                                        <div class="col-md-6">
+                                                            <p class="mb-1"><strong>Nombre del producto:</strong> {{
+                                                                purchase.productName }}</p>
+                                                            <p class="mb-1"><strong>Plazo:</strong> {{ purchase.terms }}
+                                                                cuotas
+                                                            </p>
+                                                            <p class="mb-1"><strong>Frecuencia de pago:</strong> {{
+                                                                purchase.frequency === 2 ? 'Quincenal' : 'Mensual' }}
+                                                            </p>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <p class="mb-1"><strong>Precio del producto:</strong> ${{
+                                                                purchase.productPrice }}</p>
+                                                            <p class="mb-1"><strong>Precio de compra:</strong> ${{
+                                                                purchase.purchaseAmount }}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <h6><strong>Plan de Pago:</strong></h6>
+                                                    <ul class="list-group list-group-flush">
+                                                        <li v-for="(cuota, index) in purchase.cuotas" :key="index"
+                                                            class="list-group-item d-flex justify-content-between align-items-center">
+                                                            <div>
+                                                                <strong>Cuota {{ index + 1 }}:</strong> ${{
+                                                                    cuota.amount.toFixed(2) }}
+                                                            </div>
+                                                            <div>
+                                                                <strong>Fecha:</strong> {{ formatDate(cuota.date) }}
+                                                            </div>
+                                                            <div>
+                                                                <strong>Pagado:</strong> {{ cuota.paid ? 'Sí' : 'No' }}
+                                                            </div>
+                                                            <button class="btn btn-outline-success btn-sm"
+                                                                @click="payCuota(cuota)">
+                                                                Pagar
+                                                            </button>
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="tab-pane fade" id="paid">
+
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-12 col-md-6 col-lg-4 mt-3">
-                        <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
-                            <div class="card-body text-center py-5">
-                                <h5 class="card-title mb-3">Crédito Usado</h5>
-                                <h3><strong>${{ this.clientUsedCred || 0 }}</strong></h3>
+
+                    <div class="tab-pane fade" id="plus">
+                        <div class="row justify-content-center mb-4">
+                            <div class="col-12 col-md-6 col-lg-4 mt-3">
+                                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                                    <div class="card-body text-center py-5">
+                                        <h5 class="card-title mb-3">Crédito aprobado</h5>
+                                        <h3><strong>${{ currentClient.plusCredit || 0 }}</strong></h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 col-lg-4 mt-3">
+                                <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                                    <div class="card-body text-center py-5">
+                                        <h5 class="card-title mb-3">Crédito Restante</h5>
+                                        <h3><strong>${{ currentClient.availablePlusCredit || 0 }}</strong></h3>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="tab-pane fade" id="plus">
-                <div class="row justify-content-center mb-4">
-                    <div class="col-12 col-md-6 col-lg-4 mt-3">
-                        <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
-                            <div class="card-body text-center py-5">
-                                <h5 class="card-title mb-3">Crédito aprobado</h5>
-                                <h3><strong>${{ this.clientApprovedCred || 0 }}</strong></h3>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-6 col-lg-4 mt-3">
-                        <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
-                            <div class="card-body text-center py-5">
-                                <h5 class="card-title mb-3">Crédito Usado</h5>
-                                <h3><strong>${{ this.clientUsedCred || 0 }}</strong></h3>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Modal to request Credit to Rose Coupon -->
-        <div class="modal fade" id="request-credit" tabindex="-1" aria-labelledby="requestCreditModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="requestCreditModalLabel">Solicitar crédito</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <div class="input-group">
-                                <span class="input-group-text text-wrap" id="value-addon">$</span>
-                                <input id="requestedCredit" type="number" class="form-control"
-                                    v-model.number="requestedAmount" aria-label="Monto" aria-describedby="value-addon"
-                                    min="0">
+                <!-- Modal to request Credit to Rose Coupon -->
+                <div class="modal fade" id="request-credit" tabindex="-1" aria-labelledby="requestCreditModalLabel"
+                    aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="requestCreditModalLabel">Solicitar crédito</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                    aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text text-wrap" id="value-addon">$</span>
+                                        <input id="requestedCredit" type="number" class="form-control"
+                                            v-model.number="requestedAmount" aria-label="Monto"
+                                            aria-describedby="value-addon" min="0">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                <button type="button" class="btn btn-theme" @click="requestCredit()">Guardar</button>
                             </div>
                         </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="requestCredit()">Guardar</button>
                     </div>
                 </div>
             </div>
@@ -1089,18 +2213,49 @@ export default {
     </div>
 
     <div v-if="this.role === 'afiliado'" class="container">
+        <div v-if="!currentAffiliate">
+            <h3 class="text-center">Loading...</h3>
+        </div>
+        <div v-else>
+            <div class="row g-4 justify-content-center mb-4">
+                <div class="col-6 col-md-6 col-lg-4">
+                    <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                        <div class="card-body text-center py-5">
+                            <h5 class="card-title mb-3">Crédito Aprobado</h5>
+                            <h3><strong>${{ currentAffiliate.mainCredit }}</strong></h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-6 col-lg-4">
+                    <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+                        <div class="card-body text-center py-5">
+                            <h5 class="card-title mb-3">Crédito Disponible</h5>
+                            <h3><strong>${{ currentAffiliate.availableMainCredit }}</strong></h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-        <!-- Tabs to toggle between main credit line and plus line -->
-        <div class="mb-4">
+        <!-- Tabs to toggle between the form to apply a purchase and pending payments -->
+        <div class="mt-3 mb-4">
             <ul class="nav nav-tabs nav-fill">
                 <li class="nav-item">
-                    <a class="nav-link active" href="#" data-bs-toggle="tab" data-bs-target="#applyCredit">
+                    <a @click.prevent="setActiveTab('applyPurchase')" class="nav-link active" href="#"
+                        data-bs-toggle="tab" data-bs-target="#applyCredit">
                         Aplicar
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#pendingPayments">
-                        Pagos pendientes
+                    <a @click.prevent="setActiveTab('pendingPayments')" class="nav-link" href="#" data-bs-toggle="tab"
+                        data-bs-target="#pendingPayments">
+                        Prestamos pendientes
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a @click.prevent="setActiveTab('paidPurchases')" class="nav-link" href="#" data-bs-toggle="tab"
+                        data-bs-target="#paidPurchases">
+                        Prestamos pagados
                     </a>
                 </li>
             </ul>
@@ -1109,104 +2264,204 @@ export default {
         <div class="tab-content">
             <div class="tab-pane fade show active" id="applyCredit">
                 <h4 class="text-center mb-4">Registrar Compra a Crédito</h4>
-                <div class="mb-3 mt-3">
-                    <!-- Searching input -->
-                    <SearchInput v-model="searchClient" :results="searchClientResults"
-                        placeholder="Busque un cliente por su cédula..." @input="searchClients" @select="selectClient"
-                        class="form-control mb-3" />
-                    <!-- Display selected client information -->
-                    <div v-if="selectedClient" class="mb-3 p-3 border rounded">
-                        <h5>Información del cliente seleccionado</h5>
-                        <p><strong>Nombre:</strong> {{ selectedClient.firstName + ' ' +
-                            selectedClient.lastName }}</p>
-                        <p><strong>Cédula:</strong> {{ selectedClient.identification }}</p>
-                        <hr>
-                        <p>
-                            <strong>Crédito actual</strong>
-                        </p>
-                        <p>
-                            <strong>Linea Principal: </strong> ${{ selectedClient.credit ?
-                                selectedClient.credit.mainCredit : 0 }}
-                        </p>
-                        <p>
-                            <strong>Linea Plus: </strong> ${{ selectedClient.credit ? selectedClient.credit.plusCredit :
-                                0 }}
-                        </p>
+                <div class="row justify-content-center">
+                    <!-- Adjust column width for different screen sizes -->
+                    <div class="col-lg-6 col-12">
+                        <div class="mb-3 mt-3">
+                            <!-- Searching input -->
+                            <SearchInput v-model="searchClient" :results="searchClientResults"
+                                placeholder="Busque un cliente por su cédula..." @input="searchClients"
+                                @select="selectClient" class="form-control mb-3" />
+                            <!-- Display selected client information -->
+                            <div v-if="selectedClient" class="mb-3 p-3 border rounded">
+                                <h5>Información del cliente seleccionado</h5>
+                                <p><strong>Nombre:</strong> {{ selectedClient.firstName + ' ' + selectedClient.lastName
+                                    }}</p>
+                                <p><strong>Cédula:</strong> {{ selectedClient.identification }}</p>
+                                <hr>
+                                <p><strong>Crédito actual</strong></p>
+                                <p><strong>Disponible: </strong> ${{ selectedClient.credit ?
+                                    selectedClient.credit.availableMainCredit : 0 }}</p>
+                                <!-- <p><strong>Linea Plus: </strong> ${{ selectedClient.credit ?
+                                    selectedClient.credit.availablePlusCredit : 0 }}</p> -->
+                            </div>
+
+                            <div v-if="verificationRequested" class="row justify-content-center">
+                                <div class="col-6 mb-3">
+                                    <label for="verificationCode">Codigo de verificacion</label>
+                                    <input id="verificationCode" type="number" class="form-control mt-2"
+                                        v-model="verificationCode">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <label for="productName">Nombre del Producto</label>
+                                    <input id="productName" type="text" class="form-control mt-2" v-model="productName">
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label for="productPrice">Precio del Producto</label>
+                                    <div class="input-group mt-2">
+                                        <span class="input-group-text text-wrap" id="assign-addon">$</span>
+                                        <input id="productPrice" type="number" class="form-control"
+                                            v-model="productPrice" aria-label="Monto" aria-describedby="assign-addon">
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label for="purchaseDate">Fecha de compra</label>
+                                    <input type="date" name="purchaseDate" class="form-control mt-2"
+                                        v-model="purchaseDate">
+                                </div>
+                                <div class="col-6 mb-3 d-flex align-items-end">
+                                    <button class="btn btn-theme" @click="calcs(selectedClient)">Calcular
+                                        cuotas</button>
+                                </div>
+
+                                <hr>
+
+                                <div v-if="calc">
+                                    <div class="row">
+                                        <div class="col-4 mb-3">
+                                            <label for="purchaseAmount">Monto a prestar</label>
+                                            <div class="input-group mt-2">
+                                                <span class="input-group-text text-wrap" id="assign-addon">$</span>
+                                                <input id="purchaseAmount" type="number" class="form-control"
+                                                    v-model="purchaseAmount" aria-label="Monto"
+                                                    aria-describedby="assign-addon" disabled>
+                                            </div>
+                                        </div>
+                                        <div class="col-4 mb-3">
+                                            <label for="term">Plazo</label>
+                                            <div class="input-group mt-2">
+                                                <span class="input-group-text text-wrap" id="term-addon">Cuotas</span>
+                                                <input id="term" type="number" class="form-control" v-model="terms"
+                                                    aria-label="terms" aria-describedby="term-addon" @change="calcs()">
+                                            </div>
+                                        </div>
+                                        <div class="col-4 mb-3">
+                                            <label for="frequency">Frecuencia</label>
+                                            <select v-model="frequency" @change="calcs()" class="form-control mt-2">
+                                                <option class="text-black" value="" disabled selected>Selecciona una
+                                                    opcion
+                                                </option>
+                                                <option value="2">Quincenal</option>
+                                                <option value="1">Mensual</option>
+                                            </select>
+                                        </div>
+
+                                        <hr>
+
+                                        <h4 class="text-center mt-3 mb-3">Plan de Pagos</h4>
+
+                                        <div v-for="(quote, index) in terms" :key="index" class="col-6 mb-3">
+                                            <label :for="'quotesAmount-' + index">Cuota {{ index + 1 }}</label>
+                                            <div class="input-group mt-2">
+                                                <span class="input-group-text text-wrap" id="quote-addon">$</span>
+                                                <input :id="'quotesAmount-' + index" type="number" class="form-control"
+                                                    v-model="quotesAmount[index]" aria-label="quotesAmount"
+                                                    aria-describedby="quote-addon" disabled>
+                                            </div>
+                                        </div>
+
+                                        <!-- Render payment dates based on frequency -->
+                                        <div v-for="(date, index) in cuotaDates" :key="index" class="col-6 mb-3">
+                                            <label :for="'cuotaDate-' + index">Fecha de Cuota {{ index + 1 }}</label>
+                                            <input :id="'cuotaDate-' + index" type="date" class="form-control mt-2"
+                                                v-model="cuotaDates[index]" disabled>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button :disabled="waiting" class="btn btn-theme me-2" @click="askForCode(selectedClient)">
+                            <span v-if="waiting" class="spinner-border spinner-border-sm" role="status"
+                                aria-hidden="true"></span>
+                            <span>Solicitar Código</span>
+                        </button>
+                        <button v-if="verificationRequested" :disabled="loading" class="btn btn-theme"
+                            @click="savePurchase()">
+                            <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+                                aria-hidden="true"></span>
+                            <span>Aceptar</span>
+                        </button>
                     </div>
+                </div>
+            </div>
 
-                    <div class="row">
-                        <div class="col-6 mb-3">
-                            <label for="purchaseAmount">Nombre del producto</label>
-                            <input id="purchaseAmount" type="text" class="form-control mt-2" v-model="purchaseName">
-                        </div>
-                        <div class="col-6 mb-3">
-                            <label for="purchaseDate">Fecha de compra</label>
-                            <input type="date" name="purchaseDate" class="form-control mt-2" v-model="purchaseDate">
-                        </div>
-                        <hr>
-                        <div class="col-6 mb-3">
-                            <label for="purchaseAmount">Monto de compra</label>
-                            <div class="input-group mt-2">
-                                <span class="input-group-text text-wrap" id="assign-addon">$</span>
-                                <input id="purchaseAmount" type="number" class="form-control" v-model="purchaseAmount"
-                                    aria-label="Monto" aria-describedby="assign-addon">
-                            </div>
-                        </div>
-                        <div class="col-6 mb-3 d-flex align-items-end">
-                            <button class="btn btn-theme" @click="calcTerms()">
-                                Calcular cuotas
-                            </button>
-                        </div>
+            <div v-for="tab in ['pendingPayments', 'paidPurchases']" :key="tab" class="tab-pane fade"
+                :class="{ show: activeTab === tab, active: activeTab === tab }" :id="tab">
 
-                        <div v-if="calc">
-                            <div class="col-6 mb-3">
-                                <label for="quotesAmount">Monto de Cuota</label>
-                                <div class="input-group mt-2">
-                                    <span class="input-group-text text-wrap" id="quote-addon">$</span>
-                                    <input id="quotesAmount" type="number" class="form-control" v-model="quotesAmount"
-                                        aria-label="quotesAmount" aria-describedby="quote-addon">
+                <div v-if="(tab === 'pendingPayments' ? pendingPayments : paidPurchases).length === 0"
+                    class="text-center mt-4">
+                    <p class="text-muted">
+                        {{ tab === 'pendingPayments' ?
+                            'No hay pagos pendientes de parte de RoseCoupon.' : 'No hay pagos de parte de RoseCoupon.'
+                        }}
+                    </p>
+                </div>
+
+                <div v-else class="row g-4 mt-4">
+                    <div class="col-12 col-md-6"
+                        v-for="purchase in tab === 'pendingPayments' ? pendingPayments : paidPurchases"
+                        :key="purchase.purchaseId">
+                        <div class="card shadow-sm">
+                            <div class="card-header text-center"
+                                style="background-color: #1a1a1a; border-color: #b800c2;">
+                                <h5 class="text-light">{{ getClientName(purchase.client_id) }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="purchase-details mb-3">
+                                    <p><strong class="me-2">Estado:</strong>
+                                        <span :class="purchase.paid ? 'text-success' : 'text-danger'">
+                                            {{ purchase.paid ? 'Pagado' : 'Pendiente' }}
+                                        </span>
+                                    </p>
+                                    <p><strong>Fecha de compra:</strong> {{ formatDate(purchase.purchaseDate) }}</p>
+                                    <p><strong>Producto:</strong> {{ purchase.productName }}</p>
+                                    <p><strong>Precio del producto:</strong> ${{ purchase.productPrice.toFixed(2) }}</p>
+                                    <p><strong>Monto de préstamo:</strong> ${{ purchase.purchaseAmount.toFixed(2) }}</p>
                                 </div>
-                            </div>
-                            <div class="col-6 mb-3">
-                                <label for="term">Plazo</label>
-                                <div class="input-group mt-2">
-                                    <span class="input-group-text text-wrap" id="term-addon">
-                                        Cuotas
-                                    </span>
-                                    <input id="term" type="number" class="form-control" v-model="terms"
-                                        aria-label="terms" aria-describedby="term-addon">
+
+                                <div class="row mb-2">
+                                    <div class="col-6 text-center">
+                                        <p><strong>Plazo:</strong> {{ purchase.terms }} cuotas</p>
+                                    </div>
+                                    <div class="col-6 text-center">
+                                        <p><strong>Frecuencia:</strong> {{ purchase.frequency === 2 ? 'Quincenal' :
+                                            'Mensual' }}</p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="col-6 mb-3">
-                                <label for="frequency">Frecuencia</label>
-                                <select v-model="frequency" class="form-control mt-2">
-                                    <option class="text-black" value="" disabled selected>Selecciona una opcion
-                                    </option>
-                                    <option value="2">Quincenal</option>
-                                    <option value="1">Mensual</option>
-                                </select>
-                            </div>
-                            <div v-for="(date, index) in cuotaDates" :key="index" class="col-6 mb-3">
-                                <label :for="'cuotaDate-' + index">Fecha de Cuota {{ index + 1 }}</label>
-                                <input :id="'cuotaDate-' + index" type="date" class="form-control mt-2"
-                                    v-model="cuotaDates[index]">
+
+                                <h6><strong>Plan de Pago:</strong></h6>
+                                <ul class="list-group list-group-flush">
+                                    <li v-for="(cuota, index) in purchase.cuotas" :key="index"
+                                        class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>Cuota {{ index + 1 }}:</strong> ${{
+                                                cuota.amount.toFixed(2) }}
+                                        </div>
+                                        <div>
+                                            <strong>Fecha:</strong> {{ formatDate(cuota.date) }}
+                                        </div>
+                                        <div>
+                                            <strong>Pagado:</strong> {{ cuota.paid ? 'Sí' : 'No' }}
+                                        </div>
+                                    </li>
+                                </ul>
                             </div>
                         </div>
                     </div>
                 </div>
-                <button type="button" class="btn btn-theme" @click="savePurchase()">Aplicar</button>
-            </div>
-
-            <div class="tab-pane fade" id="pendingPayments">
             </div>
         </div>
-
     </div>
 </template>
 <style>
-.equal-height {
+.equal-height .card-body {
     display: flex;
-    align-items: stretch;
+    align-items: center;
+    justify-content: center;
+    min-height: 150px;
     /* Ensures all cards have equal height */
 }
 
@@ -1222,5 +2477,45 @@ export default {
 .custom-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.card {
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    transition: transform 0.2s ease;
+}
+
+.card:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    padding: 0.75rem 1rem;
+    background: #1a1a1a;
+    border-bottom: 2px solid #b800c2;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+.card-body {
+    padding: 1rem 1.25rem;
+}
+
+.purchase-details p {
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.list-group-item {
+    font-size: 0.85rem;
+}
+
+.text-danger {
+    color: #dc3545;
+}
+
+.text-success {
+    color: #28a745;
 }
 </style>

@@ -93,6 +93,8 @@ export default {
             paymentModal: null,
             activeTab: 'null',
 
+            loading: false,
+
             currentSub: null
         };
     },
@@ -677,6 +679,8 @@ export default {
             };
 
             try {
+                this.loading = true;
+
                 // Assign the subscription details to the client's data in Firebase
                 const userPlanRef = dbRef(db, `Users/${clientId}/subscription`);
                 await update(userPlanRef, subscriptionData);
@@ -689,7 +693,7 @@ export default {
                         subject: `Suscripción ${selectedPlanDetails.name.toUpperCase()} activada`,
                         text: `Hola ${client.firstName}, se le ha activado la Suscripción ${selectedPlanDetails.name.toUpperCase()} in Roseapp.
                         Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}`,
-                        html: `<p>Hola ${client.firstName}, se le ha activado la Suscripción ${suscription.name} in Roseapp.</p>
+                        html: `<p>Hola ${client.firstName}, se le ha activado la Suscripción ${selectedPlanDetails.name} in Roseapp.</p>
                         <p>Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}</p>`
                     },
                 };
@@ -714,6 +718,8 @@ export default {
             } catch (error) {
                 console.error('Error assigning plan:', error);
                 alert('La asignación de la suscripción falló.');
+            } finally {
+                this.loading = false;
             }
         },
         // Clients and Affiliates can contract a subscription
@@ -759,12 +765,12 @@ export default {
                 // Prepare subscription details
                 const subscriptionData = {
                     subscription_id: plan.id,
-                    status: true, // Set the default status as true 'active'
+                    status: false, // Set the default status as false 'inactive until payment confirmed'
                     payDay: payDay,
                 };
 
                 // Proceed to open modal with Payment methods and payment upload
-                if (plan.price === 0) {
+                if (plan.price === 0 && this.role === 'cliente') {
                     try {
                         // Assign the subscription details to the client's data in Firebase
                         const userPlanRef = dbRef(db, `Users/${userId}/subscription`);
@@ -1581,9 +1587,13 @@ export default {
                         </div>
                     </div>
                     <div class="modal-footer">
+                        <button :disabled="loading" class="btn btn-theme" @click="assignClientPlan()">
+                            <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+                                aria-hidden="true"></span>
+                            <span>Asignar</span>
+                        </button>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
                             @click="resetModalData()">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="assignClientPlan()">Asignar</button>
                     </div>
                 </div>
                 <div v-else class="modal-content">
@@ -1660,7 +1670,11 @@ export default {
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
                             @click="resetModalData()">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="assignAffiliatePlan()">Asignar</button>
+                        <button :disabled="loading" class="btn btn-theme" @click="assignAffiliatePlan()">
+                            <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+                                aria-hidden="true"></span>
+                            <span>Asignar</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1692,164 +1706,169 @@ export default {
         </div>
     </div>
 
-    <!-- Client view -->
-    <div v-if="this.role === 'cliente'" class="container">
+    <div v-if="this.role === 'cliente' || this.role === 'afiliado'">
+        <!-- Client view -->
+        <div v-if="this.role === 'cliente'" class="container">
 
-        <!-- Lista de suscripciones -->
-        <div class="container-fluid my-4" style="padding: 20px;" id="price-table">
-            <div class="row g-4 justify-content-center">
-                <div v-for="(plan, index) in sortedPlans" :key="plan.id" class="col-md-3">
-                    <div :class="['card h-100 text-center py-4 d-flex flex-column justify-content-between', {
-                        'border-primary': plan.name === 'plata',
-                        'shadow-sm': true,
-                    }]" :style="plan.name === 'plata' ?
-                        'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
-                        : ''">
-                        <div v-if="plan.name === 'plata'" class="ribbon">
-                            <span>Popular</span>
-                        </div>
+            <!-- Lista de suscripciones -->
+            <div class="container-fluid my-4" style="padding: 20px;" id="price-table">
+                <div class="row g-4 justify-content-center">
+                    <div v-for="(plan, index) in sortedPlans" :key="plan.id" class="col-md-3">
+                        <div :class="['card h-100 text-center py-4 d-flex flex-column justify-content-between', {
+                            'border-primary': plan.name === 'plata',
+                            'shadow-sm': true,
+                        }]" :style="plan.name === 'plata' ?
+                            'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
+                            : ''">
+                            <div v-if="plan.name === 'plata'" class="ribbon">
+                                <span>Popular</span>
+                            </div>
 
-                        <div v-if="plan.id === currentSub"
-                            class="badge border border-success text-success align-items-center px-3 py-2 shadow-sm rounded-pill mb-3"
-                            style="width: auto; display: inline-flex; max-width: fit-content;">
-                            <span>Suscripción actual</span>
-                        </div>
+                            <div v-if="plan.id === currentSub"
+                                class="badge border border-success text-success align-items-center px-3 py-2 shadow-sm rounded-pill mb-3"
+                                style="width: auto; display: inline-flex; max-width: fit-content;">
+                                <span>Suscripción actual</span>
+                            </div>
 
-                        <i class="fa-lg" :class="plan.icon"></i>
-                        <h4 class="my-4 text-primary">{{ plan.name.toUpperCase() }}</h4>
-                        <p class="fw-bold display-5">${{ plan.price }} <small>/ MO.</small></p>
+                            <i class="fa-lg" :class="plan.icon"></i>
+                            <h4 class="my-4 text-primary">{{ plan.name.toUpperCase() }}</h4>
+                            <p class="fw-bold display-5">${{ plan.price }} <small>/ MO.</small></p>
 
-                        <div class="description mb-4" style="min-height: 120px;">
-                            <p class="form-label" v-html="formattedDesc[index].desc"></p>
-                        </div>
+                            <div class="description mb-4" style="min-height: 120px;">
+                                <p class="form-label" v-html="formattedDesc[index].desc"></p>
+                            </div>
 
-                        <div class="mt-auto">
-                            <button class="btn btn-theme mt-3 w-50" @click.prevent="contractPlan(plan)">
-                                Seleccionar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Affiliate view -->
-    <div v-if="this.role === 'afiliado'" class="container">
-
-        <!-- Lista de suscripciones -->
-        <div class="container-fluid" style="padding: 20px;" id="price-table">
-            <div class="row g-4 justify-content-center">
-                <div v-for="(plan, index) in sortedPlans" :key="plan.id" class="col-md-4">
-                    <div :class="['card h-100 text-center py-4 d-flex flex-column justify-content-between', {
-                        'border-primary': plan.name === 'Intermedio',
-                        'shadow-sm': true,
-                    }]" :style="plan.name === 'Intermedio' ?
-                        'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
-                        : ''">
-                        <div v-if="plan.name === 'Intermedio'" class="ribbon">
-                            <span>Popular</span>
-                        </div>
-
-                        <div v-if="plan.id === currentSub"
-                            class="badge border border-success text-success align-items-center px-3 py-2 shadow-sm rounded-pill mb-3"
-                            style="width: auto; display: inline-flex; max-width: fit-content;">
-                            <span>Suscripción actual</span>
-                        </div>
-
-                        <i class="fa-lg" :class="plan.icon"></i>
-                        <h4 class="my-4 text-primary">{{ plan.name.toUpperCase() }}</h4>
-                        <p class="fw-bold display-5">{{ plan.price === 0 ? 'Precio a consultar' : `$${plan.price} /
-                            Mensual` }} <small></small></p>
-
-                        <div class="description mb-4" style="min-height: 120px;">
-                            <p class="form-label" v-html="formattedDesc[index].desc"></p>
-                        </div>
-
-                        <div class="mt-auto">
-                            <button class="btn btn-theme mt-3 w-50" @click.prevent="contractPlan(plan)">
-                                Contratar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- Modal for Payment upload -->
-    <div class="modal fade" id="notifyPaymentModal" tabindex="-1" aria-labelledby="notifyPaymentModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="notifyPaymentModalLabel">Subir Captura de Pago</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <h3 v-if="selectedPlan" class="mb-3">
-                        <i :class="selectedPlan.icon"></i>
-                        {{ selectedPlan.name.toUpperCase() }}
-                    </h3>
-                    <h5 v-if="selectedPlan" class="mb-3">
-                        <strong>Tasa: {{ exchange }} Bs</strong>
-                    </h5>
-                    <h5 v-if="selectedPlan" class="mb-3">
-                        <strong>Monto a cancelar: {{ ((selectedPlan.price.toFixed(2)) * exchange).toFixed(2) }}
-                            Bs</strong>
-                    </h5>
-
-                    <!-- Metodos de pago -->
-                    <div class="card">
-                        <h4 class="text-center">Métodos de Pago</h4>
-                        <h6><u>Pago Móvil</u></h6>
-                        <div class="card-text">
-                            <strong>Banco: </strong>Banco de Venezuela
-                        </div>
-                        <div class="card-text">
-                            <strong>Teléfono: </strong>04122204114
-                            <button class="btn btn-sm btn-secondary ms-2" @click="copyToClipboard('04122204114')">
-                                <i class="fa fa-copy"></i>
-                            </button>
-                        </div>
-                        <div class="card-text">
-                            <strong>Cédula: </strong>26522446
-                            <button class="btn btn-sm btn-secondary ms-2" @click="copyToClipboard('26522446')">
-                                <i class="fa fa-copy"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <form class="mt-3" @submit.prevent="notifyPayment">
-                        <div class="mb-3">
-                            <label for="paymentDate" class="form-label">Fecha de Pago</label>
-                            <input type="date" class="form-control" v-model="paymentDate" style="width: auto;">
-                        </div>
-                        <div class="mb-3">
-                            <label for="payment" class="form-label">Captura de Pago</label>
-                            <input type="file" class="form-control" id="payment"
-                                @change="handleFileUpload($event, 'payment')" required>
-                            <img v-if="paymentPreview" :src="paymentPreview" alt="payment preview"
-                                class="img-fluid mt-2" />
-                        </div>
-
-                        <!-- Error Message -->
-                        <div v-if="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
-
-                        <!-- Loader Spinner -->
-                        <div v-if="isSubmitting" class="d-flex justify-content-center my-3">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Cargando...</span>
+                            <div class="mt-auto">
+                                <button class="btn btn-theme mt-3 w-50" @click.prevent="contractPlan(plan)">
+                                    Seleccionar
+                                </button>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cerrar</button>
-                        <!-- Submit Button is disabled during submission -->
-                        <button type="submit" class="btn btn-theme" :disabled="isSubmitting"
-                            @click.prevent="notifyPayment(selectedPlan)">
-                            Subir
-                        </button>
-                    </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Affiliate view -->
+        <div v-if="this.role === 'afiliado'" class="container">
+
+            <!-- Lista de suscripciones -->
+            <div class="container-fluid" style="padding: 20px;" id="price-table">
+                <div class="row g-4 justify-content-center">
+                    <div v-for="(plan, index) in sortedPlans" :key="plan.id" class="col-md-4">
+                        <div :class="['card h-100 text-center py-4 d-flex flex-column justify-content-between', {
+                            'border-primary': plan.name === 'Intermedio',
+                            'shadow-sm': true,
+                        }]" :style="plan.name === 'Intermedio' ?
+                            'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
+                            : ''">
+                            <div v-if="plan.name === 'Intermedio'" class="ribbon">
+                                <span>Popular</span>
+                            </div>
+
+                            <div v-if="plan.id === currentSub"
+                                class="badge border border-success text-success align-items-center px-3 py-2 shadow-sm rounded-pill mb-3"
+                                style="width: auto; display: inline-flex; max-width: fit-content;">
+                                <span>Suscripción actual</span>
+                            </div>
+
+                            <i class="fa-lg" :class="plan.icon"></i>
+                            <h4 class="my-4 text-primary">{{ plan.name.toUpperCase() }}</h4>
+                            <p class="fw-bold display-5">{{ plan.price === 0 ? 'Precio a consultar' : `$${plan.price} /
+                                Mensual` }} <small></small></p>
+
+                            <div class="description mb-4" style="min-height: 120px;">
+                                <p class="form-label" v-html="formattedDesc[index].desc"></p>
+                            </div>
+
+                            <div class="mt-auto">
+                                <button class="btn btn-theme mt-3 w-50" @click.prevent="contractPlan(plan)">
+                                    Contratar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Modal for Payment upload -->
+        <div class="modal fade" id="notifyPaymentModal" tabindex="-1" aria-labelledby="notifyPaymentModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="notifyPaymentModalLabel">Subir Captura de Pago</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div v-if="selectedPlan">
+                            <h3 class="mb-3">
+                                <i :class="selectedPlan.icon"></i>
+                                {{ selectedPlan.name.toUpperCase() }}
+                            </h3>
+                            <h5 class="mb-3">
+                                <strong>Tasa: {{ exchange }} Bs</strong>
+                            </h5>
+                            <h5 class="mb-3">
+                                <strong>Monto a cancelar: 
+                                    {{ selectedPlan.price == 0 && this.role === 'afiliado' ? 'Consultar precio' : `${((selectedPlan.price.toFixed(2)) * exchange).toFixed(2)} Bs` }}
+                                </strong>
+                            </h5>
+                        </div>
+
+                        <!-- Metodos de pago -->
+                        <div class="card">
+                            <h4 class="text-center">Métodos de Pago</h4>
+                            <h6><u>Pago Móvil</u></h6>
+                            <div class="card-text">
+                                <strong>Banco: </strong>Banco Provincial
+                            </div>
+                            <div class="card-text">
+                                <strong>Teléfono: </strong>04246003370
+                                <button class="btn btn-sm btn-secondary ms-2" @click="copyToClipboard('04246003370')">
+                                    <i class="fa fa-copy"></i>
+                                </button>
+                            </div>
+                            <div class="card-text">
+                                <strong>RIF: </strong>J506221772
+                                <button class="btn btn-sm btn-secondary ms-2" @click="copyToClipboard('J506221772')">
+                                    <i class="fa fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <form class="mt-3" @submit.prevent="notifyPayment">
+                            <div class="mb-3">
+                                <label for="paymentDate" class="form-label">Fecha de Pago</label>
+                                <input type="date" class="form-control" v-model="paymentDate" style="width: auto;">
+                            </div>
+                            <div class="mb-3">
+                                <label for="payment" class="form-label">Captura de Pago</label>
+                                <input type="file" class="form-control" id="payment"
+                                    @change="handleFileUpload($event, 'payment')" required>
+                                <img v-if="paymentPreview" :src="paymentPreview" alt="payment preview"
+                                    class="img-fluid mt-2" />
+                            </div>
+
+                            <!-- Error Message -->
+                            <div v-if="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
+
+                            <!-- Loader Spinner -->
+                            <div v-if="isSubmitting" class="d-flex justify-content-center my-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cerrar</button>
+                            <!-- Submit Button is disabled during submission -->
+                            <button type="submit" class="btn btn-theme" :disabled="isSubmitting"
+                                @click.prevent="notifyPayment(selectedPlan)">
+                                Subir
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>

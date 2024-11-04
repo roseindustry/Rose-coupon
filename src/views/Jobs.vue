@@ -326,6 +326,7 @@ export default {
 
                     // Remove the job from the local state
                     this.jobs.splice(index, 1);
+                    this.fetchJobs();
 
                     this.showToast('Vacante eliminada con éxito!')
                 } catch (error) {
@@ -380,9 +381,9 @@ export default {
         <div v-else class="d-flex flex-column align-items-center">
             <!-- Jobs list -->
             <div v-for="(job, index) in currentUserJobs" :key="job.id" class="card job-card p-4 mb-4 w-100"
-                style="max-width: 800px;">
+                style="max-width: 800px; position: relative;">
                 <!-- Edit and Delete buttons -->
-                <div class="d-flex justify-content-end">
+                <div class="d-flex justify-content-end" style="position: relative; z-index: 10;">
                     <button class="btn btn-sm btn-outline-info me-1" @click="editJob(job)">
                         <i class="fa-solid fa-pencil"></i>
                     </button>

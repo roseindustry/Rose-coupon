@@ -241,7 +241,10 @@ export default {
                 this.isSubmitting = true;
 
                 const userRef = dbRef(db, `Users/${user.id}/subscription`);
-                await update(userRef, { isPaid: true });
+                await update(userRef, { 
+                    isPaid: true,
+                    status: true,
+                });
 
                 // Send an email notification to the user through Firebase Cloud Functions
                 const emailPayload = {
@@ -258,6 +261,7 @@ export default {
                 const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
                 modal.hide();
                 this.fetchClients();
+                this.fetchAffiliates();
             } catch (error) {
                 console.error("Error approving ID:", error);
             } finally {

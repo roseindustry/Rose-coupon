@@ -46,6 +46,10 @@ exports.createUser = functions.https.onCall(async (data, context) => {
     if (!userData.firstName || !userData.lastName || !userData.identification || !userData.email) {
       return { success: false, message: 'Campo obligatorio vacio: Nombre, Apellido, y Email son requeridos.' };
     }
+  } else if (userData.role === 'mesero' || userData.role === 'promotora') {
+    if (!userData.role || !userData.firstName || !userData.lastName || !userData.identification || !userData.email) {
+      return { success: false, message: 'Campo obligatorio vacio: Rol, Nombre, Apellido, identificacion y Email son requeridos.' };
+    }
   } else {
     return { success: false, message: 'Rol no reconocido.' };
   }
@@ -61,35 +65,57 @@ exports.createUser = functions.https.onCall(async (data, context) => {
       displayName: userData.role === 'afiliado' ? userData.companyName : `${userData.firstName} ${userData.lastName}`,
     });
 
-    // Save additional client info in Realtime Database
+    // Save additional user info in Realtime Database
     const db = admin.database();
-    const userInfo = userData.role === 'afiliado' ? {      
-      companyName: userData.companyName,
-      rif: userData.rif,
-      email: userData.email,
-      role: userData.role,
-      state: userData.state,
-      municipio: userData.municipio,
-      parroquia: userData.parroquia,
-      // Add additional fields if they exist
-      category_id: userData.category_id || null,
-      order: userData.order || null,
-      image: userData.image || null,
-      status: userData.status || null,
-      phoneNumber: userData.phoneNumber || null,
-      twitter: userData.twitter || null,
-      instagram: userData.instagram || null,
-      facebook: userData.facebook || null,
-      tiktok: userData.tiktok || null,
-    } : {
-      firstName: userData.firstName,
-      lastName: userData.lastName,
-      identification: userData.identification,
-      email: userData.email,
-      role: userData.role,
-      // Add additional fields if they exist
-      phoneNumber: userData.phoneNumber || null,
-    };
+    let userInfo = {};
+
+    if (userData.role === 'afiliado') {
+      // Fields for 'afiliado'
+      userInfo = {
+        companyName: userData.companyName,
+        rif: userData.rif,
+        email: userData.email,
+        role: userData.role,
+        state: userData.state,
+        municipio: userData.municipio,
+        parroquia: userData.parroquia,
+        // Optional fields
+        category_id: userData.category_id || null,
+        order: userData.order || null,
+        image: userData.image || null,
+        status: userData.status || null,
+        phoneNumber: userData.phoneNumber || null,
+        twitter: userData.twitter || null,
+        instagram: userData.instagram || null,
+        facebook: userData.facebook || null,
+        tiktok: userData.tiktok || null,
+      };
+    } else if (userData.role === 'mesero' || userData.role === 'promotora') {
+      // Fields for 'mesero' or 'promotora'
+      userInfo = {
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        identification: userData.identification,
+        email: userData.email,
+        role: userData.role,
+        codigoReferido: `REF-${userRecord.uid.slice(0, 3).toUpperCase()}${Date.now().toString().slice(-2)}`,
+        // Optional fields
+        // restaurantId: userData.restaurantId || null, // Example field specific to mesero
+        // shift: userData.shift || null,              // Example field specific to mesero
+        phoneNumber: userData.phoneNumber || null,
+      };
+    } else {
+      // Fields for clients
+      userInfo = {
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        identification: userData.identification,
+        email: userData.email,
+        role: userData.role,
+        // Optional fields
+        phoneNumber: userData.phoneNumber || null,
+      };
+    }
 
     await db.ref('Users/' + userRecord.uid).set(userInfo);
 
@@ -171,13 +197,13 @@ exports.sendEmail = functions.https.onCall(async (data, context) => {
 // Cloud function to retrieve the createdAt for Users from Auth
 exports.getUserDetails = functions.https.onCall(async (uid) => {
   try {
-      const userRecord = await admin.auth().getUser(uid);
-      return {
-          uid: userRecord.uid,
-          creationTime: userRecord.metadata.creationTime,
-          // Add other fields as necessary
-      };
+    const userRecord = await admin.auth().getUser(uid);
+    return {
+      uid: userRecord.uid,
+      creationTime: userRecord.metadata.creationTime,
+      // Add other fields as necessary
+    };
   } catch (error) {
-      throw new functions.https.HttpsError('not-found', 'User not found');
+    throw new functions.https.HttpsError('not-found', 'User not found');
   }
 });

@@ -25,6 +25,11 @@ export const useAppSidebarMenuStore = defineStore({
         text: "Clientes",
       },
       {
+        url: "/employees",
+        icon: "fa fa-users",
+        text: "Empleados",
+      },
+      {
         url: "/cupones",
         icon: "fa fa-ticket",
         text: "Cupones",

@@ -145,13 +145,6 @@ export default {
 
                 this.clients = clientsWithTimestamp.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-                // Parallel fetching of coupons, subscriptions, preferences
-                // await Promise.all(this.clients.map(async (client) => {
-                //     await this.fetchClientCoupons(client);
-                //     await this.fetchClientSubscription(client);
-                //     await this.fetchClientPreferences(client);
-                // }));
-
             } catch (error) {
                 console.error('Error fetching clients:', error);
                 this.clients = [];
@@ -686,7 +679,7 @@ export default {
             </div>
             <div>
                 <div class="text-center" v-if="loading">
-                    <p>Cargando clientes, puede tardar un minuto...</p>
+                    <p>Cargando lista de clientes, puede tardar un minuto...</p>
                     <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
                         aria-hidden="true"></span>
                 </div>

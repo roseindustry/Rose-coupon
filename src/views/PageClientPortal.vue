@@ -36,14 +36,14 @@ export default defineComponent({
                 { title: 'Suscripciones', description: 'Administra tu suscripcion aqui.', link: '/suscripciones', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/5.png' },
                 { title: 'Sorteos', description: 'Descubre nuestros próximos sorteos.', link: '/giveaways', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/3.png' },
                 { title: 'Vacantes', description: 'Descubre vacantes aquí.', link: '/jobs', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/3.png' },
-                // {
-                //     title: 'Crédito',
-                //     description: 'Solicite o modifique su crédito aquí.',
-                //     link: '/creditos',
-                //     actionText: 'Ver más',
-                //     notReady: true,
-                //     bgImage: '/assets/img/rose_imgs/2.png'
-                // },
+                {
+                    title: 'Crédito',
+                    description: 'Descubre tu línea de crédito aquí.',
+                    link: '/creditos',
+                    actionText: 'Ver más',
+                    notReady: false,
+                    bgImage: '/assets/img/rose_imgs/2.png'
+                },
                 // { title: 'Compras recientes', description: 'Ver sus compras recientes.', link: '#', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/5.png' },
                 // { title: 'Mis Opiniones', description: 'Aqui se muestran tus reseñas y opiniones de lo que consumes.', link: '/clients-ratings', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
                 // { title: 'Encuestas', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/customer-survey', actionText: 'Tomar Encuesta', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
@@ -175,7 +175,7 @@ export default defineComponent({
                 query: { clientSubscriptionId: subscriptionPlan.id }
             });
         },
-        
+
         async submitVerification() {
             if (!this.idFrontFile || !this.idBackFile || !this.selfieFile) {
                 this.errorMessage = 'Ambos archivos de la identificación son requeridos.';
@@ -251,8 +251,8 @@ export default defineComponent({
         await userStore.fetchUser();
         //this.role = userStore.role;
         this.userId = userStore.userId;
-        this.userName = userStore.userName;
         console.log(this.userId)
+        this.userName = userStore.userName;
 
         this.verificationModal = new Modal(document.getElementById('verificationModal'));
 
@@ -271,21 +271,26 @@ export default defineComponent({
 
                 <!-- Subscription Plan Badge (Left) -->
                 <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
-                    class="d-flex align-items-center ms-3">
+                    class="d-flex flex-column align-items-start ms-3">
                     <a href="#" @click.prevent="redirectToSubs(subscriptionPlan)" id="subscription-button" class="btn">
                         <span
-                            class="badge bg-light border border-success text-success d-flex align-items-center px-3 py-2 shadow-sm rounded-pill"
+                            class="badge bg-light border border-success text-success d-flex align-items-center px-3 py-2 ms-3 shadow-sm rounded-pill"
                             style="width: auto;">
                             <i :class="subscriptionPlan.icon" class="me-2" style="font-size: 1.2rem;"></i>
                             {{ subscriptionPlan.name.toUpperCase() }}
                         </span>
                     </a>
-                    <small class="text-muted d-block ms-2">Haz clic para cambiar tu suscripción</small>
+                    <div class="ms-3 mt-2">
+                        <small class="text-muted d-block">Haz clic para cambiar tu suscripción</small>
+                        <small v-if="!subscriptionPlan.isPaid" class="text-danger">Debes realizar el pago de tu
+                            suscripción.</small>
+                    </div>
                 </div>
+
                 <div v-else class="d-flex align-items-center">
                     <RouterLink to="/suscripciones" class="btn">
                         <span
-                            class="badge bg-light border border-danger text-danger d-flex align-items-center px-3 py-2 shadow-sm rounded-pill"
+                            class="badge bg-light border border-danger text-danger d-flex align-items-center px-3 py-2 ms-3 shadow-sm rounded-pill"
                             style="width: auto;">
                             <i class="me-2 fa-solid fa-exclamation-circle" style="font-size: 1.2rem;"></i>
                             Click para suscribirte
@@ -428,7 +433,6 @@ export default defineComponent({
     </div>
 </template>
 <style scoped>
-
 .btn-theme {
     background-color: purple;
     border-color: purple;
