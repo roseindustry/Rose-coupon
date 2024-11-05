@@ -109,7 +109,7 @@ export default {
         },
         formattedDesc() {
             if (this.role === 'cliente') {
-                return this.plans.map(plan => ({
+                return this.sortedPlans.map(plan => ({
                     ...plan,
                     desc: plan.desc
                         .split('.')

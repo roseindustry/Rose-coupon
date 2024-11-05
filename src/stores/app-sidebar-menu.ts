@@ -189,6 +189,11 @@ export const useAppSidebarMenuStore = defineStore({
         url: "/giftcards",
         icon: "fa fa-money-bill",
         text: "Giftcards",
+      },
+      {
+        url: "/creditos",
+        icon: "fa fa-dollar",
+        text: "Créditos",
       },      
       {
         url: "/suscripciones",

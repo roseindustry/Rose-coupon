@@ -87,6 +87,7 @@ export default {
 
             purchaseDate: new Date().toLocaleDateString('en-CA'),
             purchaseAmount: 0,
+            loanAmount: 0,
             calc: false,
             terms: 2, // default to 2 cuota
             frequency: 2, // default to bi-weekly payments
@@ -498,6 +499,7 @@ export default {
             this.affMainAvailableToAssign = this.totalAffiliateMainCapital - this.affMainAssignedCapital;
         },
 
+        // Set App's total credit capital
         initializeCreditValue(creditType) {
             // Set the input value in the modal to reflect the current credit
             if (creditType === 'main') {
@@ -518,7 +520,6 @@ export default {
             const modal = new Modal(document.getElementById('set-credit'));
             modal.show();
         },
-        // Set App's total credit capital
         async setCredit(creditLine) {
             if (confirm("¿Desea asignar este nuevo capital a la App?")) {
 
@@ -620,7 +621,6 @@ export default {
                 return matches;
             });
         },
-
         selectEntity(user) {
             // Set selected client or affiliate based on userType
             if (this.creditType === 'client') {
@@ -646,12 +646,12 @@ export default {
             this.searchEntityResults = [];
         },
 
+        // Set an affiliate or client's credit
         openCreditModal(type) {
             this.creditType = type;
             const modal = new Modal(document.getElementById('set-credit-modal'));
             modal.show();
         },
-        // Set an affiliate or client's credit
         async assignCredit() {
             if (this.creditLine === 'plus') {
                 // this.calculatePlusCredits()
@@ -729,43 +729,60 @@ export default {
         },
 
         calcs(client) {
-
-            if (this.calc) {
-                // Toggle off: reset the fields
-                this.calc = false;
-                this.purchaseAmount = 0;
-                this.quotesAmount = [];
-                this.cuotaDates = [];
-            } else if (this.productPrice > 0) {
-                if (!client) {
-                    alert('Debe seleccionar un cliente para calcular sus cuotas.');
-                    return;
-                }
-                // Toggle on: perform calculations
-                this.calc = true;
-
-                // Calculate the initial purchase amount (half of the product price)
-                this.purchaseAmount = this.productPrice / 2;
-
-                // Adjust the remaining amount based on the client's subscription tier
-                let additionalAmount = 0;
-                if (client.subscription.order == 2) {
-                    additionalAmount = 3;
-                } else if (client.subscription.order == 3) {
-                    additionalAmount = 1;
-                }
-
-                // Calculate the remaining amount with the subscription adjustment
-                const remainingAmount = (this.productPrice / 2) + additionalAmount;
-
-                // Divide the remaining amount into terms and set quotesAmount array
-                this.quotesAmount = Array(this.terms).fill(remainingAmount / this.terms);
-
-                // Calculate the payment dates based on frequency
-                this.cuotaDates = this.calculatePaymentDates(this.purchaseDate, this.terms, this.frequency);
-            } else {
+            if (this.productPrice <= 0) {
                 alert('Ingrese el precio del producto para calcular.');
+                return;
             }
+
+            if (!client) {
+                alert('Debe seleccionar un cliente para calcular sus cuotas.');
+                return;
+            }
+
+            if (client.credit.availableMainCredit <= 0) {
+                alert('El cliente no tiene crédito disponible.');
+                return;
+            }
+
+            // Toggle on: perform calculations
+            this.calc = true;
+
+            // Calculate half the product price and set variables for initial payment and remaining amount
+            const halfProductPrice = this.productPrice / 2;
+            let initial = 0;
+            let remainingAmount = 0;
+
+            // Condition 1: If available credit is greater than half the product price
+            if (client.credit.availableMainCredit > halfProductPrice) {
+                initial = halfProductPrice;
+                remainingAmount = halfProductPrice;
+
+                // Condition 2: If available credit is less than half the product price
+            } else {
+                initial = this.productPrice - client.credit.availableMainCredit;
+                remainingAmount = client.credit.availableMainCredit;
+            }
+
+            // Set initial purchase amount and quotes
+            this.purchaseAmount = initial;
+            this.loanAmount = remainingAmount;
+
+            // Adjust the remaining amount based on the client's subscription tier
+            let additionalAmount = 0;
+            if (client.subscription.order == 2) {
+                additionalAmount = 2;
+            } else if (client.subscription.order == 3) {
+                additionalAmount = 1;
+            }
+
+            // Calculate the remaining amount with the subscription adjustment
+            const adjustedRemainingAmount = remainingAmount + additionalAmount;
+
+            // Divide the adjusted remaining amount into terms and set quotesAmount array
+            this.quotesAmount = Array(2).fill(adjustedRemainingAmount / 2);
+
+            // Calculate the payment dates based on frequency
+            this.cuotaDates = this.calculatePaymentDates(this.purchaseDate, this.terms, this.frequency);
         },
         calculatePaymentDates(startDate, terms, frequency) {
             let paymentDates = [];
@@ -787,6 +804,17 @@ export default {
 
             return paymentDates;
         },
+        cancelCals() {
+            // Toggle off: reset the fields
+            this.calc = false;
+            this.selectedClient = null;
+            this.purchaseAmount = 0;
+            this.loanAmount = 0;
+            this.productPrice = 0;
+            this.productName = '';
+            this.quotesAmount = [];
+            this.cuotaDates = [];
+        },
 
         // Make purchase logic
         async generateAndStoreCode(clientId) {
@@ -806,6 +834,12 @@ export default {
 
                 if (!client) {
                     alert('Primero seleccione un cliente');
+                    return;
+                }
+
+                if (client.credit.availableMainCredit <= 0) {
+                    alert('El cliente no tiene crédito disponible.');
+                    return;
                 }
 
                 // Send the verification code to the selected client
@@ -1426,8 +1460,8 @@ export default {
                                             </div>
                                             </p>
                                             <p v-else>
-                                                <span class="badge bg-secondary text-black text-center p-2" 
-                                                style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
+                                                <span class="badge bg-secondary text-black text-center p-2"
+                                                    style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
                                                     Sin Crédito aprobado
                                                 </span>
                                             </p>
@@ -1462,8 +1496,7 @@ export default {
                                             </div>
                                             </p>
                                             <p v-else>
-                                                <span
-                                                    class="badge bg-secondary text-black text-center p-2"
+                                                <span class="badge bg-secondary text-black text-center p-2"
                                                     style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
                                                     Sin Crédito Plus aprobado
                                                 </span>
@@ -1490,8 +1523,8 @@ export default {
                                                 </span>
                                             </h5>
                                             <p v-else>
-                                                <span class="badge bg-secondary text-black text-center p-2" 
-                                                style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
+                                                <span class="badge bg-secondary text-black text-center p-2"
+                                                    style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
                                                     Crédito consumido
                                                 </span>
                                             </p>
@@ -1628,8 +1661,8 @@ export default {
                                             </div>
                                             </p>
                                             <p v-else>
-                                                <span class="badge bg-secondary text-black text-center p-2" 
-                                                style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
+                                                <span class="badge bg-secondary text-black text-center p-2"
+                                                    style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
                                                     Sin Crédito aprobado
                                                 </span>
                                             </p>
@@ -1652,8 +1685,8 @@ export default {
                                                 </span>
                                             </p>
                                             <p v-else>
-                                                <span class="badge bg-secondary text-black text-center p-2" 
-                                                style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
+                                                <span class="badge bg-secondary text-black text-center p-2"
+                                                    style="font-size: 0.7rem; word-break: break-word; white-space: normal;">
                                                     Crédito consumido
                                                 </span>
                                             </p>
@@ -2280,7 +2313,7 @@ export default {
                                 <p><strong>Cédula:</strong> {{ selectedClient.identification }}</p>
                                 <hr>
                                 <p><strong>Crédito actual</strong></p>
-                                <p><strong>Disponible: </strong> ${{ selectedClient.credit ?
+                                <p><strong>Disponible: </strong> ${{ selectedClient.credit.availableMainCredit ?
                                     selectedClient.credit.availableMainCredit : 0 }}</p>
                                 <!-- <p><strong>Linea Plus: </strong> ${{ selectedClient.credit ?
                                     selectedClient.credit.availablePlusCredit : 0 }}</p> -->
@@ -2288,7 +2321,7 @@ export default {
 
                             <div v-if="verificationRequested" class="row justify-content-center">
                                 <div class="col-6 mb-3">
-                                    <label for="verificationCode">Codigo de verificacion</label>
+                                    <label for="verificationCode">Código de verificación</label>
                                     <input id="verificationCode" type="number" class="form-control mt-2"
                                         v-model="verificationCode">
                                 </div>
@@ -2322,7 +2355,7 @@ export default {
                                 <div v-if="calc">
                                     <div class="row">
                                         <div class="col-4 mb-3">
-                                            <label for="purchaseAmount">Monto a prestar</label>
+                                            <label for="purchaseAmount">Inicial</label>
                                             <div class="input-group mt-2">
                                                 <span class="input-group-text text-wrap" id="assign-addon">$</span>
                                                 <input id="purchaseAmount" type="number" class="form-control"
@@ -2352,6 +2385,14 @@ export default {
                                         <hr>
 
                                         <h4 class="text-center mt-3 mb-3">Plan de Pagos</h4>
+
+                                        <div class="row justify-content-center">
+                                            <div class="col-4 mb-3">
+                                                <label for="loanAmount">Monto a Prestar</label>
+                                                <input id="loanAmount" type="number" class="form-control mt-2"
+                                                    v-model="loanAmount">
+                                            </div>
+                                        </div>
 
                                         <div v-for="(quote, index) in terms" :key="index" class="col-6 mb-3">
                                             <label :for="'quotesAmount-' + index">Cuota {{ index + 1 }}</label>
@@ -2383,6 +2424,9 @@ export default {
                             <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
                                 aria-hidden="true"></span>
                             <span>Aceptar</span>
+                        </button>
+                        <button class="btn btn-danger" @click="cancelCals()">
+                            Cancelar
                         </button>
                     </div>
                 </div>

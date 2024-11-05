@@ -85,6 +85,27 @@ export default {
         },
         totalPages() {
             return Math.ceil(this.filteredUsers.length / this.itemsPerPage);
+        },
+
+        visiblePages() {
+            // Adjust the number of visible page links based on screen width
+            const totalPages = this.totalPages;
+            const currentPage = this.currentPage;
+            const maxPagesToShow = window.innerWidth < 768 ? 3 : 5;
+
+            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+            let endPage = Math.min(totalPages, currentPage + Math.floor(maxPagesToShow / 2));
+
+            // Adjust the start and end if they go out of bounds
+            if (endPage - startPage + 1 < maxPagesToShow) {
+                if (currentPage < totalPages / 2) {
+                    endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+                } else {
+                    startPage = Math.max(1, endPage - maxPagesToShow + 1);
+                }
+            }
+
+            return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
         }
     },
     methods: {
@@ -201,11 +222,41 @@ export default {
         },
 
         async fetchClientCredit(client) {
-            const creditRef = dbRef(db, `Users/${client.uid}/credit`);
-            const creditSnapshot = await get(creditRef);
-            client.credit = creditSnapshot.exists() ? creditSnapshot.val() : null;
+            try {
+                const creditRef = dbRef(db, `Users/${client.uid}/credit`);
+                const creditSnapshot = await get(creditRef);
 
+                if (creditSnapshot.exists()) {
+                    const creditData = creditSnapshot.val();
 
+                    // Check if the mainCredit and plusCredit exist and are greater than 0
+                    const mainCredit = creditData?.main?.totalCredit || null;
+                    const availableMainCredit = creditData?.main?.availableCredit || null;
+                    const mainPurchases = creditData?.main?.purchases || null;
+
+                    const plusCredit = creditData?.plus?.totalCredit || null;
+                    const availablePlusCredit = creditData?.plus?.availableCredit || null;
+                    const plusPurchases = creditData?.plus?.purchases || null;
+
+                    // Only return the user credit if either credit line is assigned
+                    if (mainCredit > 0 || plusCredit > 0 || mainPurchases || plusPurchases) {
+                        client.credit = {
+                            mainCredit,
+                            availableMainCredit,
+                            mainPurchases,
+                            plusCredit,
+                            availablePlusCredit,
+                            plusPurchases
+                        };
+                    }
+                    console.log(client.credit)
+                } else {
+                    client.credit = null; // No credit assigned, return null
+                }
+            } catch (error) {
+                console.error('Error fetching credit data from the client: ', client.uid, error);
+                client.credit = null;
+            }
         },
 
         async fetchClientPreferences(client) {
@@ -690,11 +741,17 @@ export default {
                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
                                     :data-bs-target="'#collapse' + client.uid" aria-expanded="false"
                                     :aria-controls="'collapse' + client.uid">
-                                    {{ client.firstName + " " + client.lastName }} - <strong> V{{ client.identification
-                                        }}</strong>
-                                    <span v-if="client.isVerified === true"
-                                        class="badge bg-success ms-2">Verificado</span>
-                                    <span v-else class="badge bg-danger ms-2">Sin verificar</span>
+                                    {{ client.firstName + " " + client.lastName }}
+                                    <span class="badge bg-secondary text-black ms-2">
+                                        {{ client.identification ? `V-${client.identification}` : null }}
+                                    </span>
+
+                                    <span v-if="client.isVerified === true" class="badge bg-success ms-2">
+                                        <i class="fa fa-user-check"></i>
+                                    </span>
+                                    <span v-else class="badge bg-danger ms-2">
+                                        <i class="fa fa-user-times"></i>
+                                    </span>
                                 </button>
                             </h2>
                             <div :id="'collapse' + client.uid" class="accordion-collapse collapse"
@@ -811,23 +868,50 @@ export default {
                                                     class="accordion-collapse collapse"
                                                     :aria-labelledby="'headingCredit' + client.uid">
                                                     <div class="accordion-body">
-                                                        <ul class="list-group" v-if="client.credit">
-                                                            <li class="list-group-item"><strong>Crédito aprobado
-                                                                    :</strong>
-                                                            </li>
-                                                            <li class="list-group-item"><strong>Saldo activo:</strong>
-                                                            </li>
-                                                            <li class="list-group-item"><strong>Saldo usado:</strong>
-                                                            </li>
-                                                            <li class="list-group-item"><strong>Fecha de corte:</strong>
-                                                            </li>
-                                                            <!-- <li class="list-group-item"><strong>Lista de productos
-                                                                    adquiridos a
-                                                                    crédito:</strong>
-                                                            </li> -->
-                                                            <!-- <a href="#" @click="openProductsModal()">Lista de productos</a> -->
-                                                        </ul>
-                                                        <!-- Fallback message if no subscription is found -->
+                                                        <div v-if="client.credit">
+                                                            <!-- Rose Credit -->
+                                                            <ul class="list-group" v-if="client.credit.mainCredit">
+                                                                <h5 class="text-center">{{ client.credit.mainCredit ?
+                                                                    `Rose Credit` : '' }}</h5>
+                                                                <li class="list-group-item"><strong>Aprobado:</strong>
+                                                                    {{ client.credit.mainCredit ?
+                                                                        `$${client.credit.mainCredit}` : `No Rose Credit` }}
+                                                                </li>
+                                                                <li class="list-group-item"><strong>Disponible:</strong>
+                                                                    {{ client.credit.availableMainCredit ?
+                                                                        `$${client.credit.availableMainCredit}` : `No Rose
+                                                                    Credit` }}
+                                                                </li>
+                                                                <li class="list-group-item"><strong>Usado:</strong>
+                                                                    {{ client.credit.mainCredit ?
+                                                                        `$${client.credit.mainCredit -
+                                                                        client.credit.availableMainCredit}` : `No Rose Credit`
+                                                                    }}
+                                                                </li>
+                                                            </ul>
+                                                            <!-- Rose Credit Plus -->
+                                                            <ul class="list-group mt-3" v-if="client.credit.plusCredit">
+                                                                <h5 class="text-center">{{ client.credit.plusCredit ?
+                                                                    `Rose Credit Plus` : '' }}</h5>
+                                                                <li class="list-group-item"><strong>Aprobado:</strong>
+                                                                    {{ client.credit.plusCredit ?
+                                                                        `$${client.credit.plusCredit}` : `No Rose Credit
+                                                                    Plus` }}
+                                                                </li>
+                                                                <li class="list-group-item"><strong>Disponible:</strong>
+                                                                    {{ client.credit.availablePlusCredit ?
+                                                                        `$${client.credit.availablePlusCredit}` : `No Rose
+                                                                    Credit Plus` }}
+                                                                </li>
+                                                                <li class="list-group-item"><strong>Usado:</strong>
+                                                                    {{ client.credit.plusCredit ?
+                                                                        `$${client.credit.plusCredit -
+                                                                        client.credit.availablePlusCredit}` : `No Rose Credit Plus`
+                                                                    }}
+                                                                </li>
+                                                            </ul>
+                                                        </div>
+                                                        <!-- Fallback message if no credit data is found -->
                                                         <p v-else class="text-center">Este cliente no tiene una
                                                             línea de crédito activa.</p>
                                                     </div>
@@ -921,8 +1005,9 @@ export default {
 
                                                                             <p class="card-text">
                                                                                 <strong class="me-2">
-                                                                                    {{ coupon.type === 'saldo' ? 'Saldo: $' : 'Porcentaje: % ' }}{{
-                                                                                        coupon.balance }}
+                                                                                    {{ coupon.type === `saldo` ? `Saldo:
+                                                                                    $` : `Porcentaje: % ` }}
+                                                                                    {{ coupon.balance }}
                                                                                 </strong>
                                                                                 <br>
                                                                                 <strong>Válido hasta:</strong> {{
@@ -1157,7 +1242,7 @@ export default {
                                 <button class="page-link" @click="goToPage(currentPage - 1)"
                                     :disabled="currentPage === 1">Anterior</button>
                             </li>
-                            <li class="page-item" v-for="page in totalPages" :key="page"
+                            <li class="page-item" v-for="page in visiblePages" :key="page"
                                 :class="{ active: page === currentPage }">
                                 <button class="page-link" @click="goToPage(page)">{{ page }}</button>
                             </li>
