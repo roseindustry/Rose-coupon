@@ -386,9 +386,6 @@ export default defineComponent({
 				alert('Error al actualizar la contraseña. Inténtalo de nuevo.');
 			}
 		},
-		// async requestUpgrade() {
-
-		// },
 
 		//File uploads
 		handleFileUpload(event, type) {
@@ -518,6 +515,16 @@ export default defineComponent({
 						lastPaymentDate: formattedDate
 					});
 
+				// Save the payment to the payments collection
+                const paymentRef = dbRef(db, `Payments/${this.userId}-${formattedDate.split('T')[0]}`);
+                await update(paymentRef, {
+					subscription_id: this.userSubscriptionId,
+                    client_id: this.userId,
+                    amount: this.amountPaid,
+                    date: formattedDate,
+					type: 'subscription'
+				});
+
 				//Success toast
 				this.showToast('Archivo subido!');
 				if (this.role === 'cliente') {
@@ -556,7 +563,6 @@ export default defineComponent({
 						isPaid: false, // Reset to mark unpaid month
 						status: false,
 						paymentUploaded: false,
-						paymentVerified: false
 					});
 
 					this.showToast('Debes subir tu comprobante de pago para este mes.');
@@ -843,7 +849,7 @@ export default defineComponent({
 								<span class="badge bg-transparent border border-success text-success ms-2"
 									v-if="subscriptionPlan.isPaid">Pago verificado</span>
 							</div>
-							<div v-if="subscriptionPlan.isPaid" class="card-text mb-3">
+							<div v-if="subscriptionPlan.paymentUploaded" class="card-text mb-3">
 								<button class="btn btn-outline-secondary" @click.prevent="openImgModal()">Ver ultimo
 									pago</button>
 							</div>
@@ -851,13 +857,13 @@ export default defineComponent({
 								class="alert alert-warning">
 								Su pago fue recibido. En espera de Aprobación.
 							</div>
-							<div v-if="!subscriptionPlan.paymentUploaded" class="alert alert-warning">
+							<div v-if="!subscriptionPlan.paymentUploaded && !subscriptionPlan.isPaid" class="alert alert-warning">
 								Debes subir tu comprobante de pago para este mes.
 							</div>
 						</div>
 						<div class="card-footer text-center">
 							<div class="d-flex justify-content-center gap-3">
-								<button v-if="!subscriptionPlan.paymentUploaded" class="btn btn-theme"
+								<button v-if="!subscriptionPlan.paymentUploaded && !subscriptionPlan.isPaid" class="btn btn-theme"
 									@click.prevent="openPaymentModal">
 									Notificar Pago
 								</button>

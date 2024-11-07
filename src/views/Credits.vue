@@ -1,7 +1,8 @@
 <script>
-import { db, functions } from '../firebase/init';
+import { db, functions, storage } from '../firebase/init';
 import { ref as dbRef, update, set, get, remove, query, orderByChild, equalTo } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
+import { ref as storageRef, uploadBytes, getDownloadURL, listAll } from 'firebase/storage';
 import SearchInput from '@/components/app/SearchInput.vue';
 import { Modal } from 'bootstrap';
 import Toastify from 'toastify-js'
@@ -17,6 +18,7 @@ export default {
             //Admin data
             userId: '',
             role: '',
+            userName: '',
 
             affiliates: [],
             allAffiliates: [],
@@ -87,6 +89,7 @@ export default {
 
             purchaseDate: new Date().toLocaleDateString('en-CA'),
             purchaseAmount: 0,
+            remainingAmount: 0,
             loanAmount: 0,
             calc: false,
             terms: 2, // default to 2 cuota
@@ -105,7 +108,18 @@ export default {
             paidPurchases: [],
 
             showPurchases: false,
-            purchaseWithAffiliateData: []
+            purchaseWithAffiliateData: [],
+            showSubscription: false,
+
+            // For client logic
+            cuotaToPay: null,
+            purchaseIdToPay: null,
+            paymentFile: null,
+            paymentPreview: null,
+            paymentUrl: null,
+            paymentDate: new Date().toISOString().split('T')[0],
+            amountPaid: 0,
+            errorMessage: '',
         }
     },
     computed: {
@@ -435,68 +449,82 @@ export default {
             // Calculate the total credit already used by clients
             this.mainCreditUsed = this.clients.reduce((total, client) => {
                 const mainCreditSpent = (client.credit?.mainCredit || 0) - (client.credit?.availableMainCredit || 0);
-
-                // console.log(client.credit?.mainCredit);
-
                 return total + mainCreditSpent;
             }, 0);
-
-            // console.log(this.mainCreditUsed)
+            // Round the value to two decimals
+            this.mainCreditUsed = parseFloat(this.mainCreditUsed.toFixed(2));
 
             // The remaining available credit in the app
             this.mainCreditAvailable = this.totalMainCapital - this.mainCreditUsed;
+            // Round the value to two decimals
+            this.mainCreditAvailable = parseFloat(this.mainCreditAvailable.toFixed(2));
 
             // The total capital that has been assigned (but not necessarily used)
             this.mainAssignedCapital = this.clients.reduce((total, client) => {
                 const mainCreditAssigned = client.credit?.mainCredit || 0;
-
                 return total + mainCreditAssigned;
             }, 0);
+            // Round the value to two decimals
+            this.mainAssignedCapital = parseFloat(this.mainAssignedCapital.toFixed(2));
 
             // Calculate the available capital left for assignment
             this.mainAvailableToAssign = this.totalMainCapital - this.mainAssignedCapital;
+            // Round the value to two decimals
+            this.mainAvailableToAssign = parseFloat(this.mainAvailableToAssign.toFixed(2));
         },
         calculatePlusCredits() {
             // Calculate the total credit already used by clients
             this.plusCreditUsed = this.clients.reduce((total, client) => {
                 const plusCreditSpent = (client.credit?.plusCredit || 0) - (client.credit?.availablePlusCredit || 0);
-
                 return total + plusCreditSpent;
             }, 0);
+            // Round the value to two decimals
+            this.plusCreditUsed = parseFloat(this.plusCreditUsed.toFixed(2));
 
             // The remaining available credit in the app
             this.plusCreditAvailable = this.totalPlusCapital - this.plusCreditUsed;
+            // Round the value to two decimals
+            this.plusCreditAvailable = parseFloat(this.plusCreditAvailable.toFixed(2));
 
             // The total capital that has been assigned (but not necessarily used)
             this.plusAssignedCapital = this.clients.reduce((total, client) => {
                 const plusCreditAssigned = client.credit?.plusCredit || 0;
-
                 return total + plusCreditAssigned;
             }, 0);
+            // Round the value to two decimals
+            this.plusAssignedCapital = parseFloat(this.plusAssignedCapital.toFixed(2));
 
             // Calculate the available capital left for assignment
             this.plusAvailableToAssign = this.totalPlusCapital - this.plusAssignedCapital;
+            // Round the value to two decimals
+            this.plusAvailableToAssign = parseFloat(this.plusAvailableToAssign.toFixed(2));
         },
         calculateAffiliatesCredits() {
             // Calculate the total credit already used by clients
             this.affMainCreditUsed = this.affiliates.reduce((total, affiliate) => {
                 const mainCreditSpent = (affiliate.credit?.mainCredit || 0) - (affiliate.credit?.availableMainCredit || 0);
-
                 return total + mainCreditSpent;
             }, 0);
+            // Round the value to two decimals
+            this.affMainCreditUsed = parseFloat(this.affMainCreditUsed.toFixed(2));
 
             // The remaining available credit in the app
             this.affMainCreditAvailable = this.totalAffiliateMainCapital - this.affMainCreditUsed;
+            // Round the value to two decimals
+            this.affMainCreditAvailable = parseFloat(this.affMainCreditAvailable.toFixed(2));
 
             // The total capital that has been assigned (but not necessarily used)
             this.affMainAssignedCapital = this.affiliates.reduce((total, affiliate) => {
                 const mainCreditAssigned = affiliate.credit?.mainCredit || 0;
-
                 return total + mainCreditAssigned;
             }, 0);
+            // Round the value to two decimals
+            this.affMainAssignedCapital = parseFloat(this.affMainAssignedCapital.toFixed(2));
 
             // Calculate the available capital left for assignment
             this.affMainAvailableToAssign = this.totalAffiliateMainCapital - this.affMainAssignedCapital;
+            // Round the value to two decimals
+            this.affMainAvailableToAssign = parseFloat(this.affMainAvailableToAssign.toFixed(2));
         },
 
         // Set App's total credit capital
@@ -562,12 +590,12 @@ export default {
                 this.selectedClient = client;
                 this.fetchCredit(client.id);
                 console.log('Selected client:', client.identification);
+                this.showSubscription = true;
                 this.searchClient = '';
                 this.searchClientResults = [];
             } catch (error) {
                 console.error("Error selecting client:", error);
             }
-
         },
 
         searchEntities() {
@@ -765,9 +793,9 @@ export default {
 
             // Set initial purchase amount and quotes
             this.purchaseAmount = initial;
-            this.loanAmount = remainingAmount;
+            this.remainingAmount = remainingAmount;
 
-            // Adjust the remaining amount based on the client's subscription tier
+            // Adjust the fixed addOn amount based on the client's subscription tier
             let additionalAmount = 0;
             if (client.subscription.order == 2) {
                 additionalAmount = 2;
@@ -777,9 +805,10 @@ export default {
 
             // Calculate the remaining amount with the subscription adjustment
             const adjustedRemainingAmount = remainingAmount + additionalAmount;
+            this.loanAmount = adjustedRemainingAmount;
 
             // Divide the adjusted remaining amount into terms and set quotesAmount array
-            this.quotesAmount = Array(2).fill(adjustedRemainingAmount / 2);
+            this.quotesAmount = Array(this.terms).fill(adjustedRemainingAmount / this.terms);
 
             // Calculate the payment dates based on frequency
             this.cuotaDates = this.calculatePaymentDates(this.purchaseDate, this.terms, this.frequency);
@@ -808,12 +837,14 @@ export default {
             // Toggle off: reset the fields
             this.calc = false;
             this.selectedClient = null;
+            this.showSubscription = false;
             this.purchaseAmount = 0;
             this.loanAmount = 0;
             this.productPrice = 0;
             this.productName = '';
             this.quotesAmount = [];
             this.cuotaDates = [];
+            this.verificationRequested = false;
         },
 
         // Make purchase logic
@@ -931,8 +962,8 @@ export default {
                 }
 
                 // Verify that the client's available credit is sufficient for the purchase
-                if (this.selectedClient.credit.availableMainCredit < this.purchaseAmount) {
-                    alert('El valor de la compra supera el monto de crédito disponible del cliente.');
+                if (this.selectedClient.credit.availableMainCredit < this.remainingAmount) {
+                    alert('El restante de la compra supera el monto de crédito disponible del cliente.');
                     this.loading = false;
                     return;
                 }
@@ -944,7 +975,7 @@ export default {
                 if (snapshot.exists()) {
                     const availableCredit = snapshot.val().availableCredit;
 
-                    const updatedCredit = availableCredit - this.purchaseAmount;
+                    const updatedCredit = availableCredit - this.remainingAmount;
                     await update(clientCreditsRef,
                         {
                             availableCredit: updatedCredit,
@@ -959,12 +990,11 @@ export default {
                 if (affSnapshot.exists()) {
                     const availableAffCredit = affSnapshot.val().availableCredit;
 
-                    const updatedCredit = availableAffCredit - this.purchaseAmount;
+                    const updatedCredit = availableAffCredit - this.remainingAmount;
                     await update(affCreditsRef,
                         {
                             availableCredit: updatedCredit,
                         });
-
                 }
 
                 // Generate a unique purchase ID for tracking
@@ -984,7 +1014,9 @@ export default {
                     client_id: this.selectedClient.id,
                     productName: this.productName,
                     productPrice: this.productPrice,
-                    purchaseAmount: this.purchaseAmount,
+                    purchaseAmount: this.purchaseAmount, // Initial
+                    remainingAmount: this.remainingAmount, // Remaining
+                    loanAmount: this.loanAmount, // total loan with fixed addOn based on subscription
                     terms: this.terms,
                     frequency: this.frequency,
                     cuotas: cuotas,
@@ -1004,9 +1036,9 @@ export default {
 
                 // Reset form fields
                 this.selectedClient = null;
+                this.showSubscription = false;
                 this.productName = '';
                 this.productPrice = 0;
-                this.calcs();
                 this.fetchClients();
 
             } catch (error) {
@@ -1156,14 +1188,17 @@ export default {
 
             // Fetch and filter sales based on tab type
             const sales = await this.fetchAffiliateSales(this.userId);
-            const salesArray = Object.entries(sales.sales || {}).map(([purchaseId, purchaseData]) => ({
-                purchaseId,
-                ...purchaseData,
-            }));
 
-            // Filter sales based on paid status
-            this[type === 'pendingPayments' ? 'pendingPayments' : 'paidPurchases'] =
-                salesArray.filter((purchase) => (type === 'pendingPayments' ? !purchase.paid : purchase.paid));
+            if (sales) {
+                const salesArray = Object.entries(sales.sales || {}).map(([purchaseId, purchaseData]) => ({
+                    purchaseId,
+                    ...purchaseData,
+                }));
+
+                // Filter sales based on paid status
+                this[type === 'pendingPayments' ? 'pendingPayments' : 'paidPurchases'] =
+                    salesArray.filter((purchase) => (type === 'pendingPayments' ? !purchase.paid : purchase.paid));
+            }
         },
         resetModal() {
             this.selectedEntity = null;
@@ -1182,12 +1217,101 @@ export default {
                     return {
                         purchaseId,
                         ...purchaseData,
-                        affiliateName: affiliate.companyName || 'Unknown',
+                        affiliateName: affiliate.companyName || 'Desconocido',
                         affiliateImage: affiliate.image || ''
                     };
                 });
 
                 console.log(this.purchaseWithAffiliateData); // Verify enriched data
+            }
+        },
+
+        // Client
+        payCuota(purchaseId, cuotaIndex) {
+            if (confirm("¿Desea pagar esta cuota? Debe subir un comprobante de Pago")) {
+                this.cuotaToPay = {
+                    purchaseId,
+                    cuotaIndex,
+                    ...this.purchaseWithAffiliateData.find(purchase => purchase.purchaseId === purchaseId).cuotas[cuotaIndex]
+                };
+
+                const modal = new Modal(document.getElementById('payCuotaModal'));
+                modal.show();
+            }
+        },
+        //File uploads
+        handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            this.paymentFile = file;
+            this.paymentPreview = URL.createObjectURL(file);
+        },
+        async uploadFile(file, paymentDate) {
+            // Define storage reference for front or back ID file
+            const fileName = `${paymentDate}-${file.name.split('.').pop()}`;
+            const fileRef = storageRef(storage, `cuota-payments/${this.userId}-${this.userName}/${fileName}`);
+
+            // Upload the file and get the download URL
+            await uploadBytes(fileRef, file);
+            return getDownloadURL(fileRef);
+        },
+        async notifyPayment() {
+            if (!this.paymentFile) {
+                this.errorMessage = 'El comprobante es requerido.';
+                return;
+            }
+
+            try {
+                this.loading = true;
+
+                // Upload payment file and get the URL
+                const paymentUrl = await this.uploadFile(this.paymentFile, this.paymentDate);
+                console.log('File uploaded successfully:', paymentUrl);
+
+                // Get the current date to set the paymentDate
+                const uploadPaymentDate = new Date(this.paymentDate);
+                const formattedDate = uploadPaymentDate.toISOString();
+
+                // Build reference to the specific cuota to update its status
+                const purchaseId = this.cuotaToPay.purchaseId;
+                const cuotaIndex = this.cuotaToPay.cuotaIndex;
+                const cuotaRef = dbRef(db, `Users/${this.userId}/credit/main/purchases/${purchaseId}/cuotas/${cuotaIndex}`);
+                await update(cuotaRef,
+                    {
+                        paymentUpload: true,
+                        paidAt: formattedDate,
+                        paymentUrl: paymentUrl
+                    });
+
+                const paymentDetails = {
+                    purchase_id: purchaseId,
+                    client_id: this.userId,
+                    amount: this.amountPaid,
+                    date: formattedDate,
+                    type: 'credit-cuota'
+                }
+
+                // Save the payment to the payments collection
+                const paymentRef = dbRef(db, `Payments/${this.userId}-${formattedDate.split('T')[0]}`);
+                await update(paymentRef, paymentDetails);
+
+                //Success toast
+                this.showToast('Comprobante subido!');
+
+                //reset the image previews
+                this.paymentPreview = null;
+
+                // Hide the modal after submission
+                const modal = Modal.getInstance(document.getElementById('payCuotaModal'));
+                modal.hide();
+
+            } catch (error) {
+                console.error('Error during uploading:', error);
+                this.errorMessage = 'Error al subir el archivo, por favor intente nuevamente.';
+            } finally {
+                // Hide the loader
+                this.loading = false;
             }
         },
 
@@ -1219,6 +1343,7 @@ export default {
         await userStore.fetchUser();
         this.userId = userStore.userId;
         this.role = userStore.role;
+        this.userName = userStore.userName;
 
         if (this.role === 'admin') {
             await this.fetchCurrentTotalCredit();
@@ -1986,7 +2111,7 @@ export default {
                                                                 </p>
                                                                 <p><strong>Frecuencia de pago:</strong> {{
                                                                     purchase.frequency === 2 ? 'Quincenal' : 'Mensual'
-                                                                }}</p>
+                                                                    }}</p>
                                                                 <h6><strong>Plan de Pago:</strong></h6>
                                                                 <ul class="list-group list-group-flush">
                                                                     <li v-for="(cuota, index) in purchase.cuotas"
@@ -2070,7 +2195,7 @@ export default {
                             <div class="col-12 col-md-6 col-lg-4 mt-3">
                                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                                     <div class="card-body text-center py-5">
-                                        <h5 class="card-title mb-3">Crédito aprobado</h5>
+                                        <h5 class="card-title mb-3">Crédito Aprobado</h5>
                                         <h3><strong>${{ currentClient.mainCredit || 0 }}</strong></h3>
                                     </div>
                                 </div>
@@ -2078,7 +2203,7 @@ export default {
                             <div class="col-12 col-md-6 col-lg-4 mt-3">
                                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                                     <div class="card-body text-center py-5">
-                                        <h5 class="card-title mb-3">Crédito Restante</h5>
+                                        <h5 class="card-title mb-3">Crédito Disponible</h5>
                                         <h3><strong>${{ currentClient.availableMainCredit || 0 }}</strong></h3>
                                         <button v-if="currentClient.mainPurchases" class="btn btn-info mt-3"
                                             @click="openPurchases(currentClient.mainPurchases)">
@@ -2140,45 +2265,161 @@ export default {
                                                     </div>
                                                     <h4 class="text-center">{{ purchase.affiliateName }}</h4>
 
-                                                    <div class="row mt-4 mb-2">
-                                                        <div class="col-md-6">
-                                                            <p class="mb-1"><strong>Nombre del producto:</strong> {{
-                                                                purchase.productName }}</p>
-                                                            <p class="mb-1"><strong>Plazo:</strong> {{ purchase.terms }}
-                                                                cuotas
-                                                            </p>
-                                                            <p class="mb-1"><strong>Frecuencia de pago:</strong> {{
-                                                                purchase.frequency === 2 ? 'Quincenal' : 'Mensual' }}
-                                                            </p>
-                                                        </div>
-                                                        <div class="col-md-6">
-                                                            <p class="mb-1"><strong>Precio del producto:</strong> ${{
-                                                                purchase.productPrice }}</p>
-                                                            <p class="mb-1"><strong>Precio de compra:</strong> ${{
-                                                                purchase.purchaseAmount }}</p>
+                                                    <!-- Details -->
+                                                    <div class="accordion accordion-flush" id="accordionDetails">
+                                                        <div class="accordion-item">
+                                                            <h2 class="accordion-header">
+                                                                <button
+                                                                    class="accordion-button collapsed text-center custom-accordion-button"
+                                                                    type="button" data-bs-toggle="collapse"
+                                                                    data-bs-target="#flush-collapseOne"
+                                                                    aria-expanded="false"
+                                                                    aria-controls="flush-collapseOne">
+                                                                    <strong>Detalles</strong>
+                                                                </button>
+                                                            </h2>
+                                                            <div id="flush-collapseOne"
+                                                                class="accordion-collapse collapse"
+                                                                data-bs-parent="#accordionDetails">
+                                                                <div class="accordion-body">
+                                                                    <div class="row mt-4">
+                                                                        <div class="col-6">
+                                                                            <div class="card text-center mb-2">
+                                                                                <div class="card-header">
+                                                                                    Nombre del
+                                                                                    producto
+                                                                                </div>
+                                                                                <div class="card-body p-2">
+                                                                                    {{ purchase.productName }}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="card text-center mb-2">
+                                                                                <div class="card-header">
+                                                                                    Plazo
+                                                                                </div>
+                                                                                <div class="card-body p-2">
+                                                                                    {{ purchase.terms }} cuotas
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="card  text-center mb-2">
+                                                                                <div class="card-header">
+                                                                                    Frecuencia
+                                                                                </div>
+                                                                                <div class="card-body p-2">
+                                                                                    {{ purchase.frequency === 2 ?
+                                                                                        'Quincenal' :
+                                                                                        'Mensual' }}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div class="col-6">
+                                                                            <div class="card text-center mb-2">
+                                                                                <div class="card-header">
+                                                                                    Precio del Producto
+                                                                                </div>
+                                                                                <div class="card-body p-2">
+                                                                                    ${{ purchase.productPrice.toFixed(2)
+                                                                                    }}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="card text-center mb-2">
+                                                                                <div class="card-header">
+                                                                                    Inicial
+                                                                                </div>
+                                                                                <div class="card-body p-2">
+                                                                                    ${{
+                                                                                        purchase.purchaseAmount.toFixed(2)
+                                                                                    }}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="card text-center mb-2">
+                                                                                <div class="card-header">
+                                                                                    Restante
+                                                                                </div>
+                                                                                <div class="card-body p-2">
+                                                                                    ${{
+                                                                                        purchase.remainingAmount.toFixed(2)
+                                                                                    }}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="row justify-content-center">
+                                                                        <div class="col-6">
+                                                                            <div class="card text-center mb-2">
+                                                                                <div class="card-header">
+                                                                                    Préstamo
+                                                                                </div>
+                                                                                <div class="card-body p-2">
+                                                                                    ${{ purchase.loanAmount.toFixed(2)
+                                                                                    }}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
 
-                                                    <h6><strong>Plan de Pago:</strong></h6>
-                                                    <ul class="list-group list-group-flush">
-                                                        <li v-for="(cuota, index) in purchase.cuotas" :key="index"
-                                                            class="list-group-item d-flex justify-content-between align-items-center">
-                                                            <div>
-                                                                <strong>Cuota {{ index + 1 }}:</strong> ${{
-                                                                    cuota.amount.toFixed(2) }}
+                                                    <!-- Cuotas -->
+                                                    <h6 class="text-center mt-4 mb-4"><strong>Plan de Pago:</strong>
+                                                    </h6>
+                                                    <div class="row">
+                                                        <div v-for="(cuota, index) in purchase.cuotas" :key="index"
+                                                            class="col-lg-6 col-md-12 col-sm-12 mb-4">
+                                                            <div class="card shadow-sm">
+                                                                <div class="card-header">
+                                                                    <h5 class="card-title text-center">Cuota {{
+                                                                        index +
+                                                                        1 }}</h5>
+                                                                </div>
+                                                                <div class="card-body">
+                                                                    <div class="row">
+                                                                        <p class="card-text">
+                                                                            <strong>Monto:</strong> ${{
+                                                                                cuota.amount.toFixed(2) }}
+                                                                        </p>
+                                                                        <p class="card-text">
+                                                                            <strong>Fecha:</strong> {{
+                                                                                formatDate(cuota.date) }}
+                                                                        </p>
+                                                                        <p class="card-text">
+                                                                            <strong>Pagado:</strong>
+                                                                            <span
+                                                                                :class="{ 'text-success': cuota.paid, 'text-danger': !cuota.paid }">
+                                                                                {{ cuota.paid ? ` Sí` : ` No` }}
+                                                                            </span>
+                                                                            <span class="text-muted text-small"
+                                                                                v-if="cuota.paymentUpload && !cuota.paid">
+                                                                                (En espera de confirmación)
+                                                                            </span>
+                                                                        </p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <button
+                                                                            v-if="!cuota.paid && !cuota.paymentUpload"
+                                                                            class="btn btn-theme btn-block mt-3"
+                                                                            @click="payCuota(purchase.purchaseId, index)">
+                                                                            Pagar
+                                                                        </button>
+                                                                        <button
+                                                                            v-else-if="!cuota.paid && cuota.paymentUpload"
+                                                                            class="btn btn-success btn-block mt-3"
+                                                                            disabled>
+                                                                            Pagado, en espera de aprobación
+                                                                        </button>
+                                                                        <button v-if="cuota.paid"
+                                                                            class="btn btn-secondary btn-block mt-3"
+                                                                            disabled>
+                                                                            Pagado
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                            <div>
-                                                                <strong>Fecha:</strong> {{ formatDate(cuota.date) }}
-                                                            </div>
-                                                            <div>
-                                                                <strong>Pagado:</strong> {{ cuota.paid ? 'Sí' : 'No' }}
-                                                            </div>
-                                                            <button class="btn btn-outline-success btn-sm"
-                                                                @click="payCuota(cuota)">
-                                                                Pagar
-                                                            </button>
-                                                        </li>
-                                                    </ul>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -2214,6 +2455,81 @@ export default {
                     </div>
                 </div>
 
+                <!-- Modal for Cuota Payment upload -->
+                <div class="modal fade" id="payCuotaModal" tabindex="-1" aria-labelledby="payCuotaModalLabel"
+                    aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="payCuotaModalLabel">Subir Captura de Pago</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                    aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <!-- Metodos de pago -->
+                                <div class="card" style="padding: 15px; margin: 10px;">
+                                    <h4 class="text-center">Métodos de Pago</h4>
+                                    <h6><u>Pago Móvil</u></h6>
+                                    <div class="card-text">
+                                        <strong>Banco: </strong>Banco Provincial
+                                    </div>
+                                    <div class="card-text">
+                                        <strong>Teléfono: </strong>04246003370
+                                        <button class="btn btn-sm btn-secondary ms-2"
+                                            @click="copyToClipboard('04246003370')">
+                                            <i class="fa fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <div class="card-text">
+                                        <strong>RIF: </strong>J506221772
+                                        <button class="btn btn-sm btn-secondary ms-2"
+                                            @click="copyToClipboard('J506221772')">
+                                            <i class="fa fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <form @submit.prevent="notifyPayment">
+                                    <div class="row g-3">
+                                        <div class="col-6">
+                                            <label for="paymentDate" class="form-label">Fecha de Pago</label>
+                                            <input type="date" class="form-control" v-model="paymentDate"
+                                                style="width: auto;">
+                                        </div>
+                                        <div class="col-6">
+                                            <label for="amountPaid" class="form-label">Monto Pagado</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text text-wrap" id="assign-addon">$</span>
+                                                <input id="amountPaid" type="number" class="form-control"
+                                                    v-model="amountPaid" aria-label="Monto"
+                                                    aria-describedby="assign-addon">
+                                            </div>
+                                        </div>
+                                        <div class="col-12 mb-3">
+                                            <label for="payment" class="form-label">Captura de Pago</label>
+                                            <input type="file" class="form-control" id="payment"
+                                                @change="handleFileUpload($event)" required>
+                                            <img v-if="paymentPreview" :src="paymentPreview" alt="payment preview"
+                                                class="img-fluid mt-2" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Error Message -->
+                                    <div v-if="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
+
+                                    <button type="button" class="btn btn-secondary me-2"
+                                        data-bs-dismiss="modal">Cerrar</button>
+                                    <!-- Submit Button is disabled during submission -->
+                                    <button type="submit" class="btn btn-theme" :disabled="loading">
+                                        <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+                                            aria-hidden="true"></span>
+                                        <span>Subir</span>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <!-- Modal to request Credit to Rose Coupon -->
                 <div class="modal fade" id="request-credit" tabindex="-1" aria-labelledby="requestCreditModalLabel"
                     aria-hidden="true">
@@ -2308,7 +2624,8 @@ export default {
                             <!-- Display selected client information -->
                             <div v-if="selectedClient" class="mb-3 p-3 border rounded">
                                 <h5>Información del cliente seleccionado</h5>
-                                <p><strong>Nombre:</strong> {{ selectedClient.firstName + ' ' + selectedClient.lastName
+                                <p><strong>Nombre:</strong> {{ selectedClient.firstName + ' ' +
+                                    selectedClient.lastName
                                     }}</p>
                                 <p><strong>Cédula:</strong> {{ selectedClient.identification }}</p>
                                 <hr>
@@ -2368,12 +2685,14 @@ export default {
                                             <div class="input-group mt-2">
                                                 <span class="input-group-text text-wrap" id="term-addon">Cuotas</span>
                                                 <input id="term" type="number" class="form-control" v-model="terms"
-                                                    aria-label="terms" aria-describedby="term-addon" @change="calcs()">
+                                                    aria-label="terms" aria-describedby="term-addon"
+                                                    @change="calcs(selectedClient)">
                                             </div>
                                         </div>
                                         <div class="col-4 mb-3">
                                             <label for="frequency">Frecuencia</label>
-                                            <select v-model="frequency" @change="calcs()" class="form-control mt-2">
+                                            <select v-model="frequency" @change="calcs(selectedClient)"
+                                                class="form-control mt-2">
                                                 <option class="text-black" value="" disabled selected>Selecciona una
                                                     opcion
                                                 </option>
@@ -2388,9 +2707,39 @@ export default {
 
                                         <div class="row justify-content-center">
                                             <div class="col-4 mb-3">
+                                                <label for="addOn">Restante</label>
+                                                <div class="input-group mt-2">
+                                                    <span class="input-group-text text-wrap" id="assign-addon">$</span>
+                                                    <input id="addOn" class="form-control" v-model="remainingAmount"
+                                                        aria-label="Monto" aria-describedby="assign-addon" disabled>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="row justify-content-center">
+                                            <div v-if="showSubscription" class="col-4 mb-3 text-center">
+                                                <label for="clientSubscription">Suscripción</label>
+                                                <h6 class="mt-2 text-success">{{ selectedClient.subscription.name ?
+                                                    selectedClient.subscription.name.toUpperCase() : null }}
+                                                </h6>
+                                            </div>
+                                            <div class="col-4 mb-3">
+                                                <label for="addOn">Aumento Fijo</label>
+                                                <div class="input-group mt-2">
+                                                    <span class="input-group-text text-wrap" id="assign-addon">$</span>
+                                                    <input id="addOn" class="form-control"
+                                                        :value="`${selectedClient.subscription.order == 2 ? 2 : 1}`"
+                                                        aria-label="Monto" aria-describedby="assign-addon" disabled>
+                                                </div>
+                                            </div>
+                                            <div class="col-4 mb-3">
                                                 <label for="loanAmount">Monto a Prestar</label>
-                                                <input id="loanAmount" type="number" class="form-control mt-2"
-                                                    v-model="loanAmount">
+                                                <div class="input-group mt-2">
+                                                    <span class="input-group-text text-wrap" id="assign-addon">$</span>
+                                                    <input id="loanAmount" type="number" class="form-control"
+                                                        v-model="loanAmount" aria-label="Monto"
+                                                        aria-describedby="assign-addon" disabled>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -2406,7 +2755,8 @@ export default {
 
                                         <!-- Render payment dates based on frequency -->
                                         <div v-for="(date, index) in cuotaDates" :key="index" class="col-6 mb-3">
-                                            <label :for="'cuotaDate-' + index">Fecha de Cuota {{ index + 1 }}</label>
+                                            <label :for="'cuotaDate-' + index">Fecha de Cuota {{ index + 1
+                                                }}</label>
                                             <input :id="'cuotaDate-' + index" type="date" class="form-control mt-2"
                                                 v-model="cuotaDates[index]" disabled>
                                         </div>
@@ -2419,13 +2769,13 @@ export default {
                                 aria-hidden="true"></span>
                             <span>Solicitar Código</span>
                         </button>
-                        <button v-if="verificationRequested" :disabled="loading" class="btn btn-theme"
+                        <button v-if="verificationRequested" :disabled="loading" class="btn btn-theme me-2"
                             @click="savePurchase()">
                             <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
                                 aria-hidden="true"></span>
                             <span>Aceptar</span>
                         </button>
-                        <button class="btn btn-danger" @click="cancelCals()">
+                        <button class="btn btn-danger me-2" @click="cancelCals()">
                             Cancelar
                         </button>
                     </div>
@@ -2461,9 +2811,12 @@ export default {
                                         </span>
                                     </p>
                                     <p><strong>Fecha de compra:</strong> {{ formatDate(purchase.purchaseDate) }}</p>
-                                    <p><strong>Producto:</strong> {{ purchase.productName }}</p>
-                                    <p><strong>Precio del producto:</strong> ${{ purchase.productPrice.toFixed(2) }}</p>
-                                    <p><strong>Monto de préstamo:</strong> ${{ purchase.purchaseAmount.toFixed(2) }}</p>
+                                    <p><strong>Nombre:</strong> {{ purchase.productName }}</p>
+                                    <p><strong>Precio del producto:</strong> ${{ purchase.productPrice.toFixed(2) }}
+                                    </p>
+                                    <p><strong>Inicial:</strong> ${{ purchase.purchaseAmount.toFixed(2) }}</p>
+                                    <p><strong>Restante:</strong> ${{ purchase.remainingAmount.toFixed(2) }}</p>
+                                    <p><strong>Préstamo:</strong> ${{ purchase.loanAmount.toFixed(2) }}</p>
                                 </div>
 
                                 <div class="row mb-2">
@@ -2501,6 +2854,11 @@ export default {
     </div>
 </template>
 <style>
+.custom-accordion-button {
+    justify-content: center;
+    text-align: center;
+}
+
 .equal-height .card-body {
     display: flex;
     align-items: center;

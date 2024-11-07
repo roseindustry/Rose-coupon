@@ -6,6 +6,7 @@ import { useUserStore } from "@/stores/user-role";
 import { Modal } from 'bootstrap';
 import Toastify from 'toastify-js'
 import 'toastify-js/src/toastify.css'
+import moment from 'moment';
 
 export default {
 	data() {
@@ -19,6 +20,7 @@ export default {
 			verifiedClients: [],
 			affiliates: [],
 			categories: [],
+			subscriptions: [],
 			appliedCoupons: 0,
 			clientsWithRequests: [],
 			clientsVerifyRequests: [],
@@ -31,6 +33,8 @@ export default {
 			sortField: 'firstName',
 			sortOrder: 'asc',
 			isSubmitting: false,
+			assigningSubscription: false,
+			subToAssign: '',
 		}
 	},
 	methods: {
@@ -55,7 +59,23 @@ export default {
 			const year = d.getFullYear();
 			return `${day}/${month}/${year}`;
 		},
+		async sendEmail(payload) {
+			try {
+				const sendEmailFunction = httpsCallable(functions, 'sendEmail');
+				await sendEmailFunction(payload);
+			} catch (error) {
+				console.error('Error sending email:', error);
+			}
+		},
+		async sendNotificationEmail(emailPayload) {
+			try {
+				await this.sendEmail(emailPayload);
+			} catch (error) {
+				console.error('Error sending email:', error);
+			}
+		},
 
+		// Admin's
 		async fetchClients() {
 			const role = 'cliente';
 			const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
@@ -160,97 +180,28 @@ export default {
 				console.error("Error fetching applied coupons:", error);
 			}
 		},
-		async fetchCurrentUserData() {
-			// Ensure that userId is set before proceeding
-			if (!this.userId) {
-				console.error("User ID is not defined.");
-				return;
-			}
-
-			const userRef = dbRef(db, `Users/${this.userId}`);
-			this.userDetails = {};
+		async fetchSubscriptions() {
+			const plansRef = query(dbRef(db, 'Suscriptions'));
 			try {
-				const snapshot = await get(userRef);
+				const snapshot = await get(plansRef);
 
 				if (snapshot.exists()) {
-					this.userDetails = snapshot.val();
+					const plans = snapshot.val();
 
-					// Check if 'referidos' exists and is an object
-					if (this.userDetails.referidos && typeof this.userDetails.referidos === 'object') {
-						// Count the number of entries in the referidos object
-						const referralIds = Object.keys(this.userDetails.referidos);
-						// console.log(referralIds)
-
-						this.referralClients = [];
-						// Loop through each referralId and fetch corresponding user data
-						for (const referralId of referralIds) {
-							const referralUserRef = dbRef(db, `Users/${referralId}`);
-							const referralSnapshot = await get(referralUserRef);
-
-							if (referralSnapshot.exists()) {
-								const referralData = referralSnapshot.val();
-
-								// Check if the client has a subscription object with a subscription_id
-								if (referralData.subscription && referralData.subscription.subscription_id) {
-									const subscriptionId = referralData.subscription.subscription_id;
-									const subscriptionRef = dbRef(db, `Suscriptions/${subscriptionId}`);
-									const subscriptionSnapshot = await get(subscriptionRef);
-
-									if (subscriptionSnapshot.exists()) {
-										// Add subscription name to referralData
-										referralData.subscriptionName = subscriptionSnapshot.val().name || "Unknown Subscription";
-									} else {
-										console.log(`Subscription with ID ${subscriptionId} not found.`);
-										referralData.subscriptionName = "Unknown Subscription";
-									}
-								} else {
-									referralData.subscriptionName = "No Subscription";
-								}
-
-								this.referralClients.push(referralData);
-							} else {
-								console.log(`Referral client with ID ${referralId} not found.`);
-							}
-						}
-					} else {
-						this.userReferralsLength = 0; // If 'referidos' is missing or not an object
-					}
+					// Since Firebase data is an object, map to array for easier use
+					this.subscriptions = Object.keys(plans).map(key => ({
+						id: key,
+						...plans[key]
+					}));
 				} else {
-					console.log("No user data found");
-					this.userDetails = {};
+					this.subscriptions = [];  // No subscriptions found
 				}
 			} catch (error) {
-				console.error("Error fetching data:", error);
+				console.error('Error fetching subscriptions:', error);
+				this.subscriptions = [];
 			}
 		},
-		openClientsModal() {
-			this.clientsModalData = this.referralClients;
 
-			// Show the modal
-			new Modal(document.getElementById('clientsModal')).show();
-		},
-		sortClients(field) {
-			if (this.sortField === field) {
-				// If already sorted by this field, toggle sort order
-				this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
-			} else {
-				// Otherwise, set the field and default to ascending order
-				this.sortField = field;
-				this.sortOrder = 'asc';
-			}
-
-			// Sort the clientsModalData array
-			this.clientsModalData.sort((a, b) => {
-				let fieldA = a[field].toString().toLowerCase();
-				let fieldB = b[field].toString().toLowerCase();
-
-				if (this.sortOrder === 'asc') {
-					return fieldA > fieldB ? 1 : fieldA < fieldB ? -1 : 0;
-				} else {
-					return fieldA < fieldB ? 1 : fieldA > fieldB ? -1 : 0;
-				}
-			});
-		},
 		openRequestsModal(type) {
 			if (type === 'verificationRequests') {
 				this.requestsModalTitle = 'Solicitudes de Verificación';
@@ -446,8 +397,188 @@ export default {
 				path: '/cupones',
 				query: { clientId: client.id } // Pass the client's ID
 			});
-			
+
 		},
+
+		// Employee's
+		async fetchCurrentUserData() {
+			// Ensure that userId is set before proceeding
+			if (!this.userId) {
+				console.error("User ID is not defined.");
+				return;
+			}
+
+			const userRef = dbRef(db, `Users/${this.userId}`);
+			this.userDetails = {};
+			try {
+				const snapshot = await get(userRef);
+
+				if (snapshot.exists()) {
+					this.userDetails = snapshot.val();
+
+					// Check if 'referidos' exists and is an object
+					if (this.userDetails.referidos && typeof this.userDetails.referidos === 'object') {
+						// Count the number of entries in the referidos object
+						const referralIds = Object.keys(this.userDetails.referidos);
+						// console.log(referralIds)
+
+						this.referralClients = [];
+						// Loop through each referralId and fetch corresponding user data
+						for (const referralId of referralIds) {
+							const referralUserRef = dbRef(db, `Users/${referralId}`);
+							const referralSnapshot = await get(referralUserRef);
+
+							if (referralSnapshot.exists()) {
+								const referralData = {
+									id: referralId,
+									...referralSnapshot.val()
+								}
+
+								// Check if the client has a subscription object with a subscription_id
+								if (referralData.subscription && referralData.subscription.subscription_id) {
+									const subscriptionId = referralData.subscription.subscription_id;
+									const subscriptionRef = dbRef(db, `Suscriptions/${subscriptionId}`);
+									const subscriptionSnapshot = await get(subscriptionRef);
+
+									if (referralData.subscription && subscriptionSnapshot.exists()) {
+										// Merge existing subscription data with fetched subscription data
+										referralData.subscription = {
+											...referralData.subscription, // Existing subscription data
+											...subscriptionSnapshot.val(), // Fetched subscription data
+										};
+									} else {
+										console.log(`Subscription with ID ${subscriptionId} not found.`);
+										referralData.subscription = null;
+									}
+								} else {
+									referralData.subscription = null;
+								}
+
+								this.referralClients.push(referralData);
+							} else {
+								console.log(`Referral client with ID ${referralId} not found.`);
+							}
+						}
+					} else {
+						this.userReferralsLength = 0; // If 'referidos' is missing or not an object
+					}
+				} else {
+					console.log("No user data found");
+					this.userDetails = {};
+				}
+			} catch (error) {
+				console.error("Error fetching data:", error);
+			}
+		},
+		openClientsModal() {
+			this.clientsModalData = this.referralClients;
+
+			// Show the modal
+			new Modal(document.getElementById('clientsModal')).show();
+		},
+		sortClients(field) {
+			if (this.sortField === field) {
+				// If already sorted by this field, toggle sort order
+				this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+			} else {
+				// Otherwise, set the field and default to ascending order
+				this.sortField = field;
+				this.sortOrder = 'asc';
+			}
+
+			// Sort the clientsModalData array
+			this.clientsModalData.sort((a, b) => {
+				let fieldA = a[field].toString().toLowerCase();
+				let fieldB = b[field].toString().toLowerCase();
+
+				if (this.sortOrder === 'asc') {
+					return fieldA > fieldB ? 1 : fieldA < fieldB ? -1 : 0;
+				} else {
+					return fieldA < fieldB ? 1 : fieldA > fieldB ? -1 : 0;
+				}
+			});
+		},
+		async loadSubscriptions() {
+			this.fetchSubscriptions();
+			this.assigningSubscription = true;
+		},
+		async assignSubscription(client) {
+			if (!confirm('¿Asegura que el cliente ha pagado su suscripción?')) {
+				return;
+			}
+
+			if (!client.id) {
+				alert('Por favor seleccione un cliente antes de asignar una suscripción.');
+				return;
+			}
+
+			if (!this.subToAssign) {
+				alert('Por favor seleccione una suscripción antes de asignar.');
+				return;
+			}
+
+			// Calculate payDay (one month from today)
+			const payDay = moment().add(1, 'month').toISOString();
+
+			// Prepare subscription details
+			const subscriptionData = {
+				subscription_id: this.subToAssign.id,
+				status: true,
+				payDay: payDay,
+				isPaid: true,
+			};
+
+			try {
+				this.isSubmitting = true;
+
+				// Assign the subscription details to the client's data in Firebase
+				const userPlanRef = dbRef(db, `Users/${client.id}/subscription`);
+				await update(userPlanRef, subscriptionData);
+
+				// Notify Client
+				const appUrl = 'https://app.rosecoupon.com';
+				const clientEmailPayload = {
+					to: client.email,
+					message: {
+						subject: `Suscripción ${this.subToAssign.name.toUpperCase()} activada`,
+						text: `Hola ${client.firstName}, se le ha activado la Suscripción ${this.subToAssign.name.toUpperCase()} in Roseapp.
+                        Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}`,
+						html: `<p>Hola ${client.firstName}, se le ha activado la Suscripción ${this.subToAssign.name} in Roseapp.</p>
+                        <p>Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}</p>`
+					},
+				};
+				await this.sendNotificationEmail(clientEmailPayload);
+
+				// Notify Admin
+				const adminEmailPayload = {
+					to: 'roseindustry11@gmail.com',
+					message: {
+						subject: `Nuevo cliente suscrito al Plan ${this.subToAssign.name.toUpperCase()}`,
+						text: `Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${this.subToAssign.name.toUpperCase()}.`,
+						html: `<p>Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${this.subToAssign.name.toUpperCase()}.</p>`
+					},
+				};
+				await this.sendNotificationEmail(adminEmailPayload);
+
+				this.showToast('Suscripción activada!');
+
+				// Reset state
+				this.resetModal();
+				const modal = Modal.getOrCreateInstance(document.getElementById('clientsModal'));
+				modal.hide();
+
+			} catch (error) {
+				console.error('Error assigning plan:', error);
+				alert('La activación de la suscripción falló.');
+			} finally {
+				this.isSubmitting = false;
+			}
+
+		},
+		resetModal() {
+			this.assigningSubscription = false;
+			this.fetchCurrentUserData();
+		}
 	},
 	async mounted() {
 		const userStore = useUserStore();
@@ -464,7 +595,7 @@ export default {
 		}
 
 		if (this.role === 'mesero' || this.role === 'promotora') {
-			await this.fetchCurrentUserData();			
+			await this.fetchCurrentUserData();
 		}
 		// console.log(this.userId)
 	}
@@ -790,18 +921,45 @@ export default {
 												<i class="fa-solid fa-sort"></i>
 											</th>
 											<th scope="col">Suscripción</th>
+											<th scope="col">Acciones</th>
 										</tr>
 									</thead>
 									<tbody>
 										<tr v-for="client in clientsModalData" :key="client.id">
 											<td>{{ client.firstName + ' ' + client.lastName }}</td>
 											<td>{{ client.identification }}</td>
-											<td>{{ client.subscriptionName.charAt(0).toUpperCase() +
-												client.subscriptionName.slice(1) }}</td>
+											<td v-if="!this.assigningSubscription">{{ client.subscription ?
+												client.subscription.name.toUpperCase() : 'Sin suscripcion' }}</td>
+											<td v-else>
+												<select v-model="subToAssign" class="form-control mb-2">
+													<option value="" disabled selected>Suscripciones</option>
+													<option v-for="sub in subscriptions" :key="sub.id" :value="sub">
+														{{ sub.name.toUpperCase() }}</option>
+												</select>
+											</td>
+											<td v-if="!client.subscription && !this.assigningSubscription">
+												<button class="btn btn-theme btn-sm"
+													@click.prevent="loadSubscriptions()">
+													Asignar suscripcion
+												</button>
+											</td>
+											<td v-if="this.assigningSubscription">
+												<button :disabled="isSubmitting" class="btn btn-theme btn-sm"
+													@click.prevent="assignSubscription(client)">
+													<span v-if="isSubmitting" class="spinner-border spinner-border-sm"
+														role="status" aria-hidden="true"></span>
+													<span v-else><i class="fa-solid fa-check"></i></span>
+													
+												</button>
+											</td>
 										</tr>
 									</tbody>
 								</table>
 							</div>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn" data-bs-dismiss="modal" aria-label="Close"
+								@click.prevent="resetModal()">Cerrar</button>
 						</div>
 					</div>
 				</div>

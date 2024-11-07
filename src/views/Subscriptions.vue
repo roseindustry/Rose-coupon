@@ -95,9 +95,12 @@ export default {
 
             loading: false,
 
-            currentSub: null
+            currentSub: null,
+
+            amountPaid: 0
         };
     },
+
     computed: {
         sortedPlans() {
             if (this.activeTab === 'clients' || this.role === 'cliente') {
@@ -844,12 +847,20 @@ export default {
                 // Prepare subscription details
                 const subscriptionData = {
                     subscription_id: plan.id,
-                    status: true, // Set the default status as true 'active'
+                    status: false, // Set the default status as false 'Inactive' until payment approval
                     payDay: payDay,
                     isPaid: false, // Set the default as unpaid
                     paymentUploaded: true,
                     lastPaymentDate: formattedDate,
                 };
+
+                const paymentDetails = {
+                    subscription_id: plan.id,
+                    client_id: userId,
+                    amount: this.amountPaid,
+                    date: formattedDate,
+                    type: 'subscription'
+                }
 
                 if (this.role === 'cliente') {
                     user = this.clients.find(client => client.id === userId);
@@ -865,7 +876,11 @@ export default {
                 const paymentUrl = await this.uploadPaymentFile(this.paymentFile, this.paymentDate, userType);
                 console.log('File uploaded successfully:', paymentUrl);
 
-                // Update user to set field user.requestedVerification = true
+                // Save the payment to the payments collection
+                const paymentRef = dbRef(db, `Payments/${userId}-${formattedDate.split('T')[0]}`);
+                await update(paymentRef, paymentDetails);
+
+                // Update user collection
                 const userRef = dbRef(db, `Users/${userId}/subscription`);
                 await update(userRef, subscriptionData);
 
@@ -1812,8 +1827,9 @@ export default {
                                 <strong>Tasa: {{ exchange }} Bs</strong>
                             </h5>
                             <h5 class="mb-3">
-                                <strong>Monto a cancelar: 
-                                    {{ selectedPlan.price == 0 && this.role === 'afiliado' ? 'Consultar precio' : `${((selectedPlan.price.toFixed(2)) * exchange).toFixed(2)} Bs` }}
+                                <strong>Monto a cancelar:
+                                    {{ selectedPlan.price == 0 && this.role === 'afiliado' ? 'Consultar precio' :
+                                        `${((selectedPlan.price.toFixed(2)) * exchange).toFixed(2)} Bs` }}
                                 </strong>
                             </h5>
                         </div>
@@ -1840,16 +1856,26 @@ export default {
                         </div>
 
                         <form class="mt-3" @submit.prevent="notifyPayment">
-                            <div class="mb-3">
-                                <label for="paymentDate" class="form-label">Fecha de Pago</label>
-                                <input type="date" class="form-control" v-model="paymentDate" style="width: auto;">
-                            </div>
-                            <div class="mb-3">
-                                <label for="payment" class="form-label">Captura de Pago</label>
-                                <input type="file" class="form-control" id="payment"
-                                    @change="handleFileUpload($event, 'payment')" required>
-                                <img v-if="paymentPreview" :src="paymentPreview" alt="payment preview"
-                                    class="img-fluid mt-2" />
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <label for="paymentDate" class="form-label">Fecha de Pago</label>
+                                    <input type="date" class="form-control" v-model="paymentDate" style="width: auto;">
+                                </div>
+                                <div class="col-6">
+                                    <label for="amountPaid" class="form-label">Monto Pagado</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text text-wrap" id="assign-addon">$</span>
+                                        <input id="amountPaid" type="number" class="form-control" v-model="amountPaid"
+                                            aria-label="Monto" aria-describedby="assign-addon">
+                                    </div>
+                                </div>
+                                <div class="col-12 mb-3">
+                                    <label for="payment" class="form-label">Captura de Pago</label>
+                                    <input type="file" class="form-control" id="payment"
+                                        @change="handleFileUpload($event, 'payment')" required>
+                                    <img v-if="paymentPreview" :src="paymentPreview" alt="payment preview"
+                                        class="img-fluid mt-2" />
+                                </div>
                             </div>
 
                             <!-- Error Message -->
