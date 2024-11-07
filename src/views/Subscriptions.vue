@@ -859,6 +859,7 @@ export default {
                     client_id: userId,
                     amount: this.amountPaid,
                     date: formattedDate,
+                    approved: false,
                     type: 'subscription'
                 }
 
@@ -878,7 +879,7 @@ export default {
 
                 // Save the payment to the payments collection
                 const paymentRef = dbRef(db, `Payments/${userId}-${formattedDate.split('T')[0]}`);
-                await update(paymentRef, paymentDetails);
+                await set(paymentRef, paymentDetails);
 
                 // Update user collection
                 const userRef = dbRef(db, `Users/${userId}/subscription`);
@@ -1864,8 +1865,8 @@ export default {
                                 <div class="col-6">
                                     <label for="amountPaid" class="form-label">Monto Pagado</label>
                                     <div class="input-group">
-                                        <span class="input-group-text text-wrap" id="assign-addon">$</span>
-                                        <input id="amountPaid" type="number" class="form-control" v-model="amountPaid"
+                                        <span class="input-group-text text-wrap" id="assign-addon">Bs.</span>
+                                        <input id="amountPaid" class="form-control" v-model="amountPaid"
                                             aria-label="Monto" aria-describedby="assign-addon">
                                     </div>
                                 </div>

@@ -136,10 +136,10 @@ export default defineComponent({
 
 		if (role === 'cliente') {
 			await this.fetchClientPlan();
-		} else if (role === 'afiliado'){
+		} else if (role === 'afiliado') {
 			await this.fetchAffiliatePlan();
-		}	
-		
+		}
+
 		await this.checkPaymentReset();
 
 		// Initialize ScrollSpy
@@ -516,12 +516,13 @@ export default defineComponent({
 					});
 
 				// Save the payment to the payments collection
-                const paymentRef = dbRef(db, `Payments/${this.userId}-${formattedDate.split('T')[0]}`);
-                await update(paymentRef, {
+				const paymentRef = dbRef(db, `Payments/${this.userId}-${formattedDate.split('T')[0]}`);
+				await update(paymentRef, {
 					subscription_id: this.userSubscriptionId,
-                    client_id: this.userId,
-                    amount: this.amountPaid,
-                    date: formattedDate,
+					client_id: this.userId,
+					amount: this.amountPaid,
+					date: formattedDate,
+					approved: false,
 					type: 'subscription'
 				});
 
@@ -531,7 +532,7 @@ export default defineComponent({
 					this.fetchClientPlan();
 				} else if (this.role === 'afiliado') {
 					this.fetchAffiliatePlan();
-				}				
+				}
 
 				//reset the image previews
 				this.paymentPreview = null;
@@ -768,7 +769,8 @@ export default defineComponent({
 										<!-- Display field value when not in edit mode -->
 										<div v-if="!editStates[field.name]"
 											:class="{ 'text-danger': field.name === 'address' && !field.value, 'text-secondary': field.value }">
-											{{ field.value || (field.name === 'address' ? 'Completa este campo para que tus clientes te encuentren mejor.' : '') }}
+											{{ field.value || (field.name === 'address' ? `Completa este campo para que
+											tus clientes te encuentren mejor.` : '') }}
 										</div>
 
 										<!-- Check if in edit mode and show appropriate input based on field.name -->
@@ -857,14 +859,15 @@ export default defineComponent({
 								class="alert alert-warning">
 								Su pago fue recibido. En espera de Aprobación.
 							</div>
-							<div v-if="!subscriptionPlan.paymentUploaded && !subscriptionPlan.isPaid" class="alert alert-warning">
+							<div v-if="!subscriptionPlan.paymentUploaded && !subscriptionPlan.isPaid"
+								class="alert alert-warning">
 								Debes subir tu comprobante de pago para este mes.
 							</div>
 						</div>
 						<div class="card-footer text-center">
 							<div class="d-flex justify-content-center gap-3">
-								<button v-if="!subscriptionPlan.paymentUploaded && !subscriptionPlan.isPaid" class="btn btn-theme"
-									@click.prevent="openPaymentModal">
+								<button v-if="!subscriptionPlan.paymentUploaded && !subscriptionPlan.isPaid"
+									class="btn btn-theme" @click.prevent="openPaymentModal">
 									Notificar Pago
 								</button>
 								<RouterLink to="/suscripciones" class="btn btn-theme">
@@ -1035,16 +1038,26 @@ export default defineComponent({
 					</div>
 					<div class="modal-body">
 						<form @submit.prevent="notifyPayment">
-							<div class="mb-3">
-								<label for="paymentDate" class="form-label">Fecha de Pago</label>
-								<input type="date" class="form-control" v-model="paymentDate" style="width: auto;">
-							</div>
-							<div class="mb-3">
-								<label for="payment" class="form-label">Captura de Pago</label>
-								<input type="file" class="form-control" id="payment"
-									@change="handleFileUpload($event, 'payment')" required>
-								<img v-if="paymentPreview" :src="paymentPreview" alt="payment preview"
-									class="img-fluid mt-2" />
+							<div class="row g-3">
+								<div class="col-6">
+									<label for="paymentDate" class="form-label">Fecha de Pago</label>
+									<input type="date" class="form-control" v-model="paymentDate" style="width: auto;">
+								</div>
+								<div class="col-6">
+									<label for="amountPaid" class="form-label">Monto Pagado</label>
+									<div class="input-group">
+										<span class="input-group-text text-wrap" id="assign-addon">Bs.</span>
+										<input id="amountPaid" class="form-control" v-model="amountPaid"
+											aria-label="Monto" aria-describedby="assign-addon">
+									</div>
+								</div>
+								<div class="col-12">
+									<label for="payment" class="form-label">Captura de Pago</label>
+									<input type="file" class="form-control" id="payment"
+										@change="handleFileUpload($event, 'payment')" required>
+									<img v-if="paymentPreview" :src="paymentPreview" alt="payment preview"
+										class="img-fluid mt-2" />
+								</div>
 							</div>
 
 							<!-- Error Message -->

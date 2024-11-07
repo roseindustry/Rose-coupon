@@ -27,6 +27,7 @@ export default {
     async mounted() {
         await this.fetchClients();
         await this.fetchAffiliates();
+        await this.fetchPaymentHistory('subscription');
     },
     methods: {
         showToast(message) {
@@ -293,7 +294,76 @@ export default {
 
         // Fetch Payment History
         async fetchPaymentHistory(type) {
+            let paymentsRef;
 
+            if (type) {
+                paymentsRef = query(dbRef(db, `Payments`), orderByChild('type'), equalTo(type));
+            } else {
+                paymentsRef = dbRef(db, `Payments`);
+            }
+
+            try {
+                const snapshot = await get(paymentsRef);
+
+                if (snapshot.exists()) {
+                    const payments = snapshot.val();
+
+                    this.approvedPayments = [];
+
+                    for (const key of Object.keys(payments)) {
+                        const payment = {
+                            id: key,
+                            ...payments[key],
+                        };
+
+                        // Find client for each payment
+                        const client = this.clients.find((client) => client.id === payment.client_id);
+                        payment.clientName = client ? `${client.firstName} ${client.lastName}` : "Cliente Desconocido";
+                        // console.log('Payment client: ', client);
+
+                        try {
+                            // Find the subscription or cuota the client paid based on the payment type
+                            if (type === 'subscription' && payment.subscription_id) {
+                                const subscriptionsRef = dbRef(db, `Suscriptions/${payment.subscription_id}`);
+                                const subSnapshot = await get(subscriptionsRef);
+                                payment.paymentName = subSnapshot.exists() ? subSnapshot.val().name : "Suscripcion Desconocida o Borrada";
+                            } else if (type === 'credit-cuota' && payment.purchase_id) {
+                                const purchaseRef = dbRef(db, `Users/${client?.id}/credit/main/purchases/${payment.purchase_id}`);
+                                const purchaseSnapshot = await get(purchaseRef);
+                                if (purchaseSnapshot.exists()) {
+                                    const purchaseData = purchaseSnapshot.val();
+                                    // console.log('purchase data: ', purchaseData);
+                                    payment.purchaseData = purchaseData;
+
+                                    const cuotas = purchaseData.cuotas;
+
+                                    for (const cuotaId of Object.keys(cuotas)) {
+                                        const cuota = {
+                                            cuotaId: cuotaId,
+                                            ...cuotas[cuotaId]
+                                        }
+
+                                        // console.log('cuota details:', cuota)
+
+                                        if (cuota.paidAt === payment.date) {
+                                            payment.cuota = cuota.cuote;
+                                        }
+                                    }
+
+                                } else {
+                                    console.error('Credit purchases not found for user: ', client?.id);
+                                }
+                            }
+                        } catch (innerError) {
+                            console.error(`Error fetching additional data for payment ${key}:`, innerError);
+                        }
+
+                        this.approvedPayments.push(payment);
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching approved payments:", error);
+            }
         },
 
         openImgModal(user, url, type, purchaseId = null, cuotaId = null) {
@@ -325,11 +395,31 @@ export default {
                 // Show the loader
                 this.isSubmitting = true;
 
+                // Mark client's subscription as paid and active
                 const userRef = dbRef(db, `Users/${user.id}/subscription`);
                 await update(userRef, {
                     isPaid: true,
                     status: true,
                 });
+
+                // Mark Payment as approved for bookeeping
+                const paymentRef = dbRef(db, `Payments`);
+                const paymentSnapshot = await get(paymentRef);
+                if (paymentSnapshot.exists()) {
+                    const payments = paymentSnapshot.val();
+
+                    // Find and update the relevant payment
+                    Object.entries(payments).forEach(async ([paymentId, payment]) => {
+                        const clientId = paymentId.split('-')[0];
+                        const date = new Date(payment.date).split('T')[0];
+                        const comparableDate = new Date(user.subscription.lastPaymentDate).split('T')[0];
+
+                        if (clientId === user.id && date === comparableDate) {
+                            const specificPaymentRef = dbRef(db, `Payments/${paymentId}`);
+                            await update(specificPaymentRef, { approved: true });
+                        }
+                    });
+                }
 
                 // Send an email notification to the user through Firebase Cloud Functions
                 const emailPayload = {
@@ -358,14 +448,14 @@ export default {
 
             // Directly access the purchase and cuota using the selected IDs as keys
             const selectedPurchase = user.credit.main.purchases[user.selectedPurchaseId];
-
+            
             if (!selectedPurchase) {
                 console.error("Purchase not found for ID:", user.selectedPurchaseId);
                 return;
             }
 
             const selectedCuota = selectedPurchase.cuotas.find(cuota => cuota.cuote == user.selectedCuotaId);;
-
+            // console.log(selectedCuota)
             if (!selectedCuota) {
                 console.error("Cuota not found for ID:", user.selectedCuotaId);
                 return;
@@ -375,24 +465,11 @@ export default {
                 try {
                     this.isSubmitting = true;
 
+                    // Update the paid status in the client's collection of cuotas
                     const cuotaRef = dbRef(db, `Users/${user.id}/credit/main/purchases/${selectedPurchase.purchaseId}/cuotas/${selectedCuota.cuotaId}`);
                     await update(cuotaRef, { paid: true });
 
-                    // // Push to approvedPayments history
-                    // const selectedPurchase = user.credit.main.purchases[user.selectedPurchaseIndex];
-                    // const selectedCuota = selectedPurchase.cuotas[user.selectedCuotaIndex];
-                    // this.approvedPayments.push({
-                    //     clientName: `${user.firstName} ${user.lastName}`,
-                    //     type: 'Cuota',
-                    //     amount: selectedCuota.amount,
-                    //     dateApproved: new Date().toISOString(),
-                    //     paymentDate: this.formatDate(selectedCuota.paidAt),
-                    //     details: {
-                    //         productName: selectedPurchase.productName,
-                    //         cuotaIndex: parseInt(user.selectedCuotaIndex) + 1, // 1-based index for display
-                    //     }
-                    // });
-
+                    // Update the client's available credit
                     const clientCreditRef = dbRef(db, `Users/${user.id}/credit/main`);
 
                     // Retrieve the existing availableCredit
@@ -413,6 +490,46 @@ export default {
                         modal.hide();
                         this.fetchClients();
                     }
+
+                    // Mark Payment as approved for bookeeping
+                    const paymentRef = dbRef(db, `Payments`);
+                    const paymentSnapshot = await get(paymentRef);
+                    if (paymentSnapshot.exists()) {
+                        const payments = paymentSnapshot.val();
+
+                        // Find and update the relevant payment
+                        Object.entries(payments).forEach(async ([paymentId, payment]) => {
+                            const clientId = paymentId.split('-')[0];
+                            const date = payment.date.split('T')[0];                            
+                            const comparableDate = selectedCuota.paidAt.split('T')[0];
+
+                            // console.log('ClientId variable: ', clientId, 'Compared to: ', user.id)
+                            // console.log('Date variable: ', date, 'Compared to: ', comparableDate)
+
+                            if (clientId === user.id && date === comparableDate) {
+                                const specificPaymentRef = dbRef(db, `Payments/${paymentId}`);
+                                await update(specificPaymentRef, { approved: true });
+                            }
+                        });
+                    }
+
+                    // Send an email notification to the user through Firebase Cloud Functions
+                    const emailPayload = {
+                        to: user.email,
+                        message: {
+                            subject: `El pago de su cuota por la compra de (${selectedPurchase.productName}) ha sido aprobado en Rose App`,
+                            text: `Hola ${user.firstName} ${user.lastName}, tu pago del día ${selectedCuota.paidAt.split('T')[0]} ha sido aprobado.`,
+                        },
+                    };
+                    await this.sendEmail(emailPayload);
+
+                    this.showToast('Pago aprobado. Se ha notificado al cliente.');
+                    //Close Payment modal after approval
+                    const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
+                    modal.hide();
+                    this.fetchClients();
+                    this.fetchAffiliates();
+
                 } catch (error) {
                     console.error("Error approving cuota payment:", error);
                 } finally {
@@ -452,7 +569,7 @@ export default {
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#" data-bs-toggle="tab" data-bs-target="#history">
-                        Historial ({{ approvedPayments.length }})
+                        Historial
                     </a>
                 </li>
             </ul>
@@ -627,13 +744,13 @@ export default {
                 <div class="mb-4">
                     <ul class="nav nav-tabs nav-fill">
                         <li class="nav-item">
-                            <a class="nav-link active" @click="fetchPaymentHistory('subscriptions')" href="#"
+                            <a class="nav-link active" @click="fetchPaymentHistory('subscription')" href="#"
                                 data-bs-toggle="tab" data-bs-target="#subsPayments">
                                 Pago de Suscripciones
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" @click="fetchPaymentHistory('credit-cuotas')" href="#"
+                            <a class="nav-link" @click="fetchPaymentHistory('credit-cuota')" href="#"
                                 data-bs-toggle="tab" data-bs-target="#cuotaPayments">
                                 Pago de Cuotas de Crédito
                             </a>
@@ -643,47 +760,52 @@ export default {
 
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="subsPayments">
-                        <div class="row g-3">
+                        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
                             <div v-if="approvedPayments.length > 0">
-                                <h5>Historial de Pagos Aprobados</h5>
-                                <div v-for="payment in approvedPayments" :key="index" class="col-sm-6 col-lg-4 mb-4">
-                                    <div class="card custom-card h-100 text-center">
-
-                                        <!-- ADD A BADGE FOR PAYMENT.TYPE 'SUBSCRIPTION OR CUOTA' -->
-
+                                <div v-for="payment in approvedPayments.filter(p => p.type === 'subscription' && p.approved === true)"
+                                    :key="payment.id" class="col">
+                                    <div class="card custom-card text-center shadow-sm">
                                         <div
                                             class="card-body d-flex flex-column justify-content-center align-items-center">
+                                            <span class="badge bg-primary mb-3">Suscripción</span>
                                             <div class="icon-circle mb-3">
-                                                <i class="fa-solid fa-check text-success"></i>
+                                                <i class="fa-solid fa-check text-success fa-2x"></i>
                                             </div>
-                                            <h5 class="mb-3">{{ payment.clientName }}</h5>
-                                            <h5 class="mb-3">{{ payment.date }}</h5>
-
-                                            <h5 class="mb-3">{{ payment.amount }}</h5>
+                                            <h5 class="mb-2">{{ payment.clientName }}</h5>
+                                            <p class="mb-2">
+                                                <strong>Pago Mensual:</strong> {{ payment.paymentName.toUpperCase() }}
+                                            </p>
+                                            <p class="mb-2 text-muted">{{ formatDate(payment.date) }}</p>
+                                            <h5 class="mb-0 text-success">Bs.{{ payment.amount.toFixed(2) }}</h5>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="tab-pane fade show active" id="cuotaPayments">
-                        <div class="row g-3">
+
+                    <div class="tab-pane fade" id="cuotaPayments">
+                        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3">
                             <div v-if="approvedPayments.length > 0">
-                                <h5>Historial de Pagos Aprobados</h5>
-                                <div v-for="payment in approvedPayments" :key="index" class="col-sm-6 col-lg-4 mb-4">
-                                    <div class="card custom-card h-100 text-center">
-
-                                        <!-- ADD A BADGE FOR PAYMENT.TYPE 'SUBSCRIPTION OR CUOTA' -->
-
+                                <div v-for="payment in approvedPayments.filter(p => p.type === 'credit-cuota' && p.approved === true)"
+                                    :key="payment.id" class="col">
+                                    <div class="card custom-card text-center shadow-sm mt-3">
                                         <div
                                             class="card-body d-flex flex-column justify-content-center align-items-center">
+                                            <span class="badge bg-primary mb-3">Pago de Cuota</span>
                                             <div class="icon-circle mb-3">
-                                                <i class="fa-solid fa-check text-success"></i>
+                                                <i class="fa-solid fa-check text-success fa-2x"></i>
                                             </div>
-                                            <h5 class="mb-3">{{ payment.clientName }}</h5>
-                                            <h5 class="mb-3">{{ payment.date }}</h5>
-
-                                            <h5 class="mb-3">{{ payment.amount }}</h5>
+                                            <h5 class="mb-2">{{ payment.clientName }}</h5>
+                                            <p class="mb-2">
+                                                <strong>Cuota #:</strong> {{ payment.cuota }}
+                                            </p>
+                                            <p class="mb-2">
+                                                <strong>Detalles de Compra:</strong> {{
+                                                    payment.purchaseData.productName.toUpperCase() }}
+                                            </p>
+                                            <p class="mb-2 text-muted">{{ formatDate(payment.date) }}</p>
+                                            <h5 class="mb-0 text-success">Bs.{{ payment.amount.toFixed(2) }}</h5>
                                         </div>
                                     </div>
                                 </div>
