@@ -181,6 +181,8 @@ export default defineComponent({
 
 				}
 
+				
+
 				// Create the user
 				const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
 				const user = userCredential.user;

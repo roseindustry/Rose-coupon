@@ -329,45 +329,46 @@ export default defineComponent({
                                 backgroundImage: `url(${item.bgImage})`,
                                 backgroundSize: 'cover',
                                 backgroundPosition: 'center',
-                                paddingTop: '45%'
                             }">
-                                <div class="card-body"
-                                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
-                                    <h5 class="card-title">{{ item.title }}</h5>
-                                    <!--  {{ item.notReady === true ?
-                                        `(Proximamente)` : '' }} -->
-                                    <div v-if="item.notReady === true" class="ribbon">
-                                        <span>Proximamente</span>
+                                <div class="card-body d-flex flex-column justify-content-between"
+                                    style="padding: 1.5rem;">
+                                    <div>
+                                        <h5 class="card-title">{{ item.title }}</h5>
+                                        <div v-if="item.notReady === true" class="ribbon">
+                                            <span>Proximamente</span>
+                                        </div>
+                                        <p class="card-text w-50">{{ item.description }}</p>
                                     </div>
-                                    <p class="card-text w-50">{{ item.description }}</p>
-                                    <router-link :to="item.link" class="btn btn-theme"
-                                        :class="{ 'disabled': (item.title === 'Crédito' && !userVerified) || (item.title === 'Solicitar cupón' && !subscriptionPlan) || item.notReady === true }"
-                                        :aria-disabled="item.title === 'Crédito' && !userVerified"
-                                        :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
-                                        {{ item.actionText }}
-                                    </router-link>
-                                    <!-- Tooltip or message when 'Crédito' button is disabled -->
-                                    <div v-if="item.title === 'Crédito' && !userVerified" class="mt-2">
-                                        <small class="text-danger">
-                                            <span v-if="verificationStatus === 'unverified'">
-                                                Verifique su cuenta para habilitar la opción de crédito.
-                                                <a href="#" class="text-white" data-bs-toggle="modal"
-                                                    data-bs-target="#verificationModal">
-                                                    <br>
-                                                    Solicitar verificación.</a>
-                                            </span>
-                                            <span v-else-if="verificationStatus === 'pending'">
-                                                Verificación pendiente por Aprobación.
-                                            </span>
-                                        </small>
-                                    </div>
-                                    <!-- check to see the User's subscription -->
-                                    <div class="w-50 mt-2"
-                                        v-if="item.title === 'Solicitar cupón' && subscriptionPlan.price === 0">
-                                        <small class="text-danger">
-                                            <span>Debes contar con suscripción Bronce en adelante para gozar de este
-                                                beneficio.</span>
-                                        </small>
+                                    <div>
+                                        <router-link :to="item.link" class="btn btn-theme mt-3"
+                                            :class="{ 'disabled': (item.title === 'Crédito' && !userVerified) || (item.title === 'Solicitar cupón' && !subscriptionPlan) || item.notReady === true }"
+                                            :aria-disabled="item.title === 'Crédito' && !userVerified"
+                                            :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
+                                            {{ item.actionText }}
+                                        </router-link>
+                                        <!-- Tooltip or message when 'Crédito' button is disabled -->
+                                        <div v-if="item.title === 'Crédito' && !userVerified" class="mt-2">
+                                            <small class="text-danger">
+                                                <span v-if="verificationStatus === 'unverified'">
+                                                    Verifique su cuenta para habilitar la opción de crédito.
+                                                    <a href="#" class="text-white" data-bs-toggle="modal"
+                                                        data-bs-target="#verificationModal">
+                                                        <br>
+                                                        Solicitar verificación.</a>
+                                                </span>
+                                                <span v-else-if="verificationStatus === 'pending'">
+                                                    Verificación pendiente por Aprobación.
+                                                </span>
+                                            </small>
+                                        </div>
+                                        <!-- check to see the User's subscription -->
+                                        <div class="w-50 mt-2"
+                                            v-if="item.title === 'Solicitar cupón' && subscriptionPlan.price === 0">
+                                            <small class="text-danger">
+                                                <span>Debes contar con suscripción Bronce en adelante para gozar de este
+                                                    beneficio.</span>
+                                            </small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

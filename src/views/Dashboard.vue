@@ -772,7 +772,7 @@ export default {
 								<i class="fa-solid fa-check"></i>
 								<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
 									aria-hidden="true"></span>
-								<span v-else>Aprovar</span>
+								<span v-else>Aprobar</span>
 							</button>
 							<button class="btn btn-outline-danger d-flex align-items-center gap-1"
 								@click="dissapproveID(clientImgModal)" :disabled="isSubmitting">
