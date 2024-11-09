@@ -83,6 +83,7 @@ export default {
             itemsPerPage: 10,
             sortField: 'firstName',
             sortOrder: 'asc',
+            filterDate: null,
 
             paymentFile: null,
             paymentPreview: null,
@@ -103,100 +104,184 @@ export default {
 
     computed: {
         sortedPlans() {
-            if (this.activeTab === 'clients' || this.role === 'cliente') {
-                // Return a new sorted array to avoid mutating the original array
-                return [...this.plans].sort((a, b) => a.order - b.order);
-            } else if (this.activeTab === 'affiliates' || this.role === 'afiliado') {
-                return [...this.affiliatePlans].sort((a, b) => a.order - b.order);
-            }
+            const plans = this.role === 'cliente' ? this.plans : this.affiliatePlans;
+            return [...plans].sort((a, b) => a.order - b.order);
         },
         formattedDesc() {
-            if (this.role === 'cliente') {
-                return this.sortedPlans.map(plan => ({
-                    ...plan,
-                    desc: plan.desc
-                        .split('.')
-                        .filter(sentence => sentence.trim()) // Remove any empty sentences
-                        .map(sentence => `<li>${sentence.trim()}</li>`) // Wrap sentences in <li>
-                        .join('') // Join the list items
-                }));
-            }
-            else if (this.role === 'afiliado') {
-                return this.affiliatePlans.map(plan => ({
-                    ...plan,
-                    desc: plan.desc
-                        .split('.')
-                        .filter(sentence => sentence.trim()) // Remove any empty sentences
-                        .map(sentence => `<li>${sentence.trim()}</li>`) // Wrap sentences in <li>
-                        .join('') // Join the list items
-                }));
-            }
-
+            return this.sortedPlans.map(plan => ({
+                ...plan,
+                desc: plan.desc
+                    .split('.')
+                    .filter(sentence => sentence.trim())
+                    .map(sentence => `<li>${sentence.trim()}</li>`)
+                    .join('')
+            }));
         },
 
-        // Clients with subscriptions (search and sorting)
+        // 1. Clients with subscriptions
+        allFilteredClientsSubscriptions() {
+            let filtered = this.clientsSubscriptions;
+
+            if (this.searchQuery) {
+                const query = this.searchQuery.toLowerCase();
+                filtered = filtered.filter(client => {
+                    const fullName = (client.firstName + ' ' + client.lastName).toLowerCase();
+                    const identification = String(client.identification).toLowerCase();  // Ensure it's a string
+                    const subscriptionName = client.subscriptionName ? client.subscriptionName.toLowerCase() : '';
+
+                    return fullName.includes(query) ||
+                        identification.includes(query) ||
+                        subscriptionName.includes(query);
+                });
+            }
+
+            if (this.filterDate) {
+                filtered = filtered.filter(client => {
+                    const registrationDate = moment(client.createdAt).format('YYYY-MM-DD');
+                    return registrationDate === this.filterDate;
+                });
+            }
+
+            return filtered;
+        },
         filteredClientsSubscriptions() {
-            return this.applyFilterAndSort(this.paginatedClientsSubscriptions, 'client');
+            const start = (this.currentPage - 1) * this.itemsPerPage;
+            const end = start + this.itemsPerPage;
+            return this.allFilteredClientsSubscriptions.slice(start, end);
         },
 
-        // Clients without subscriptions (search and sorting)
-        filteredClientsNoSubscriptions() {
-            return this.applyFilterAndSort(this.paginatedClientsNoSubscriptions, 'client');
-        },
+        // 2. Clients without subscriptions
+        allFilteredClientsNoSubscriptions() {
+            let filtered = this.clientsNoSubscriptions;
 
-        // Affiliates with subscriptions (search and sorting)
-        filteredAffiliatesSubscriptions() {
-            return this.applyFilterAndSort(this.paginatedAffiliatesSubscriptions, 'affiliate');
-        },
+            if (this.searchQuery) {
+                const query = this.searchQuery.toLowerCase();
+                filtered = filtered.filter(client => {
+                    const fullName = (client.firstName + ' ' + client.lastName).toLowerCase();
+                    const identification = String(client.identification).toLowerCase();  // Ensure it's a string
+                    const subscriptionName = client.subscriptionName ? client.subscriptionName.toLowerCase() : '';
 
-        // Affiliates without subscriptions (search and sorting)
-        filteredAffiliatesNoSubscriptions() {
-            return this.applyFilterAndSort(this.paginatedAffiliatesNoSubscriptions, 'affiliate');
-        },
-
-        // Paginated clients with subscriptions
-        paginatedClientsSubscriptions() {
-            return this.paginate(this.clientsSubscriptions);
-        },
-
-        // Paginated clients without subscriptions
-        paginatedClientsNoSubscriptions() {
-            return this.paginate(this.clientsNoSubscriptions);
-        },
-
-        // Paginated affiliates with subscriptions
-        paginatedAffiliatesSubscriptions() {
-            return this.paginate(this.affiliatesSubscriptions);
-        },
-
-        // Paginated affiliates without subscriptions
-        paginatedAffiliatesNoSubscriptions() {
-            return this.paginate(this.affiliatesNoSubscriptions);
-        },
-
-        totalPages() {
-            return Math.ceil(this.clients.length / this.itemsPerPage);
-        },
-
-        visiblePages() {
-            // Adjust the number of visible page links based on screen width
-            const totalPages = this.totalPages;
-            const currentPage = this.currentPage;
-            const maxPagesToShow = window.innerWidth < 768 ? 3 : 5;
-
-            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
-            let endPage = Math.min(totalPages, currentPage + Math.floor(maxPagesToShow / 2));
-
-            // Adjust the start and end if they go out of bounds
-            if (endPage - startPage + 1 < maxPagesToShow) {
-                if (currentPage < totalPages / 2) {
-                    endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-                } else {
-                    startPage = Math.max(1, endPage - maxPagesToShow + 1);
-                }
+                    return fullName.includes(query) ||
+                        identification.includes(query) ||
+                        subscriptionName.includes(query);
+                });
             }
 
-            return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+            if (this.filterDate) {
+                filtered = filtered.filter(client => {
+                    const registrationDate = moment(client.createdAt).format('YYYY-MM-DD');
+                    return registrationDate === this.filterDate;
+                });
+            }
+
+            return filtered;
+        },
+        filteredClientsNoSubscriptions() {
+            const start = (this.currentPage - 1) * this.itemsPerPage;
+            const end = start + this.itemsPerPage;
+            return this.allFilteredClientsNoSubscriptions.slice(start, end);
+        },
+
+        // 3. Affiliates with subscriptions
+        allFilteredAffiliatesSubscriptions() {
+            let filtered = this.affiliatesSubscriptions;
+
+            if (this.searchQuery) {
+                const query = this.searchQuery.toLowerCase();
+                filtered = filtered.filter(affiliate => {
+                    const name = affiliate.companyName.toLowerCase();
+                    const rif = String(affiliate.rif).toLowerCase();
+                    const subscriptionName = affiliate.subscriptionName ? affiliate.subscriptionName.toLowerCase() : '';
+
+                    return name.includes(query) ||
+                        rif.includes(query) ||
+                        subscriptionName.includes(query);
+                });
+            }
+
+            if (this.filterDate) {
+                filtered = filtered.filter(affiliate => {
+                    const registrationDate = moment(affiliate.createdAt).format('YYYY-MM-DD');
+                    return registrationDate === this.filterDate;
+                });
+            }
+
+            return filtered;
+        },
+        filteredAffiliatesSubscriptions() {
+            const start = (this.currentPage - 1) * this.itemsPerPage;
+            const end = start + this.itemsPerPage;
+            return this.allFilteredAffiliatesSubscriptions.slice(start, end);
+        },
+
+        // 4. Affiliates without subscriptions
+        allFilteredAffiliatesNoSubscriptions() {
+            let filtered = this.affiliatesNoSubscriptions;
+
+            if (this.searchQuery) {
+                const query = this.searchQuery.toLowerCase();
+                filtered = filtered.filter(affiliate => {
+                    const name = affiliate.companyName.toLowerCase();
+                    const rif = String(affiliate.rif).toLowerCase();
+                    const subscriptionName = affiliate.subscriptionName ? affiliate.subscriptionName.toLowerCase() : '';
+
+                    return name.includes(query) ||
+                        rif.includes(query) ||
+                        subscriptionName.includes(query);
+                });
+            }
+
+            if (this.filterDate) {
+                filtered = filtered.filter(affiliate => {
+                    const registrationDate = moment(affiliate.createdAt).format('YYYY-MM-DD');
+                    return registrationDate === this.filterDate;
+                });
+            }
+
+            return filtered;
+        },
+        filteredAffiliatesNoSubscriptions() {
+            const start = (this.currentPage - 1) * this.itemsPerPage;
+            const end = start + this.itemsPerPage;
+            return this.allFilteredAffiliatesNoSubscriptions.slice(start, end);
+        },
+
+        // Total pages calculation for each type
+        totalPages() {
+            return (type) => {
+                switch (type) {
+                    case 'clientSubscriptions':
+                        return Math.ceil(this.allFilteredClientsSubscriptions.length / this.itemsPerPage);
+                    case 'clientNoSubscriptions':
+                        return Math.ceil(this.allFilteredClientsNoSubscriptions.length / this.itemsPerPage);
+                    case 'affiliateSubscriptions':
+                        return Math.ceil(this.allFilteredAffiliatesSubscriptions.length / this.itemsPerPage);
+                    case 'affiliateNoSubscriptions':
+                        return Math.ceil(this.allFilteredAffiliatesNoSubscriptions.length / this.itemsPerPage);
+                    default:
+                        return 0;
+                }
+            };
+        },
+
+        // Calculate visible pages for pagination
+        visiblePages() {
+            return (type) => {
+                const totalPages = this.totalPages(type);
+                const maxPagesToShow = window.innerWidth < 768 ? 3 : 5;
+                let startPage = Math.max(1, this.currentPage - Math.floor(maxPagesToShow / 2));
+                let endPage = Math.min(totalPages, this.currentPage + Math.floor(maxPagesToShow / 2));
+
+                if (endPage - startPage + 1 < maxPagesToShow) {
+                    if (startPage === 1) {
+                        endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+                    } else if (endPage === totalPages) {
+                        startPage = Math.max(1, endPage - maxPagesToShow + 1);
+                    }
+                }
+
+                return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+            };
         }
     },
     methods: {
@@ -228,47 +313,10 @@ export default {
                 console.error('Error sending email:', error);
             }
         },
-        goToPage(page) {
-            if (page >= 1 && page <= this.totalPages) {
+        goToPage(page, type) {
+            if (page >= 1 && page <= this.totalPages(type)) {
                 this.currentPage = page;
             }
-        },
-        applyFilterAndSort(data, type) {
-            const trimmedSearchQuery = this.searchQuery?.trim().toString().toLowerCase();
-            let filteredData = [...data];
-
-            // Apply search filter
-            if (trimmedSearchQuery) {
-                filteredData = filteredData.filter(item => {
-                    let identification, name;
-                    if (type === 'client') {
-                        identification = item.identification?.toString().toLowerCase() || '';
-                        name = (item.firstName + ' ' + item.lastName).toLowerCase();
-                    } else if (type === 'affiliate') {
-                        identification = item.rif?.toString().toLowerCase() || '';
-                        name = item.companyName?.toLowerCase() || '';
-                    }
-                    return identification.includes(trimmedSearchQuery) || name.includes(trimmedSearchQuery);
-                });
-            }
-
-            // Apply sorting
-            return filteredData.sort((a, b) => {
-                let fieldA = a[this.sortField]?.toString().toLowerCase() || '';
-                let fieldB = b[this.sortField]?.toString().toLowerCase() || '';
-
-                if (this.sortOrder === 'asc') {
-                    return fieldA > fieldB ? 1 : fieldA < fieldB ? -1 : 0;
-                } else {
-                    return fieldA < fieldB ? 1 : fieldA > fieldB ? -1 : 0;
-                }
-            });
-        },
-
-        paginate(data) {
-            const start = (this.currentPage - 1) * this.itemsPerPage;
-            const end = this.currentPage * this.itemsPerPage;
-            return data.slice(start, end);
         },
 
         async createPlan(type) {
@@ -415,16 +463,33 @@ export default {
             const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
 
             try {
+                this.loading = true;
                 const snapshot = await get(clientRef);
 
                 if (snapshot.exists()) {
                     const users = snapshot.val();
 
-                    // Since Firebase data is an object, map to array for easier use
-                    this.clients = Object.keys(users).map(key => ({
-                        id: key,
-                        ...users[key]
-                    }));
+                    const getUserDetails = httpsCallable(functions, 'getUserDetails');
+                    const clientPromises = [];
+
+                    // Map Firebase data to an array of promises
+                    for (const [uid, user] of Object.entries(users)) {
+                        clientPromises.push(
+                            getUserDetails(uid).then(authUser => ({
+                                uid,
+                                ...user,
+                                createdAt: moment(authUser.data.creationTime)
+                            }))
+                        );
+                    }
+
+                    // Await for all promises to resolve
+                    this.clients = await Promise.all(clientPromises);
+
+                    const clientsToday = this.clients.filter(client =>
+                        client.createdAt.isSame(moment(), 'day')
+                    );
+
                     // Loop through each client to fetch their subscription data
                     for (const client of this.clients) {
                         // Check if the client has a subscription object with a subscription_id
@@ -453,6 +518,8 @@ export default {
             } catch (error) {
                 console.error('Error fetching clients:', error);
                 this.clients = [];
+            } finally {
+                this.loading = false;
             }
         },
         async fetchAffiliates() {
@@ -993,6 +1060,9 @@ export default {
                 this.paymentPreview = URL.createObjectURL(file);
             }
         },
+        clearDateFilter() {
+            this.filterDate = null;
+        },
 
         async setExchange() {
             if (confirm("¿Desea asignar este nueva tasa de cambio a la app?")) {
@@ -1137,6 +1207,19 @@ export default {
                         <div class="container mt-4">
                             <input v-model="searchQuery" placeholder="Filtrar cliente por nombre o cédula..."
                                 class="form-control mb-3" />
+
+                            <div class="d-flex justify-content-center align-items-center m-4">
+                                <input type="date" v-model="filterDate" class="form-control me-2"
+                                    style="width: auto;" />
+                                <button class="btn btn-theme" @click="clearDateFilter">Limpiar filtro</button>
+                            </div>
+
+                            <div class="results-info text-center mb-3"
+                                v-if="!loading && filteredClientsSubscriptions.length">
+                                <p>Mostrando {{ filteredClientsSubscriptions.length }} resultados de 
+                                    {{ allFilteredClientsSubscriptions.length }}</p>
+                            </div>
+
                             <table class="table text-center table-responsive">
                                 <thead>
                                     <tr>
@@ -1145,7 +1228,7 @@ export default {
                                         <th scope="col">Suscripción</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody v-if="!loading">
                                     <tr v-for="client in filteredClientsSubscriptions" :key="client.id">
                                         <td>{{ client.firstName + ' ' + client.lastName }}</td>
                                         <td>{{ client.identification }}</td>
@@ -1160,21 +1243,29 @@ export default {
                                         </td>
                                     </tr>
                                 </tbody>
+                                <div v-if="loading" class="d-flex justify-content-center align-items-center m-4">
+                                    <span class="spinner-border spinner-border-sm" role="status"
+                                        aria-hidden="true"></span>
+                                </div>
                             </table>
                             <!-- Pagination Controls -->
-                            <nav class="mt-4" v-if="totalPages > 1" aria-label="Page navigation">
+                            <nav class="mt-4" v-if="totalPages('clientSubscriptions') > 1" aria-label="Page navigation">
                                 <ul class="pagination justify-content-center flex-wrap">
                                     <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                                        <button class="page-link" @click="goToPage(currentPage - 1)"
+                                        <button class="page-link"
+                                            @click="goToPage(currentPage - 1, 'clientSubscriptions')"
                                             :disabled="currentPage === 1">Anterior</button>
                                     </li>
-                                    <li v-for="page in visiblePages" :key="page" class="page-item"
-                                        :class="{ active: page === currentPage }">
-                                        <button class="page-link" @click="goToPage(page)">{{ page }}</button>
+                                    <li v-for="page in visiblePages('clientSubscriptions')" :key="page"
+                                        class="page-item" :class="{ active: page === currentPage }">
+                                        <button class="page-link" @click="goToPage(page, 'clientSubscriptions')">{{ page
+                                            }}</button>
                                     </li>
-                                    <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                                        <button class="page-link" @click="goToPage(currentPage + 1)"
-                                            :disabled="currentPage === totalPages">Siguiente</button>
+                                    <li class="page-item"
+                                        :class="{ disabled: currentPage === totalPages('clientSubscriptions') }">
+                                        <button class="page-link"
+                                            @click="goToPage(currentPage + 1, 'clientSubscriptions')"
+                                            :disabled="currentPage === totalPages('clientSubscriptions')">Siguiente</button>
                                     </li>
                                 </ul>
                             </nav>
@@ -1185,6 +1276,13 @@ export default {
                         <div class="container mt-4">
                             <input v-model="searchQuery" placeholder="Filtrar cliente por nombre o cédula..."
                                 class="form-control mb-3" />
+
+                            <div class="results-info text-center mb-3"
+                                v-if="!loading && filteredClientsNoSubscriptions.length">
+                                <p>Mostrando {{ filteredClientsNoSubscriptions.length }} resultados de 
+                                    {{ allFilteredClientsNoSubscriptions.length }}</p>
+                            </div>
+
                             <table class="table text-center table-responsive">
                                 <thead>
                                     <tr>
@@ -1194,7 +1292,7 @@ export default {
                                         <th scope="col">Acciones</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody v-if="!loading">
                                     <tr v-for="client in filteredClientsNoSubscriptions" :key="client.id">
                                         <td>{{ client.firstName + ' ' + client.lastName }}</td>
                                         <td>{{ client.identification }}</td>
@@ -1215,21 +1313,30 @@ export default {
                                         </td>
                                     </tr>
                                 </tbody>
+                                <div v-if="loading" class="d-flex justify-content-center align-items-center m-4">
+                                    <span class="spinner-border spinner-border-sm" role="status"
+                                        aria-hidden="true"></span>
+                                </div>
                             </table>
                             <!-- Pagination Controls -->
-                            <nav class="mt-4" v-if="totalPages > 1" aria-label="Page navigation">
-                                <ul class="pagination justify-content-center">
+                            <nav class="mt-4" v-if="totalPages('clientNoSubscriptions') > 1"
+                                aria-label="Page navigation">
+                                <ul class="pagination justify-content-center flex-wrap">
                                     <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                                        <button class="page-link" @click="goToPage(currentPage - 1)"
+                                        <button class="page-link"
+                                            @click="goToPage(currentPage - 1, 'clientNoSubscriptions')"
                                             :disabled="currentPage === 1">Anterior</button>
                                     </li>
-                                    <li v-for="page in visiblePages" :key="page" class="page-item"
-                                        :class="{ active: page === currentPage }">
-                                        <button class="page-link" @click="goToPage(page)">{{ page }}</button>
+                                    <li v-for="page in visiblePages('clientNoSubscriptions')" :key="page"
+                                        class="page-item" :class="{ active: page === currentPage }">
+                                        <button class="page-link" @click="goToPage(page, 'clientNoSubscriptions')">{{
+                                            page }}</button>
                                     </li>
-                                    <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                                        <button class="page-link" @click="goToPage(currentPage + 1)"
-                                            :disabled="currentPage === totalPages">Siguiente</button>
+                                    <li class="page-item"
+                                        :class="{ disabled: currentPage === totalPages('clientNoSubscriptions') }">
+                                        <button class="page-link"
+                                            @click="goToPage(currentPage + 1, 'clientNoSubscriptions')"
+                                            :disabled="currentPage === totalPages('clientNoSubscriptions')">Siguiente</button>
                                     </li>
                                 </ul>
                             </nav>
@@ -1271,6 +1378,13 @@ export default {
                         <div class="container mt-4">
                             <input v-model="searchQuery" placeholder="Filtrar comercio por nombre o rif..."
                                 class="form-control mb-3" />
+
+                            <div class="results-info text-center mb-3"
+                                v-if="!loading && filteredAffiliatesSubscriptions.length">
+                                <p>Mostrando {{ filteredAffiliatesSubscriptions.length }} resultados de 
+                                    {{ allFilteredAffiliatesSubscriptions.length }}</p>
+                            </div>
+
                             <table class="table text-center table-responsive">
                                 <thead>
                                     <tr>
@@ -1279,7 +1393,7 @@ export default {
                                         <th scope="col">Suscripción</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody v-if="!loading">
                                     <tr v-for="aff in filteredAffiliatesSubscriptions" :key="aff.id">
                                         <td>{{ aff.companyName }}</td>
                                         <td>{{ aff.rif }}</td>
@@ -1294,21 +1408,30 @@ export default {
                                         </td>
                                     </tr>
                                 </tbody>
+                                <div v-if="loading" class="d-flex justify-content-center align-items-center m-4">
+                                    <span class="spinner-border spinner-border-sm" role="status"
+                                        aria-hidden="true"></span>
+                                </div>
                             </table>
                             <!-- Pagination Controls -->
-                            <nav class="mt-4" v-if="totalPages > 1" aria-label="Page navigation">
-                                <ul class="pagination justify-content-center">
+                            <nav class="mt-4" v-if="totalPages('affiliateSubscriptions') > 1"
+                                aria-label="Page navigation">
+                                <ul class="pagination justify-content-center flex-wrap">
                                     <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                                        <button class="page-link" @click="goToPage(currentPage - 1)"
+                                        <button class="page-link"
+                                            @click="goToPage(currentPage - 1, 'affiliateSubscriptions')"
                                             :disabled="currentPage === 1">Anterior</button>
                                     </li>
-                                    <li v-for="page in visiblePages" :key="page" class="page-item"
-                                        :class="{ active: page === currentPage }">
-                                        <button class="page-link" @click="goToPage(page)">{{ page }}</button>
+                                    <li v-for="page in visiblePages('affiliateSubscriptions')" :key="page"
+                                        class="page-item" :class="{ active: page === currentPage }">
+                                        <button class="page-link" @click="goToPage(page, 'affiliateSubscriptions')">{{
+                                            page }}</button>
                                     </li>
-                                    <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                                        <button class="page-link" @click="goToPage(currentPage + 1)"
-                                            :disabled="currentPage === totalPages">Siguiente</button>
+                                    <li class="page-item"
+                                        :class="{ disabled: currentPage === totalPages('affiliateSubscriptions') }">
+                                        <button class="page-link"
+                                            @click="goToPage(currentPage + 1, 'affiliateSubscriptions')"
+                                            :disabled="currentPage === totalPages('affiliateSubscriptions')">Siguiente</button>
                                     </li>
                                 </ul>
                             </nav>
@@ -1319,6 +1442,13 @@ export default {
                         <div class="container mt-4">
                             <input v-model="searchQuery" placeholder="Filtrar cliente por nombre o cédula..."
                                 class="form-control mb-3" />
+
+                            <div class="results-info text-center mb-3"
+                                v-if="!loading && filteredAffiliatesNoSubscriptions.length">
+                                <p>Mostrando {{ filteredAffiliatesNoSubscriptions.length }} resultados de 
+                                    {{ allFilteredAffiliatesNoSubscriptions.length }}</p>
+                            </div>
+
                             <table class="table text-center table-responsive">
                                 <thead>
                                     <tr>
@@ -1329,7 +1459,7 @@ export default {
                                         <th scope="col">Acciones</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody v-if="!loading">
                                     <tr v-for="aff in filteredAffiliatesNoSubscriptions" :key="aff.id">
                                         <td>{{ aff.companyName }}</td>
                                         <td>{{ aff.rif }}</td>
@@ -1350,21 +1480,30 @@ export default {
                                         </td>
                                     </tr>
                                 </tbody>
+                                <div v-if="loading" class="d-flex justify-content-center align-items-center m-4">
+                                    <span class="spinner-border spinner-border-sm" role="status"
+                                        aria-hidden="true"></span>
+                                </div>
                             </table>
                             <!-- Pagination Controls -->
-                            <nav class="mt-4" v-if="totalPages > 1" aria-label="Page navigation">
-                                <ul class="pagination justify-content-center">
+                            <nav class="mt-4" v-if="totalPages('affiliateNoSubscriptions') > 1"
+                                aria-label="Page navigation">
+                                <ul class="pagination justify-content-center flex-wrap">
                                     <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                                        <button class="page-link" @click="goToPage(currentPage - 1)"
+                                        <button class="page-link"
+                                            @click="goToPage(currentPage - 1, 'affiliateNoSubscriptions')"
                                             :disabled="currentPage === 1">Anterior</button>
                                     </li>
-                                    <li v-for="page in visiblePages" :key="page" class="page-item"
-                                        :class="{ active: page === currentPage }">
-                                        <button class="page-link" @click="goToPage(page)">{{ page }}</button>
+                                    <li v-for="page in visiblePages('affiliateNoSubscriptions')" :key="page"
+                                        class="page-item" :class="{ active: page === currentPage }">
+                                        <button class="page-link" @click="goToPage(page, 'affiliateNoSubscriptions')">{{
+                                            page }}</button>
                                     </li>
-                                    <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                                        <button class="page-link" @click="goToPage(currentPage + 1)"
-                                            :disabled="currentPage === totalPages">Siguiente</button>
+                                    <li class="page-item"
+                                        :class="{ disabled: currentPage === totalPages('affiliateNoSubscriptions') }">
+                                        <button class="page-link"
+                                            @click="goToPage(currentPage + 1, 'affiliateNoSubscriptions')"
+                                            :disabled="currentPage === totalPages('affiliateNoSubscriptions')">Siguiente</button>
                                     </li>
                                 </ul>
                             </nav>
@@ -1722,6 +1861,7 @@ export default {
         </div>
     </div>
 
+    <!-- Client and Affiliate view -->
     <div v-if="this.role === 'cliente' || this.role === 'afiliado'">
         <!-- Client view -->
         <div v-if="this.role === 'cliente'" class="container">

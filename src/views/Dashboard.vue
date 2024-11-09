@@ -17,6 +17,7 @@ export default {
 			userDetails: null,
 			userReferralsLength: null,
 			clients: [],
+			clientsRegisteredDay: [],
 			verifiedClients: [],
 			affiliates: [],
 			categories: [],
@@ -34,7 +35,10 @@ export default {
 			sortOrder: 'asc',
 			isSubmitting: false,
 			assigningSubscription: false,
+			selectedClientId: null,
 			subToAssign: '',
+			filterDate: new Date().toISOString().split('T')[0],
+			loading: false,
 		}
 	},
 	methods: {
@@ -74,6 +78,9 @@ export default {
 				console.error('Error sending email:', error);
 			}
 		},
+		clearDateFilter() {
+			this.filterDate = null;
+		},
 
 		// Admin's
 		async fetchClients() {
@@ -81,18 +88,26 @@ export default {
 			const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
 
 			try {
+				this.loading = true;
+
 				const snapshot = await get(clientRef);
 
 				if (snapshot.exists()) {
 					const users = snapshot.val();
 
+					const getUserDetails = httpsCallable(functions, 'getUserDetails');
+					const clientPromises = [];
+
 					// Map Firebase data to an array of promises
-					const clientPromises = Object.keys(users).map(async key => {
-						return {
-							id: key,
-							...users[key],
-						};
-					});
+					for (const [uid, user] of Object.entries(users)) {
+						clientPromises.push(
+							getUserDetails(uid).then(authUser => ({
+								uid,
+								...user,
+								createdAt: authUser.data.creationTime
+							}))
+						);
+					}
 
 					// Await for all promises to resolve
 					this.clients = await Promise.all(clientPromises);
@@ -110,6 +125,28 @@ export default {
 			} catch (error) {
 				console.error('Error fetching clients:', error);
 				this.clients = [];
+			} finally {
+				this.loading = false;
+			}
+		},
+		fetchDayClients() {
+			try {
+				if (this.filterDate) {
+					const day = moment(this.filterDate).startOf('day').toISOString();
+
+					// Filter clients registered today
+					const filteredClients = this.clients.filter(client => {
+						const clientCreationDate = moment(client.createdAt);
+						return clientCreationDate.isSame(day, 'day');
+					});
+
+					this.clientsRegisteredDay = filteredClients;
+				} else {
+					// If no date is selected, clear the filtered list
+					this.clientsRegisteredDay = [];
+				}
+			} catch (error) {
+				console.error('Error filtering clients.', error);
 			}
 		},
 		async fetchAffiliates() {
@@ -348,14 +385,6 @@ export default {
 				}
 			}
 		},
-		async sendEmail(payload) {
-			try {
-				const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-				await sendEmailFunction(payload);
-			} catch (error) {
-				console.error('Error sending email:', error);
-			}
-		},
 		showCouponRequest(client) {
 			if (!client.coupon_requests) {
 				console.error("No coupon requests found for this client");
@@ -498,9 +527,10 @@ export default {
 				}
 			});
 		},
-		async loadSubscriptions() {
+		async loadSubscriptions(client) {
 			this.fetchSubscriptions();
 			this.assigningSubscription = true;
+			this.selectedClientId = client.id;
 		},
 		async assignSubscription(client) {
 			if (!confirm('¿Asegura que el cliente ha pagado su suscripción?')) {
@@ -590,6 +620,7 @@ export default {
 
 		if (this.role === 'admin') {
 			await this.fetchClients();
+			this.fetchDayClients();
 			await this.fetchAffiliates();
 			await this.fetchCoupons();
 		}
@@ -623,8 +654,34 @@ export default {
 							<div class="icon-circle bg-primary mb-3">
 								<i class="fa fa-user fa-lg text-white"></i>
 							</div>
-							<h5 class="mb-1">Clientes registrados</h5>
-							<h3>{{ clients.length || 0 }}</h3>
+							<h5 class="mb-1">Total de Clientes Registrados</h5>
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+								aria-hidden="true"></span>
+							<div v-if="clients && !loading">
+								<h3>{{ clients.length || 0 }}</h3>
+							</div>
+						</div>
+					</div>
+				</div>
+				<!-- Clientes registrados el dia... -->
+				<div class="col-sm-6 col-lg-4 mb-4">
+					<div class="card custom-card h-100 text-center">
+						<div class="card-body d-flex flex-column justify-content-center align-items-center">
+							<div class="icon-circle bg-primary mb-3">
+								<i class="fa fa-user fa-lg text-white"></i>
+							</div>
+							<h5 class="mb-1">Clientes Registrados El Día</h5>
+
+							<div class="d-flex justify-content-center align-items-center m-3">
+								<input type="date" v-model="filterDate" class="form-control me-2" style="width: auto;"
+									@change="fetchDayClients" />
+							</div>
+
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+								aria-hidden="true"></span>
+							<div v-if="clientsRegisteredDay && !loading">
+								<h3>{{ clientsRegisteredDay.length || 0 }}</h3>
+							</div>							
 						</div>
 					</div>
 				</div>
@@ -636,7 +693,11 @@ export default {
 								<i class="fa fa-user-check fa-lg text-white"></i>
 							</div>
 							<h5 class="mb-1">Clientes Verificados</h5>
-							<h3>{{ verifiedClients.length || 0 }}</h3>
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+								aria-hidden="true"></span>
+							<div v-if="verifiedClients && !loading">
+								<h3>{{ verifiedClients.length || 0 }}</h3>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -648,7 +709,11 @@ export default {
 								<i class="fa fa-building fa-lg text-white"></i>
 							</div>
 							<h5 class="mb-1">Comercios Afiliados</h5>
-							<h3>{{ affiliates.length || 0 }}</h3>
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+								aria-hidden="true"></span>
+							<div v-if="affiliates && !loading">
+								<h3>{{ affiliates.length || 0 }}</h3>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -660,7 +725,11 @@ export default {
 								<i class="fa fa-ticket fa-lg text-white"></i>
 							</div>
 							<h5 class="mb-1">Cupones Usados</h5>
-							<h3>{{ appliedCoupons || 0 }}</h3>
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+								aria-hidden="true"></span>
+							<div v-if="appliedCoupons && !loading">
+								<h3>{{ appliedCoupons || 0 }}</h3>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -672,8 +741,13 @@ export default {
 								<i class="fa-solid fa-bell-concierge fa-lg text-white"></i>
 							</div>
 							<h5 class="mb-1">Solicitudes de Cupones</h5>
-							<h3>{{ clientsWithRequests.length || 0 }}</h3>
-							<a href="#" @click.prevent="openRequestsModal('couponRequests')">Ver</a>
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+								aria-hidden="true"></span>
+							<div v-if="clientsWithRequests && !loading">
+								<h3>{{ clientsWithRequests.length || 0 }}</h3>
+								<a v-if="clientsWithRequests.length" href="#"
+									@click.prevent="openRequestsModal('couponRequests')">Ver</a>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -685,8 +759,13 @@ export default {
 								<i class="fa-solid fa-bell-concierge fa-lg text-white"></i>
 							</div>
 							<h5 class="mb-1">Solicitudes de Verificacion</h5>
-							<h3>{{ clientsVerifyRequests.length || 0 }}</h3>
-							<a href="#" @click.prevent="openRequestsModal('verificationRequests')">Ver</a>
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+								aria-hidden="true"></span>
+							<div v-if="clientsVerifyRequests && !loading">
+								<h3>{{ clientsVerifyRequests.length || 0 }}</h3>
+								<a v-if="clientsVerifyRequests.length" href="#"
+									@click.prevent="openRequestsModal('verificationRequests')">Ver</a>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -928,28 +1007,28 @@ export default {
 										<tr v-for="client in clientsModalData" :key="client.id">
 											<td>{{ client.firstName + ' ' + client.lastName }}</td>
 											<td>{{ client.identification }}</td>
-											<td v-if="!this.assigningSubscription">{{ client.subscription ?
-												client.subscription.name.toUpperCase() : 'Sin suscripcion' }}</td>
-											<td v-else>
+											<td v-if="!this.assigningSubscription || selectedClientId !== client.id">
+												{{ client.subscription ? client.subscription.name.toUpperCase() : `Sin
+												suscripcion` }}</td>
+											<td v-else-if="selectedClientId === client.id">
 												<select v-model="subToAssign" class="form-control mb-2">
 													<option value="" disabled selected>Suscripciones</option>
 													<option v-for="sub in subscriptions" :key="sub.id" :value="sub">
 														{{ sub.name.toUpperCase() }}</option>
 												</select>
 											</td>
-											<td v-if="!client.subscription && !this.assigningSubscription">
-												<button class="btn btn-theme btn-sm"
-													@click.prevent="loadSubscriptions()">
-													Asignar suscripcion
+											<td v-if="!this.assigningSubscription">
+												<button v-if="!client.subscription" class="btn btn-theme btn-sm"
+													@click.prevent="loadSubscriptions(client)">
+													Asignar suscripción
 												</button>
 											</td>
-											<td v-if="this.assigningSubscription">
+											<td v-if="this.assigningSubscription && selectedClientId === client.id">
 												<button :disabled="isSubmitting" class="btn btn-theme btn-sm"
 													@click.prevent="assignSubscription(client)">
 													<span v-if="isSubmitting" class="spinner-border spinner-border-sm"
 														role="status" aria-hidden="true"></span>
-													<span v-else><i class="fa-solid fa-check"></i></span>
-													
+													<span v-else>Asignar</span>
 												</button>
 											</td>
 										</tr>

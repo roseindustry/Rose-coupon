@@ -249,7 +249,6 @@ export default {
                             plusPurchases
                         };
                     }
-                    console.log(client.credit)
                 } else {
                     client.credit = null; // No credit assigned, return null
                 }
@@ -885,7 +884,8 @@ export default {
                                                                 <li class="list-group-item"><strong>Usado:</strong>
                                                                     {{ client.credit.mainCredit ?
                                                                         `$${client.credit.mainCredit -
-                                                                        client.credit.availableMainCredit}` : `No Rose Credit`
+                                                                        client.credit.availableMainCredit}` : `No Rose
+                                                                    Credit`
                                                                     }}
                                                                 </li>
                                                             </ul>
@@ -906,7 +906,8 @@ export default {
                                                                 <li class="list-group-item"><strong>Usado:</strong>
                                                                     {{ client.credit.plusCredit ?
                                                                         `$${client.credit.plusCredit -
-                                                                        client.credit.availablePlusCredit}` : `No Rose Credit Plus`
+                                                                        client.credit.availablePlusCredit}` : `No Rose
+                                                                    Credit Plus`
                                                                     }}
                                                                 </li>
                                                             </ul>
@@ -999,7 +1000,7 @@ export default {
                                                                             </h5>
                                                                             <h6 class="text-center text-primary">{{
                                                                                 coupon.name
-                                                                            }}</h6>
+                                                                                }}</h6>
                                                                         </div>
                                                                         <div class="card-body">
 
@@ -1073,20 +1074,19 @@ export default {
 
                                                             <!-- Subscription Payment Status -->
                                                             <li class="list-group-item">
-                                                                <strong>Pago: </strong>
-                                                                <span v-if="client.subscription.isPaid"
-                                                                    class="badge bg-success ms-2">
-                                                                    Pagado
-                                                                </span>
-                                                                <span v-else-if="client.subscription.paymentUploaded">
-                                                                    <span class="badge bg-success ms-2">Pago
-                                                                        realizado</span>
+                                                                <div v-if="client.subscription?.isPaid">
+                                                                    <strong>Pago: </strong>
+                                                                    <span class="badge bg-success ms-2">Pagado</span>
                                                                     <a class="validate btn btn-outline-success btn-sm ms-2"
                                                                         href="#"
-                                                                        @click.prevent="openPaymentModal(client)">Validar</a>
-                                                                </span>
-                                                                <span v-else class="badge bg-danger ms-2">Sin
-                                                                    pagar</span>
+                                                                        @click.prevent="openPaymentModal(client)">
+                                                                        Comprobante
+                                                                    </a>
+                                                                </div>
+                                                                <div v-else>
+                                                                    <strong>Pago: </strong>
+                                                                    <span class="badge bg-danger ms-2">Sin pagar</span>
+                                                                </div>                                                                
                                                             </li>
 
                                                             <!-- Subscription Renewal Date -->
@@ -1349,7 +1349,7 @@ export default {
                             </div>
                             <span class="text-muted">Click en la imagen para ampliar</span>
                             <div class="card-footer text-end">
-                                <button class="btn btn-outline-success"
+                                <button v-if="!this.paymentClient.subscription?.isPaid" class="btn btn-outline-success"
                                     @click.prevent="approvePayment(this.paymentClient)" :disabled="isSubmitting">
                                     <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
                                         aria-hidden="true">

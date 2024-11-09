@@ -324,10 +324,14 @@ export default {
                         try {
                             // Find the subscription or cuota the client paid based on the payment type
                             if (type === 'subscription' && payment.subscription_id) {
+
                                 const subscriptionsRef = dbRef(db, `Suscriptions/${payment.subscription_id}`);
                                 const subSnapshot = await get(subscriptionsRef);
                                 payment.paymentName = subSnapshot.exists() ? subSnapshot.val().name : "Suscripcion Desconocida o Borrada";
+                                payment.amount = payment.amount ? parseFloat(payment.amount) : 0;
+
                             } else if (type === 'credit-cuota' && payment.purchase_id) {
+
                                 const purchaseRef = dbRef(db, `Users/${client?.id}/credit/main/purchases/${payment.purchase_id}`);
                                 const purchaseSnapshot = await get(purchaseRef);
                                 if (purchaseSnapshot.exists()) {
@@ -366,14 +370,27 @@ export default {
             }
         },
 
-        openImgModal(user, url, type, purchaseId = null, cuotaId = null) {
+        async openImgModal(user, url, type, purchaseId = null, cuotaId = null) {
             this.userModalData = user;
             this.modalImageUrl = url;
-            this.paymentType = type;
+            this.paymentType = type;            
 
             // Set selected purchase and cuota IDs for cuota payment validation
             this.userModalData.selectedPurchaseId = purchaseId;
             this.userModalData.selectedCuotaId = cuotaId;
+
+            // if (confirm('Generar comprobante de pago?')) {
+            //     const date = user.subscription.lastPaymentDate.split('T')[0];
+            //     const paymentRef = dbRef(db, `Payments/${user.id}-${date}`);
+            //     await set(paymentRef, {
+            //         client_id: user.id,
+            //         subscription_id: user.subscription.subscription_id,
+            //         date: user.subscription.lastPaymentDate,
+            //         approved: true,
+            //         type: type,
+            //         amount: 0
+            //     });
+            // }
 
             new Modal(document.getElementById('idImgModal')).show();
         },
@@ -448,7 +465,7 @@ export default {
 
             // Directly access the purchase and cuota using the selected IDs as keys
             const selectedPurchase = user.credit.main.purchases[user.selectedPurchaseId];
-            
+
             if (!selectedPurchase) {
                 console.error("Purchase not found for ID:", user.selectedPurchaseId);
                 return;
@@ -464,31 +481,62 @@ export default {
             if (confirm("¿Está seguro de que desea aprobar este pago?")) {
                 try {
                     this.isSubmitting = true;
+                    const terms = parseFloat(selectedPurchase.terms);
 
                     // Update the paid status in the client's collection of cuotas
                     const cuotaRef = dbRef(db, `Users/${user.id}/credit/main/purchases/${selectedPurchase.purchaseId}/cuotas/${selectedCuota.cuotaId}`);
                     await update(cuotaRef, { paid: true });
 
-                    // Update the client's available credit
-                    const clientCreditRef = dbRef(db, `Users/${user.id}/credit/main`);
+                    // Fetch client's subscription to know the AddOn amount that the client paid
+                    const subRef = dbRef(db, `Suscriptions/${user.subscription.subscription_id}`);
+                    const subSnapshot = await get(subRef);
+                    let loanAddOn = 0;
 
-                    // Retrieve the existing availableCredit
+                    if (subSnapshot.exists()) {
+                        const subscription = subSnapshot.val();                        
+
+                        if (subscription.order == 2) {
+                            loanAddOn = 2;
+                        } else if (subscription.order == 3) {
+                            loanAddOn = 1;
+                        }
+                    }
+
+                    // Update the client's available credit to restore whats been paid
+                    const clientCreditRef = dbRef(db, `Users/${user.id}/credit/main`);
                     const clientCreditSnapshot = await get(clientCreditRef);
 
                     if (clientCreditSnapshot.exists()) {
                         const clientCreditData = clientCreditSnapshot.val();
-                        const currentAvailableCredit = clientCreditData.availableCredit || 0; // Default to 0 if it doesn't exist
+                        const currentAvailableCredit = clientCreditData.availableCredit || 0;
 
                         // Calculate the new available credit
-                        const newAvailableCredit = currentAvailableCredit + selectedCuota.amount;
+                        const newAvailableCredit = (currentAvailableCredit + selectedCuota.amount) - (loanAddOn / terms);
 
                         // Update the availableCredit in the database
-                        await update(clientCreditRef, { availableCredit: newAvailableCredit });
+                        await update(clientCreditRef, { 
+                            availableCredit: newAvailableCredit 
+                        });
+                    }
 
-                        this.showToast('Pago de Cuota Aprobado.');
-                        const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
-                        modal.hide();
-                        this.fetchClients();
+                    // Update the affiliate comerce's available creditnto restore whats been paid
+                    const affiliateRef = dbRef(db, `Users/${user.id}/credit/main/purchases/${selectedPurchase.purchaseId}`);
+                    const affiliateSnapshot = await get(affiliateRef);
+                    const affiliateId = affiliateSnapshot ? affiliateSnapshot.val().affiliate_id : null;
+                    const currentAffiliateRef = dbRef(db, `Users/${affiliateId}/credit/main`);
+                    const currentAffiliateSnapshot = await get(currentAffiliateRef);
+
+                    if (currentAffiliateSnapshot.exists()) {
+                        const affiliateCreditData = currentAffiliateSnapshot.val();
+                        const creditAvailable = affiliateCreditData.availableCredit || 0;
+
+                        // Calculate new available credit
+                        const newCreditAvailable = (creditAvailable + selectedCuota.amount) - (loanAddOn / terms);
+
+                        // Update
+                        await update(currentAffiliateRef, {
+                            availableCredit: newCreditAvailable
+                        });
                     }
 
                     // Mark Payment as approved for bookeeping
@@ -500,7 +548,7 @@ export default {
                         // Find and update the relevant payment
                         Object.entries(payments).forEach(async ([paymentId, payment]) => {
                             const clientId = paymentId.split('-')[0];
-                            const date = payment.date.split('T')[0];                            
+                            const date = payment.date.split('T')[0];
                             const comparableDate = selectedCuota.paidAt.split('T')[0];
 
                             // console.log('ClientId variable: ', clientId, 'Compared to: ', user.id)
@@ -595,46 +643,45 @@ export default {
 
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="clients">
-                        <div class="row g-3">
-                            <div v-if="clientsWithPayments.length > 0">
-                                <div v-for="client in clientsWithPayments" :key="client.id"
-                                    class="col-sm-6 col-lg-4 mb-4">
-                                    <div class="card custom-card h-100 text-center">
-                                        <div
-                                            class="card-body d-flex flex-column justify-content-center align-items-center">
-                                            <div class="icon-circle mb-3">
-                                                <i class="fa-solid fa-file-invoice-dollar"></i>
-                                            </div>
-                                            <h5 class="mb-3">{{ client.firstName }} {{ client.lastName }}</h5>
-                                            <p v-if="client.subscription?.name">
-                                                <strong>Suscripción: </strong>
-                                                {{ client.subscription.name.charAt(0).toUpperCase() +
-                                                    client.subscription.name.slice(1) }}
-                                            </p>
-                                            <p v-if="client.subscription?.lastPaymentDate">
-                                                <strong>Fecha: </strong>
-                                                {{ formatDate(client.subscription.lastPaymentDate) }}
-                                            </p>
-                                            <button class="btn btn-outline-success" v-if="client.paymentUrl"
-                                                @click="openImgModal(client, client.paymentUrl, 'subscription')">
-                                                Ver Comprobante
-                                            </button>
+                        <div v-if="clientsWithPayments.length > 0" class="row g-3">
+                            <div v-for="client in clientsWithPayments" :key="client.id" class="col-12 col-lg-4">
+                                <div class="card custom-card h-100 text-center">
+                                    <div class="card-body d-flex flex-column justify-content-center align-items-center">
+                                        <div class="icon-circle mb-3">
+                                            <i class="fa-solid fa-file-invoice-dollar"></i>
                                         </div>
+                                        <h5 class="mb-3">{{ client.firstName }} {{ client.lastName }}</h5>
+                                        <p v-if="client.subscription?.name">
+                                            <strong>Suscripción: </strong>
+                                            {{ client.subscription.name.charAt(0).toUpperCase() +
+                                                client.subscription.name.slice(1) }}
+                                        </p>
+                                        <div v-if="client.subscription?.isPaid">
+                                            <span class="badge bg-success">
+                                                Pagado
+                                            </span>
+                                        </div>
+                                        <p v-if="client.subscription?.lastPaymentDate">
+                                            <strong>Fecha: </strong>
+                                            {{ formatDate(client.subscription.lastPaymentDate) }}
+                                        </p>
+                                        <button class="btn btn-outline-success" v-if="client.paymentUrl"
+                                            @click="openImgModal(client, client.paymentUrl, 'subscription')">
+                                            Ver Comprobante
+                                        </button>
                                     </div>
                                 </div>
                             </div>
-                            <div v-else class="d-flex justify-content-center align-items-center">
-                                <div class="text-center">
-                                    <div class="mb-3 mt-5">
-                                        <i class="fa-solid fa-hand-holding-dollar text-body text-opacity-25"
-                                            style="font-size: 5em"></i>
-                                    </div>
-                                    <h5>No hay Pagos.</h5>
-                                </div>
-                            </div>
-
                         </div>
-
+                        <div v-else class="d-flex justify-content-center align-items-center">
+                            <div class="text-center">
+                                <div class="mb-3 mt-5">
+                                    <i class="fa-solid fa-hand-holding-dollar text-body text-opacity-25"
+                                        style="font-size: 5em"></i>
+                                </div>
+                                <h5>No hay Pagos.</h5>
+                            </div>
+                        </div>
                     </div>
                     <div class="tab-pane fade" id="affiliates">
                         <div class="row g-3">
@@ -760,24 +807,21 @@ export default {
 
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="subsPayments">
-                        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
-                            <div v-if="approvedPayments.length > 0">
-                                <div v-for="payment in approvedPayments.filter(p => p.type === 'subscription' && p.approved === true)"
-                                    :key="payment.id" class="col">
-                                    <div class="card custom-card text-center shadow-sm">
-                                        <div
-                                            class="card-body d-flex flex-column justify-content-center align-items-center">
-                                            <span class="badge bg-primary mb-3">Suscripción</span>
-                                            <div class="icon-circle mb-3">
-                                                <i class="fa-solid fa-check text-success fa-2x"></i>
-                                            </div>
-                                            <h5 class="mb-2">{{ payment.clientName }}</h5>
-                                            <p class="mb-2">
-                                                <strong>Pago Mensual:</strong> {{ payment.paymentName.toUpperCase() }}
-                                            </p>
-                                            <p class="mb-2 text-muted">{{ formatDate(payment.date) }}</p>
-                                            <h5 class="mb-0 text-success">Bs.{{ payment.amount.toFixed(2) }}</h5>
+                        <div v-if="approvedPayments.length > 0" class="row g-3">
+                            <div v-for="payment in approvedPayments.filter(p => p.type === 'subscription' && p.approved === true)"
+                                :key="payment.id" class="col-12 col-md-6 col-lg-4">
+                                <div class="card custom-card text-center shadow-sm mt-3">
+                                    <div class="card-body d-flex flex-column justify-content-center align-items-center">
+                                        <span class="badge bg-primary mb-3">Suscripción</span>
+                                        <div class="icon-circle mb-3">
+                                            <i class="fa-solid fa-check text-success fa-2x"></i>
                                         </div>
+                                        <h5 class="mb-2">{{ payment.clientName }}</h5>
+                                        <p class="mb-2">
+                                            <strong>Pago Mensual:</strong> {{ payment.paymentName.toUpperCase() }}
+                                        </p>
+                                        <p class="mb-2 text-muted">{{ formatDate(payment.date) }}</p>
+                                        <h5 class="mb-0 text-success">Bs.{{ payment.amount.toFixed(2) }}</h5>
                                     </div>
                                 </div>
                             </div>
