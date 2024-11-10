@@ -39,7 +39,28 @@ export default {
 			subToAssign: '',
 			filterDate: new Date().toISOString().split('T')[0],
 			loading: false,
+			searchQuery: '',
 		}
+	},
+	computed: {
+		filteredClients(){
+			let filtered = this.referralClients;
+
+			if (this.searchQuery) {
+                const query = this.searchQuery.toLowerCase();
+                filtered = filtered.filter(client => {
+                    const fullName = (client.firstName + ' ' + client.lastName).toLowerCase();
+                    const identification = String(client.identification).toLowerCase();  // Ensure it's a string
+                    const subscriptionName = client.subscriptionName ? client.subscriptionName.toLowerCase() : '';
+
+                    return fullName.includes(query) ||
+                        identification.includes(query) ||
+                        subscriptionName.includes(query);
+                });
+            }
+
+			return filtered;
+		},
 	},
 	methods: {
 		showToast(message) {
@@ -485,7 +506,7 @@ export default {
 
 								this.referralClients.push(referralData);
 							} else {
-								console.log(`Referral client with ID ${referralId} not found.`);
+								console.log(`Referral client with ID ${referralId} not found. Maybe deleted from database.`);
 							}
 						}
 					} else {
@@ -526,7 +547,7 @@ export default {
 					return fieldA < fieldB ? 1 : fieldA > fieldB ? -1 : 0;
 				}
 			});
-		},
+		},		
 		async loadSubscriptions(client) {
 			this.fetchSubscriptions();
 			this.assigningSubscription = true;
@@ -990,6 +1011,10 @@ export default {
 						</div>
 						<div class="modal-body text-center">
 							<div class="container">
+
+								<input v-model="searchQuery" placeholder="Filtrar cliente por nombre o cédula..."
+                                		class="form-control mb-3" />
+
 								<table class="table text-center table-responsive">
 									<thead>
 										<tr>
@@ -1004,7 +1029,7 @@ export default {
 										</tr>
 									</thead>
 									<tbody>
-										<tr v-for="client in clientsModalData" :key="client.id">
+										<tr v-for="client in filteredClients" :key="client.id">
 											<td>{{ client.firstName + ' ' + client.lastName }}</td>
 											<td>{{ client.identification }}</td>
 											<td v-if="!this.assigningSubscription || selectedClientId !== client.id">

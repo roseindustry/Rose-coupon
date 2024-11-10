@@ -98,13 +98,28 @@ export default {
 
             currentSub: null,
 
-            amountPaid: 0
+            amountPaid: 0,
+            payDay: null,
+            isPaid: false
         };
     },
 
     computed: {
+        // Sorted subscriptions for displaying to Clients or Affiliates in their view
         sortedPlans() {
             const plans = this.role === 'cliente' ? this.plans : this.affiliatePlans;
+
+            return [...plans].sort((a, b) => a.order - b.order);
+        },
+        // Sorted subscriptions to display to admin
+        sortedClientPlans() {
+            const plans = this.plans;
+
+            return [...plans].sort((a, b) => a.order - b.order);
+        },
+        sortedAffiliatePlans() {
+            const plans = this.affiliatePlans;
+
             return [...plans].sort((a, b) => a.order - b.order);
         },
         formattedDesc() {
@@ -381,12 +396,17 @@ export default {
                 }
             }
         },
-        editPlan(plan) {
+        editPlan(plan, type) {
             // Populate the modal fields with the plan data
-            this.editClientPlanData = {
-                ...plan
-            };
-            console.log(this.editClientPlanData.id);
+            if (type === 'clients') {
+                this.editClientPlanData = {
+                    ...plan
+                };
+            } else if (type === 'affiliates') {
+                this.editAffiliatePlanData = {
+                    ...plan
+                };
+            }
 
             // Hide current modal
             const currentModal = Modal.getInstance(document.getElementById('assignModal'));
@@ -396,19 +416,37 @@ export default {
             const modal = new Modal(document.getElementById('editPlanModal'));
             modal.show();
         },
-        async updatePlan(planId) {
-            const planRef = dbRef(db, `Suscriptions/${planId}`);
-
-            const updateData = {
-                order: this.editClientPlanData.order,
-                name: this.editClientPlanData.name,
-                desc: this.editClientPlanData.desc,
-                price: this.editClientPlanData.price,
-                requestLimit: this.editClientPlanData.requestLimit || null,
-                icon: this.editClientPlanData.icon
-            };
-
+        async updatePlan(planId, type) {
             try {
+                let planRef;
+                const updateData = {};
+
+                if (type === 'clients') {
+                    planRef = dbRef(db, `Suscriptions/${planId}`);
+
+                    if (this.editClientPlanData.order) updateData.order = this.editClientPlanData.order;
+                    if (this.editClientPlanData.name) updateData.name = this.editClientPlanData.name;
+                    if (this.editClientPlanData.desc) updateData.desc = this.editClientPlanData.desc;
+                    if (this.editClientPlanData.price) updateData.price = this.editClientPlanData.price;
+                    if (this.editClientPlanData.requestLimit) updateData.requestLimit = this.editClientPlanData.requestLimit;
+                    if (this.editClientPlanData.icon) updateData.icon = this.editClientPlanData.icon;
+                } else if (type === 'affiliates') {
+                    planRef = dbRef(db, `Affiliate_suscriptions/${planId}`);
+
+                    if (this.editAffiliatePlanData.order) updateData.order = this.editAffiliatePlanData.order;
+                    if (this.editAffiliatePlanData.name) updateData.name = this.editAffiliatePlanData.name;
+                    if (this.editAffiliatePlanData.desc) updateData.desc = this.editAffiliatePlanData.desc;
+                    if (this.editAffiliatePlanData.price) updateData.price = this.editAffiliatePlanData.price;
+                } else {
+                    throw new Error("Invalid subscription type");
+                }
+
+
+
+                if (Object.keys(updateData).length === 0) {
+                    throw new Error("No se introdujo data para actualizar");
+                }
+
                 await update(planRef, updateData);
                 console.log("Suscription updated successfully");
 
@@ -421,7 +459,12 @@ export default {
                 const assignModal = Modal.getInstance(document.getElementById('assignModal'));
                 assignModal.show();
 
-                await this.fetchPlans();
+                if (type === 'clients') {
+                    await this.fetchPlans();
+                } else if (type === 'affiliates') {
+                    await this.fetchAffiliatePlans();
+                }
+
             } catch (error) {
                 console.error("Error updating suscription:", error);
             }
@@ -603,11 +646,11 @@ export default {
                         ...plans[key]
                     }));
                 } else {
-                    this.plans = [];  // No subscriptions found
+                    this.affiliatePlans = [];  // No subscriptions found
                 }
             } catch (error) {
                 console.error('Error fetching plans:', error);
-                this.plans = [];
+                this.affiliatePlans = [];
             }
         },
 
@@ -645,7 +688,7 @@ export default {
         },
         selectClient(client) {
             this.selectedClient = client;
-            console.log('Selected client:', client.identification);
+            console.log('Selected client:', client.uid);
             this.searchClient = '';
             this.searchResults = [];
         },
@@ -658,7 +701,6 @@ export default {
             }
 
             const searchInput = this.searchAffiliate.toLowerCase();
-            console.log(this.searchAffiliate);
 
             // Search in ALL affiliates
             this.searchAffResults = this.affiliates.filter(affiliate => {
@@ -684,7 +726,7 @@ export default {
         },
         selectAffiliate(affiliate) {
             this.selectedAffiliate = affiliate;
-            console.log('Selected affiliate:', affiliate.rif);
+            console.log('Selected affiliate:', affiliate.id);
             this.searchAffiliate = '';
             this.searchAffResults = [];
         },
@@ -713,27 +755,46 @@ export default {
         },
 
         // Admin can assign a subscription
-        async assignClientPlan() {
-            if (!this.selectedClient) {
-                alert('Por favor seleccione un cliente antes de asignar una suscripción.');
-                return;
-            }
+        async assignPlan(type) {
+            let user = null;
+            let userId = null;
+            let userName;
+            let selectedPlanDetails;
 
             if (!this.selectedPlan) {
                 alert('Por favor seleccione una suscripción antes de asignar.');
                 return;
             }
 
-            const clientId = this.selectedClient.id;
+            if (type === 'clients') {
+                if (!this.selectedClient) {
+                    alert('Por favor seleccione un cliente antes de asignar una suscripción.');
+                    return;
+                }
 
-            // Find the selected client's data from the clients array
-            const client = this.clients.find(client => client.id === clientId);
+                userId = this.selectedClient.uid;
+                // Find the selected client's data from the clients array
+                user = this.clients.find(client => client.uid === userId);
+                userName = `${user.firstName} ${user.lastName}`;
 
-            // Find the selected plan object from the plans array
-            const selectedPlanDetails = this.plans.find(plan => plan.name === this.selectedPlan);
+                // Find the selected plan object from the plans array
+                selectedPlanDetails = this.plans.find(plan => plan.name === this.selectedPlan);
+            } else if (type === 'affiliates') {
+                if (!this.selectedAffiliate) {
+                    alert('Por favor seleccione un afiliado antes de asignar una suscripción.');
+                    return;
+                }
 
-            // Calculate payDay (one month from today)
-            const payDay = moment().add(1, 'month').toISOString();
+                userId = this.selectedAffiliate.id;
+                // Find the selected client's data from the clients array
+                user = this.affiliates.find(aff => aff.id === userId);
+                userName = `${user.companyName}`;
+
+                // Find the selected plan object from the plans array
+                selectedPlanDetails = this.affiliatePlans.find(plan => plan.name === this.selectedPlan);
+            }
+
+
 
             if (!selectedPlanDetails) {
                 alert('Error al seleccionar el plan. Por favor, intente de nuevo.');
@@ -743,27 +804,27 @@ export default {
             // Prepare subscription details
             const subscriptionData = {
                 subscription_id: selectedPlanDetails.id,
-                status: true, // Set the default status as true 'active'
-                payDay: payDay,
-                isPaid: false, // Set the default as unpaid
+                status: true,
+                payDay: new Date(this.payDay).toISOString(),
+                isPaid: this.isPaid,
             };
 
             try {
                 this.loading = true;
 
                 // Assign the subscription details to the client's data in Firebase
-                const userPlanRef = dbRef(db, `Users/${clientId}/subscription`);
+                const userPlanRef = dbRef(db, `Users/${userId}/subscription`);
                 await update(userPlanRef, subscriptionData);
 
                 // Notify Client
                 const appUrl = 'https://app.rosecoupon.com';
                 const clientEmailPayload = {
-                    to: client.email,
+                    to: user.email,
                     message: {
                         subject: `Suscripción ${selectedPlanDetails.name.toUpperCase()} activada`,
-                        text: `Hola ${client.firstName}, se le ha activado la Suscripción ${selectedPlanDetails.name.toUpperCase()} in Roseapp.
+                        text: `Hola ${userName}, se le ha activado la Suscripción ${selectedPlanDetails.name.toUpperCase()} in Roseapp.
                         Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}`,
-                        html: `<p>Hola ${client.firstName}, se le ha activado la Suscripción ${selectedPlanDetails.name} in Roseapp.</p>
+                        html: `<p>Hola ${userName}, se le ha activado la Suscripción ${selectedPlanDetails.name} in Roseapp.</p>
                         <p>Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}</p>`
                     },
                 };
@@ -774,8 +835,8 @@ export default {
                     to: 'roseindustry11@gmail.com',
                     message: {
                         subject: `Nuevo cliente suscrito al Plan ${selectedPlanDetails.name.toUpperCase()}`,
-                        text: `Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${selectedPlanDetails.name.toUpperCase()}.`,
-                        html: `<p>Un nuevo cliente, ${client.firstName} ${client.lastName}, se ha suscrito al plan ${selectedPlanDetails.name.toUpperCase()}.</p>`
+                        text: `Un nuevo cliente, ${userName}, se ha suscrito al plan ${selectedPlanDetails.name.toUpperCase()}.`,
+                        html: `<p>Un nuevo cliente, ${userName}, se ha suscrito al plan ${selectedPlanDetails.name.toUpperCase()}.</p>`
                     },
                 };
                 await this.sendNotificationEmail(adminEmailPayload);
@@ -784,7 +845,11 @@ export default {
                 // Reset selection after assigning the plan
                 this.selectedPlan = null;
                 this.selectedClient = null;
+                this.selectedAffiliate = null;
                 this.searchClient = '';
+                this.searchAffiliate = '';
+                this.payDay = null;
+                this.isPaid = false;
             } catch (error) {
                 console.error('Error assigning plan:', error);
                 alert('La asignación de la suscripción falló.');
@@ -1102,10 +1167,7 @@ export default {
         },
 
         setActiveTab(type) {
-            if (type === 'clients') {
-                this.activeTab = type;
-                console.log(this.activeTab)
-            } else {
+            if (type) {
                 this.activeTab = type;
                 console.log(this.activeTab)
             }
@@ -1216,7 +1278,7 @@ export default {
 
                             <div class="results-info text-center mb-3"
                                 v-if="!loading && filteredClientsSubscriptions.length">
-                                <p>Mostrando {{ filteredClientsSubscriptions.length }} resultados de 
+                                <p>Mostrando {{ filteredClientsSubscriptions.length }} resultados de
                                     {{ allFilteredClientsSubscriptions.length }}</p>
                             </div>
 
@@ -1279,7 +1341,7 @@ export default {
 
                             <div class="results-info text-center mb-3"
                                 v-if="!loading && filteredClientsNoSubscriptions.length">
-                                <p>Mostrando {{ filteredClientsNoSubscriptions.length }} resultados de 
+                                <p>Mostrando {{ filteredClientsNoSubscriptions.length }} resultados de
                                     {{ allFilteredClientsNoSubscriptions.length }}</p>
                             </div>
 
@@ -1381,7 +1443,7 @@ export default {
 
                             <div class="results-info text-center mb-3"
                                 v-if="!loading && filteredAffiliatesSubscriptions.length">
-                                <p>Mostrando {{ filteredAffiliatesSubscriptions.length }} resultados de 
+                                <p>Mostrando {{ filteredAffiliatesSubscriptions.length }} resultados de
                                     {{ allFilteredAffiliatesSubscriptions.length }}</p>
                             </div>
 
@@ -1445,7 +1507,7 @@ export default {
 
                             <div class="results-info text-center mb-3"
                                 v-if="!loading && filteredAffiliatesNoSubscriptions.length">
-                                <p>Mostrando {{ filteredAffiliatesNoSubscriptions.length }} resultados de 
+                                <p>Mostrando {{ filteredAffiliatesNoSubscriptions.length }} resultados de
                                     {{ allFilteredAffiliatesNoSubscriptions.length }}</p>
                             </div>
 
@@ -1646,19 +1708,42 @@ export default {
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="updatePlan(editClientPlanData.id)">Guardar
+                        <button type="button" class="btn btn-theme"
+                            @click="updatePlan(editClientPlanData.id, 'clients')">Guardar
                             cambios</button>
                     </div>
                 </div>
                 <div v-else class="modal-content">
                     <div class="modal-header">
-                        soon
+                        <h5 class="modal-title">Editar Plan para Comercios</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        soon
+                        <div class="mb-3">
+                            <label class="form-label">Orden</label>
+                            <input v-model="editAffiliatePlanData.order" type="number"
+                                class="form-control form-control-lg fs-15px" value="" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nombre</label>
+                            <input v-model="editAffiliatePlanData.name" type="text"
+                                class="form-control form-control-lg fs-15px" value="" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descripción</label>
+                            <textarea v-model="editAffiliatePlanData.desc" class="form-control form-control-lg fs-15px"
+                                rows="5" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Precio</label>
+                            <input v-model="editAffiliatePlanData.price" type="number"
+                                class="form-control form-control-lg fs-15px" value="" required />
+                        </div>
                     </div>
                     <div class="modal-footer">
-                        soon
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="button" class="btn btn-theme"
+                            @click="updatePlan(editAffiliatePlanData.id, 'affiliates')">Guardar</button>
                     </div>
                 </div>
             </div>
@@ -1709,6 +1794,17 @@ export default {
                                     }}
                                 </p>
                                 <p><strong>Cédula:</strong> {{ selectedClient.identification }}</p>
+
+                                <label for="payDay">Fecha de Corte:</label>
+                                <div class="d-flex justify-content-center align-items-center m-2">
+                                    <input type="date" v-model="payDay" class="form-control" id="payDay"
+                                        style="width: auto;">
+                                </div>
+
+                                <div class="form-check mt-4">
+                                    <input type="checkbox" class="form-check-input" id="isPaid" v-model="isPaid" />
+                                    <label class="form-check-label" for="isPaid">Pagado</label>
+                                </div>
                             </div>
 
                             <!-- Subscription Plan Selection -->
@@ -1716,7 +1812,7 @@ export default {
                                 <h5 class="mb-4">Seleccione una suscripción</h5>
                                 <div class="row justify-content-center">
                                     <!-- Loop through the plans array and display buttons for each plan -->
-                                    <div v-for="(plan, index) in sortedPlans" :key="plan.id"
+                                    <div v-for="(plan, index) in sortedClientPlans" :key="plan.id"
                                         class="col-12 col-sm-12 col-md-6 col-lg-3 mb-4 d-flex flex-column align-items-center">
                                         <!-- Plan Button (bigger) -->
                                         <button @click="selectPlan(plan.name)"
@@ -1727,7 +1823,7 @@ export default {
                                             <!-- Edit and Delete Icons -->
                                             <div class="d-flex justify-content-center mt-2 ">
                                                 <button class="btn btn-sm btn-outline-info me-1"
-                                                    @click="editPlan(plan)">
+                                                    @click="editPlan(plan, 'clients')">
                                                     <i class="fa-solid fa-pencil"></i>
                                                 </button>
                                                 <button class="btn btn-sm btn-outline-danger"
@@ -1742,7 +1838,7 @@ export default {
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button :disabled="loading" class="btn btn-theme" @click="assignClientPlan()">
+                        <button :disabled="loading" class="btn btn-theme" @click="assignPlan('clients')">
                             <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
                                 aria-hidden="true"></span>
                             <span>Asignar</span>
@@ -1790,6 +1886,17 @@ export default {
                                 <p><strong>Nombre:</strong> {{ selectedAffiliate.companyName }}
                                 </p>
                                 <p><strong>RIF:</strong> {{ selectedAffiliate.rif }}</p>
+
+                                <label for="payDay">Fecha de Corte:</label>
+                                <div class="d-flex justify-content-center align-items-center m-2">
+                                    <input type="date" v-model="payDay" class="form-control" id="payDay"
+                                        style="width: auto;">
+                                </div>
+
+                                <div class="form-check mt-4">
+                                    <input type="checkbox" class="form-check-input" id="isPaid" v-model="isPaid" />
+                                    <label class="form-check-label" for="isPaid">Pagado</label>
+                                </div>
                             </div>
 
                             <!-- Subscription Plan Selection -->
@@ -1797,7 +1904,7 @@ export default {
                                 <h5 class="mb-4">Seleccione una suscripción</h5>
                                 <div class="row justify-content-center">
                                     <!-- Loop through the plans array and display buttons for each plan -->
-                                    <div v-for="(plan, index) in sortedPlans" :key="plan.id"
+                                    <div v-for="(plan, index) in sortedAffiliatePlans" :key="plan.id"
                                         class="col-12 col-sm-12 col-md-6 col-lg-3 mb-4 d-flex flex-column align-items-center">
                                         <!-- Plan Button (bigger) -->
                                         <button @click="selectPlan(plan.name)"
@@ -1808,7 +1915,7 @@ export default {
                                             <!-- Edit and Delete Icons -->
                                             <div class="d-flex justify-content-center mt-2 ">
                                                 <button class="btn btn-sm btn-outline-info me-1"
-                                                    @click="editPlan(plan)">
+                                                    @click="editPlan(plan, 'affiliates')">
                                                     <i class="fa-solid fa-pencil"></i>
                                                 </button>
                                                 <button class="btn btn-sm btn-outline-danger"
@@ -1825,7 +1932,7 @@ export default {
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
                             @click="resetModalData()">Cerrar</button>
-                        <button :disabled="loading" class="btn btn-theme" @click="assignAffiliatePlan()">
+                        <button :disabled="loading" class="btn btn-theme" @click="assignPlan('affiliates')">
                             <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
                                 aria-hidden="true"></span>
                             <span>Asignar</span>

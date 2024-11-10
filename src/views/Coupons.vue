@@ -37,6 +37,7 @@ export default {
             // Fetching data
             clients: [],
             selectedClients: [],
+            selectedCoupons: [],
             affiliates: [],
             categories: [],
             coupons: [],
@@ -82,6 +83,10 @@ export default {
             showRequestsColumn: false,
             sortField: 'firstName',
             sortOrder: 'asc',
+            plans: [],
+            clientSubscription: '',
+            activateFilter: false,
+            displayAllClients: false
         }
     },
     watch: {
@@ -187,32 +192,74 @@ export default {
                 if (snapshot.exists()) {
                     const users = snapshot.val();
 
+                    // Initialize client array
                     this.clients = Object.keys(users).map(key => ({
                         id: key,
                         ...users[key]
                     }));
 
-                    this.clientPreferences = {};
-
-                    for (const client of this.clients) {
+                    // Fetch preferences and subscription details concurrently for all clients
+                    const clientPromises = this.clients.map(async (client) => {
                         // Initialize the coupons array for each client
                         this.clientPreferences[client.id] = {};
 
                         // Fetch preferences for the client
                         const preferences = await this.fetchClientPreferences(client.id);
-
                         if (preferences) {
                             this.clientPreferences[client.id] = preferences;
                         }
-                    }
+
+                        // Fetch the client's subscription details, if it exists
+                        if (client.subscription && client.subscription.subscription_id) {
+                            const subscriptionId = client.subscription.subscription_id;
+                            const subscriptionDataRef = dbRef(db, `Suscriptions/${subscriptionId}`);
+                            const userSuscriptionSnapshot = await get(subscriptionDataRef);
+
+                            if (userSuscriptionSnapshot.exists()) {
+                                const userSubscription = userSuscriptionSnapshot.val();
+                                // Merge existing subscription with the new data
+                                client.subscription = { ...client.subscription, ...userSubscription };
+                                client.subscriptionId = subscriptionId;
+                            } else {
+                                console.error('Subscription not found.');
+                                client.subscription = 'Sin suscripción';
+                                client.subscriptionId = null;
+                            }
+                        }
+                    });
+
+                    // Wait for all client promises to resolve
+                    await Promise.all(clientPromises);
                 } else {
-                    this.clients = [];  // No clients found
-                    this.clientPreferences = {}; // Reset preferences
+                    this.clients = [];
+                    this.clientPreferences = {};
                 }
             } catch (error) {
                 console.error('Error fetching clients:', error);
                 this.clients = [];
                 this.clientPreferences = {};
+            }
+        },
+        async fetchPlans() {
+            const plansRef = query(dbRef(db, 'Suscriptions'));
+            try {
+                const snapshot = await get(plansRef);
+
+                if (snapshot.exists()) {
+                    const plans = snapshot.val();
+
+                    // Since Firebase data is an object, map to array for easier use
+                    this.plans = Object.keys(plans).map(key => ({
+                        id: key,
+                        ...plans[key]
+                    }))
+                    .sort((a, b) => a.order - b.order);
+                } else {
+                    this.plans = [];  // No subscriptions found
+                }
+            } catch (error) {
+                console.error('Error fetching plans:', error);
+                this.plans = [];
             }
         },
         async fetchAffiliates() {
@@ -543,7 +590,6 @@ export default {
             }
             return client ? `${client.firstName} ${client.lastName}` : 'Nombre no disponible';
         },
-
         getClientIdentification(clientId) {
             // Check in selectedClients first, in case it's a client passed via query
             let client = this.selectedClients.find(client => client.id === clientId);
@@ -554,6 +600,33 @@ export default {
             }
 
             return client ? client.identification : 'Cédula no disponible';
+        },
+
+        // Filters
+        filterBySubscription() {
+            if (this.clientSubscription) {
+                // Filter clients based on the selected subscription ID
+                this.clientsModalData = this.clientsModalData.filter(client =>
+                    client.subscriptionId === this.clientSubscription
+                );
+            }
+        },
+        clearSubscriptionFilter() {
+            this.clientSubscription = '';
+            if (this.displayAllClients) {
+                this.clientsModalData = this.clients.slice();
+            } else {
+                this.clientsModalData = this.clients.filter((client) => !client.coupons).slice();
+            }
+            
+        },
+        toggleClients(){
+            if (!this.displayAllClients) {
+                // Show all clients
+                this.clientsModalData = this.clients.slice();
+            } else {
+                this.clientsModalData = this.clients.filter((client) => !client.coupons).slice();             
+            }
         },
 
         //Assign coupon to clients 
@@ -616,7 +689,16 @@ export default {
             console.log('DeSelected client: ', clientId);
         },
         selectCoupon(coupon) {
-            this.selectedCoupon = coupon;
+            const index = this.selectedCoupons.findIndex(selectedCoupon => selectedCoupon.id === coupon.id);
+            if (index === -1) {
+                this.selectedCoupons.push(coupon); // Add coupon to selected list
+            } else {
+                this.selectedCoupons.splice(index, 1); // Remove coupon if already selected
+            }
+
+            if (this.selectedCoupons.length > 0) {
+                console.log('Selected coupons:', this.selectedCoupons);
+            }
         },
 
         //Update status of expired coupons
@@ -776,69 +858,75 @@ export default {
                 return;
             }
 
+            if (this.selectedCoupons.length === 0) {
+                alert('Por favor seleccione al menos un cupón antes de asignar.');
+                return;
+            }
+
             try {
-                const today = new Date();
-                const expiration = new Date(this.selectedCoupon.expiration);
-                const localExpiration = new Date(expiration.getTime() + expiration.getTimezoneOffset() * 60000);
-                const couponId = this.selectedCoupon.id;
+                for (const coupon of this.selectedCoupons) {
+                    const today = new Date();
+                    const expiration = new Date(coupon.expiration);
+                    const localExpiration = new Date(expiration.getTime() + expiration.getTimezoneOffset() * 60000);
+                    const couponId = coupon.id;
 
-                // Fetch the selected coupon's redeemCount and timesUsed
-                const couponRef = dbRef(db, `Coupons/${couponId}`);
-                const couponSnapshot = await get(couponRef);
+                    // Fetch the selected coupon's redeemCount and timesUsed
+                    const couponRef = dbRef(db, `Coupons/${couponId}`);
+                    const couponSnapshot = await get(couponRef);
 
-                // Check to see if coupon exists in database
-                if (!couponSnapshot.exists()) {
-                    alert('El cupón seleccionado no existe.');
-                    return;
-                }
-                // Check to see if coupon is valid or expired
-                if (localExpiration < today) {
-                    alert('No puede asignar un cupón expirado.');
-                    return;
-                }
+                    // Check to see if coupon exists in database
+                    if (!couponSnapshot.exists()) {
+                        alert('El cupón seleccionado no existe.');
+                        return;
+                    }
 
-                const couponData = couponSnapshot.val();
-                const redeemCount = couponData.redeemCount || 0;
+                    // Check to see if coupon is valid or expired
+                    if (localExpiration < today) {
+                        alert('No puede asignar un cupón expirado.');
+                        return;
+                    }
 
-                // Query Users to find how many clients already have this coupon assigned
-                const role = 'cliente';
-                const usersRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
-                const usersSnapshot = await get(usersRef);
+                    const couponData = couponSnapshot.val();
+                    const redeemCount = couponData.redeemCount || 0;
 
-                let couponAssignedCount = 0;
+                    // Query Users to find how many clients already have this coupon assigned
+                    const role = 'cliente';
+                    const usersRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
+                    const usersSnapshot = await get(usersRef);
 
-                if (usersSnapshot.exists()) {
-                    const users = usersSnapshot.val();
+                    let couponAssignedCount = 0;
 
-                    // Loop through each user and check if they have the coupon assigned
-                    for (const userId in users) {
-                        const userCoupons = users[userId].coupons || {};
+                    if (usersSnapshot.exists()) {
+                        const users = usersSnapshot.val();
 
-                        // Increment the count if this user has the coupon assigned
-                        if (userCoupons[couponId]) {
-                            couponAssignedCount++;
+                        // Loop through each user and check if they have the coupon assigned
+                        for (const userId in users) {
+                            const userCoupons = users[userId].coupons || {};
+
+                            // Increment the count if this user has the coupon assigned
+                            if (userCoupons[couponId]) {
+                                couponAssignedCount++;
+                            }
                         }
+                    }
+
+                    // Check if the coupon has reached its redeem limit
+                    if (couponAssignedCount >= redeemCount) {
+                        alert(`El cupón ha alcanzado su límite de ${redeemCount} usos. No se puede asignar a más clientes.`);
+                        return;
+                    }
+
+                    // Assign coupon to selected clients
+                    for (const clientId of this.selectedClients) {
+                        const userCouponRef = dbRef(db, `Users/${clientId}/coupons/${couponId}`);
+                        await set(userCouponRef, couponId);
                     }
                 }
 
-                // Check if the coupon has reached its redeem limit
-                if (couponAssignedCount >= redeemCount) {
-                    alert(`El cupón ha alcanzado su límite de ${redeemCount} usos. No se puede asignar a más clientes.`);
-                    return;
-                }
-
-                for (const clientId of this.selectedClients) {
-                    // Assign existing coupon
-                    const userCouponRef = dbRef(db, `Users/${clientId}/coupons/${couponId}`);
-                    await set(userCouponRef, couponId);
-                }
-
-                this.showToast('Cupones asignados con exito!');
-
-                // Reset selection if needed
-                this.selectedCoupon = null;
-                this.selectedClients = [];
-                this.searchClient = '';
+                this.showToast('Cupones asignados con éxito!');
+                this.selectedCoupons = []; // Clear selected coupons
+                this.selectedClients = []; // Clear selected clients
+                this.searchClient = ''; // Reset client search if needed
             } catch (error) {
                 console.error('Error assigning coupons:', error);
                 alert('La asignacion de cupones fallo.');
@@ -925,7 +1013,7 @@ export default {
 
                 // Validations
 
-                
+
 
                 if (this.assignTheCoupon && this.selectedClients) {
                     for (const clientId of this.selectedClients) {
@@ -949,6 +1037,7 @@ export default {
 
         //Delete coupons
         async deleteCoupon(couponId, index) {
+            console.log(couponId)
             if (confirm("¿Desea borrar este cupon?")) {
                 try {
                     const couponRef = dbRef(db, `Coupons/${couponId}`);
@@ -1445,6 +1534,7 @@ export default {
             // If no clientId, just load other data without a loading state
             await this.loadCoupons();
             await this.fetchAffiliates();
+            await this.fetchPlans();
 
             if (this.role === 'admin' || this.role === 'afiliado') {
                 await this.fetchClients();
@@ -1567,15 +1657,15 @@ export default {
                                 </div>
                                 <!-- Trigger Modal -->
                                 <div v-if="!selectedClient" class="row justify-content-center">
-                                    <div class="col d-flex justify-content-center align-items-center">
-                                        <button class="btn btn-theme"
-                                            @click.prevent="openClientsModal('withoutCoupons')" style="width: auto;">
-                                            Mostrar Clientes sin cupones
+                                    <div class="col d-flex justify-content-center align-items-center mb-2 mb-md-0">
+                                        <button class="btn btn-theme btn-sm custom-btn"
+                                            @click.prevent="openClientsModal('withoutCoupons')">
+                                            Mostrar Clientes sin Cupones
                                         </button>
                                     </div>
                                     <div class="col d-flex justify-content-center align-items-center">
-                                        <button class="btn btn-theme" @click.prevent="openClientsModal('withRequests')"
-                                            style="width: auto;">
+                                        <button class="btn btn-theme btn-sm custom-btn"
+                                            @click.prevent="openClientsModal('withRequests')">
                                             Mostrar Clientes con Solicitudes
                                         </button>
                                     </div>
@@ -1599,8 +1689,8 @@ export default {
                                 <div class="row">
                                     <div class="col-12 col-md-6 col-lg-4 mb-3"
                                         v-for="(coupon, index) in paginatedFilteredCoupons" :key="coupon.id">
-                                        <div class="card h-100" @click="selectCoupon(coupon), queryCoupons(coupon.id)"
-                                            :class="{ 'selected': coupon === selectedCoupon }">
+                                        <div class="card h-100" @click="selectCoupon(coupon); queryCoupons(coupon.id)"
+                                        :class="{ 'selected': selectedCoupons.some(selectedCoupon => selectedCoupon.id === coupon.id) }">
                                             <div class="card-body position-relative d-flex flex-column">
                                                 <!-- Badge for status -->
                                                 <span class="badge position-absolute top-0 start-100 translate-middle"
@@ -2257,12 +2347,47 @@ export default {
             aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
                 <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title text-center" id="clientsRequestsModalLabel">{{ modalTitle }}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <div class="modal-header d-flex justify-content-between align-items-center">
+                        <h5 class="modal-title mx-auto" id="clientsRequestsModalLabel">{{ modalTitle }}</h5>
                     </div>
-                    <div class="modal-body text-center">
+                    <div class="modal-body">
                         <div class="container">
+
+                            <div class="row mb-4" v-if="!showRequestsColumn">
+                                <!-- Filter by Client's subscription -->
+                                <div class="col">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="show-filter"
+                                            v-model="activateFilter" />
+                                        <label class="form-check-label" for="show-filter">Filtrar por Suscripción</label>
+                                    </div>
+                                    
+                                    <div v-if="activateFilter" class="mt-4 mb-4 d-flex align-items-center gap-2">
+                                        <select v-model="clientSubscription" id="subscription-select"
+                                                class="form-control text-light" style="width: auto;" 
+                                                @change="filterBySubscription">
+                                            <option value="" disabled selected>Suscripciones</option>
+                                            <option v-for="plan in plans" :key="plan.id" :value="plan.id">
+                                                {{ plan.name.toUpperCase() }}
+                                            </option>
+                                        </select>
+                                        <button class="btn btn-theme btn-sm" @click.prevent="clearSubscriptionFilter">
+                                            Limpiar Filtro
+                                        </button>
+                                    </div>
+                                </div>
+                                <!-- Display ALL clients -->
+                                <div class="col">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="show-allClientes"
+                                            v-model="displayAllClients" @click="toggleClients()" />
+                                        <label class="form-check-label" for="show-allClientes">Mostrar todos los Clientes</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p>{{ clientsModalData.length }} resultados</p>
+
                             <table class="table text-center table-responsive">
                                 <thead>
                                     <tr>
@@ -2274,8 +2399,8 @@ export default {
                                                 class="fa-solid fa-sort"></i></th>
                                         <th scope="col" @click="sortClients('identification')">Cédula <i
                                                 class="fa-solid fa-sort"></i></th>
+                                        <th scope="col">Suscripción</th>
                                         <th scope="col" v-if="showRequestsColumn">Solicitud</th>
-                                        <th scope="col">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -2286,18 +2411,13 @@ export default {
                                         </td>
                                         <td>{{ client.firstName + ' ' + client.lastName }}</td>
                                         <td>{{ client.identification }}</td>
+                                        <td>{{ client.subscription ? client.subscription.name : 'Sin suscripción' }}
+                                        </td>
                                         <td v-if="showRequestsColumn">
                                             <button class="btn btn-sm btn-info me-1" data-bs-toggle="tooltip"
                                                 data-bs-placement="top" title="Seleccionar cliente"
                                                 @click.prevent="showCouponRequest(client)">
                                                 <i class="fa-solid fa-search me-2"></i>Ver solicitud
-                                            </button>
-                                        </td>
-                                        <td>
-                                            <button class="btn btn-sm btn-success me-1" data-bs-toggle="tooltip"
-                                                data-bs-placement="top" title="Seleccionar cliente"
-                                                @click.prevent="selectClientForCoupon(client)">
-                                                <i class="fa-solid fa-check me-2"></i>Seleccionar
                                             </button>
                                         </td>
                                     </tr>
@@ -2308,6 +2428,9 @@ export default {
                     <div class="modal-footer">
                         <button class="btn btn-theme" @click="selectMultipleClientsForCoupon()">Asignar Cupon a
                             Seleccionados</button>
+
+                        <button type="button" class="btn btn-secondary" @click.prevent="clearSubscriptionFilter"
+                            data-bs-dismiss="modal" aria-label="Close">Cerrar</button>
                     </div>
                 </div>
             </div>
@@ -2568,6 +2691,19 @@ export default {
 .btn-theme {
     background-color: purple;
     border-color: purple;
+}
+.custom-btn {
+    width: 120px; /* Smaller fixed width for small screens */
+    padding: 6px 10px; /* Reduced padding for a compact look */
+    text-align: center;
+    font-size: 0.8rem; /* Smaller font size */
+}
+
+@media (min-width: 768px) {
+    .custom-btn {
+        width: 150px; /* Slightly wider for larger screens */
+        font-size: 0.85rem; /* Slightly larger font for better readability on larger screens */
+    }
 }
 
 .card {
