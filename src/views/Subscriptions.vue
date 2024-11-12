@@ -1368,7 +1368,7 @@ export default {
                                             </span>
                                         </td>
                                         <td>
-                                            <button v-if="!client.subscription" class="btn btn-outline-success"
+                                            <button v-if="!client.subscription" class="btn btn-outline-success btn-assign"
                                                 @click.prevent="openAssignModal(client, 'client')">
                                                 Asignar suscripción
                                             </button>
@@ -2152,6 +2152,10 @@ export default {
 .btn-theme {
     background-color: purple;
     border-color: purple;
+}
+
+.btn-assign {
+    font-size: 0.6rem
 }
 
 .btn:hover {

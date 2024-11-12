@@ -1276,6 +1276,8 @@ export default {
                 // Build reference to the specific cuota to update its status
                 const purchaseId = this.cuotaToPay.purchaseId;
                 const cuotaIndex = this.cuotaToPay.cuotaIndex;
+
+                // Update
                 const cuotaRef = dbRef(db, `Users/${this.userId}/credit/main/purchases/${purchaseId}/cuotas/${cuotaIndex}`);
                 await update(cuotaRef,
                     {
@@ -2383,7 +2385,7 @@ export default {
                                                                                 cuota.amount.toFixed(2) }}
                                                                         </p>
                                                                         <p class="card-text">
-                                                                            <strong>Fecha:</strong> {{
+                                                                            <strong>Fecha límite:</strong> {{
                                                                                 formatDate(cuota.date) }}
                                                                         </p>
                                                                         <p class="card-text">
@@ -2835,14 +2837,13 @@ export default {
                                     <li v-for="(cuota, index) in purchase.cuotas" :key="index"
                                         class="list-group-item d-flex justify-content-between align-items-center">
                                         <div>
-                                            <strong>Cuota {{ index + 1 }}:</strong> ${{
-                                                cuota.amount.toFixed(2) }}
+                                            <strong>Cuota {{ index + 1 }}:</strong> ${{ cuota.amount.toFixed(2) }}
                                         </div>
                                         <div>
                                             <strong>Fecha:</strong> {{ formatDate(cuota.date) }}
                                         </div>
                                         <div>
-                                            <strong>Pagado:</strong> {{ cuota.paid ? 'Sí' : 'No' }}
+                                            <strong>Pagado:</strong> {{ !cuota.paid ? 'No' : 'Si' }}
                                         </div>
                                     </li>
                                 </ul>

@@ -26,6 +26,7 @@ export default {
 			clientsWithRequests: [],
 			clientsVerifyRequests: [],
 			referralClients: [],
+			dayReferrals: [],
 			clientsModalData: '',
 			requestsModalTitle: '',
 			requestsModalData: '',
@@ -37,32 +38,37 @@ export default {
 			assigningSubscription: false,
 			selectedClientId: null,
 			subToAssign: '',
-			filterDate: new Date().toISOString().split('T')[0],
+			filterDate: this.getVenezuelanDate(),
 			loading: false,
 			searchQuery: '',
 		}
 	},
 	computed: {
-		filteredClients(){
-			let filtered = this.referralClients;
+		filteredClients() {
+			let filtered = this.clientsModalData;
 
 			if (this.searchQuery) {
-                const query = this.searchQuery.toLowerCase();
-                filtered = filtered.filter(client => {
-                    const fullName = (client.firstName + ' ' + client.lastName).toLowerCase();
-                    const identification = String(client.identification).toLowerCase();  // Ensure it's a string
-                    const subscriptionName = client.subscriptionName ? client.subscriptionName.toLowerCase() : '';
+				const query = this.searchQuery.toLowerCase();
+				filtered = filtered.filter(client => {
+					const fullName = (client.firstName + ' ' + client.lastName).toLowerCase();
+					const identification = String(client.identification).toLowerCase();  // Ensure it's a string
+					const subscriptionName = client.subscriptionName ? client.subscriptionName.toLowerCase() : '';
 
-                    return fullName.includes(query) ||
-                        identification.includes(query) ||
-                        subscriptionName.includes(query);
-                });
-            }
+					return fullName.includes(query) ||
+						identification.includes(query) ||
+						subscriptionName.includes(query);
+				});
+			}
 
 			return filtered;
 		},
 	},
 	methods: {
+		getVenezuelanDate() {
+			const venezuelanTimeZone = 'America/Caracas';
+			const date = new Date().toLocaleDateString('en-CA', { timeZone: venezuelanTimeZone });
+			return date; // Outputs in 'yyyy-mm-dd' format
+		},
 		showToast(message) {
 			Toastify({
 				text: message,
@@ -283,7 +289,7 @@ export default {
 		async fetchIdFiles(client) {
 			try {
 				// Fetch verification files data from the user's collection in the Realtime Database
-				const userRef = dbRef(db, `Users/${client.id}/verificationFiles`);
+				const userRef = dbRef(db, `Users/${client.uid}/verificationFiles`);
 				const snapshot = await get(userRef);
 
 				if (snapshot.exists()) {
@@ -307,7 +313,7 @@ export default {
 				// Show the loader
 				this.isSubmitting = true;
 
-				const userRef = dbRef(db, `Users/${client.id}`);
+				const userRef = dbRef(db, `Users/${client.uid}`);
 				await update(userRef, { isVerified: true });
 
 				// Send an email notification to the client through Firebase Cloud Functions
@@ -341,11 +347,11 @@ export default {
 					this.isSubmitting = true;
 
 					// Fetch the user's verification files from the Database
-					const userRef = dbRef(db, `Users/${client.id}`);
-					const snapshot = await get(dbRef(db, `Users/${client.id}/verificationFiles`));
+					const userRef = dbRef(db, `Users/${client.uid}`);
+					const snapshot = await get(dbRef(db, `Users/${client.uid}/verificationFiles`));
 
 					if (!snapshot.exists()) {
-						console.warn(`No verification files found for ${client.id}, skipping deletion.`);
+						console.warn(`No verification files found for ${client.uid}, skipping deletion.`);
 						return;
 					}
 
@@ -445,14 +451,13 @@ export default {
 
 			this.$router.push({
 				path: '/cupones',
-				query: { clientId: client.id } // Pass the client's ID
+				query: { clientId: client.uid } // Pass the client's ID
 			});
 
 		},
 
 		// Employee's
 		async fetchCurrentUserData() {
-			// Ensure that userId is set before proceeding
 			if (!this.userId) {
 				console.error("User ID is not defined.");
 				return;
@@ -460,68 +465,73 @@ export default {
 
 			const userRef = dbRef(db, `Users/${this.userId}`);
 			this.userDetails = {};
+
 			try {
+				this.loading = true;
+
 				const snapshot = await get(userRef);
 
 				if (snapshot.exists()) {
 					this.userDetails = snapshot.val();
 
-					// Check if 'referidos' exists and is an object
 					if (this.userDetails.referidos && typeof this.userDetails.referidos === 'object') {
-						// Count the number of entries in the referidos object
 						const referralIds = Object.keys(this.userDetails.referidos);
-						// console.log(referralIds)
-
 						this.referralClients = [];
-						// Loop through each referralId and fetch corresponding user data
-						for (const referralId of referralIds) {
-							const referralUserRef = dbRef(db, `Users/${referralId}`);
-							const referralSnapshot = await get(referralUserRef);
 
-							if (referralSnapshot.exists()) {
-								const referralData = {
-									id: referralId,
-									...referralSnapshot.val()
-								}
+						const getUserDetails = httpsCallable(functions, 'getUserDetails');
+						const referralPromises = referralIds.map(async (referralId) => {
+							try {
+								const referralUserRef = dbRef(db, `Users/${referralId}`);
+								const referralSnapshot = await get(referralUserRef);
 
-								// Check if the client has a subscription object with a subscription_id
-								if (referralData.subscription && referralData.subscription.subscription_id) {
-									const subscriptionId = referralData.subscription.subscription_id;
-									const subscriptionRef = dbRef(db, `Suscriptions/${subscriptionId}`);
-									const subscriptionSnapshot = await get(subscriptionRef);
+								if (referralSnapshot.exists()) {
+									const referralData = { id: referralId, ...referralSnapshot.val() };
 
-									if (referralData.subscription && subscriptionSnapshot.exists()) {
-										// Merge existing subscription data with fetched subscription data
-										referralData.subscription = {
-											...referralData.subscription, // Existing subscription data
-											...subscriptionSnapshot.val(), // Fetched subscription data
-										};
+									// Fetch subscription if exists
+									if (referralData.subscription && referralData.subscription.subscription_id) {
+										const subscriptionId = referralData.subscription.subscription_id;
+										const subscriptionRef = dbRef(db, `Suscriptions/${subscriptionId}`);
+										const subscriptionSnapshot = await get(subscriptionRef);
+
+										referralData.subscription = subscriptionSnapshot.exists()
+											? { ...referralData.subscription, ...subscriptionSnapshot.val() }
+											: null;
 									} else {
-										console.log(`Subscription with ID ${subscriptionId} not found.`);
 										referralData.subscription = null;
 									}
-								} else {
-									referralData.subscription = null;
-								}
 
-								this.referralClients.push(referralData);
-							} else {
-								console.log(`Referral client with ID ${referralId} not found. Maybe deleted from database.`);
+									// Fetch auth user details using Cloud Function
+									const authUser = await getUserDetails(referralId);
+									referralData.createdAt = authUser.data.creationTime;
+
+									return referralData;
+								} else {
+									console.log(`Referral client with ID ${referralId} not found.`);
+									return null;
+								}
+							} catch (err) {
+								console.error(`Error fetching referral ${referralId}:`, err);
+								return null;
 							}
-						}
+						});
+
+						// Await all referral promises
+						this.referralClients = (await Promise.all(referralPromises)).filter(client => client !== null);
 					} else {
-						this.userReferralsLength = 0; // If 'referidos' is missing or not an object
+						this.referralClients = [];
 					}
 				} else {
-					console.log("No user data found");
+					console.log("No user data found.");
 					this.userDetails = {};
 				}
 			} catch (error) {
 				console.error("Error fetching data:", error);
+			} finally {
+				this.loading = false;
 			}
 		},
-		openClientsModal() {
-			this.clientsModalData = this.referralClients;
+		openClientsModal(dataType = 'referralClients') {
+			this.clientsModalData = dataType === 'dayReferrals' ? this.dayReferrals : this.referralClients;
 
 			// Show the modal
 			new Modal(document.getElementById('clientsModal')).show();
@@ -547,7 +557,7 @@ export default {
 					return fieldA < fieldB ? 1 : fieldA > fieldB ? -1 : 0;
 				}
 			});
-		},		
+		},
 		async loadSubscriptions(client) {
 			this.fetchSubscriptions();
 			this.assigningSubscription = true;
@@ -626,6 +636,26 @@ export default {
 			}
 
 		},
+		fetchDayReferrals() {
+			try {
+				if (this.filterDate) {
+					const day = moment(this.filterDate).startOf('day').toISOString();
+
+					// Filter clients registered today
+					const filteredReferrals = this.referralClients.filter(client => {
+						const clientCreationDate = moment(client.createdAt);
+						return clientCreationDate.isSame(day, 'day');
+					});
+
+					this.dayReferrals = filteredReferrals;
+				} else {
+					// If no date is selected, clear the filtered list
+					this.dayReferrals = [];
+				}
+			} catch (error) {
+				console.error('Error filtering clients.', error);
+			}
+		},
 		resetModal() {
 			this.assigningSubscription = false;
 			this.fetchCurrentUserData();
@@ -648,6 +678,7 @@ export default {
 
 		if (this.role === 'mesero' || this.role === 'promotora') {
 			await this.fetchCurrentUserData();
+			this.fetchDayReferrals();
 		}
 		// console.log(this.userId)
 	}
@@ -702,7 +733,7 @@ export default {
 								aria-hidden="true"></span>
 							<div v-if="clientsRegisteredDay && !loading">
 								<h3>{{ clientsRegisteredDay.length || 0 }}</h3>
-							</div>							
+							</div>
 						</div>
 					</div>
 				</div>
@@ -819,7 +850,7 @@ export default {
 									</tr>
 								</thead>
 								<tbody>
-									<tr v-for="client in requestsModalData" :key="client.id">
+									<tr v-for="client in requestsModalData" :key="client.uid">
 										<td>{{ client.firstName + ' ' + client.lastName }}</td>
 										<td>V-{{ client.identification }}</td>
 										<td>
@@ -991,10 +1022,41 @@ export default {
 				<div class="col-12 col-md-6">
 					<div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
 						<div class="card-body text-center py-5">
-							<h5 class="card-title mb-3">Clientes referidos</h5>
-							<h3><strong>{{ this.referralClients.length || 0 }}</strong></h3>
+							<h5 class="card-title mb-3">Clientes Referidos</h5>
+
+							<div>
+								<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+									aria-hidden="true"></span>
+								<div v-if="referralClients && !loading">
+									<h3><strong>{{ this.referralClients.length || 0 }}</strong></h3>
+								</div>
+							</div>
+
 							<a href="#" class="btn btn-theme btn-lg px-4 mt-3 shadow-sm"
-								@click.prevent="openClientsModal()">Ver lista de referidos</a>
+								@click.prevent="openClientsModal('referralClients')">Ver lista</a>
+						</div>
+					</div>
+				</div>
+				<div class="col-12 col-md-6">
+					<div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
+						<div class="card-body text-center py-5">
+							<h5 class="card-title mb-3">Clientes Referidos el día</h5>
+
+							<div class="d-flex justify-content-center align-items-center m-3">
+								<input type="date" v-model="filterDate" class="form-control me-2" style="width: auto;"
+									@change="fetchDayReferrals" />
+							</div>
+
+							<div>
+								<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+									aria-hidden="true"></span>
+								<div v-if="dayReferrals && !loading">
+									<h3><strong>{{ this.dayReferrals.length || 0 }}</strong></h3>
+								</div>
+							</div>
+
+							<a href="#" class="btn btn-theme btn-lg px-4 mt-3 shadow-sm"
+								@click.prevent="openClientsModal('dayReferrals')">Ver lista</a>
 						</div>
 					</div>
 				</div>
@@ -1009,11 +1071,13 @@ export default {
 							<h5 class="modal-title" id="clientsRequestsModalLabel">Clientes referidos</h5>
 							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 						</div>
-						<div class="modal-body text-center">
+						<div class="modal-body">
 							<div class="container">
 
 								<input v-model="searchQuery" placeholder="Filtrar cliente por nombre o cédula..."
-                                		class="form-control mb-3" />
+									class="form-control mb-3" />
+
+								<p>Mostrando {{ filteredClients.length }} resultados</p>
 
 								<table class="table text-center table-responsive">
 									<thead>

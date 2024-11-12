@@ -15,11 +15,22 @@ const nodemailer = require('nodemailer');
 admin.initializeApp();
 
 // Nodemailer transporter (using Gmail)
+// const transporter = nodemailer.createTransport({
+//   service: 'gmail',
+//   auth: {
+//     user: 'admin@gmail.com', // Your email
+//     pass: '#### #### #### ####',  // Your email password (use App Password if 2FA is enabled)
+//   },
+// });
+
+// Nodemailer transporter (using Hostgators TITAN SMTP)
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.titan.email',
+  port: 465,
+  secure: true,
   auth: {
-    user: 'joselinq38@gmail.com', // Your email
-    pass: 'slsb aovm ypbi zzpj',  // Your email password (use App Password if 2FA is enabled)
+    user: functions.config().email.user,
+    pass: functions.config().email.pass,
   },
 });
 
@@ -121,7 +132,7 @@ exports.createUser = functions.https.onCall(async (data, context) => {
 
     // Send email with the temporary password
     const mailOptions = {
-      from: 'joselinq38@gmail.com',
+      from: functions.config().email.user,
       to: userData.email,
       subject: 'Tu contraseña temporal',
       text: `Estimado ${userData.role === 'afiliado' ? userData.companyName : userData.firstName},\n\nSu cuenta ha sido creada en Rose App. Su contraseña temporal es: ${tempPassword}\nPor favor Inicie sensión y cambie su contraseña lo antes posible.\n\nAtentamente,\nRose App`,
@@ -177,7 +188,7 @@ exports.sendEmail = functions.https.onCall(async (data, context) => {
 
   // Create the email options
   const mailOptions = {
-    from: 'joselinq38@gmail.com', // sender address
+    from: functions.config().email.user, // sender address
     to: to, // list of receivers
     subject: message.subject, // Subject line
     text: message.text, // Plain text body

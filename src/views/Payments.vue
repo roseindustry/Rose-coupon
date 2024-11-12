@@ -379,19 +379,6 @@ export default {
             this.userModalData.selectedPurchaseId = purchaseId;
             this.userModalData.selectedCuotaId = cuotaId;
 
-            // if (confirm('Generar comprobante de pago?')) {
-            //     const date = user.subscription.lastPaymentDate.split('T')[0];
-            //     const paymentRef = dbRef(db, `Payments/${user.id}-${date}`);
-            //     await set(paymentRef, {
-            //         client_id: user.id,
-            //         subscription_id: user.subscription.subscription_id,
-            //         date: user.subscription.lastPaymentDate,
-            //         approved: true,
-            //         type: type,
-            //         amount: 0
-            //     });
-            // }
-
             new Modal(document.getElementById('idImgModal')).show();
         },
 
@@ -465,7 +452,7 @@ export default {
 
             // Directly access the purchase and cuota using the selected IDs as keys
             const selectedPurchase = user.credit.main.purchases[user.selectedPurchaseId];
-
+            // console.log(selectedPurchase)
             if (!selectedPurchase) {
                 console.error("Purchase not found for ID:", user.selectedPurchaseId);
                 return;
@@ -486,6 +473,10 @@ export default {
                     // Update the paid status in the client's collection of cuotas
                     const cuotaRef = dbRef(db, `Users/${user.id}/credit/main/purchases/${selectedPurchase.purchaseId}/cuotas/${selectedCuota.cuotaId}`);
                     await update(cuotaRef, { paid: true });
+
+                    // Update the paid status in the affiliate's collection of cuotas
+                    const AffiliateCuotaRef = dbRef(db, `Users/${selectedPurchase.affiliate_id}/credit/sales/${selectedPurchase.purchaseId}/cuotas/${selectedCuota.cuotaId}`);
+                    await update(AffiliateCuotaRef, { paid: true });
 
                     // Fetch client's subscription to know the AddOn amount that the client paid
                     const subRef = dbRef(db, `Suscriptions/${user.subscription.subscription_id}`);
@@ -750,7 +741,7 @@ export default {
                                                     class="card mb-3 cuota-card">
                                                     <div class="card-body">
                                                         <p class="mb-2">
-                                                            <strong>Cuota {{ parseInt(cuotaId) + 1 }}:</strong> ${{
+                                                            <strong>Cuota {{ cuota.cuote }}:</strong> ${{
                                                                 cuota.amount.toFixed(2) }}
                                                         </p>
                                                         <p class="mb-2">
