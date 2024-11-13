@@ -859,6 +859,8 @@ export default {
                 this.searchAffiliate = '';
                 this.payDay = null;
                 this.isPaid = false;
+                this.fetchClients();
+                this.fetchAffiliates();
             } catch (error) {
                 console.error('Error assigning plan:', error);
                 alert('La asignación de la suscripción falló.');
