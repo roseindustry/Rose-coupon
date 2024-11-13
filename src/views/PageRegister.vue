@@ -67,16 +67,25 @@ export default defineComponent({
 				return this.referralCode.toUpperCase();
 			},
 			set(value) {
-				// Remove any extra 'REF-' if the user enters it manually
-				if (value.toUpperCase().startsWith('REF-')) {
-					this.referralCode = value.toUpperCase().substring(4); // Remove 'REF-' from the input
-				} else {
-					this.referralCode = value.toUpperCase(); // Set the value without 'REF-'
-				}
+				// Always ensure 'REF-' is present, regardless of the user's input
+				this.referralCode = value.replace(/^REF-/i, '').toUpperCase();
 			}
 		}
 	},
 	methods: {
+		showToast(message) {
+			Toastify({
+				text: message,
+				duration: 3000,
+				close: true,
+				gravity: 'top',
+				position: 'right',
+				stopOnFocus: true,
+				style: {
+					background: 'linear-gradient(to right, #00b09b, #96c93d)',
+				},
+			}).showToast();
+		},
 		async sendEmail(payload) {
 			try {
 				const sendEmailFunction = httpsCallable(functions, 'sendEmail');
@@ -85,8 +94,20 @@ export default defineComponent({
 				console.error('Error sending email:', error);
 			}
 		},
+		enforcePrefix(event) {
+			// Check if the input value starts with 'REF-'
+			if (!event.target.value.startsWith('REF-')) {
+				event.target.value = `REF-${event.target.value.replace(/^REF-/i, '').toUpperCase()}`;
+				this.referralCode = event.target.value.substring(4).toUpperCase();
+			}
+		},
 
 		async submitForm() {
+			// Trim fields to avoid unnecessary spaces
+			this.email = this.email.trim();
+			this.password = this.password.trim();
+			this.confirmPassword = this.confirmPassword.trim();
+
 			// Password length validation
 			if (this.password.length < 6) {
 				this.formErrors.passwordTooShort = true;
@@ -148,11 +169,11 @@ export default defineComponent({
 					const promotoraSnapshot = await get(promotoraQuery);
 
 					// Combine results from both queries
-					const employeeResults = { 
-						...(meseroSnapshot.exists() ? meseroSnapshot.val() : {}), 
-						...(promotoraSnapshot.exists() ? promotoraSnapshot.val() : {}) 
+					const employeeResults = {
+						...(meseroSnapshot.exists() ? meseroSnapshot.val() : {}),
+						...(promotoraSnapshot.exists() ? promotoraSnapshot.val() : {})
 					};
-				
+
 					// Check if referral code matches any employee
 					for (const empUid in employeeResults) {
 						if (employeeResults[empUid].codigoReferido === this.formattedReferralCode) {
@@ -181,7 +202,7 @@ export default defineComponent({
 
 				}
 
-				
+
 
 				// Create the user
 				const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
@@ -202,9 +223,9 @@ export default defineComponent({
 							identification: this.identification
 						}),
 					phoneNumber: this.phoneNumber,
-					state: this.state,
-					municipio: this.municipio,
-					parroquia: this.parroquia,
+					// state: this.state,
+					// municipio: this.municipio,
+					// parroquia: this.parroquia,
 					role: this.role,
 				});
 
@@ -230,17 +251,7 @@ export default defineComponent({
 				await this.sendEmail(emailPayload);
 
 				// Toastify success message
-				Toastify({
-					text: "Bienvenido a bordo!",
-					duration: 3000,
-					close: true,
-					gravity: "top", // `top` or `bottom`
-					position: "right", // `left`, `center` or `right`
-					stopOnFocus: true, // Prevents dismissing of toast on hover
-					style: {
-						background: "linear-gradient(to right, #00b09b, #96c93d)",
-					},
-				}).showToast();
+				this.showToast('Bienvenido a bordo!');
 
 				// After successful signup and data storage, redirect based on role
 				if (this.role === 'cliente') {
@@ -291,21 +302,21 @@ export default defineComponent({
 			this.passwordMismatch = false;
 		},
 
-		venezuelanStatesInfo(state) {
-			const z = venezuela.estado(state, { municipios: true });
-			const munis = z.municipios;
-			if (munis) {
-				this.municipios = munis;
-				this.showMunicipios = true;
-			}
-		},
-		displayParroquias(municipio) {
-			const y = venezuela.municipio(municipio, { parroquias: true });
-			this.parroquias = y.parroquias;
-			if (this.parroquias) {
-				this.showParroquias = true;
-			}
-		},
+		// venezuelanStatesInfo(state) {
+		// 	const z = venezuela.estado(state, { municipios: true });
+		// 	const munis = z.municipios;
+		// 	if (munis) {
+		// 		this.municipios = munis;
+		// 		this.showMunicipios = true;
+		// 	}
+		// },
+		// displayParroquias(municipio) {
+		// 	const y = venezuela.municipio(municipio, { parroquias: true });
+		// 	this.parroquias = y.parroquias;
+		// 	if (this.parroquias) {
+		// 		this.showParroquias = true;
+		// 	}
+		// },
 	}
 
 });
@@ -336,7 +347,8 @@ export default defineComponent({
 				<div v-else>
 					<div class="mb-3">
 						<label class="form-label">Código de referido </label>
-						<input v-model="formattedReferralCode" class="form-control form-control-lg fs-15px" value="" />
+						<input v-model="formattedReferralCode" @input="enforcePrefix"
+							class="form-control form-control-lg fs-15px" value="" />
 					</div>
 					<div class="mb-3">
 						<label class="form-label">Nombre <span class="text-danger">*</span></label>
@@ -368,7 +380,7 @@ export default defineComponent({
 					<input type="tel" v-model="phoneNumber" class="form-control form-control-lg fs-15px"
 						placeholder="e.g 04145555555" value="" pattern="[0-9]{4}[0-9]{7}" />
 				</div>
-				<div class="mb-3">
+				<!-- <div class="mb-3">
 					<label class="form-label">Estado</label>
 					<select v-model="state" @change="venezuelanStatesInfo(state)"
 						class="form-control form-control-lg fs-15px" placeholder="Seleccione un Estado">
@@ -397,7 +409,7 @@ export default defineComponent({
 							{{ parroquia }}
 						</option>
 					</select>
-				</div>
+				</div> -->
 				<div class="mb-3">
 					<label class="form-label">Contraseña <span class="text-danger">*</span></label>
 					<input v-model="password" type="password" class="form-control form-control-lg fs-15px" value=""

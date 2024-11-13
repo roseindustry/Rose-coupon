@@ -102,7 +102,8 @@ export default defineComponent({
 			verificationModal: null,
 			paymentModal: null,
 			modalImageUrl: null,
-			paymentUrl: null
+			paymentUrl: null,
+			amountPaid: 0,
 		};
 	},
 	setup() {
@@ -717,9 +718,8 @@ export default defineComponent({
 			class="alert alert-info d-inline-flex align-items-center mt-2" role="alert" style="width: auto;">
 			<i class="fa-solid fa-info-circle me-2"></i>
 			<div>
-				<strong>Completa tu perfil:</strong> Para disfrutar de los beneficios de promociones y
-				descuentos
-				exclusivos, completa toda la información de tu perfil.
+				<strong>Completa tu perfil:</strong> Para disfrutar de los beneficios de descuentos
+				exclusivos y la posibilidad de adquirir una línea de crédito, completa toda la información de tu perfil.
 			</div>
 		</div>
 		<div v-else-if="(role === 'cliente' || role === 'afiliado') && !isProfileIncomplete">
@@ -1047,7 +1047,7 @@ export default defineComponent({
 									<label for="amountPaid" class="form-label">Monto Pagado</label>
 									<div class="input-group">
 										<span class="input-group-text text-wrap" id="assign-addon">Bs.</span>
-										<input id="amountPaid" class="form-control" v-model="amountPaid"
+										<input id="amountPaid" class="form-control" type="number" step=".01" v-model="amountPaid"
 											aria-label="Monto" aria-describedby="assign-addon">
 									</div>
 								</div>

@@ -95,6 +95,7 @@ export default {
             activeTab: 'null',
 
             loading: false,
+            loadingPlans: false,
 
             currentSub: null,
 
@@ -612,8 +613,10 @@ export default {
         },
 
         async fetchPlans() {
-            const plansRef = query(dbRef(db, 'Suscriptions'));
             try {
+                this.loadingPlans = true;
+
+                const plansRef = query(dbRef(db, 'Suscriptions'));
                 const snapshot = await get(plansRef);
 
                 if (snapshot.exists()) {
@@ -630,11 +633,15 @@ export default {
             } catch (error) {
                 console.error('Error fetching plans:', error);
                 this.plans = [];
+            } finally {
+                this.loadingPlans = false;
             }
         },
         async fetchAffiliatePlans() {
             const plansRef = query(dbRef(db, 'Affiliate_suscriptions'));
             try {
+                this.loadingPlans = true;
+
                 const snapshot = await get(plansRef);
 
                 if (snapshot.exists()) {
@@ -651,6 +658,8 @@ export default {
             } catch (error) {
                 console.error('Error fetching plans:', error);
                 this.affiliatePlans = [];
+            } finally {
+                this.loadingPlans = false;
             }
         },
 
@@ -859,7 +868,6 @@ export default {
         },
         // Clients and Affiliates can contract a subscription
         async contractPlan(plan) {
-            console.log(plan.id)
             if (confirm(`¿Seguro que desea cambiar su suscripción a ${plan.name.toUpperCase()}?`)) {
                 const userId = this.userId;
                 this.selectedPlan = plan;
@@ -874,17 +882,19 @@ export default {
                     return;
                 }
 
-                // Determine whether the user is a client or an affiliate
+                // Determine whether the user is a client or an affiliate                               
                 let user;
                 let userType = ''; // To differentiate in messages/emails
                 let userName = '';
 
+                const userRef = dbRef(db, `Users/${userId}`);
+                const userSnapshot = await get(userRef);
+                user = userSnapshot.exists() ? userSnapshot.val() : null;
+
                 if (this.role === 'cliente') {
-                    user = this.clients.find(client => client.id === userId);
                     userType = 'cliente';
                     userName = `${user.firstName} ${user.lastName}`;
                 } else if (this.role === 'afiliado') {
-                    user = this.affiliates.find(affiliate => affiliate.id === userId);
                     userType = 'afiliado';
                     userName = user.companyName;
                 }
@@ -969,6 +979,10 @@ export default {
                 let userType = '';
                 let userName = '';
 
+                const currentUserRef = dbRef(db, `Users/${userId}`);
+                const userSnapshot = await get(currentUserRef);
+                user = userSnapshot.exists() ? userSnapshot.val() : null;
+
                 // Calculate payDay (one month from today)
                 const payDay = moment().add(1, 'month').toISOString();
 
@@ -996,13 +1010,11 @@ export default {
                 }
 
                 if (this.role === 'cliente') {
-                    user = this.clients.find(client => client.id === userId);
                     userType = 'cliente';
-                    this.userName = `${user.firstName} ${user.lastName}`;  // Full name for clients
+                    userName = `${user.firstName} ${user.lastName}`;  // Full name for clients
                 } else if (this.role === 'afiliado') {
-                    user = this.affiliates.find(affiliate => affiliate.id === userId);
                     userType = 'afiliado';
-                    this.userName = user.companyName;  // Use companyName for affiliates
+                    userName = user.companyName;  // Use companyName for affiliates
                 }
 
                 // Upload capture
@@ -1179,8 +1191,14 @@ export default {
         this.role = userStore.role;
         this.userId = userStore.userId;
 
+        await this.fetchCurrentExchange();
+
         if (this.role === 'admin') {
             this.activeTab = 'clients';
+            await this.fetchClients();
+            await this.fetchAffiliates();
+            await this.fetchPlans();
+            await this.fetchAffiliatePlans();
         }
 
         if (this.role === 'cliente' || this.role === 'afiliado') {
@@ -1195,11 +1213,14 @@ export default {
             }
         }
 
-        await this.fetchClients();
-        await this.fetchAffiliates();
-        await this.fetchPlans();
-        await this.fetchAffiliatePlans();
-        await this.fetchCurrentExchange();
+        if (this.role === 'cliente') {
+            await this.fetchPlans();
+        }
+
+        if (this.role === 'afiliado') {
+            await this.fetchAffiliatePlans();
+        }
+
     },
 };
 </script>
@@ -1285,14 +1306,22 @@ export default {
                             <table class="table text-center table-responsive">
                                 <thead>
                                     <tr>
+                                        <th scope="col">Status</th>
                                         <th scope="col">Cliente</th>
+                                        <th scope="col">Email</th>
                                         <th scope="col">Cédula</th>
                                         <th scope="col">Suscripción</th>
                                     </tr>
                                 </thead>
                                 <tbody v-if="!loading">
                                     <tr v-for="client in filteredClientsSubscriptions" :key="client.id">
+                                        <td
+                                            :class="{ 'text-success': client.isVerified, 'text-danger': !client.isVerified }">
+                                            <i
+                                                :class="client.isVerified ? 'fa-solid fa-user-check' : 'fa-solid fa-user-times'"></i>
+                                        </td>
                                         <td>{{ client.firstName + ' ' + client.lastName }}</td>
+                                        <td>{{ client.email }}</td>
                                         <td>{{ client.identification }}</td>
                                         <td>
                                             <span v-if="client.subscription" class="badge bg-success">
@@ -1368,7 +1397,8 @@ export default {
                                             </span>
                                         </td>
                                         <td>
-                                            <button v-if="!client.subscription" class="btn btn-outline-success btn-assign"
+                                            <button v-if="!client.subscription"
+                                                class="btn btn-outline-success btn-assign"
                                                 @click.prevent="openAssignModal(client, 'client')">
                                                 Asignar suscripción
                                             </button>
@@ -1968,21 +1998,25 @@ export default {
         </div>
     </div>
 
-    <!-- Client and Affiliate view -->
-    <div v-if="this.role === 'cliente' || this.role === 'afiliado'">
+    <div v-if="role === 'cliente' || role === 'afiliado'">
+        
         <!-- Client view -->
-        <div v-if="this.role === 'cliente'" class="container">
+        <div v-if="role === 'cliente'" class="container">
+            <div class="bg-body rounded" style="padding: 20px;" id="price-table">
 
-            <!-- Lista de suscripciones -->
-            <div class="container-fluid my-4" style="padding: 20px;" id="price-table">
-                <div class="row g-4 justify-content-center">
+                <div v-if="loadingPlans" class="text-center">
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                </div>
+
+                <div v-if="!loadingPlans" class="row g-4 justify-content-center">
+                    <!-- Lista de suscripciones -->
                     <div v-for="(plan, index) in sortedPlans" :key="plan.id" class="col-md-3">
                         <div :class="['card h-100 text-center py-4 d-flex flex-column justify-content-between', {
                             'border-primary': plan.name === 'plata',
                             'shadow-sm': true,
                         }]" :style="plan.name === 'plata' ?
-                            'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
-                            : ''">
+                        'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
+                        : ''">
                             <div v-if="plan.name === 'plata'" class="ribbon">
                                 <span>Popular</span>
                             </div>
@@ -2010,21 +2044,27 @@ export default {
                     </div>
                 </div>
             </div>
+
         </div>
 
         <!-- Affiliate view -->
-        <div v-if="this.role === 'afiliado'" class="container">
+        <div v-if="role === 'afiliado'" class="container">
 
-            <!-- Lista de suscripciones -->
-            <div class="container-fluid" style="padding: 20px;" id="price-table">
-                <div class="row g-4 justify-content-center">
+            <div class="bg-body rounded" style="padding: 20px;" id="price-table">
+
+                <div v-if="loadingPlans" class="text-center">
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                </div>
+
+                <div v-if="!loadingPlans" class="row g-4 justify-content-center">
+                    <!-- Lista de suscripciones -->
                     <div v-for="(plan, index) in sortedPlans" :key="plan.id" class="col-md-4">
                         <div :class="['card h-100 text-center py-4 d-flex flex-column justify-content-between', {
                             'border-primary': plan.name === 'Intermedio',
                             'shadow-sm': true,
                         }]" :style="plan.name === 'Intermedio' ?
-                            'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
-                            : ''">
+                        'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
+                        : ''">
                             <div v-if="plan.name === 'Intermedio'" class="ribbon">
                                 <span>Popular</span>
                             </div>
@@ -2113,8 +2153,8 @@ export default {
                                     <label for="amountPaid" class="form-label">Monto Pagado</label>
                                     <div class="input-group">
                                         <span class="input-group-text text-wrap" id="assign-addon">Bs.</span>
-                                        <input id="amountPaid" class="form-control" v-model="amountPaid"
-                                            aria-label="Monto" aria-describedby="assign-addon">
+                                        <input id="amountPaid" class="form-control" type="number" step=".01"
+                                            v-model="amountPaid" aria-label="Monto" aria-describedby="assign-addon">
                                     </div>
                                 </div>
                                 <div class="col-12 mb-3">
@@ -2202,9 +2242,9 @@ export default {
     background: linear-gradient(135deg, #000000, #6d2c92);
 }
 
-.container-fluid {
+/* .container-fluid {
     display: flex;
-}
+} */
 
 .card {
     padding: 15px;

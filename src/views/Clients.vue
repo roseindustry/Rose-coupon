@@ -727,10 +727,11 @@ export default {
             <div class="search-box mb-3">
                 <input v-model="searchQuery" placeholder="Filtrar cliente por nombre o cedula..." class="form-control">
             </div>
+
             <div>
                 <div class="text-center" v-if="loading">
                     <p>Cargando lista de clientes, puede tardar un minuto...</p>
-                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+                    <span class="spinner-border spinner-border-sm" role="status"
                         aria-hidden="true"></span>
                 </div>
                 <div v-else>

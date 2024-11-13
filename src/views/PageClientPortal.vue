@@ -266,21 +266,21 @@ export default defineComponent({
     <div class="container">
 
         <!-- Badges -->
-        <div class="subscription-badge-container position-absolute text-muted text-center top-0 end-0 m-3 mb-4 w-100">
-            <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap w-100">
+        <div class="subscription-badge-container position-absolute text-muted text-center top-0 end-0 m-2 w-100">
+            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap w-100">
 
                 <!-- Subscription Plan Badge (Left) -->
                 <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
                     class="d-flex flex-column align-items-start ms-3">
-                    <a href="#" @click.prevent="redirectToSubs(subscriptionPlan)" id="subscription-button" class="btn">
+                    <a href="#" @click.prevent="redirectToSubs(subscriptionPlan)" id="subscription-button"
+                        class="btn p-1">
                         <span
-                            class="badge bg-light border border-success text-success d-flex align-items-center px-3 py-2 ms-3 shadow-sm rounded-pill"
-                            style="width: auto;">
-                            <i :class="subscriptionPlan.icon" class="me-2" style="font-size: 1.2rem;"></i>
+                            class="badge bg-light border border-success text-success d-flex align-items-center px-2 py-1 shadow-sm rounded-pill">
+                            <i :class="subscriptionPlan.icon" class="me-1" style="font-size: 1rem;"></i>
                             {{ subscriptionPlan.name.toUpperCase() }}
                         </span>
                     </a>
-                    <div class="ms-3 mt-2">
+                    <div class="mt-1">
                         <small class="text-muted d-block">Haz clic para cambiar tu suscripción</small>
                         <small v-if="!subscriptionPlan.isPaid" class="text-danger">Debes realizar el pago de tu
                             suscripción.</small>
@@ -288,35 +288,39 @@ export default defineComponent({
                 </div>
 
                 <div v-else class="d-flex align-items-center">
-                    <RouterLink to="/suscripciones" class="btn">
+                    <RouterLink to="/suscripciones" class="btn p-1">
                         <span
-                            class="badge bg-light border border-danger text-danger d-flex align-items-center px-3 py-2 ms-3 shadow-sm rounded-pill"
-                            style="width: auto;">
-                            <i class="me-2 fa-solid fa-exclamation-circle" style="font-size: 1.2rem;"></i>
+                            class="badge bg-light border border-danger text-danger d-flex align-items-center px-2 py-1 shadow-sm rounded-pill">
+                            <i class="me-1 fa-solid fa-exclamation-circle" style="font-size: 1rem;"></i>
                             Click para suscribirte
                         </span>
                     </RouterLink>
                 </div>
 
                 <!-- User Verification Badge (Right) -->
-                <div class="d-flex align-items-center ms-5">
+                <div class="d-flex flex-column align-items-end ms-2">
                     <a id="verify-identity" v-if="!userVerified" href="#" data-bs-toggle="modal"
                         data-bs-target="#verificationModal">
-                        <span class="badge bg-light border border-danger text-danger d-flex justify-content-center 
-                align-items-center px-3 py-2 shadow-sm rounded-circle">
-                            <i class="fa-solid fa-user-xmark" style="font-size: 1.2rem;"></i>
+                        <span
+                            class="badge bg-light border border-danger text-danger d-flex align-items-center px-3 py-2 shadow-sm rounded-pill">
+                            <i class="fa-solid fa-user-xmark me-2" style="font-size: 1rem;"></i>
                         </span>
                     </a>
-                    <small class="text-muted d-block ms-2" v-if="!userVerified">Haz clic para verificar tu
-                        cuenta</small>
 
-                    <span v-else class="badge bg-light border border-success text-success d-flex justify-content-center 
-            align-items-center px-3 py-2 shadow-sm rounded-circle">
-                        <i class="fa-solid fa-user-check" style="font-size: 1.2rem;"></i>
+                    <span v-else
+                        class="badge bg-light border border-success text-success d-flex align-items-center px-3 py-2 shadow-sm rounded-pill">
+                        <i class="fa-solid fa-user-check me-2" style="font-size: 1.2rem;"></i>
+                        Verificado
                     </span>
+
+                    <small class="text-muted mt-2 text-center" v-if="!userVerified">Haz clic para verificar tu
+                        cuenta</small>
+                    <small class="text-success mt-2 text-center" v-else>Tu cuenta está verificada</small>
                 </div>
+
             </div>
         </div>
+
 
         <div class="row justify-content-center align-items-center h-100 mt-5">
             <div class="col-12">
@@ -341,13 +345,13 @@ export default defineComponent({
                                     </div>
                                     <div>
                                         <router-link :to="item.link" class="btn btn-theme mt-3"
-                                            :class="{ 'disabled': (item.title === 'Crédito' && !userVerified) || (item.title === 'Solicitar cupón' && !subscriptionPlan) || item.notReady === true }"
+                                            :class="{ 'disabled': (item.title === 'Crédito' && !userVerified) || (item.title === 'Solicitar cupón' && subscriptionPlan.price === 0) || item.notReady === true }"
                                             :aria-disabled="item.title === 'Crédito' && !userVerified"
                                             :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
                                             {{ item.actionText }}
                                         </router-link>
                                         <!-- Tooltip or message when 'Crédito' button is disabled -->
-                                        <div v-if="item.title === 'Crédito' && !userVerified" class="mt-2">
+                                        <div v-if="item.title === 'Crédito' && !userVerified" class="w-50 mt-2">
                                             <small class="text-danger">
                                                 <span v-if="verificationStatus === 'unverified'">
                                                     Verifique su cuenta para habilitar la opción de crédito.
@@ -441,7 +445,6 @@ export default defineComponent({
 
 /* Subscription Badge Styles */
 .subscription-badge {
-    font-size: 0.9rem;
     z-index: 2;
 }
 
@@ -449,18 +452,30 @@ export default defineComponent({
     overflow: hidden;
 }
 
-@media (max-width: 767.98px) {
-
-    .subscription-badge {
-        margin-bottom: 1rem;
+@media (max-width: 768px) {
+    .subscription-badge-container {
+        margin: 0.5rem;
     }
 
-    .subscription-badge h5 {
-        font-size: 0.85rem;
+    .subscription-badge-container .badge {
+        font-size: 0.8rem;
+        /* Smaller font for badges */
+        padding: 0.3rem 0.6rem;
     }
 
-    .subscription-badge i {
-        font-size: 1.2rem;
+    .subscription-badge-container i {
+        font-size: 0.9rem;
+        /* Smaller icons */
+    }
+
+    .subscription-badge-container small {
+        font-size: 0.7rem;
+        /* Smaller text for better fit */
+    }
+
+    .subscription-badge-container .btn {
+        padding: 0.2rem 0.5rem;
+        /* Smaller buttons */
     }
 }
 
