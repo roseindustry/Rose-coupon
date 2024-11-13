@@ -686,8 +686,8 @@ export default {
 </script>
 <template>
 	<div v-if="this.role === 'admin'">
-		<div class="container py-4">
-			<div class="card mb-4 shadow-sm">
+		<div class="container py-2">
+			<div class="card mb-2 shadow-sm">
 				<div class="card-body">
 					<div class="row align-items-center">
 						<div class="col-md-8">
