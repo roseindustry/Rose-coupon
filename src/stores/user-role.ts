@@ -1,8 +1,6 @@
 import { defineStore } from 'pinia';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import { ref as databaseRef, get } from 'firebase/database';
-import { db } from '../firebase/init';
-// import { useTenancyStore } from '@/stores/tenancy';
+import { getUserData } from '../helpers/firebaseService.js';
 
 interface UserRoleState {
   role: string;
@@ -20,8 +18,6 @@ export const useUserStore = defineStore('user-role', {
   }),
   actions: {
     async searchUsers() {
-      // const tenancyStore = useTenancyStore();
-      // const tenantId = tenancyStore.tenant.key;
       const dbRef = databaseRef(db, `Users`);
       
       try {
@@ -40,26 +36,23 @@ export const useUserStore = defineStore('user-role', {
     },
     async setUserRole(uid: string) {
       this.userId = uid;
-      const dbRef = databaseRef(db, `Users/${uid}`);
       try {
-        const snapshot = await get(dbRef);
+        const snapshot = await getUserData(uid);
         if (snapshot.exists()) {
-          this.role = snapshot.val().role || 'unknown'; // Default to 'unknown' or any other default role if role is not set
-          if (this.role === 'cliente') {
-            this.userName = snapshot.val().firstName + ' ' + snapshot.val().lastName;
-          } else if (this.role === 'afiliado') {
-            this.userName = snapshot.val().companyName;
-          }
-          this.isVerified = snapshot.val().isVerified;
+          const data = snapshot.val();
+          this.role = data.role || 'unknown';
+          this.userName = this.role === 'cliente' ||
+          this.role === 'admin'
+            ? `${data.firstName} ${data.lastName}` 
+            : data.companyName;
+          this.isVerified = data.isVerified;
         } else {
           console.log("No data available");
-          this.role = 'unknown'; // Set to a default role if no data is available
-          this.userName = 'unknown';
+          this.resetUser();
         }
       } catch (error) {
-        console.error("Firebase read failed:", error);
-        this.role = 'error'; // Handle error in role retrieval, maybe set to an error state or default
-        this.userName = 'error';
+        console.error("Firebase error:", error);
+        this.resetUser();
       }
     },
     fetchUser() {
@@ -68,18 +61,21 @@ export const useUserStore = defineStore('user-role', {
         if (user) {
           this.setUserRole(user.uid);
         } else {
-          this.role = '';
-          this.userId = null;
-          this.userName = null;
-          this.isVerified = false;
+          this.resetUser();
         }
       });
     },
-    getters: {
-        getUserRole: (state) => state.role,
-        getUserId: (state) => state.userId,
-        getUserName: (state) => state.userName,
-        getUserVerifiedStatus: (state) => state.isVerified,
-      },
-  }
+    resetUser() {
+      this.role = 'unknown';
+      this.userId = null;
+      this.userName = null;
+      this.isVerified = false;
+    },
+  },
+  getters: {
+    getUserRole: (state) => state.role,
+    getUserId: (state) => state.userId,
+    getUserName: (state) => state.userName,
+    getUserVerifiedStatus: (state) => state.isVerified,
+  },
 });
