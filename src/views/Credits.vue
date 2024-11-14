@@ -2199,7 +2199,7 @@ export default {
                                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                                     <div class="card-body text-center py-5">
                                         <h5 class="card-title mb-3">Crédito Aprobado</h5>
-                                        <h3><strong>${{ currentClient.mainCredit || 0 }}</strong></h3>
+                                        <h3><strong>${{ currentClient.mainCredit.toFixed(2) || 0 }}</strong></h3>
                                     </div>
                                 </div>
                             </div>
@@ -2207,7 +2207,7 @@ export default {
                                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                                     <div class="card-body text-center py-5">
                                         <h5 class="card-title mb-3">Crédito Disponible</h5>
-                                        <h3><strong>${{ currentClient.availableMainCredit || 0 }}</strong></h3>
+                                        <h3><strong>${{ currentClient.availableMainCredit.toFixed(2) || 0 }}</strong></h3>
                                         <button v-if="currentClient.mainPurchases" class="btn btn-info mt-3"
                                             @click="openPurchases(currentClient.mainPurchases)">
                                             <span v-if="this.showPurchases">
