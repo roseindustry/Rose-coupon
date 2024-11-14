@@ -706,6 +706,25 @@ export default {
         openImageInNewTab(url) {
             window.open(url, '_blank');
         },
+
+        // async searchClient(){
+        //     const id = 26522446;
+        //     const clientRef = query(dbRef(db, `Users`), orderByChild('identification'), equalTo(id));
+        //     const clientSnapshot = await get(clientRef);
+
+        //     if (clientSnapshot.exists()) {
+        //         clientSnapshot.forEach(childSnapshot => {
+        //         const clientKey = childSnapshot.key; // Get the key of the client
+        //         const clientData = childSnapshot.val(); // Get the client data
+
+        //         console.log('Client Key:', clientKey);
+        //         console.log('Client Data:', clientData);
+        //     });
+
+        //     } else {
+        //         console.log('Cliente no existe')
+        //     }
+        // }
     }
 }
 </script>
@@ -716,10 +735,12 @@ export default {
         </h2>
 
         <div class="d-flex justify-content-end align-items-center">
-            <a href="#" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#addClientModal"
-                style="margin: 14px;">
+            <a href="#" class="btn btn-theme me-2" data-bs-toggle="modal" data-bs-target="#addClientModal">
                 <i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Cliente
             </a>
+            <!-- <a href="#" class="btn btn-theme" @click="searchClient">
+                <i class="fa fa-plus-circle fa-fw me-1"></i> Search client
+            </a> -->
         </div>
 
         <div class="shadow-lg p-3 mb-5 bg-body rounded">

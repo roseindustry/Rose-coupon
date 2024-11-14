@@ -307,7 +307,6 @@ export default {
 
                 if (snapshot.exists()) {
                     const payments = snapshot.val();
-
                     this.approvedPayments = [];
 
                     for (const key of Object.keys(payments)) {
@@ -332,11 +331,10 @@ export default {
 
                             } else if (type === 'credit-cuota' && payment.purchase_id) {
 
-                                const purchaseRef = dbRef(db, `Users/${client?.id}/credit/main/purchases/${payment.purchase_id}`);
-                                const purchaseSnapshot = await get(purchaseRef);
-                                if (purchaseSnapshot.exists()) {
-                                    const purchaseData = purchaseSnapshot.val();
-                                    // console.log('purchase data: ', purchaseData);
+                                // Attempt to fetch from active purchases
+                                const purchaseData = await this.fetchPurchaseData(client?.id, payment.purchase_id);
+
+                                if (purchaseData) {
                                     payment.purchaseData = purchaseData;
 
                                     const cuotas = purchaseData.cuotas;
@@ -344,18 +342,15 @@ export default {
                                     for (const cuotaId of Object.keys(cuotas)) {
                                         const cuota = {
                                             cuotaId: cuotaId,
-                                            ...cuotas[cuotaId]
-                                        }
-
-                                        // console.log('cuota details:', cuota)
+                                            ...cuotas[cuotaId],
+                                        };
 
                                         if (cuota.paidAt === payment.date) {
                                             payment.cuota = cuota.cuote;
                                         }
                                     }
-
                                 } else {
-                                    console.error('Credit purchases not found for user: ', client?.id);
+                                    console.error('Credit purchase not found for user:', client?.id);
                                 }
                             }
                         } catch (innerError) {
@@ -370,10 +365,37 @@ export default {
             }
         },
 
+        async fetchPurchaseData(clientId, purchaseId) {
+            try {
+                // Check active purchases first
+                const activeRef = dbRef(db, `Users/${clientId}/credit/main/purchases/${purchaseId}`);
+                let purchaseSnapshot = await get(activeRef);
+
+                if (purchaseSnapshot.exists()) {
+                    return purchaseSnapshot.val();
+                }
+
+                // If not found, check archived purchases
+                const archiveRef = dbRef(db, `Archive/${clientId}/purchases/${purchaseId}`);
+                purchaseSnapshot = await get(archiveRef);
+
+                if (purchaseSnapshot.exists()) {
+                    return purchaseSnapshot.val();
+                }
+
+                console.warn(`Purchase ${purchaseId} not found in active or archived records for client ${clientId}`);
+                return null;
+
+            } catch (error) {
+                console.error(`Error fetching purchase data for ${purchaseId}:`, error);
+                return null;
+            }
+        },
+
         async openImgModal(user, url, type, purchaseId = null, cuotaId = null) {
             this.userModalData = user;
             this.modalImageUrl = url;
-            this.paymentType = type;            
+            this.paymentType = type;
 
             // Set selected purchase and cuota IDs for cuota payment validation
             this.userModalData.selectedPurchaseId = purchaseId;
@@ -484,9 +506,11 @@ export default {
                     let loanAddOn = 0;
 
                     if (subSnapshot.exists()) {
-                        const subscription = subSnapshot.val();                        
+                        const subscription = subSnapshot.val();
 
-                        if (subscription.order == 2) {
+                        if (subscription.order == 1) {
+                            loanAddOn = 3;
+                        } else if (subscription.order == 2) {
                             loanAddOn = 2;
                         } else if (subscription.order == 3) {
                             loanAddOn = 1;
@@ -505,8 +529,8 @@ export default {
                         const newAvailableCredit = (currentAvailableCredit + selectedCuota.amount) - (loanAddOn / terms);
 
                         // Update the availableCredit in the database
-                        await update(clientCreditRef, { 
-                            availableCredit: newAvailableCredit 
+                        await update(clientCreditRef, {
+                            availableCredit: newAvailableCredit
                         });
                     }
 
@@ -820,11 +844,12 @@ export default {
                     </div>
 
                     <div class="tab-pane fade" id="cuotaPayments">
-                        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3">
+                        <div class="row g-3">
                             <div v-if="approvedPayments.length > 0">
                                 <div v-for="payment in approvedPayments.filter(p => p.type === 'credit-cuota' && p.approved === true)"
-                                    :key="payment.id" class="col">
-                                    <div class="card custom-card text-center shadow-sm mt-3">
+                                    :key="payment.id"
+                                    class="col-12 col-md-6">
+                                    <div class="card custom-card text-center shadow-sm">
                                         <div
                                             class="card-body d-flex flex-column justify-content-center align-items-center">
                                             <span class="badge bg-primary mb-3">Pago de Cuota</span>
