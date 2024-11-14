@@ -687,7 +687,7 @@ export default {
 <template>
 	<div v-if="this.role === 'admin'">
 		<div class="container py-2">
-			<div class="card mb-2 shadow-sm">
+			<div class="card mb-3 shadow-sm">
 				<div class="card-body">
 					<div class="row align-items-center">
 						<div class="col-md-8">
@@ -698,9 +698,9 @@ export default {
 				</div>
 			</div>
 
-			<div class="row">
+			<div class="row g-3">
 				<!-- Clientes registrados -->
-				<div class="col-sm-6 col-lg-4 mb-4">
+				<div class="col-sm-6 col-lg-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-primary mb-3">
@@ -716,7 +716,7 @@ export default {
 					</div>
 				</div>
 				<!-- Clientes registrados el dia... -->
-				<div class="col-sm-6 col-lg-4 mb-4">
+				<div class="col-sm-6 col-lg-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-primary mb-3">
@@ -738,7 +738,7 @@ export default {
 					</div>
 				</div>
 				<!-- Clientes verificados -->
-				<div class="col-sm-6 col-lg-4 mb-4">
+				<div class="col-sm-6 col-lg-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-success mb-3">
@@ -754,7 +754,7 @@ export default {
 					</div>
 				</div>
 				<!-- Comercios afiliados -->
-				<div class="col-sm-6 col-lg-4 mb-4">
+				<div class="col-sm-6 col-lg-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-success mb-3">
@@ -770,7 +770,7 @@ export default {
 					</div>
 				</div>
 				<!-- Cupones aplicados -->
-				<div class="col-sm-6 col-lg-4 mb-4">
+				<div class="col-sm-6 col-lg-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-primary mb-3">
@@ -786,7 +786,7 @@ export default {
 					</div>
 				</div>
 				<!-- Solicitudes de cupones por Clientes -->
-				<div class="col-sm-6 col-lg-4 mb-4">
+				<div class="col-sm-6 col-lg-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-primary mb-3">
@@ -804,7 +804,7 @@ export default {
 					</div>
 				</div>
 				<!-- Solicitudes de verificacion por Clientes -->
-				<div class="col-sm-6 col-lg-4 mb-4">
+				<div class="col-sm-6 col-lg-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-primary mb-3">

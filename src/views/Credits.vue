@@ -31,6 +31,7 @@ export default {
 
             selectedClient: null,
             selectedEntity: null,
+            selectedEntities: [],
 
             searchQuery: '',
             searchClient: '',
@@ -39,6 +40,7 @@ export default {
 
             appCreditType: '',
             creditValue: 0, // data to assign credit to the App
+            editUserData: null,
 
             // For clients 
             // Main credit line data properties
@@ -120,6 +122,8 @@ export default {
             paymentDate: new Date().toISOString().split('T')[0],
             amountPaid: 0,
             errorMessage: '',
+            showDetails: false,
+            selectedUser: null,
         }
     },
     computed: {
@@ -650,28 +654,44 @@ export default {
             });
         },
         selectEntity(user) {
-            // Set selected client or affiliate based on userType
-            if (this.creditType === 'client') {
-                this.selectedEntity = {
-                    name: `${user.firstName} ${user.lastName}`,
-                    identification: user.identification,
-                    ...user
-                };
+            const selectedEntityId = user.id;
 
-            } else if (this.creditType === 'affiliate') {
-                this.selectedEntity = {
-                    name: user.companyName,
-                    identification: user.rif,
+            if (!this.selectedEntities.some(entity => entity.id === selectedEntityId)) {
+                this.selectedEntities.push({
+                    id: selectedEntityId,
+                    name: this.creditType === 'client' 
+                        ? `${user.firstName} ${user.lastName}` 
+                        : user.companyName,
+                    identification: this.creditType === 'client' 
+                        ? user.identification 
+                        : user.rif,
                     ...user
-                };
-                // this.selectedEntity.credit = this.fetchAffiliateCredit(user.id);
-            }
+                });
 
-            console.log(`Selected ${this.creditType}:`, user.id);
+                console.log(`Selected ${this.creditType}:`, selectedEntityId);
+            } else {
+                console.log(`${this.creditType} already selected:`, selectedEntityId);
+            }            
 
             // Clear the search input and results after selection
             this.searchEntity = '';
             this.searchEntityResults = [];
+        },
+        deselectEntity(user) {
+            this.selectedEntities = this.selectedEntities.filter(entity => entity.id !== user.id);
+            // Only toggle off if the user being deselected is currently selected
+            if (this.showDetails && this.selectedUser?.id === user.id) {
+                this.showUserDetails(user);
+            }
+            console.log('DeSelected user: ', user.id);
+        },
+        showUserDetails(user){
+            if (this.selectedUser?.id === user.id) {
+                this.showDetails = !this.showDetails;
+            } else {
+                this.showDetails = true;
+                this.selectedUser = user;
+            }
         },
 
         // Set an affiliate or client's credit
@@ -756,6 +776,7 @@ export default {
             }
         },
 
+        // Logic in the affiliates view to apply a credit purchase
         calcs(client) {
             if (this.productPrice <= 0) {
                 alert('Ingrese el precio del producto para calcular.');
@@ -1069,10 +1090,36 @@ export default {
             return client ? client.firstName + ' ' + client.lastName : "Unknown Client";
         },
 
-        async cancelCredit(user, userType, creditLine) {
-            if (confirm("¿Desea revocar el crédito de este cliente? Sus compras seguiran registradas.")) {
+        editCredit(user, userType, creditLine){
+            this.userType = userType;
+            this.editUserData = user;
+            this.creditLine = creditLine;
+            const modal = new Modal(document.getElementById('edit-credit-modal'));
+            modal.show();
+        },
+        async updateCredit(user, creditLine){
+            try {
+                this.loading = true;
+
+                const userCreditRef = dbRef(db, `Users/${user.id}/credit/${creditLine}`);
+                await update(userCreditRef, {
+                    totalCredit: this.editUserData.credit.mainCredit
+                });
+
+                this.showToast('Crédito actualizado!');
+                this.fetchClients();
+                this.fetchAffiliates();
+            } catch (error) {
+                console.error(`Error updating the user ${user.id} total credit assigned.`, error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        async removeCreditLine(user, userType, creditLine) {
+            if (confirm("¿Desea cancelar el crédito de este cliente? Sus compras seguiran registradas.")) {
                 try {
                     this.loading = true;
+
                     let userName = '';
 
                     if (userType === 'client') {
@@ -1081,17 +1128,42 @@ export default {
                         userName = `${user.companyName}`;
                     }
 
-                    const clientRef = dbRef(db, `Users/${user.id}/credit/${creditLine}`);
-                    await update(clientRef, {
-                        deletedAt: new Date().toISOString()
+                    // Fetch the credit data for the client
+                    const creditPath = `Users/${user.id}/credit/${creditLine}`;
+                    const creditSnapshot = await get(dbRef(db, creditPath));
+
+                    if (!creditSnapshot.exists()) {
+                        alert('El cliente no tiene la línea de crédito especificada.');
+                        return;
+                    }
+
+                    const creditData = creditSnapshot.val();
+
+                    // Fetch purchases to check for any unpaid cuotas
+                    const purchasesRef = dbRef(db, `${creditPath}/purchases`);
+                    const purchasesSnapshot = await get(purchasesRef);
+
+                    if (purchasesSnapshot.exists()) {
+                        const purchases = purchasesSnapshot.val();
+
+                        // Move purchases to archive
+                        const archivePath = `Archive/${user.id}/purchases`;
+                        await update(dbRef(db, archivePath), purchases);
+                    }
+
+                    const archiveCreditPath = `Archive/${user.id}/credit/${creditLine}`;
+                    await set(dbRef(db, archiveCreditPath), {
+                        totalCredit: creditData.totalCredit,
+                        availableCredit: creditData.availableCredit
                     });
 
-                    this.showToast(`Línea de crédito removida para ${userName}`);
-                    if (userType === 'client') {
-                        this.fetchClients();
-                    } else if (userType === 'affiliate') {
-                        this.fetchAffiliates();
-                    }
+                    // Remove the original credit line
+                    await remove(dbRef(db, creditPath));
+
+                    // Update UI
+                    this.calculateMainCredits();
+
+                    this.showToast(`La línea de crédito archivada.`);
 
                     // Notify the user
                     const clientEmailPayload = {
@@ -1106,9 +1178,8 @@ export default {
                     };
                     await this.sendEmail(clientEmailPayload);
                 } catch (error) {
-                    console.error('Error cancelling credit:', error);
-                } finally {
-                    this.loading = false;
+                    console.error('Error removing credit line:', error);
+                    alert('No se pudo cancelar la línea de crédito.');
                 }
             }
         },
@@ -1570,7 +1641,7 @@ export default {
                                         <div class="card-body">
                                             <p v-if="client.credit.mainCredit">
                                                 <span class="badge"
-                                                    :class="client.credit.mainCredit.isDeleted ? 'bg-danger' : 'bg-success'"
+                                                    :class="client.credit.mainCredit.deletedAt ? 'bg-danger' : 'bg-success'"
                                                     style="font-size: 1rem;">
                                                     ${{ client.credit.mainCredit }}
                                                 </span>
@@ -1578,11 +1649,11 @@ export default {
                                             <div class="d-flex justify-content-center mt-2"
                                                 style="position: relative; z-index: 10;">
                                                 <button class="btn btn-sm btn-outline-info me-1"
-                                                    @click="editCredit(client, 'main')">
+                                                    @click="editCredit(client, 'client', 'main')">
                                                     <i class="fa-solid fa-pencil"></i>
                                                 </button>
                                                 <button class="btn btn-sm btn-outline-danger"
-                                                    @click="cancelCredit(client, 'client', 'main')">
+                                                    @click="removeCreditLine(client, 'client', 'main')">
                                                     <i class="fa-solid fa-times"></i>
                                                 </button>
                                             </div>
@@ -1618,7 +1689,7 @@ export default {
                                                     <i class="fa-solid fa-pencil"></i>
                                                 </button>
                                                 <button class="btn btn-sm btn-outline-danger"
-                                                    @click="cancelCredit(client, 'client', 'plus')">
+                                                    @click="removeCreditLine(client, 'client', 'plus')">
                                                     <i class="fa-solid fa-times"></i>
                                                 </button>
                                             </div>
@@ -1783,7 +1854,7 @@ export default {
                                                     <i class="fa-solid fa-pencil"></i>
                                                 </button>
                                                 <button class="btn btn-sm btn-outline-danger"
-                                                    @click="cancelCredit(aff, 'affiliate', 'main')">
+                                                    @click="removeCreditLine(aff, 'affiliate', 'main')">
                                                     <i class="fa-solid fa-times"></i>
                                                 </button>
                                             </div>
@@ -1908,44 +1979,56 @@ export default {
                             <SearchInput v-model="searchEntity" :results="searchEntityResults"
                                 :placeholder="creditType === 'client' ? 'Busque un cliente por su cédula...' : 'Busque un comercio por su nombre...'"
                                 @input="searchEntities" @select="selectEntity" class="form-control mb-3" />
-                            <!-- Display selected entity information -->
-                            <div v-if="selectedEntity" class="mb-3 p-3 border rounded">
-                                <h5>Información del {{ creditType === 'client' ? 'cliente' : 'comercio' }} seleccionado
-                                </h5>
-                                <p><strong>Nombre:</strong> {{ selectedEntity.name }}</p>
-                                <p><strong>{{ creditType === 'client' ? 'Identificación' : 'RIF' }}</strong> {{
-                                    selectedEntity.identification }}</p>
+                            
+                            <!-- Display selected entities information -->
+                            <p>{{ selectedEntities.length }} {{ creditType === 'client' ? 'Clientes' : 'Comercios' }} seleccionados</p>
+                            
+                            <div v-if="selectedEntities.length > 0" class="mb-3">
+                                <div class="row g-3">
+                                    <div class="col-4 col-sm-6 col-md-3" v-for="user in selectedEntities" 
+                                        :key="user.id">
+                                        <div class="p-3 border rounded d-flex justify-content-between align-items-center" style="background-color: transparent; height: auto;">
+                                            <div class="text-truncate" style="max-width: 75%;">
+                                                <a href="#" @click.prevent="showUserDetails(user)">{{ user.name }}</a>
+                                            </div>
+                                            <button 
+                                                class="btn btn-danger btn-sm" 
+                                                @click="deselectEntity(user)"
+                                                aria-label="Remove selection">
+                                                <i class="fa fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>                                
+                                </div>
+                            </div>
 
-                                <div v-if="selectedEntity.credit">
-                                    <hr>
-
-                                    <h6>
-                                        <strong>Crédito actual Aprobado</strong>
-                                    </h6>
+                            <div v-if="showDetails" class="p-3 border rounded mb-3">
+                                <div v-if="selectedUser.credit">
+                                    <h5 class="text-center mb-3">
+                                        Datos de {{ selectedUser.name }}
+                                    </h5>
                                     <p>
-                                        <strong>Línea Principal: </strong> {{ selectedEntity.credit.mainCredit ?
-                                            `$${selectedEntity.credit.mainCredit}` : 'No posee línea de Rose Credit' }}
+                                        <strong>Línea Principal: </strong> {{ selectedUser.credit.mainCredit ?
+                                            `$${selectedUser.credit.mainCredit}` : 'No posee línea de Rose Credit' }}
                                     </p>
                                     <p>
-                                        <strong>Disponible: </strong> {{ selectedEntity.credit.availableMainCredit ?
-                                            `$${selectedEntity.credit.availableMainCredit}` :
+                                        <strong>Disponible: </strong> {{ selectedUser.credit.availableMainCredit ?
+                                            `$${selectedUser.credit.availableMainCredit}` :
                                             `No posee línea de Rose Credit` }}
                                     </p>
                                     <p>
-                                        <strong>Línea Plus: </strong> {{ selectedEntity.credit.plusCredit ?
-                                            `$${selectedEntity.credit.plusCredit}` : 'No posee línea de Rose Credit Plus' }}
+                                        <strong>Línea Plus: </strong> {{ selectedUser.credit.plusCredit ?
+                                            `$${selectedUser.credit.plusCredit}` : 'No posee línea de Rose Credit Plus' }}
                                     </p>
                                     <p>
-                                        <strong>Disponible: </strong> {{ selectedEntity.credit.availablePlusCredit ?
-                                            `$${selectedEntity.credit.availablePlusCredit}` : '$0' }}
+                                        <strong>Disponible: </strong> {{ selectedUser.credit.availablePlusCredit ?
+                                        `$${selectedUser.credit.availablePlusCredit}` : '$0' }}
                                     </p>
                                 </div>
                                 <div v-else>
-                                    <hr>
-
                                     <p class="text-center">El cliente no posee Líneas de Crédito.</p>
-                                </div>
-                            </div>
+                                </div>                                
+                            </div>                            
 
                             <div class="mb-3">
                                 <!-- Radio Buttons for Line of Credit -->
@@ -1973,6 +2056,49 @@ export default {
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
                             @click="resetModal()">Cerrar</button>
                         <button type="button" class="btn btn-theme" @click="assignCredit()">Guardar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal to edit client's credit -->
+        <div class="modal fade" id="edit-credit-modal" tabindex="-1" aria-labelledby="editCreditModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header text-center">
+                        <h5 class="modal-title" id="editCreditModalLabel">Editar crédito a {{ creditType === 'client' ?
+                            'Cliente' : 'Comercio' }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"
+                            @click="resetModal()"></button>
+                    </div>
+                    <div v-if="editUserData" class="modal-body">
+                        <div class="mb-3">                           
+                                <!-- Radio Buttons for Line of Credit -->
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" id="mainLine" value="main"
+                                        v-model="creditLine">
+                                    <label class="form-check-label" for="mainLine">Principal</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" id="plusLine" value="plus"
+                                        v-model="creditLine">
+                                    <label class="form-check-label" for="plusLine">Plus</label>
+                                </div>
+
+                                <div class="input-group mt-3">
+                                    <label class="form-check-label" for="editTotalCredit">Total asignado</label>
+                                    <span class="input-group-text text-wrap" id="value-addon">$</span>
+                                    <input id="editTotalCredit" type="number" class="form-control"
+                                        v-model.number="editUserData.credit.mainCredit" aria-label="Monto" aria-describedby="value-addon"
+                                        min="0">
+                                </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                            @click="resetModal()">Cerrar</button>
+                        <button type="button" class="btn btn-theme" @click="updateCredit(editUserData, creditLine)">Guardar</button>
                     </div>
                 </div>
             </div>
