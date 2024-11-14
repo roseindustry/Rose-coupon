@@ -508,7 +508,9 @@ export default {
                     if (subSnapshot.exists()) {
                         const subscription = subSnapshot.val();
 
-                        if (subscription.order == 2) {
+                        if (subscription.order == 1) {
+                            loanAddOn = 3;
+                        } else if (subscription.order == 2) {
                             loanAddOn = 2;
                         } else if (subscription.order == 3) {
                             loanAddOn = 1;

@@ -621,10 +621,10 @@ export default {
                 // Check filters for clients
                 if (this.creditType === 'client') {
                     const isVerified = user.isVerified === true;
-                    const hasSubscription = user.subscription && user.subscription.price > 0;
+                    // const hasSubscription = user.subscription && user.subscription.price > 0;
 
                     // Ensure the client is verified and has a subscription before checking search query
-                    if (!isVerified || !hasSubscription) {
+                    if (!isVerified) {
                         return false;
                     }
 
@@ -700,41 +700,19 @@ export default {
             const modal = new Modal(document.getElementById('set-credit-modal'));
             modal.show();
         },
-        async assignCredit() {
+        async assignCredit(creditType) {
             if (this.creditLine === 'plus') {
                 // this.calculatePlusCredits()
                 alert('Esta opción no está disponible por el momento.');
                 return;
             }
 
-            if (!this.selectedEntity || this.creditAmount <= 0) {
-                if (this.creditType === 'client') {
-                    alert('Por favor seleccione un cliente y un monto a asignar.');
-                    return;
-                } else {
-                    alert('Por favor seleccione un comercio y un monto a asignar.');
-                    return;
-                }
-
-            }
-
-            // REMOVE THIS VALIDATIONS, ONLY ASSIGN TO SUBSCRIBED AND VERIFIED USERS
-            // Check if selected entity is verified and has a subscription if it's a client
-            if (this.creditType === 'client') {
-                if (!this.selectedEntity.isVerified) {
-                    alert('El cliente no está verificado.');
-                    return;
-                }
-
-                if (!this.selectedEntity.subscription) {
-                    alert('El cliente no cuenta con una suscripción.');
-                    return;
-                }
-
-                if (this.selectedEntity.subscription.price <= 0) {
-                    alert('El cliente no cuenta con una suscripción paga.');
-                    return;
-                }
+            if (!this.selectedEntities.length || this.creditAmount <= 0) {
+                const message = this.creditType === 'client' 
+                    ? 'Por favor seleccione al menos un cliente y un monto a asignar.' 
+                    : 'Por favor seleccione al menos un comercio y un monto a asignar.';
+                alert(message);
+                return;
             }
 
             // Check if there is available credit to assign in the app
@@ -744,35 +722,221 @@ export default {
             }
 
             try {
+                this.loading = true;
+
                 if (!this.creditLine) {
-                    alert('Seleccione una linea de credito para asignar');
+                    alert('Seleccione una línea de crédito para asignar');
                     return;
                 }
 
-                // Determine credit path based on entity type
-                const entityCreditPath = `Users/${this.selectedEntity.id}/credit/${this.creditLine}`;
+                for (const entity of this.selectedEntities) {
+                    if (this.creditType === 'client' && !entity.isVerified) {
+                        alert(`El cliente ${entity.id} no está verificado.`);
+                        continue; // Skip to the next entity
+                    }
 
-                // Update the selected entity's credit
-                const newEntityCredit = this.creditAmount;
+                    const entityCreditPath = `Users/${entity.id}/credit/${this.creditLine}`;
+                    const newEntityCredit = this.creditAmount;
 
-                await update(dbRef(db, entityCreditPath), {
-                    totalCredit: newEntityCredit,
-                    availableCredit: newEntityCredit
-                });
+                    await update(dbRef(db, entityCreditPath), {
+                        totalCredit: newEntityCredit,
+                        availableCredit: newEntityCredit,
+                    });
 
+                    this.showToast(
+                        `Al ${this.creditType === 'client' ? 'cliente' : 'comercio'} ${entity.id} se le asignó un crédito de $${newEntityCredit}`
+                    );
+
+                    let userName = '';
+
+                    if (creditType === 'client') {
+                        userName = `${entity.firstName} ${entity.lastName}`;
+                    } else if (creditType === 'affiliate') {
+                        userName = `${entity.companyName}`;
+                    }
+
+                    // Notify the user
+                    const clientEmailPayload = {
+                        to: entity.email,
+                        message: {
+                            subject: `Felicidades, se le ha asignado una línea de crédito`,
+                            text: `Hola ${userName}, se le ha asignado una línea de crédito de $${newEntityCredit} en Roseapp.                        
+                        Ingresa a la app.`,
+                            html: `<p>Hola ${userName}, se le ha asignado una línea de crédito de $${newEntityCredit} en Roseapp.</p>
+                        <p>Ingresa a la app.</p>`
+                        },
+                    };
+
+                    await this.sendEmail(clientEmailPayload);
+                }
+
+                // Update UI
                 this.calculateMainCredits();
                 this.calculateAffiliatesCredits();
 
-                this.showToast(`Al ${this.creditType === 'client' ? 'cliente' : 'comercio'} ${this.selectedEntity.name} se le asigno un credito de $${newEntityCredit}`);
-
                 // Reset after assignment
-                this.selectedEntity = null;
+                this.selectedEntities = [];
                 this.creditAmount = 0;
+
                 await this.fetchClients();
                 await this.fetchAffiliates();
             } catch (error) {
                 console.error('Error assigning credit:', error);
                 alert('No se pudo asignar el crédito.');
+            } finally {
+                this.loading = false;
+            }
+        },
+        // Update an affiliate or client's credit
+        editCredit(user, userType, creditLine){
+            this.userType = userType;
+            this.editUserData = user;
+            this.creditLine = creditLine;
+            const modal = new Modal(document.getElementById('edit-credit-modal'));
+            modal.show();
+        },
+        async updateCredit(user, creditType, creditLine){
+            try {
+                this.loading = true;
+
+                let userName = '';
+
+                    if (creditType === 'client') {
+                        userName = `${user.firstName} ${user.lastName}`;
+                    } else if (creditType === 'affiliate') {
+                        userName = `${user.companyName}`;
+                    }
+
+                const userCreditRef = dbRef(db, `Users/${user.id}/credit/${creditLine}`);
+                
+                // Fetch the current credit values
+                const snapshot = await get(userCreditRef);
+                if (!snapshot.exists()) {
+                    throw new Error('User credit record not found.');
+                }
+
+                const currentCredit = snapshot.val();
+                const currentTotalCredit = currentCredit.totalCredit || 0;
+                const currentAvailableCredit = currentCredit.availableCredit || 0;
+
+                // Get the new total credit value from the input
+                const newTotalCredit = this.editUserData.credit.mainCredit;
+
+                // Calculate the difference between new and current total credit
+                const creditDifference = newTotalCredit - currentTotalCredit;
+
+                // Update totalCredit and adjust availableCredit by the difference
+                const newAvailableCredit = currentAvailableCredit + creditDifference;
+                
+                await update(userCreditRef, {
+                    totalCredit: newTotalCredit,
+                    availableCredit: newAvailableCredit,
+                });
+
+                this.showToast('Crédito actualizado!');
+
+                // Notify the user
+                const clientEmailPayload = {
+                        to: user.email,
+                        message: {
+                            subject: `Línea de crédito modificada`,
+                            text: `Hola ${userName}, su línea de crédito en Roseapp ha sido modificada.                        
+                        Ingresa a la app.`,
+                            html: `<p>Hola ${userName}, su línea de crédito en Roseapp ha sido modificada.</p>
+                        <p>Ingresa a la app.</p>`
+                        },
+                    };
+                await this.sendEmail(clientEmailPayload);
+
+                this.fetchClients();
+                this.fetchAffiliates();
+            } catch (error) {
+                console.error(`Error updating the user ${user.id} total credit assigned.`, error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        // Remove a user's credit line
+        async removeCreditLine(user, userType, creditLine) {
+            if (confirm("¿Desea cancelar el crédito de este cliente? Sus compras seguiran registradas.")) {
+                try {
+                    this.loading = true;
+
+                    let userName = '';
+
+                    if (userType === 'client') {
+                        userName = `${user.firstName} ${user.lastName}`;
+                    } else if (userType === 'affiliate') {
+                        userName = `${user.companyName}`;
+                    }
+
+                    // Fetch the credit data for the client
+                    const creditPath = `Users/${user.id}/credit/${creditLine}`;
+                    const creditSnapshot = await get(dbRef(db, creditPath));
+
+                    if (!creditSnapshot.exists()) {
+                        alert('El cliente no tiene la línea de crédito especificada.');
+                        return;
+                    }
+
+                    const creditData = creditSnapshot.val();
+
+                    // Fetch purchases to check for any unpaid cuotas
+                    const purchasesRef = dbRef(db, `${creditPath}/purchases`);
+                    const purchasesSnapshot = await get(purchasesRef);
+
+                    const updates = {};
+
+                    if (purchasesSnapshot.exists()) {
+                        const purchases = purchasesSnapshot.val();
+                        
+                        // Move purchases to archive
+                        const archivePurchasesPath = `Archive/${user.id}/purchases`;
+                        updates[archivePurchasesPath] = purchases;
+
+                        console.log(`Archived purchases for user: ${user.id}`);
+                    } else {
+                        console.log(`No purchases to archive for user: ${user.id}`);
+                    }
+
+                    // Archive credit line
+                    const archiveCreditPath = `Archive/${user.id}/credit/${creditLine}`;
+                    updates[archiveCreditPath] = {
+                        totalCredit: creditData.totalCredit,
+                        availableCredit: creditData.availableCredit,
+                    };
+
+                    // Record cancellation metadata
+                    const archiveMainPath = `Archive/${user.id}`;
+                    updates[`${archiveMainPath}/cancelledAt`] = new Date().toISOString();
+
+                    // Execute all updates in one batch
+                    await update(dbRef(db), updates);
+
+                    // Remove the original credit line
+                    await remove(dbRef(db, creditPath));
+
+                    // Update UI
+                    this.calculateMainCredits();
+
+                    this.showToast(`Línea de crédito archivada.`);
+
+                    // Notify the user
+                    const clientEmailPayload = {
+                        to: user.email,
+                        message: {
+                            subject: `Línea de crédito cancelada en Roseapp`,
+                            text: `Hola ${userName}, se le ha revocado su línea de crédito en Roseapp.                        
+                        Comunícate con soporte si tienes alguna duda.`,
+                            html: `<p>Hola ${userName}, se le ha revocado su línea de crédito en Roseapp.</p>
+                        <p>Comunícate con soporte si tienes alguna duda.</p>`
+                        },
+                    };
+                    await this.sendEmail(clientEmailPayload);
+                } catch (error) {
+                    console.error('Error removing credit line:', error);
+                    alert('No se pudo cancelar la línea de crédito.');
+                }
             }
         },
 
@@ -818,7 +982,9 @@ export default {
 
             // Adjust the fixed addOn amount based on the client's subscription tier
             let additionalAmount = 0;
-            if (client.subscription.order == 2) {
+            if (client.subscription.order == 1) {
+                additionalAmount = 3;
+            } else if (client.subscription.order == 2) {
                 additionalAmount = 2;
             } else if (client.subscription.order == 3) {
                 additionalAmount = 1;
@@ -1042,7 +1208,6 @@ export default {
                     frequency: this.frequency,
                     cuotas: cuotas,
                     purchaseDate: new Date(this.purchaseDate).toISOString().split('T')[0],
-                    paid: false // default status
                 };
 
                 // Register the purchase in the client's purchases collection
@@ -1088,101 +1253,7 @@ export default {
         getClientName(clientId) {
             const client = this.allClients.find(c => c.id === clientId);
             return client ? client.firstName + ' ' + client.lastName : "Unknown Client";
-        },
-
-        editCredit(user, userType, creditLine){
-            this.userType = userType;
-            this.editUserData = user;
-            this.creditLine = creditLine;
-            const modal = new Modal(document.getElementById('edit-credit-modal'));
-            modal.show();
-        },
-        async updateCredit(user, creditLine){
-            try {
-                this.loading = true;
-
-                const userCreditRef = dbRef(db, `Users/${user.id}/credit/${creditLine}`);
-                await update(userCreditRef, {
-                    totalCredit: this.editUserData.credit.mainCredit
-                });
-
-                this.showToast('Crédito actualizado!');
-                this.fetchClients();
-                this.fetchAffiliates();
-            } catch (error) {
-                console.error(`Error updating the user ${user.id} total credit assigned.`, error);
-            } finally {
-                this.loading = false;
-            }
-        },
-        async removeCreditLine(user, userType, creditLine) {
-            if (confirm("¿Desea cancelar el crédito de este cliente? Sus compras seguiran registradas.")) {
-                try {
-                    this.loading = true;
-
-                    let userName = '';
-
-                    if (userType === 'client') {
-                        userName = `${user.firstName} ${user.lastName}`;
-                    } else if (userType === 'affiliate') {
-                        userName = `${user.companyName}`;
-                    }
-
-                    // Fetch the credit data for the client
-                    const creditPath = `Users/${user.id}/credit/${creditLine}`;
-                    const creditSnapshot = await get(dbRef(db, creditPath));
-
-                    if (!creditSnapshot.exists()) {
-                        alert('El cliente no tiene la línea de crédito especificada.');
-                        return;
-                    }
-
-                    const creditData = creditSnapshot.val();
-
-                    // Fetch purchases to check for any unpaid cuotas
-                    const purchasesRef = dbRef(db, `${creditPath}/purchases`);
-                    const purchasesSnapshot = await get(purchasesRef);
-
-                    if (purchasesSnapshot.exists()) {
-                        const purchases = purchasesSnapshot.val();
-
-                        // Move purchases to archive
-                        const archivePath = `Archive/${user.id}/purchases`;
-                        await update(dbRef(db, archivePath), purchases);
-                    }
-
-                    const archiveCreditPath = `Archive/${user.id}/credit/${creditLine}`;
-                    await set(dbRef(db, archiveCreditPath), {
-                        totalCredit: creditData.totalCredit,
-                        availableCredit: creditData.availableCredit
-                    });
-
-                    // Remove the original credit line
-                    await remove(dbRef(db, creditPath));
-
-                    // Update UI
-                    this.calculateMainCredits();
-
-                    this.showToast(`La línea de crédito archivada.`);
-
-                    // Notify the user
-                    const clientEmailPayload = {
-                        to: user.email,
-                        message: {
-                            subject: `Línea de crédito cancelada en Roseapp`,
-                            text: `Hola ${userName}, se le ha revocado su línea de crédito en Roseapp.                        
-                        Comunícate con soporte si tienes alguna duda.`,
-                            html: `<p>Hola ${userName}, se le ha revocado su línea de crédito en Roseapp.</p>
-                        <p>Comunícate con soporte si tienes alguna duda.</p>`
-                        },
-                    };
-                    await this.sendEmail(clientEmailPayload);
-                } catch (error) {
-                    console.error('Error removing credit line:', error);
-                    alert('No se pudo cancelar la línea de crédito.');
-                }
-            }
-        },
+        },        
 
         async affiliateActivity(affiliate) {
             this.clientsWithAffiliatePurchases = [];
@@ -1243,7 +1314,7 @@ export default {
                     // Optionally update the UI to reflect the change
                     purchaseData.paid = true;
 
-                    this.showToast("Purchase marked as paid successfully.");
+                    this.showToast("Pagado!");
                 } catch (error) {
                     console.error("Error marking purchase as paid:", error);
                     alert("An error occurred while marking the purchase as paid.");
@@ -1276,6 +1347,7 @@ export default {
             this.creditAmount = 0;
         },
 
+        // Client
         openPurchases(purchases) {
             this.showPurchases = !this.showPurchases;
 
@@ -1296,8 +1368,7 @@ export default {
                 console.log(this.purchaseWithAffiliateData); // Verify enriched data
             }
         },
-
-        // Client
+        
         payCuota(purchaseId, cuotaIndex) {
             if (confirm("¿Desea pagar esta cuota? Debe subir un comprobante de Pago")) {
                 this.cuotaToPay = {
@@ -1388,29 +1459,6 @@ export default {
                 this.loading = false;
             }
         },
-
-        //FOR CLIENT USE
-        // async requestCredit() {
-        //     if (confirm("¿Desea solicitar este monto a Rose App?")) {
-        //         //If the answer is Yes
-
-        //         const creditRef = dbRef(db, `Users/${this.userId}/credit`);
-        //         try {
-        //             const value = {
-        //                 value: parseFloat(this.creditValue),
-        //             }
-        //             await set(creditRef, value);
-
-        //             this.showToast('Valor actualizado!');
-
-        //             // Reset form fields
-        //             this.requestedAmount = 0;
-        //         } catch (error) {
-        //             console.error('Error setting credit value:', error);
-        //             alert('No se pudo enviar la solicitud.');
-        //         }
-        //     }
-        // },
     },
     async mounted() {
         const userStore = useUserStore();
@@ -1489,7 +1537,7 @@ export default {
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                     <div class="card-body text-center py-3 px-2">
                         <h6 class="card-title mb-2 text-muted">Capital Usado</h6>
-                        <h5><strong>${{ mainCreditUsed }}</strong></h5>
+                        <h5><strong>${{ mainCreditUsed.toFixed(2) }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -1497,7 +1545,7 @@ export default {
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                     <div class="card-body text-center py-3 px-2">
                         <h6 class="card-title mb-2 text-muted">Capital Disponible</h6>
-                        <h5><strong>${{ mainCreditAvailable }}</strong></h5>
+                        <h5><strong>${{ mainCreditAvailable.toFixed(2) }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -1505,7 +1553,7 @@ export default {
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                     <div class="card-body text-center py-3 px-2">
                         <h6 class="card-title mb-2 text-muted">Capital Asignado</h6>
-                        <h5><strong>${{ mainAssignedCapital }}</strong></h5>
+                        <h5><strong>${{ mainAssignedCapital.toFixed(2) }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -1513,7 +1561,7 @@ export default {
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                     <div class="card-body text-center py-3 px-2">
                         <h6 class="card-title mb-2 text-muted">Capital Disponible para Asignar</h6>
-                        <h5><strong>${{ mainAvailableToAssign }}</strong></h5>
+                        <h5><strong>${{ mainAvailableToAssign.toFixed(2) }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -1526,7 +1574,7 @@ export default {
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                     <div class="card-body text-center py-3 px-2">
                         <h6 class="card-title mb-2 text-muted">Capital Usado</h6>
-                        <h5><strong>${{ plusCreditUsed }}</strong></h5>
+                        <h5><strong>${{ plusCreditUsed.toFixed(2) }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -1534,7 +1582,7 @@ export default {
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                     <div class="card-body text-center py-3 px-2">
                         <h6 class="card-title mb-2 text-muted">Capital Disponible</h6>
-                        <h5><strong>${{ plusCreditAvailable }}</strong></h5>
+                        <h5><strong>${{ plusCreditAvailable.toFixed(2) }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -1542,7 +1590,7 @@ export default {
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                     <div class="card-body text-center py-3 px-2">
                         <h6 class="card-title mb-2 text-muted">Capital Asignado</h6>
-                        <h5><strong>${{ plusAssignedCapital }}</strong></h5>
+                        <h5><strong>${{ plusAssignedCapital.toFixed(2) }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -1550,7 +1598,7 @@ export default {
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                     <div class="card-body text-center py-3 px-2">
                         <h6 class="card-title mb-2 text-muted">Capital Disponible para Asignar</h6>
-                        <h5><strong>${{ plusAvailableToAssign }}</strong></h5>
+                        <h5><strong>${{ plusAvailableToAssign.toFixed(2) }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -1563,7 +1611,7 @@ export default {
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                     <div class="card-body text-center py-3 px-2">
                         <h6 class="card-title mb-2 text-muted">Capital Usado</h6>
-                        <h5><strong>${{ affMainCreditUsed }}</strong></h5>
+                        <h5><strong>${{ affMainCreditUsed.toFixed(2) }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -1571,7 +1619,7 @@ export default {
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                     <div class="card-body text-center py-3 px-2">
                         <h6 class="card-title mb-2 text-muted">Capital Disponible</h6>
-                        <h5><strong>${{ affMainCreditAvailable }}</strong></h5>
+                        <h5><strong>${{ affMainCreditAvailable.toFixed(2) }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -1579,7 +1627,7 @@ export default {
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                     <div class="card-body text-center py-3 px-2">
                         <h6 class="card-title mb-2 text-muted">Capital Asignado</h6>
-                        <h5><strong>${{ affMainAssignedCapital }}</strong></h5>
+                        <h5><strong>${{ affMainAssignedCapital.toFixed(2) }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -1587,7 +1635,7 @@ export default {
                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                     <div class="card-body text-center py-3 px-2">
                         <h6 class="card-title mb-2 text-muted">Capital Disponible para Asignar</h6>
-                        <h5><strong>${{ affMainAvailableToAssign }}</strong></h5>
+                        <h5><strong>${{ affMainAvailableToAssign.toFixed(2) }}</strong></h5>
                     </div>
                 </div>
             </div>
@@ -1643,7 +1691,7 @@ export default {
                                                 <span class="badge"
                                                     :class="client.credit.mainCredit.deletedAt ? 'bg-danger' : 'bg-success'"
                                                     style="font-size: 1rem;">
-                                                    ${{ client.credit.mainCredit }}
+                                                    ${{ client.credit.mainCredit.toFixed(2) }}
                                                 </span>
 
                                             <div class="d-flex justify-content-center mt-2"
@@ -1679,13 +1727,13 @@ export default {
                                                 <span class="badge"
                                                     :class="client.credit.mainCredit.isDeleted ? 'bg-danger' : 'bg-success'"
                                                     style="font-size: 1rem;">
-                                                    ${{ client.credit.plusCredit }}
+                                                    ${{ client.credit.plusCredit.toFixed(2) }}
                                                 </span>
 
                                             <div class="d-flex justify-content-center mt-2"
                                                 style="position: relative; z-index: 10;">
                                                 <button class="btn btn-sm btn-outline-info me-1"
-                                                    @click="editCredit(client, 'plus')">
+                                                    @click="editCredit(client, 'client', 'plus')">
                                                     <i class="fa-solid fa-pencil"></i>
                                                 </button>
                                                 <button class="btn btn-sm btn-outline-danger"
@@ -1718,7 +1766,7 @@ export default {
                                                 <span class="badge"
                                                     :class="client.credit.mainCredit.isDeleted ? 'bg-danger' : 'bg-success'"
                                                     style="font-size: 1rem;">
-                                                    ${{ client.credit.availableMainCredit }}
+                                                    ${{ client.credit.availableMainCredit.toFixed(2) }}
                                                 </span>
                                             </h5>
                                             <p v-else>
@@ -1742,7 +1790,7 @@ export default {
                                                 <span class="badge"
                                                     :class="client.credit.mainCredit.isDeleted ? 'bg-danger' : 'bg-success'"
                                                     style="font-size: 1rem;">
-                                                    ${{ client.credit.availablePlusCredit }}
+                                                    ${{ client.credit.availablePlusCredit.toFixed(2) }}
                                                 </span>
                                             </h5>
                                             <p v-else>
@@ -1844,13 +1892,13 @@ export default {
                                                 <span class="badge"
                                                     :class="aff.credit.mainCredit.isDeleted ? 'bg-danger' : 'bg-success'"
                                                     style="font-size: 1rem;">
-                                                    ${{ aff.credit.mainCredit }}
+                                                    ${{ aff.credit.mainCredit.toFixed(2) }}
                                                 </span>
 
                                             <div class="d-flex justify-content-center mt-2"
                                                 style="position: relative; z-index: 10;">
                                                 <button class="btn btn-sm btn-outline-info me-1"
-                                                    @click="editCredit(aff, 'main')">
+                                                    @click="editCredit(aff, 'affiliate', 'main')">
                                                     <i class="fa-solid fa-pencil"></i>
                                                 </button>
                                                 <button class="btn btn-sm btn-outline-danger"
@@ -1880,7 +1928,7 @@ export default {
                                                 <span class="badge"
                                                     :class="aff.credit.mainCredit.isDeleted ? 'bg-danger' : 'bg-success'"
                                                     style="font-size: 1rem;">
-                                                    ${{ aff.credit.availableMainCredit }}
+                                                    ${{ aff.credit.availableMainCredit.toFixed(2) }}
                                                 </span>
                                             </p>
                                             <p v-else>
@@ -2055,7 +2103,7 @@ export default {
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
                             @click="resetModal()">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="assignCredit()">Guardar</button>
+                        <button type="button" class="btn btn-theme" @click="assignCredit(creditType)">Guardar</button>
                     </div>
                 </div>
             </div>
@@ -2073,32 +2121,39 @@ export default {
                             @click="resetModal()"></button>
                     </div>
                     <div v-if="editUserData" class="modal-body">
-                        <div class="mb-3">                           
-                                <!-- Radio Buttons for Line of Credit -->
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="radio" id="mainLine" value="main"
-                                        v-model="creditLine">
-                                    <label class="form-check-label" for="mainLine">Principal</label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="radio" id="plusLine" value="plus"
-                                        v-model="creditLine">
-                                    <label class="form-check-label" for="plusLine">Plus</label>
-                                </div>
+                        <!-- Radio Buttons for Line of Credit -->
+                        <div class="mb-3">
+                            <label class="form-label d-block">Línea de Crédito</label>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" id="mainLine" value="main" v-model="creditLine">
+                                <label class="form-check-label" for="mainLine">Principal</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" id="plusLine" value="plus" v-model="creditLine">
+                                <label class="form-check-label" for="plusLine">Plus</label>
+                            </div>
+                        </div>
 
-                                <div class="input-group mt-3">
-                                    <label class="form-check-label" for="editTotalCredit">Total asignado</label>
-                                    <span class="input-group-text text-wrap" id="value-addon">$</span>
-                                    <input id="editTotalCredit" type="number" class="form-control"
-                                        v-model.number="editUserData.credit.mainCredit" aria-label="Monto" aria-describedby="value-addon"
-                                        min="0">
-                                </div>
+                        <!-- Input for Total Assigned Credit -->
+                        <div class="mb-3">
+                            <label for="editTotalCredit" class="form-label">Total asignado</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input 
+                                    id="editTotalCredit" 
+                                    type="number" 
+                                    class="form-control" 
+                                    v-model.number="editUserData.credit.mainCredit" 
+                                    aria-label="Monto" 
+                                    aria-describedby="value-addon" 
+                                    min="0">
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
                             @click="resetModal()">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="updateCredit(editUserData, creditLine)">Guardar</button>
+                        <button type="button" class="btn btn-theme" @click="updateCredit(editUserData, creditType, creditLine)">Guardar</button>
                     </div>
                 </div>
             </div>
@@ -2218,8 +2273,7 @@ export default {
                                                                 :data-bs-target="`#purchase-collapse-${clientIndex}-${purchaseIndex}`"
                                                                 aria-expanded="false"
                                                                 :aria-controls="`purchase-collapse-${clientIndex}-${purchaseIndex}`">
-                                                                {{ purchase.productName }} / {{
-                                                                    formatDate(purchase.purchaseDate) }}
+                                                                {{ purchase.productName }} / {{ formatDate(purchase.purchaseDate) }}
                                                             </button>
                                                         </h2>
                                                         <div :id="`purchase-collapse-${clientIndex}-${purchaseIndex}`"
@@ -2325,7 +2379,7 @@ export default {
                                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                                     <div class="card-body text-center py-5">
                                         <h5 class="card-title mb-3">Crédito Aprobado</h5>
-                                        <h3><strong>${{ currentClient.mainCredit || 0 }}</strong></h3>
+                                        <h3><strong>${{ currentClient.mainCredit.toFixed(2) || 0 }}</strong></h3>
                                     </div>
                                 </div>
                             </div>
@@ -2333,7 +2387,7 @@ export default {
                                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                                     <div class="card-body text-center py-5">
                                         <h5 class="card-title mb-3">Crédito Disponible</h5>
-                                        <h3><strong>${{ currentClient.availableMainCredit || 0 }}</strong></h3>
+                                        <h3><strong>${{ currentClient.availableMainCredit.toFixed(2) || 0 }}</strong></h3>
                                         <button v-if="currentClient.mainPurchases" class="btn btn-info mt-3"
                                             @click="openPurchases(currentClient.mainPurchases)">
                                             <span v-if="this.showPurchases">
