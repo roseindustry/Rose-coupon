@@ -611,8 +611,10 @@ export default {
 
             const searchQuery = this.searchEntity.toLowerCase();
 
+            const clients = this.allClients.filter((client) => client.state && client.municipio && client.parroquia);
+
             // Determine which list to search based on the creditType ('client' or 'affiliate')
-            const userList = this.creditType === 'client' ? this.allClients : this.allAffiliates;
+            const userList = this.creditType === 'client' ? clients : this.allAffiliates;
 
             // Filter by search query, applying different filters for clients and affiliates
             this.searchEntityResults = userList.filter(user => {
@@ -730,10 +732,6 @@ export default {
                 }
 
                 for (const entity of this.selectedEntities) {
-                    if (this.creditType === 'client' && !entity.isVerified) {
-                        alert(`El cliente ${entity.id} no está verificado.`);
-                        continue; // Skip to the next entity
-                    }
 
                     const entityCreditPath = `Users/${entity.id}/credit/${this.creditLine}`;
                     const newEntityCredit = this.creditAmount;
