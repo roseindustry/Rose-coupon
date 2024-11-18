@@ -1,6 +1,7 @@
 <script>
-import { db, functions } from '@/firebase/init';
+import { db, functions, storage } from '@/firebase/init';
 import { ref as dbRef, get, update, orderByChild, query, equalTo } from 'firebase/database';
+import { ref as storageRef, deleteObject } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { useUserStore } from "@/stores/user-role";
 import { Modal } from 'bootstrap';
@@ -121,16 +122,16 @@ export default {
 			if (snapshot.exists()) {
 			const users = snapshot.val();
 			
-			const getAllUsers = httpsCallable(functions, 'getAllUsers');
-			const authUsers = await getAllUsers();
+			// const getAllUsers = httpsCallable(functions, 'getAllUsers');
+			// const authUsers = await getAllUsers();
 
 			// Merge auth user data with database data
 			this.clients = Object.entries(users).map(([uid, user]) => {
-				const authUser = authUsers.find(auth => auth.uid === uid);
+				// const authUser = authUsers.find(auth => auth.uid === uid);
 				return {
 				uid,
 				...user,
-				createdAt: authUser ? authUser.creationTime : null,
+				// createdAt: authUser ? authUser.creationTime : null,
 				};
 			});
 
@@ -147,26 +148,26 @@ export default {
 			this.loading = false;
 		}
 		},
-		fetchDayClients() {
-			try {
-				if (this.filterDate) {
-					const day = moment(this.filterDate).startOf('day').toISOString();
+		// fetchDayClients() {
+		// 	try {
+		// 		if (this.filterDate) {
+		// 			const day = moment(this.filterDate).startOf('day').toISOString();
 
-					// Filter clients registered today
-					const filteredClients = this.clients.filter(client => {
-						const clientCreationDate = moment(client.createdAt);
-						return clientCreationDate.isSame(day, 'day');
-					});
+		// 			// Filter clients registered today
+		// 			const filteredClients = this.clients.filter(client => {
+		// 				const clientCreationDate = moment(client.createdAt);
+		// 				return clientCreationDate.isSame(day, 'day');
+		// 			});
 
-					this.clientsRegisteredDay = filteredClients;
-				} else {
-					// If no date is selected, clear the filtered list
-					this.clientsRegisteredDay = [];
-				}
-			} catch (error) {
-				console.error('Error filtering clients.', error);
-			}
-		},
+		// 			this.clientsRegisteredDay = filteredClients;
+		// 		} else {
+		// 			// If no date is selected, clear the filtered list
+		// 			this.clientsRegisteredDay = [];
+		// 		}
+		// 	} catch (error) {
+		// 		console.error('Error filtering clients.', error);
+		// 	}
+		// },
 		async fetchAffiliates() {
 			const role = 'afiliado';
 			const affiliatesRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
@@ -469,7 +470,7 @@ export default {
 						const referralIds = Object.keys(this.userDetails.referidos);
 						this.referralClients = [];
 
-						const getUserDetails = httpsCallable(functions, 'getUserDetails');
+						// const getUserDetails = httpsCallable(functions, 'getUserDetails');
 						const referralPromises = referralIds.map(async (referralId) => {
 							try {
 								const referralUserRef = dbRef(db, `Users/${referralId}`);
@@ -492,8 +493,8 @@ export default {
 									}
 
 									// Fetch auth user details using Cloud Function
-									const authUser = await getUserDetails(referralId);
-									referralData.createdAt = authUser.data.creationTime;
+									// const authUser = await getUserDetails(referralId);
+									// referralData.createdAt = authUser.data.creationTime;
 
 									return referralData;
 								} else {
@@ -627,26 +628,26 @@ export default {
 			}
 
 		},
-		fetchDayReferrals() {
-			try {
-				if (this.filterDate) {
-					const day = moment(this.filterDate).startOf('day').toISOString();
+		// fetchDayReferrals() {
+		// 	try {
+		// 		if (this.filterDate) {
+		// 			const day = moment(this.filterDate).startOf('day').toISOString();
 
-					// Filter clients registered today
-					const filteredReferrals = this.referralClients.filter(client => {
-						const clientCreationDate = moment(client.createdAt);
-						return clientCreationDate.isSame(day, 'day');
-					});
+		// 			// Filter clients registered today
+		// 			const filteredReferrals = this.referralClients.filter(client => {
+		// 				const clientCreationDate = moment(client.createdAt);
+		// 				return clientCreationDate.isSame(day, 'day');
+		// 			});
 
-					this.dayReferrals = filteredReferrals;
-				} else {
-					// If no date is selected, clear the filtered list
-					this.dayReferrals = [];
-				}
-			} catch (error) {
-				console.error('Error filtering clients.', error);
-			}
-		},
+		// 			this.dayReferrals = filteredReferrals;
+		// 		} else {
+		// 			// If no date is selected, clear the filtered list
+		// 			this.dayReferrals = [];
+		// 		}
+		// 	} catch (error) {
+		// 		console.error('Error filtering clients.', error);
+		// 	}
+		// },
 		resetModal() {
 			this.assigningSubscription = false;
 			this.fetchCurrentUserData();
@@ -662,14 +663,14 @@ export default {
 
 		if (this.role === 'admin') {
 			await this.fetchClients();
-			this.fetchDayClients();
+			// this.fetchDayClients();
 			await this.fetchAffiliates();
 			await this.fetchCoupons();
 		}
 
 		if (this.role === 'mesero' || this.role === 'promotora') {
 			await this.fetchCurrentUserData();
-			this.fetchDayReferrals();
+			// this.fetchDayReferrals();
 		}
 		// console.log(this.userId)
 	}
@@ -707,7 +708,7 @@ export default {
 					</div>
 				</div>
 				<!-- Clientes registrados el dia... -->
-				<div class="col-sm-6 col-lg-4">
+				<!-- <div class="col-sm-6 col-lg-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-primary mb-3">
@@ -727,7 +728,7 @@ export default {
 							</div>
 						</div>
 					</div>
-				</div>
+				</div> -->
 				<!-- Clientes verificados -->
 				<div class="col-sm-6 col-lg-4">
 					<div class="card custom-card h-100 text-center">
@@ -1028,7 +1029,7 @@ export default {
 						</div>
 					</div>
 				</div>
-				<div class="col-12 col-md-6">
+				<!-- <div class="col-12 col-md-6">
 					<div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
 						<div class="card-body text-center py-5">
 							<h5 class="card-title mb-3">Clientes Referidos el día</h5>
@@ -1050,7 +1051,7 @@ export default {
 								@click.prevent="openClientsModal('dayReferrals')">Ver lista</a>
 						</div>
 					</div>
-				</div>
+				</div> -->
 			</div>
 
 			<!-- Clients Modal -->

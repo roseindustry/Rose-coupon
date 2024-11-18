@@ -221,7 +221,7 @@ export default defineComponent({
 									paymentVerified: subscriptionData.paymentVerified || null,
 									icon: userSuscription.icon || 'fa fa-times'
 								};
-								console.log('Plan details: ', this.subscriptionPlan)
+								// console.log('Plan details: ', this.subscriptionPlan)
 							}
 							else {
 								// Handle case where there is no subscription plan
@@ -392,6 +392,12 @@ export default defineComponent({
 		handleFileUpload(event, type) {
 			const file = event.target.files[0];
 			if (!file) return;
+
+			if (!file.type.startsWith('image/')) {
+				alert('Por favor, selecciona un archivo de imagen válido.');
+				event.target.value = ''; // Clear the invalid file
+				return;
+			}
 
 			// Update the correct file and preview based on the side
 			if (type === 'front') {
@@ -989,21 +995,21 @@ export default defineComponent({
 							<div class="mb-3">
 								<label for="idFront" class="form-label">Frontal de la Cédula/Identificación</label>
 								<input type="file" class="form-control" id="idFront"
-									@change="handleFileUpload($event, 'front')" required>
+								accept="image/*" @change="handleFileUpload($event, 'front')" required>
 								<img v-if="idFrontPreview" :src="idFrontPreview" alt="Front ID Preview"
 									class="img-fluid mt-2" />
 							</div>
 							<div class="mb-3">
 								<label for="idBack" class="form-label">Parte Trasera de la Cédula/Identificación</label>
 								<input type="file" class="form-control" id="idBack"
-									@change="handleFileUpload($event, 'back')" required>
+								accept="image/*" @change="handleFileUpload($event, 'back')" required>
 								<img v-if="idBackPreview" :src="idBackPreview" alt="Back ID Preview"
 									class="img-fluid mt-2" />
 							</div>
 							<div class="mb-3">
 								<label for="selfie" class="form-label">Foto Selfie con Cédula visible</label>
 								<input type="file" class="form-control" id="selfie"
-									@change="handleFileUpload($event, 'selfie')" required>
+								accept="image/*" @change="handleFileUpload($event, 'selfie')" required>
 								<img v-if="selfiePreview" :src="selfiePreview" alt="Selfie Preview"
 									class="img-fluid mt-2" />
 							</div>
