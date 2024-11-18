@@ -206,15 +206,43 @@ exports.sendEmail = functions.https.onCall(async (data, context) => {
 });
 
 // Cloud function to retrieve the createdAt for Users from Auth
-exports.getUserDetails = functions.https.onCall(async (uid) => {
+// exports.getUserDetails = functions.https.onCall(async (uid) => {
+//   try {
+//     const userRecord = await admin.auth().getUser(uid);
+//     return {
+//       uid: userRecord.uid,
+//       creationTime: userRecord.metadata.creationTime,
+//     };
+//   } catch (error) {
+//     throw new functions.https.HttpsError('not-found', 'User not found');
+//   }
+// });
+
+// Cloud function to fetch all users in the auth list
+exports.getAllUsers = functions.https.onCall(async () => {
+  const allUsers = [];
+  
   try {
-    const userRecord = await admin.auth().getUser(uid);
-    return {
-      uid: userRecord.uid,
-      creationTime: userRecord.metadata.creationTime,
-      // Add other fields as necessary
-    };
+    let nextPageToken = null;
+    
+    do {
+      const listUsersResult = await admin.auth().listUsers(1000, nextPageToken);
+      
+      // Map results to the desired format
+      const users = listUsersResult.users.map(userRecord => ({
+        uid: userRecord.uid,
+        creationTime: userRecord.metadata.creationTime,
+      }));
+      
+      allUsers.push(...users);
+      nextPageToken = listUsersResult.pageToken; // Set next page token
+
+    } while (nextPageToken); // Continue if there's another page
+    
+    console.log(`Fetched ${allUsers.length} users successfully.`);
+    return { users: allUsers }; // Return structured result
   } catch (error) {
-    throw new functions.https.HttpsError('not-found', 'User not found');
+    console.error('Error fetching users:', error.message, error.stack);
+    throw new functions.https.HttpsError('internal', 'Unable to fetch user list');
   }
 });

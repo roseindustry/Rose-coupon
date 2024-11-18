@@ -147,24 +147,18 @@ export default {
                 }
 
                 const users = snapshot.val();
-                const getUserDetails = httpsCallable(functions, 'getUserDetails');
-                const clientPromises = [];
+                // const getUserDetails = httpsCallable(functions, 'getUserDetails');
+                // const clientPromises = [];
 
-                // Create array of promises for parallel processing
-                for (const [uid, user] of Object.entries(users)) {
-                    clientPromises.push(
-                        getUserDetails(uid).then(authUser => ({
-                            uid,
-                            ...user,
-                            createdAt: authUser.data.creationTime
-                        }))
-                    );
-                }
+                this.clients = Object.entries(users).map(([uid, user]) => ({
+                    uid,
+                    ...user
+                }));
 
                 // Wait for all clients data to be fetched
-                const clientsWithTimestamp = await Promise.all(clientPromises);
+                // const clientsWithTimestamp = await Promise.all(clientPromises);
 
-                this.clients = clientsWithTimestamp.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                // this.clients = clientsWithTimestamp.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
             } catch (error) {
                 console.error('Error fetching clients:', error);
@@ -1007,45 +1001,35 @@ export default {
                                                     <div class="accordion-body">
                                                         <!-- Check if coupons exist -->
                                                         <div v-if="clientCoupons[client.uid]">
-                                                            <!-- Responsive grid of coupons -->
-                                                            <div
-                                                                class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-4">
-                                                                <!-- Coupon card -->
-                                                                <div class="col"
-                                                                    v-for="coupon in clientCoupons[client.uid]"
-                                                                    :key="coupon.id">
-                                                                    <div class="card h-100 shadow-sm">
-                                                                        <div class="card-header">
-                                                                            <h5
-                                                                                class="card-title text-center text-black">
-                                                                                Cupón
-                                                                            </h5>
-                                                                            <h6 class="text-center text-primary">{{
-                                                                                coupon.name
-                                                                                }}</h6>
-                                                                        </div>
-                                                                        <div class="card-body">
-
-                                                                            <p class="card-text">
-                                                                                <strong class="me-2">
-                                                                                    {{ coupon.type === `saldo` ? `Saldo:
-                                                                                    $` : `Porcentaje: % ` }}
-                                                                                    {{ coupon.balance }}
+                                                        <!-- Responsive grid of coupons -->
+                                                        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 mb-4">
+                                                            <!-- Coupon card -->
+                                                            <div class="col" v-for="coupon in clientCoupons[client.uid]" :key="coupon.id">
+                                                                <div class="card h-100 shadow-lg rounded-3 border-0">
+                                                                    <div class="card-header bg-dark text-white text-center">
+                                                                        <h5 class="card-title mb-1">Cupón</h5>
+                                                                        <h6 class="fw-bold">{{ coupon.name }}</h6>
+                                                                    </div>
+                                                                    <div class="card-body">
+                                                                        <div class="d-flex flex-column justify-content-between h-100">
+                                                                            <p class="mb-3">
+                                                                                <strong class="d-block">
+                                                                                    {{ coupon.type === `saldo` ? `Saldo: $` : `Porcentaje: % ` }} {{ coupon.balance }}
                                                                                 </strong>
-                                                                                <br>
-                                                                                <strong>Válido hasta:</strong> {{
-                                                                                    formatDate(coupon.expiration) }} <br>
+                                                                                <strong>Válido hasta:</strong> {{ formatDate(coupon.expiration) }} <br>
                                                                                 <strong>Estado: </strong>
-                                                                                <span v-if="coupon.status"
-                                                                                    class="badge bg-success">Activo</span>
-                                                                                <span v-else
-                                                                                    class="badge bg-danger">Inactivo</span>
+                                                                                <span v-if="coupon.status" class="badge bg-success">Activo</span>
+                                                                                <span v-else class="badge bg-danger">Inactivo</span>
                                                                             </p>
+                                                                            <div class="d-flex justify-content-center align-items-center mt-2">
+                                                                                <img class="thumbnail img-fluid" :src="coupon.qrFileUrl" alt="Código QR" style="max-width: 80px; border-radius: 8px;">
+                                                                            </div>
                                                                         </div>
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                    </div>
                                                         <!-- Show "No hay cupones" if no coupons are available -->
                                                         <p v-else class="text-center">No hay cupones.</p>
                                                     </div>
