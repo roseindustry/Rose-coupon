@@ -111,50 +111,41 @@ export default {
 
 		// Admin's
 		async fetchClients() {
-			const role = 'cliente';
-			const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
+		const role = 'cliente';
+		const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
 
-			try {
-				this.loading = true;
+		try {
+			this.loading = true;
 
-				const snapshot = await get(clientRef);
+			const snapshot = await get(clientRef);
+			if (snapshot.exists()) {
+			const users = snapshot.val();
+			
+			const getAllUsers = httpsCallable(functions, 'getAllUsers');
+			const authUsers = await getAllUsers();
 
-				if (snapshot.exists()) {
-					const users = snapshot.val();
+			// Merge auth user data with database data
+			this.clients = Object.entries(users).map(([uid, user]) => {
+				const authUser = authUsers.find(auth => auth.uid === uid);
+				return {
+				uid,
+				...user,
+				createdAt: authUser ? authUser.creationTime : null,
+				};
+			});
 
-					const getUserDetails = httpsCallable(functions, 'getUserDetails');
-					const clientPromises = [];
-
-					// Map Firebase data to an array of promises
-					for (const [uid, user] of Object.entries(users)) {
-						clientPromises.push(
-							getUserDetails(uid).then(authUser => ({
-								uid,
-								...user,
-								createdAt: authUser.data.creationTime
-							}))
-						);
-					}
-
-					// Await for all promises to resolve
-					this.clients = await Promise.all(clientPromises);
-
-					const verifiedClients = this.clients.filter((client) => client.isVerified === true);
-					const clientsWithRequests = this.clients.filter((client) => client.coupon_requests);
-					const clientsVerifyRequests = this.clients.filter((client) => client.requestedVerification && !client.isVerified);
-
-					this.verifiedClients = verifiedClients;
-					this.clientsWithRequests = clientsWithRequests;
-					this.clientsVerifyRequests = clientsVerifyRequests;
-				} else {
-					this.clients = [];
-				}
-			} catch (error) {
-				console.error('Error fetching clients:', error);
-				this.clients = [];
-			} finally {
-				this.loading = false;
+			this.verifiedClients = this.clients.filter(client => client.isVerified === true);
+			this.clientsWithRequests = this.clients.filter(client => client.coupon_requests);
+			this.clientsVerifyRequests = this.clients.filter(client => client.requestedVerification && !client.isVerified);
+			} else {
+			this.clients = [];
 			}
+		} catch (error) {
+			console.error('Error fetching clients:', error);
+			this.clients = [];
+		} finally {
+			this.loading = false;
+		}
 		},
 		fetchDayClients() {
 			try {
