@@ -470,19 +470,19 @@ export default {
 
                 if (creditSnapshot.exists()) {
                     const creditData = creditSnapshot.val();
+                    const { main = {}, plus = {} } = creditData;
 
-                    // Check if the mainCredit and plusCredit exist and are greater than 0
-                    const mainCredit = creditData?.main?.totalCredit || null;
-                    const availableMainCredit = creditData?.main?.availableCredit || null;
-                    const mainPurchases = creditData?.main?.purchases || null;
-                    const mainPoints = creditData?.main?.points || null;
-                    const mainLevel = creditData?.main?.level_id || null;
+                    const mainCredit = main.totalCredit || 0;
+                    const availableMainCredit = main.availableCredit || 0;
+                    const mainPurchases = main.purchases || 0;
+                    const mainPoints = main.points || 0;
+                    const mainLevel = main.level_id || null;
 
-                    const plusCredit = creditData?.plus?.totalCredit || null;
-                    const availablePlusCredit = creditData?.plus?.availableCredit || null;
-                    const plusPurchases = creditData?.plus?.purchases || null;
-                    const plusPoints = creditData?.plus?.points || null;
-                    const plusLevel = creditData?.plus?.level_id || null;
+                    const plusCredit = plus.totalCredit || 0;
+                    const availablePlusCredit = plus.availableCredit || 0;
+                    const plusPurchases = plus.purchases || 0;
+                    const plusPoints = plus.points || 0;
+                    const plusLevel = plus.level_id || null;
 
                     // Only return the user credit if either credit line is assigned
                     if (mainCredit > 0 || plusCredit > 0 || mainPurchases || plusPurchases) {
@@ -1339,6 +1339,17 @@ export default {
             const level = this.levels.find(l => l.id === levelId);
             return level ? level.name : "Nivel Desconocido";
         },
+        getLevelProgress(points, levelId) {
+            const level = this.levels.find(l => l.id === levelId);
+            if (!level || !points) return 0;
+            const range = level.maxPoints - level.minPoints;
+            return Math.min(((points - level.minPoints) / range) * 100, 100).toFixed(2);
+        },
+        getRemainingPoints(points, levelId) {
+            const level = this.levels.find(l => l.id === levelId);
+            if (!level) return 0;
+            return Math.max(level.maxPoints - points, 0);
+        },
 
         async affiliateActivity(affiliate) {
             this.clientsWithAffiliatePurchases = [];
@@ -1502,6 +1513,7 @@ export default {
                 // Build reference to the specific cuota to update its status
                 const purchaseId = this.cuotaToPay.purchaseId;
                 const cuotaIndex = this.cuotaToPay.cuotaIndex;
+                const dueDate = new Date(this.cuotaToPay.date);
 
                 // Update
                 const cuotaRef = dbRef(db, `Users/${this.userId}/credit/main/purchases/${purchaseId}/cuotas/${cuotaIndex}`);
@@ -1512,6 +1524,51 @@ export default {
                         paymentUrl: paymentUrl
                     });
 
+                // Points system logic
+                let pointsEarned = uploadPaymentDate < dueDate ? 15 : 10;
+
+                const userCreditRef = dbRef(db, `Users/${this.userId}/credit/main`);
+                const creditSnapshot = await get(userCreditRef);
+
+                if (creditSnapshot.exists()) {
+                    const creditData = creditSnapshot.val();
+                    let currentPoints = creditData.points || 0;
+                    let currentLevelId = creditData.level_id || null;
+
+                    currentPoints += pointsEarned;
+
+                    // Evaluar si el cliente cambia de nivel
+                    const levelsSnapshot = await get(dbRef(db, `Levels`));
+                    if (levelsSnapshot.exists()) {
+                        const levels = levelsSnapshot.val();
+
+                        let newLevelId = currentLevelId;
+                        Object.entries(levels).forEach(([levelId, levelData]) => {
+                            if (currentPoints >= levelData.minPoints && currentPoints <= levelData.maxPoints) {
+                                newLevelId = levelId; // Cambiar al nivel que coincida con el rango
+                            }
+                        });
+
+                        if (newLevelId !== currentLevelId) {
+                            const newLevel = levels[newLevelId];
+                            let totalCredit = creditData.totalCredit || 0;
+                            totalCredit += totalCredit * 0.10; // Incrementar crédito un 10%
+
+                            await update(userCreditRef, {
+                                points: currentPoints,
+                                level_id: newLevelId,
+                                totalCredit
+                            });
+
+                            this.showToast(`¡Felicidades! Has alcanzado el nivel ${newLevel.name}.`);
+                        } else {
+                            await update(userCreditRef, { points: currentPoints });
+                            this.showToast(`Ganaste ${pointsEarned} puntos. Total: ${currentPoints} puntos.`);
+                        }
+                    }
+                }
+
+                // Setup Payment data 
                 const paymentDetails = {
                     purchase_id: purchaseId,
                     client_id: this.userId,
@@ -1534,6 +1591,8 @@ export default {
                 // Hide the modal after submission
                 const modal = Modal.getInstance(document.getElementById('payCuotaModal'));
                 modal.hide();
+
+                this.currentClient = await this.fetchCredit(this.userId)
 
             } catch (error) {
                 console.error('Error during uploading:', error);
@@ -2571,18 +2630,43 @@ export default {
                                 </div>
                             </div>
                             
-                            <div class="d-flex justify-content-end">
-                                <div class="d-inline-flex text-center align-items-center 0 m-3">
-                                    <i class="fa-solid fa-ranking-star me-2"></i>
-                                    <strong class="me-2">Nivel:</strong>
-                                    {{ getClientLevel(currentClient.mainLevel) }}
-                                </div>
-                                <div class="d-inline-flex text-center align-items-center 0 m-3">
+                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center">
+                            <!-- Nivel Section -->
+                            <div class="d-inline-flex text-center align-items-center m-3">
+                                <i class="fa-solid fa-ranking-star me-2"></i>
+                                <strong class="me-2">Nivel:</strong>
+                                {{ getClientLevel(currentClient.mainLevel) }}
+                            </div>
+
+                            <!-- Puntos Section with Progress Bar -->
+                            <div class="d-inline-flex flex-column text-center align-items-center m-3" style="max-width: 200px">
+                                <div class="d-inline-flex align-items-center justify-content-center">
                                     <i class="fa-solid fa-chart-line me-2"></i>
                                     <strong class="me-2">Puntos:</strong>
                                     {{ currentClient.mainPoints || 0 }}
                                 </div>
-                            </div>
+                                
+                                <div class="progress w-100 mt-2" style="height: 8px;">
+                                    <div
+                                        class="progress-bar"
+                                        role="progressbar"
+                                        :style="{ width: getLevelProgress(currentClient.mainPoints, currentClient.mainLevel) + '%' }"
+                                        :aria-valuenow="getLevelProgress(currentClient.mainPoints, currentClient.mainLevel)"
+                                        aria-valuemin="0"
+                                        aria-valuemax="100"
+                                    ></div>
+                                    
+                                </div>
+                                <small class="mt-1">
+                                    {{ getRemainingPoints(currentClient.mainPoints, currentClient.mainLevel) }} puntos para el siguiente nivel
+                                </small>   
+                                <span class="mt-2 text-muted fw-bold" 
+                                        style="font-size: 12px;">
+                                        +10% crédito al subir nivel
+                                </span>                             
+                            </div>                            
+                        </div>                
+
                         </div>
 
                         <div class="row justify-content-center mb-4">
@@ -3247,6 +3331,16 @@ export default {
     </div>
 </template>
 <style>
+.progress {
+  background-color: #e9ecef;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  background-color: #6f42c1; /* Purple color to match your theme */
+}
+
 .custom-accordion-button {
     justify-content: center;
     text-align: center;

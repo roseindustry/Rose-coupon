@@ -600,6 +600,56 @@ export default {
                 }
             }
         },
+        async disapproveCuotaPayment(user) {
+            const selectedPurchase = user.credit.main.purchases[user.selectedPurchaseId];
+            if (!selectedPurchase) {
+                console.error("Purchase not found for ID:", user.selectedPurchaseId);
+                return;
+            }
+
+            const selectedCuota = selectedPurchase.cuotas.find(cuota => cuota.cuote == user.selectedCuotaId);
+            if (!selectedCuota) {
+                console.error("Cuota not found for ID:", user.selectedCuotaId);
+                return;
+            }
+
+            if (confirm("¿Está seguro de que desea desaprobar este pago?")) {
+                try {
+                    this.isSubmitting = true;
+
+                    // Mark payment as disapproved in the client's cuotas
+                    const cuotaRef = dbRef(db, `Users/${user.id}/credit/main/purchases/${selectedPurchase.purchaseId}/cuotas/${selectedCuota.cuotaId}`);
+                    await update(cuotaRef, { paid: false, disapproved: true,  });
+
+                    // Mark payment as disapproved in the affiliate's cuotas
+                    const AffiliateCuotaRef = dbRef(db, `Users/${selectedPurchase.affiliate_id}/credit/sales/${selectedPurchase.purchaseId}/cuotas/${selectedCuota.cuotaId}`);
+                    await update(AffiliateCuotaRef, { paid: false, disapproved: true });
+
+                    // Optional: You may want to send a notification or email to the client
+                    const emailPayload = {
+                        to: user.email,
+                        message: {
+                            subject: `El pago de su cuota ha sido negado`,
+                            text: `Hola ${user.firstName}, lamentamos informarte que tu pago del ${selectedCuota.paidAt.split('T')[0]} ha sido desaprobado. Vuelve a subir tu captura de pago en la app.`,
+                        },
+                    };
+                    await this.sendEmail(emailPayload);
+
+                    this.showToast('Pago desaprobado. Se ha notificado al cliente.');
+                    const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
+                    modal.hide();
+
+                    // Optionally refresh data
+                    this.fetchClients();
+                    this.fetchAffiliates();
+
+                } catch (error) {
+                    console.error("Error disapproving cuota payment:", error);
+                } finally {
+                    this.isSubmitting = false;
+                }
+            }
+        },
         async sendEmail(payload) {
             try {
                 const sendEmailFunction = httpsCallable(functions, 'sendEmail');
@@ -889,20 +939,34 @@ export default {
                     <img :src="modalImageUrl" alt="Comprobante" class="img-fluid">
 
                     <!-- Conditional button based on payment type -->
-                    <a class="validate btn btn-outline-success btn-sm m-3" href="#"
-                        v-if="paymentType === 'subscription'"
-                        @click.prevent="validateSubscriptionPayment(userModalData)" :disabled="isSubmitting">
-                        <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
-                            aria-hidden="true"></span>
-                        <span v-else>Aprobar Pago</span>
-                    </a>
+                     <div v-if="paymentType === 'subscription'">
+                        <a class="validate btn btn-outline-success btn-sm m-3" href="#"
+                            @click.prevent="validateSubscriptionPayment(userModalData)" :disabled="isSubmitting">
+                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+                                aria-hidden="true"></span>
+                            <span v-else>Aprobar Pago</span>
+                        </a>
+                        <a class="validate btn btn-outline-success btn-sm m-3" href="#"
+                            @click.prevent="disapproveSubscriptionPayment(userModalData)" :disabled="isSubmitting">
+                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+                                aria-hidden="true"></span>
+                            <span v-else>Aprobar Pago</span>
+                        </a>
+                    </div>
 
-                    <a class="validate btn btn-outline-success btn-sm m-3" href="#" v-if="paymentType === 'cuota'"
-                        @click.prevent="validateCuotaPayment(userModalData)" :disabled="isSubmitting">
-                        <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
-                            aria-hidden="true"></span>
-                        <span v-else>Aprobar Pago</span>
-                    </a>
+                    <div v-if="paymentType === 'cuota'">
+                        <a class="validate btn btn-outline-success btn-sm m-3" href="#" 
+                            @click.prevent="validateCuotaPayment(userModalData)" :disabled="isSubmitting">
+                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+                                aria-hidden="true"></span>
+                            <span v-else>Aprobar</span>
+                        </a>
+                        <a class="validate btn btn-outline-danger btn-sm m-3" href="#" 
+                            @click.prevent="disapproveCuotaPayment(userModalData)" :disabled="isSubmitting">
+                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span v-else>Negar</span>
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
