@@ -112,62 +112,75 @@ export default {
 
 		// Admin's
 		async fetchClients() {
-		const role = 'cliente';
-		const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
+			const role = 'cliente';
+			const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
 
-		try {
-			this.loading = true;
+			try {
+				this.loading = true;
 
-			const snapshot = await get(clientRef);
-			if (snapshot.exists()) {
-			const users = snapshot.val();
-			
-			// const getAllUsers = httpsCallable(functions, 'getAllUsers');
-			// const authUsers = await getAllUsers();
+				const snapshot = await get(clientRef);
+				if (snapshot.exists()) {
+					const users = snapshot.val();
 
-			// Merge auth user data with database data
-			this.clients = Object.entries(users).map(([uid, user]) => {
-				// const authUser = authUsers.find(auth => auth.uid === uid);
-				return {
-				uid,
-				...user,
-				// createdAt: authUser ? authUser.creationTime : null,
-				};
-			});
+					// Call the HTTP-triggered Cloud Function using fetch
+					const response = await fetch("https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers", {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+						},
+					});
 
-			this.verifiedClients = this.clients.filter(client => client.isVerified === true);
-			this.clientsWithRequests = this.clients.filter(client => client.coupon_requests);
-			this.clientsVerifyRequests = this.clients.filter(client => client.requestedVerification && !client.isVerified);
-			} else {
-			this.clients = [];
+					// Check if the response is okay
+					if (!response.ok) {
+						throw new Error(`HTTP error! status: ${response.status}`);
+					}
+
+					// Parse the response data
+					const authUsers = await response.json();
+
+					// Merge auth user data with database data
+					this.clients = Object.entries(users).map(([uid, user]) => {
+						const authUser = authUsers.users.find(auth => auth.uid === uid);
+						return {
+							uid,
+							...user,
+							createdAt: authUser ? authUser.creationTime : null,
+						};
+					});
+
+					this.verifiedClients = this.clients.filter(client => client.isVerified === true);
+					this.clientsWithRequests = this.clients.filter(client => client.coupon_requests);
+					this.clientsVerifyRequests = this.clients.filter(client => client.requestedVerification && !client.isVerified);
+				} else {
+					this.clients = [];
+				}
+			} catch (error) {
+				console.error('Error fetching clients:', error);
+				this.clients = [];
+			} finally {
+				this.loading = false;
 			}
-		} catch (error) {
-			console.error('Error fetching clients:', error);
-			this.clients = [];
-		} finally {
-			this.loading = false;
-		}
 		},
-		// fetchDayClients() {
-		// 	try {
-		// 		if (this.filterDate) {
-		// 			const day = moment(this.filterDate).startOf('day').toISOString();
+		fetchDayClients() {
+			try {
+				if (this.filterDate) {
+					const day = moment(this.filterDate).startOf('day').toISOString();
 
-		// 			// Filter clients registered today
-		// 			const filteredClients = this.clients.filter(client => {
-		// 				const clientCreationDate = moment(client.createdAt);
-		// 				return clientCreationDate.isSame(day, 'day');
-		// 			});
+					// Filter clients registered today
+					const filteredClients = this.clients.filter(client => {
+						const clientCreationDate = moment(client.createdAt);
+						return clientCreationDate.isSame(day, 'day');
+					});
 
-		// 			this.clientsRegisteredDay = filteredClients;
-		// 		} else {
-		// 			// If no date is selected, clear the filtered list
-		// 			this.clientsRegisteredDay = [];
-		// 		}
-		// 	} catch (error) {
-		// 		console.error('Error filtering clients.', error);
-		// 	}
-		// },
+					this.clientsRegisteredDay = filteredClients;
+				} else {
+					// If no date is selected, clear the filtered list
+					this.clientsRegisteredDay = [];
+				}
+			} catch (error) {
+				console.error('Error filtering clients.', error);
+			}
+		},
 		async fetchAffiliates() {
 			const role = 'afiliado';
 			const affiliatesRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
@@ -448,7 +461,6 @@ export default {
 
 		},
 
-		// Employee's
 		async fetchCurrentUserData() {
 			if (!this.userId) {
 				console.error("User ID is not defined.");
@@ -470,7 +482,23 @@ export default {
 						const referralIds = Object.keys(this.userDetails.referidos);
 						this.referralClients = [];
 
-						// const getUserDetails = httpsCallable(functions, 'getUserDetails');
+						// Fetch all users from auth via the HTTP-triggered function
+						const response = await fetch("https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers", {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+							},
+						});
+
+						// Check if the response is okay
+						if (!response.ok) {
+							throw new Error(`HTTP error! status: ${response.status}`);
+						}
+
+						// Parse the response data
+						const authUsers = await response.json();
+
+						// Map over referralIds and gather the necessary information
 						const referralPromises = referralIds.map(async (referralId) => {
 							try {
 								const referralUserRef = dbRef(db, `Users/${referralId}`);
@@ -492,9 +520,12 @@ export default {
 										referralData.subscription = null;
 									}
 
-									// Fetch auth user details using Cloud Function
-									// const authUser = await getUserDetails(referralId);
-									// referralData.createdAt = authUser.data.creationTime;
+									// Find the corresponding auth user data
+									const authUser = authUsers.users.find(user => user.uid === referralId);
+
+									if (authUser) {
+										referralData.createdAt = authUser.creationTime;  // Using the data from auth
+									}
 
 									return referralData;
 								} else {
@@ -628,26 +659,26 @@ export default {
 			}
 
 		},
-		// fetchDayReferrals() {
-		// 	try {
-		// 		if (this.filterDate) {
-		// 			const day = moment(this.filterDate).startOf('day').toISOString();
+		fetchDayReferrals() {
+			try {
+				if (this.filterDate) {
+					const day = moment(this.filterDate).startOf('day').toISOString();
 
-		// 			// Filter clients registered today
-		// 			const filteredReferrals = this.referralClients.filter(client => {
-		// 				const clientCreationDate = moment(client.createdAt);
-		// 				return clientCreationDate.isSame(day, 'day');
-		// 			});
+					// Filter clients registered today
+					const filteredReferrals = this.referralClients.filter(client => {
+						const clientCreationDate = moment(client.createdAt);
+						return clientCreationDate.isSame(day, 'day');
+					});
 
-		// 			this.dayReferrals = filteredReferrals;
-		// 		} else {
-		// 			// If no date is selected, clear the filtered list
-		// 			this.dayReferrals = [];
-		// 		}
-		// 	} catch (error) {
-		// 		console.error('Error filtering clients.', error);
-		// 	}
-		// },
+					this.dayReferrals = filteredReferrals;
+				} else {
+					// If no date is selected, clear the filtered list
+					this.dayReferrals = [];
+				}
+			} catch (error) {
+				console.error('Error filtering clients.', error);
+			}
+		},
 		resetModal() {
 			this.assigningSubscription = false;
 			this.fetchCurrentUserData();
@@ -663,14 +694,14 @@ export default {
 
 		if (this.role === 'admin') {
 			await this.fetchClients();
-			// this.fetchDayClients();
+			this.fetchDayClients();
 			await this.fetchAffiliates();
 			await this.fetchCoupons();
 		}
 
 		if (this.role === 'mesero' || this.role === 'promotora') {
 			await this.fetchCurrentUserData();
-			// this.fetchDayReferrals();
+			this.fetchDayReferrals();
 		}
 		// console.log(this.userId)
 	}
@@ -708,7 +739,7 @@ export default {
 					</div>
 				</div>
 				<!-- Clientes registrados el dia... -->
-				<!-- <div class="col-sm-6 col-lg-4">
+				<div class="col-sm-6 col-lg-4">
 					<div class="card custom-card h-100 text-center">
 						<div class="card-body d-flex flex-column justify-content-center align-items-center">
 							<div class="icon-circle bg-primary mb-3">
@@ -728,7 +759,7 @@ export default {
 							</div>
 						</div>
 					</div>
-				</div> -->
+				</div>
 				<!-- Clientes verificados -->
 				<div class="col-sm-6 col-lg-4">
 					<div class="card custom-card h-100 text-center">
@@ -1029,7 +1060,7 @@ export default {
 						</div>
 					</div>
 				</div>
-				<!-- <div class="col-12 col-md-6">
+				<div class="col-12 col-md-6">
 					<div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
 						<div class="card-body text-center py-5">
 							<h5 class="card-title mb-3">Clientes Referidos el día</h5>
@@ -1051,7 +1082,7 @@ export default {
 								@click.prevent="openClientsModal('dayReferrals')">Ver lista</a>
 						</div>
 					</div>
-				</div> -->
+				</div>
 			</div>
 
 			<!-- Clients Modal -->

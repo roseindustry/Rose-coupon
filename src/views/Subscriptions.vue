@@ -513,26 +513,34 @@ export default {
                 if (snapshot.exists()) {
                     const users = snapshot.val();
 
-                    const getUserDetails = httpsCallable(functions, 'getUserDetails');
-                    const clientPromises = [];
+                    // Call the HTTP-triggered Cloud Function using fetch
+                    const response = await fetch("https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                    });
 
-                    // Map Firebase data to an array of promises
-                    for (const [uid, user] of Object.entries(users)) {
-                        clientPromises.push(
-                            getUserDetails(uid).then(authUser => ({
-                                uid,
-                                ...user,
-                                createdAt: moment(authUser.data.creationTime)
-                            }))
-                        );
+                    // Check if the response is okay
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
 
-                    // Await for all promises to resolve
-                    this.clients = await Promise.all(clientPromises);
+                    // Parse the response data
+                    const authUsers = await response.json();
 
-                    const clientsToday = this.clients.filter(client =>
-                        client.createdAt.isSame(moment(), 'day')
-                    );
+                    this.clients = Object.entries(users).map(([uid, user]) => {
+                        const authUser = authUsers.users.find(auth => auth.uid === uid);
+                        return {
+                            uid,
+                            ...user,
+                            createdAt: authUser ? authUser.creationTime : null,
+                        };
+                    });
+
+                    // const clientsToday = this.clients.filter(client =>
+                    //     client.createdAt.isSame(moment(), 'day')
+                    // );
 
                     // Loop through each client to fetch their subscription data
                     for (const client of this.clients) {
@@ -2001,7 +2009,7 @@ export default {
     </div>
 
     <div v-if="role === 'cliente' || role === 'afiliado'">
-        
+
         <!-- Client view -->
         <div v-if="role === 'cliente'" class="container">
             <div class="bg-body rounded" style="padding: 20px;" id="price-table">
@@ -2017,8 +2025,8 @@ export default {
                             'border-primary': plan.name === 'plata',
                             'shadow-sm': true,
                         }]" :style="plan.name === 'plata' ?
-                        'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
-                        : ''">
+                            'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
+                            : ''">
                             <div v-if="plan.name === 'plata'" class="ribbon">
                                 <span>Popular</span>
                             </div>
@@ -2065,8 +2073,8 @@ export default {
                             'border-primary': plan.name === 'Intermedio',
                             'shadow-sm': true,
                         }]" :style="plan.name === 'Intermedio' ?
-                        'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
-                        : ''">
+                            'background-color: #b800c2; border-radius: 0.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); transition: transform 0.3s;'
+                            : ''">
                             <div v-if="plan.name === 'Intermedio'" class="ribbon">
                                 <span>Popular</span>
                             </div>

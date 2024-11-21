@@ -10,9 +10,12 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
+const cors = require('cors');
 //const db = require();
 
 admin.initializeApp();
+
+const corsHandler = cors({ origin: true });
 
 // Nodemailer transporter (using Gmail)
 // const transporter = nodemailer.createTransport({
@@ -205,44 +208,45 @@ exports.sendEmail = functions.https.onCall(async (data, context) => {
   }
 });
 
-// Cloud function to retrieve the createdAt for Users from Auth
-// exports.getUserDetails = functions.https.onCall(async (uid) => {
-//   try {
-//     const userRecord = await admin.auth().getUser(uid);
-//     return {
-//       uid: userRecord.uid,
-//       creationTime: userRecord.metadata.creationTime,
-//     };
-//   } catch (error) {
-//     throw new functions.https.HttpsError('not-found', 'User not found');
-//   }
-// });
-
 // Cloud function to fetch all users in the auth list
-exports.getAllUsers = functions.https.onCall(async () => {
-  const allUsers = [];
-  
-  try {
-    let nextPageToken = null;
-    
-    do {
-      const listUsersResult = await admin.auth().listUsers(1000, nextPageToken);
-      
-      // Map results to the desired format
-      const users = listUsersResult.users.map(userRecord => ({
-        uid: userRecord.uid,
-        creationTime: userRecord.metadata.creationTime,
-      }));
-      
-      allUsers.push(...users);
-      nextPageToken = listUsersResult.pageToken; // Set next page token
+exports.getAllUsers = functions.https.onRequest((req, res) => {
+  corsHandler(req, res, async () => {
+    console.log("Request received for getAllUsers");
 
-    } while (nextPageToken); // Continue if there's another page
-    
-    console.log(`Fetched ${allUsers.length} users successfully.`);
-    return { users: allUsers }; // Return structured result
-  } catch (error) {
-    console.error('Error fetching users:', error.message, error.stack);
-    throw new functions.https.HttpsError('internal', 'Unable to fetch user list');
-  }
+    if (req.method !== "POST") {
+      console.error("Invalid method:", req.method);
+      return res.status(405).send({ error: "Method Not Allowed" });
+    }
+
+    const allUsers = [];
+    let nextPageToken = null;
+
+    try {
+      do {
+        console.log(`Fetching batch of users. Current pageToken: ${nextPageToken}`);
+        // Ensure nextPageToken is passed only if it is not null
+        const listUsersResult = await admin.auth().listUsers(1000, nextPageToken || undefined);
+
+        const users = listUsersResult.users.map((userRecord) => ({
+          uid: userRecord.uid,
+          creationTime: userRecord.metadata.creationTime,
+        }));
+
+        allUsers.push(...users);
+
+        // Update nextPageToken; if no more pages, it will be null
+        nextPageToken = listUsersResult.pageToken || null;
+
+      } while (nextPageToken);
+
+      console.log(`Fetched ${allUsers.length} users successfully.`);
+      return res.status(200).json({ users: allUsers });
+    } catch (error) {
+      console.error("Error fetching users:", error.message, error.stack);
+      return res.status(500).json({
+        error: "internal",
+        message: "Unable to fetch user list",
+      });
+    }
+  });
 });
