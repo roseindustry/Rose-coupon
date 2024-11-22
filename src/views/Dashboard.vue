@@ -42,6 +42,7 @@ export default {
 			filterDate: this.getVenezuelanDate(),
 			loading: false,
 			searchQuery: '',
+			cachedAuthUsers: null
 		}
 	},
 	computed: {
@@ -110,7 +111,6 @@ export default {
 			this.filterDate = null;
 		},
 
-		// Admin's
 		async fetchClients() {
 			const role = 'cliente';
 			const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
@@ -118,29 +118,40 @@ export default {
 			try {
 				this.loading = true;
 
+				// Fetch clients from Firebase
 				const snapshot = await get(clientRef);
 				if (snapshot.exists()) {
 					const users = snapshot.val();
 
-					// Call the HTTP-triggered Cloud Function using fetch
-					const response = await fetch("https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers", {
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-						},
-					});
+					// Check if we have cached auth users
+					const cachedAuthUsers = localStorage.getItem('authUsers');
+					let authUsers = [];
 
-					// Check if the response is okay
-					if (!response.ok) {
-						throw new Error(`HTTP error! status: ${response.status}`);
+					if (cachedAuthUsers) {
+						authUsers = JSON.parse(cachedAuthUsers);
+					} else {
+						// Fetch auth users if not cached
+						const response = await fetch("https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers", {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+							},
+						});
+
+						if (!response.ok) {
+							throw new Error(`HTTP error! status: ${response.status}`);
+						}
+
+						const data = await response.json();
+						authUsers = data.users;
+
+						// Cache auth users for future use
+						localStorage.setItem('authUsers', JSON.stringify(authUsers));
 					}
 
-					// Parse the response data
-					const authUsers = await response.json();
-
-					// Merge auth user data with database data
+					// Merge users from Firebase and authUsers
 					this.clients = Object.entries(users).map(([uid, user]) => {
-						const authUser = authUsers.users.find(auth => auth.uid === uid);
+						const authUser = authUsers.find(auth => auth.uid === uid);
 						return {
 							uid,
 							...user,
@@ -148,6 +159,7 @@ export default {
 						};
 					});
 
+					// Filter the clients based on different conditions
 					this.verifiedClients = this.clients.filter(client => client.isVerified === true);
 					this.clientsWithRequests = this.clients.filter(client => client.coupon_requests);
 					this.clientsVerifyRequests = this.clients.filter(client => client.requestedVerification && !client.isVerified);
@@ -161,20 +173,19 @@ export default {
 				this.loading = false;
 			}
 		},
+
+		// Method to filter clients by the day they were created
 		fetchDayClients() {
 			try {
 				if (this.filterDate) {
 					const day = moment(this.filterDate).startOf('day').toISOString();
 
 					// Filter clients registered today
-					const filteredClients = this.clients.filter(client => {
+					this.clientsRegisteredDay = this.clients.filter(client => {
 						const clientCreationDate = moment(client.createdAt);
 						return clientCreationDate.isSame(day, 'day');
 					});
-
-					this.clientsRegisteredDay = filteredClients;
 				} else {
-					// If no date is selected, clear the filtered list
 					this.clientsRegisteredDay = [];
 				}
 			} catch (error) {
@@ -461,6 +472,7 @@ export default {
 
 		},
 
+		// Employee's
 		async fetchCurrentUserData() {
 			if (!this.userId) {
 				console.error("User ID is not defined.");
@@ -482,64 +494,15 @@ export default {
 						const referralIds = Object.keys(this.userDetails.referidos);
 						this.referralClients = [];
 
-						// Fetch all users from auth via the HTTP-triggered function
-						const response = await fetch("https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers", {
-							method: "POST",
-							headers: {
-								"Content-Type": "application/json",
-							},
-						});
-
-						// Check if the response is okay
-						if (!response.ok) {
-							throw new Error(`HTTP error! status: ${response.status}`);
+						// Check if cached auth users are available
+						if (this.cachedAuthUsers) {
+							// Use cached data if it's available
+							this.processReferralClients(referralIds, this.cachedAuthUsers);
+						} else {
+							// If not cached, call the function once and cache the result
+							const cachedAuthUsers = await this.fetchAuthUsers();
+							this.processReferralClients(referralIds, cachedAuthUsers);
 						}
-
-						// Parse the response data
-						const authUsers = await response.json();
-
-						// Map over referralIds and gather the necessary information
-						const referralPromises = referralIds.map(async (referralId) => {
-							try {
-								const referralUserRef = dbRef(db, `Users/${referralId}`);
-								const referralSnapshot = await get(referralUserRef);
-
-								if (referralSnapshot.exists()) {
-									const referralData = { id: referralId, ...referralSnapshot.val() };
-
-									// Fetch subscription if exists
-									if (referralData.subscription && referralData.subscription.subscription_id) {
-										const subscriptionId = referralData.subscription.subscription_id;
-										const subscriptionRef = dbRef(db, `Suscriptions/${subscriptionId}`);
-										const subscriptionSnapshot = await get(subscriptionRef);
-
-										referralData.subscription = subscriptionSnapshot.exists()
-											? { ...referralData.subscription, ...subscriptionSnapshot.val() }
-											: null;
-									} else {
-										referralData.subscription = null;
-									}
-
-									// Find the corresponding auth user data
-									const authUser = authUsers.users.find(user => user.uid === referralId);
-
-									if (authUser) {
-										referralData.createdAt = authUser.creationTime;  // Using the data from auth
-									}
-
-									return referralData;
-								} else {
-									console.log(`Referral client with ID ${referralId} not found.`);
-									return null;
-								}
-							} catch (err) {
-								console.error(`Error fetching referral ${referralId}:`, err);
-								return null;
-							}
-						});
-
-						// Await all referral promises
-						this.referralClients = (await Promise.all(referralPromises)).filter(client => client !== null);
 					} else {
 						this.referralClients = [];
 					}
@@ -552,6 +515,103 @@ export default {
 			} finally {
 				this.loading = false;
 			}
+		},
+		async fetchAuthUsers() {
+			const cachedUsers = localStorage.getItem('authUsers');
+			if (cachedUsers) {
+				// If cached data exists, parse and use it
+				this.cachedAuthUsers = JSON.parse(cachedUsers);
+				return this.cachedAuthUsers;
+			}
+
+			// Fetch data from the cloud function if no cached data
+			const response = await fetch("https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+
+			const authUsers = await response.json();
+			this.cachedAuthUsers = authUsers.users;
+			
+			// Store the fetched data in localStorage for persistent caching
+			localStorage.setItem('authUsers', JSON.stringify(this.cachedAuthUsers));
+
+			return this.cachedAuthUsers;
+		},
+		async processReferralClients(referralIds, cachedAuthUsers) {
+			const referralPromises = referralIds.map(async (referralId) => {
+				try {
+					const referralUserRef = dbRef(db, `Users/${referralId}`);
+					const referralSnapshot = await get(referralUserRef);
+
+					if (referralSnapshot.exists()) {
+						const referralData = { id: referralId, ...referralSnapshot.val() };
+
+						// Fetch subscription if exists
+						if (referralData.subscription && referralData.subscription.subscription_id) {
+							const subscriptionId = referralData.subscription.subscription_id;
+							const subscriptionRef = dbRef(db, `Suscriptions/${subscriptionId}`);
+							const subscriptionSnapshot = await get(subscriptionRef);
+
+							referralData.subscription = subscriptionSnapshot.exists()
+								? { ...referralData.subscription, ...subscriptionSnapshot.val() }
+								: null;
+						} else {
+							referralData.subscription = null;
+						}
+
+						// Find the corresponding auth user data
+						const authUser = cachedAuthUsers.find(user => user.uid === referralId);
+
+						if (authUser) {
+							referralData.createdAt = authUser.creationTime;  // Using the data from auth
+						}
+
+						return referralData;
+					} else {
+						console.log(`Referral client with ID ${referralId} not found.`);
+						return null;
+					}
+				} catch (err) {
+					console.error(`Error fetching referral ${referralId}:`, err);
+					return null;
+				}
+			});
+
+			// Await all referral promises and filter out nulls
+			this.referralClients = (await Promise.all(referralPromises)).filter(client => client !== null);
+		},
+		// Method to filter referrals by date
+		async fetchDayReferrals() {
+		try {
+			if (this.filterDate) {
+				// Normalize the filter date to the start of the day
+				const day = moment(this.filterDate).startOf('day').toISOString();
+
+				// Filter referral clients based on createdAt date
+				const filteredReferrals = this.referralClients.filter(client => {
+					// Check if createdAt exists and is a valid date
+					const clientCreationDate = moment(client.createdAt);
+
+					// Ensure client has a valid creation date
+					return clientCreationDate.isValid() && clientCreationDate.isSame(day, 'day');
+				});
+
+				// Update the referrals list
+				this.dayReferrals = filteredReferrals;
+			} else {
+				// If no filter date is selected, clear the filtered list
+				this.dayReferrals = [];
+			}
+		} catch (error) {
+			console.error('Error filtering referrals:', error);
+		}
 		},
 		openClientsModal(dataType = 'referralClients') {
 			this.clientsModalData = dataType === 'dayReferrals' ? this.dayReferrals : this.referralClients;
@@ -658,27 +718,7 @@ export default {
 				this.isSubmitting = false;
 			}
 
-		},
-		fetchDayReferrals() {
-			try {
-				if (this.filterDate) {
-					const day = moment(this.filterDate).startOf('day').toISOString();
-
-					// Filter clients registered today
-					const filteredReferrals = this.referralClients.filter(client => {
-						const clientCreationDate = moment(client.createdAt);
-						return clientCreationDate.isSame(day, 'day');
-					});
-
-					this.dayReferrals = filteredReferrals;
-				} else {
-					// If no date is selected, clear the filtered list
-					this.dayReferrals = [];
-				}
-			} catch (error) {
-				console.error('Error filtering clients.', error);
-			}
-		},
+		},		
 		resetModal() {
 			this.assigningSubscription = false;
 			this.fetchCurrentUserData();

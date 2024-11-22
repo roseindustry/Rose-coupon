@@ -513,7 +513,7 @@ export default {
                 if (snapshot.exists()) {
                     const users = snapshot.val();
 
-                    // Call the HTTP-triggered Cloud Function using fetch
+                    // Call the Cloud Function to fetch all users in one request
                     const response = await fetch("https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers", {
                         method: "POST",
                         headers: {
@@ -521,51 +521,57 @@ export default {
                         },
                     });
 
-                    // Check if the response is okay
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
 
-                    // Parse the response data
                     const authUsers = await response.json();
 
+                    // Create a lookup object for auth users based on UID
+                    const authUsersLookup = authUsers.users.reduce((lookup, authUser) => {
+                        lookup[authUser.uid] = authUser;
+                        return lookup;
+                    }, {});
+
+                    // Prepare an array of subscription IDs to batch fetch
+                    const subscriptionIds = Object.values(users).reduce((subs, user) => {
+                        if (user.subscription && user.subscription.subscription_id) {
+                            subs.add(user.subscription.subscription_id);
+                        }
+                        return subs;
+                    }, new Set());
+
+                    const subscriptionPromises = Array.from(subscriptionIds).map(async (subscriptionId) => {
+                        const subscriptionRef = dbRef(db, `Suscriptions/${subscriptionId}`);
+                        const subscriptionSnapshot = await get(subscriptionRef);
+                        return { subscriptionId, subscription: subscriptionSnapshot.exists() ? subscriptionSnapshot.val() : null };
+                    });
+
+                    // Fetch all subscriptions in parallel
+                    const subscriptionResults = await Promise.all(subscriptionPromises);
+                    const subscriptionLookup = subscriptionResults.reduce((lookup, { subscriptionId, subscription }) => {
+                        lookup[subscriptionId] = subscription;
+                        return lookup;
+                    }, {});
+
+                    // Map clients with their corresponding data
                     this.clients = Object.entries(users).map(([uid, user]) => {
-                        const authUser = authUsers.users.find(auth => auth.uid === uid);
+                        const authUser = authUsersLookup[uid];
+                        const subscription = user.subscription ? subscriptionLookup[user.subscription.subscription_id] : null;
+
                         return {
                             uid,
                             ...user,
                             createdAt: authUser ? authUser.creationTime : null,
+                            subscriptionName: subscription ? subscription.name || "Suscripción desconocida" : "Sin suscripción",
                         };
                     });
 
-                    // const clientsToday = this.clients.filter(client =>
-                    //     client.createdAt.isSame(moment(), 'day')
-                    // );
-
-                    // Loop through each client to fetch their subscription data
-                    for (const client of this.clients) {
-                        // Check if the client has a subscription object with a subscription_id
-                        if (client.subscription && client.subscription.subscription_id) {
-                            const subscriptionId = client.subscription.subscription_id;
-                            const subscriptionRef = dbRef(db, `Suscriptions/${subscriptionId}`);
-                            const subscriptionSnapshot = await get(subscriptionRef);
-
-                            if (subscriptionSnapshot.exists()) {
-                                // Add subscription name to client data
-                                client.subscriptionName = subscriptionSnapshot.val().name || "Suscripción desconocida";
-                            } else {
-                                console.log(`Subscription with ID ${subscriptionId} not found.`);
-                                client.subscriptionName = "Suscripción desconocida";
-                            }
-                        } else {
-                            client.subscriptionName = "Sin suscripción";
-                        }
-                    }
-
-                    this.clientsSubscriptions = this.clients.filter((client) => client.subscription);
-                    this.clientsNoSubscriptions = this.clients.filter((client) => !client.subscription);
+                    // Separate clients with and without subscriptions
+                    this.clientsSubscriptions = this.clients.filter(client => client.subscriptionName !== "Sin suscripción");
+                    this.clientsNoSubscriptions = this.clients.filter(client => client.subscriptionName === "Sin suscripción");
                 } else {
-                    this.clients = [];  // No clients found
+                    this.clients = [];
                 }
             } catch (error) {
                 console.error('Error fetching clients:', error);

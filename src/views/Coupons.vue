@@ -505,13 +505,25 @@ export default {
                     const snapshot = await get(couponsRef);
 
                     if (snapshot.exists()) {
-                        this.coupons = Object.entries(snapshot.val()).map(([id, coupon]) => {
-                            coupon.id = id;
+                        const couponsData = snapshot.val();
+                        const allCoupons = Object.entries(couponsData).map(([couponId, coupon]) => {
+                            coupon.id = couponId;
                             if (coupon.expiration) {
                                 coupon.expiration = new Date(coupon.expiration).toISOString().split('T')[0]; // Format to YYYY-MM-DD
                             }
                             return coupon;
                         });
+
+                        // Fetch assigned count and update each coupon
+                        const couponsWithAssignedCount = await Promise.all(
+                            allCoupons.map(async (coupon) => {
+                                const assignedCount = await this.queryCoupons(coupon.id); // Fetch the assigned count
+                                coupon.assignedCount = assignedCount; // Add the assigned count to the coupon
+                                return coupon;
+                            })
+                        );
+
+                        this.coupons = couponsWithAssignedCount;
                     } else {
                         console.log('No coupons available');
                         this.coupons = [];
@@ -611,7 +623,7 @@ export default {
                             return {
                                 couponId,
                                 clientId: client.id,
-                                clientName,
+                                clientName: `${client.firstName} ${client.lastName}`,
                                 ...fullCouponData // Merge full coupon data from Coupons table
                             };
                         });
@@ -743,10 +755,6 @@ export default {
                 this.selectedCoupons.push(coupon); // Add coupon to selected list
             } else {
                 this.selectedCoupons.splice(index, 1); // Remove coupon if already selected
-            }
-
-            if (this.selectedCoupons.length > 0) {
-                console.log('Selected coupons:', this.selectedCoupons);
             }
         },
 
@@ -1003,9 +1011,10 @@ export default {
                     }
                 }
             }
-            this.assignedCount = couponAssignedCount;
-            console.log('El cupon: ', couponId, 'Lo tienen asignado: ', couponAssignedCount, 'clientes, sin usar.');
-        },
+
+            // Return the coupon with the assigned count included
+            return couponAssignedCount;
+         },
         async createAndAssignCoupon() {
 
             try {
@@ -1529,13 +1538,13 @@ export default {
                 </div>
                 <div class="mb-3 form-check form-check-inline">
                     <input class="form-check-input" type="radio" name="couponOptions" id="inlineRadio4" value="option4"
-                        v-model="selectedCouponOption" @click="fetchAllAppliedCoupons(), fetchAssignedCoupons()">
-                    <label class="form-check-label" for="inlineRadio4">Administrar</label>
+                        v-model="selectedCouponOption">
+                    <label class="form-check-label" for="inlineRadio4">Cupones Aplicados</label>
                 </div>
 
                 <div class="text-center" v-if="loading">
                     <p>Cargando...</p>
-                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status"
+                    <span class="spinner-border spinner-border-sm" role="status"
                         aria-hidden="true"></span>
                 </div>
                 <div v-else>
@@ -1621,10 +1630,9 @@ export default {
 
                         <hr>
 
-                        <!-- COUPON TO ASSIGN -->
+                        <!-- COUPONS TO ASSIGN -->
                         <div class="container">
                             <h5 class="text-center text-uppercase mt-4 mb-4">Seleccione un cupón existente</h5>
-                            <p v-if="coupons.length === 0">No hay cupones registrados.</p>
 
                             <!-- Search Bar to Filter Coupons -->
                             <div class="mb-3">
@@ -1656,7 +1664,7 @@ export default {
                                                     <template v-else>
                                                         {{ coupon.name }}
                                                     </template>
-                                                </h6>
+                                                </h6>                                                
 
                                                 <!-- Buttons -->
                                                 <div class="btn-group ms-2" role="group">
@@ -1679,6 +1687,12 @@ export default {
                                                         <i class="fa-solid fa-trash text-danger"></i>
                                                     </button>
                                                 </div>
+                                            </div>
+
+                                            <div class="d-flex justify-content-center mb-3">
+                                                <span class="text-muted">
+                                                   Asignado a {{ coupon.assignedCount }} clientes.
+                                                </span>
                                             </div>
 
                                             <!-- Image Display -->
@@ -2139,10 +2153,9 @@ export default {
                         </div>
                     </div>
 
-                    <!-- Option 4 = Manage coupons assigned / applied -->
+                    <!-- Option 4 = Applied Coupons -->
                     <div v-if="selectedCouponOption === 'option4'" class="mt-3">
-                        <ManageCoupons :allAppliedCoupons="allAppliedCoupons" :assignedCoupons="assignedCoupons"
-                            :affiliates="affiliates" />
+                        <ManageCoupons :affiliates="affiliates" />
                     </div>
                 </div>
             </div>
