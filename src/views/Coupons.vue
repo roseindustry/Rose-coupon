@@ -100,6 +100,7 @@ export default {
 
     },
     computed: {
+        // Admin
         filteredCoupons() {
             let filteredCoupons = this.coupons;
 
@@ -150,6 +151,24 @@ export default {
         allSelected() {
             // Check if the number of selected clients matches the total number of clients
             return this.selectedClients.length === this.clientsModalData.length && this.clientsModalData.length > 0;
+        },
+        formattedCouponCode: {
+            get() {
+                return this.couponCode.toUpperCase(); // Transform to uppercase
+            },
+            set(value) {
+                this.couponCode = value.toUpperCase(); // Update the original property
+            },
+        },
+
+        // Affiliate
+        formattedCode: {
+            get() {
+                return this.appliedCode.toUpperCase(); // Transform to uppercase
+            },
+            set(value) {
+                this.appliedCode = value.toUpperCase(); // Update the original property
+            },
         },
     },
     methods: {
@@ -1014,7 +1033,7 @@ export default {
 
             // Return the coupon with the assigned count included
             return couponAssignedCount;
-         },
+        },
         async createAndAssignCoupon() {
 
             try {
@@ -1095,14 +1114,13 @@ export default {
 
         //Delete coupons
         async deleteCoupon(couponId, index) {
-            console.log(couponId)
             if (confirm("¿Desea borrar este cupon?")) {
                 try {
                     const couponRef = dbRef(db, `Coupons/${couponId}`);
                     await remove(couponRef);
 
                     // Remove the coupon from the local state
-                    this.filteredCoupons.splice(index, 1);
+                    this.coupons.splice(index, 1);
 
                     Toastify({
                         text: 'Cupon eliminado con éxito!',
@@ -1115,6 +1133,7 @@ export default {
                             background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
                         },
                     }).showToast();
+                    this.loadCoupons();
                 } catch (error) {
                     console.error('Error deleting coupon:', error);
                     alert('La eliminación del cupon falló.');
@@ -1243,7 +1262,7 @@ export default {
             let selectedCoupon = null;
 
             // Alert if the coupon code was not entered
-            if (!this.appliedCode) {
+            if (!this.formattedCode) {
                 alert('Primero ingrese un código de cupón válido.');
                 console.log('No coupon code entered');
                 this.loading = false;
@@ -1252,7 +1271,7 @@ export default {
 
             // Find the coupon by its code
             coupons.forEach(coupon => {
-                if (coupon.couponCode === this.appliedCode) {
+                if (coupon.couponCode === this.formattedCode) {
                     selectedCoupon = coupon;
                     console.log(selectedCoupon)
                 }
@@ -1323,6 +1342,11 @@ export default {
                 const newAppliedCouponRef = dbRef(db, `Users/${this.userId}/appliedCoupons/${selectedCoupon.id}/${client.id}`);
                 await set(newAppliedCouponRef, {
                     appliedDate: new Date().toISOString(),
+                    name: selectedCoupon.name,
+                    couponCode: selectedCoupon.couponCode,
+                    balance: selectedCoupon.balance,
+                    type: selectedCoupon.type,
+                    image: selectedCoupon.qrFileUrl
                 });
 
                 // Remove the coupon from the client's 'coupons' object
@@ -1544,8 +1568,7 @@ export default {
 
                 <div class="text-center" v-if="loading">
                     <p>Cargando...</p>
-                    <span class="spinner-border spinner-border-sm" role="status"
-                        aria-hidden="true"></span>
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                 </div>
                 <div v-else>
                     <!-- Option 1 = Assign Existing Coupon Section -->
@@ -1664,7 +1687,7 @@ export default {
                                                     <template v-else>
                                                         {{ coupon.name }}
                                                     </template>
-                                                </h6>                                                
+                                                </h6>
 
                                                 <!-- Buttons -->
                                                 <div class="btn-group ms-2" role="group">
@@ -1691,7 +1714,7 @@ export default {
 
                                             <div class="d-flex justify-content-center mb-3">
                                                 <span class="text-muted">
-                                                   Asignado a {{ coupon.assignedCount }} clientes.
+                                                    Asignado a {{ coupon.assignedCount }} clientes.
                                                 </span>
                                             </div>
 
@@ -1874,7 +1897,8 @@ export default {
                             <div class="col-12 col-md-6 col-lg-3 mb-3">
                                 <label for="couponCode" class="form-label">Código</label>
                                 <div class="input-group">
-                                    <input type="text" class="form-control" id="couponCode" v-model="couponCode">
+                                    <input type="text" class="form-control" id="couponCode"
+                                        v-model="formattedCouponCode">
                                 </div>
                             </div>
                             <div class="col-12 col-md-6 col-lg-3 mb-3">
@@ -2415,7 +2439,7 @@ export default {
                                 </div>
                                 <div class="input-group mb-4">
                                     <input type="text" class="form-control form-control-lg rounded-pill text-center"
-                                        v-model="appliedCode" placeholder="Código del cupón" />
+                                        v-model="formattedCode" placeholder="Código del cupón" />
                                 </div>
                                 <button :disabled="loading"
                                     class="btn btn-secondary btn-lg rounded-pill px-5 shadow-sm mt-3"

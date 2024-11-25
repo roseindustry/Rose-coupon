@@ -26,7 +26,7 @@
         </div>
 
         <!-- Filter by Affiliates -->
-        <div v-if="filterByAffiliate" class="mt-3 row g-3" style="background-color: darkblue; border-radius: 15px">
+        <div v-if="filterByAffiliate" class="mt-3 row g-3">
             <div class="col-12">
                 <h6 class="text-uppercase text-center">Comercios</h6>
             </div>
@@ -99,7 +99,7 @@
                             <div class="col">
                                 <div class="img-container mb-3">
                                     <div class="img"
-                                        :style="{ backgroundImage: 'url(' + coupon.qrFileUrl + ')', backgroundSize: 'cover', backgroundPosition: 'center', height: '200px' }">
+                                        :style="{ backgroundImage: 'url(' + coupon.image + ')', backgroundSize: 'cover', backgroundPosition: 'center', height: '200px' }">
                                     </div>
                                 </div>
                                 <p class="card-text"><strong>Nombre:</strong> {{ coupon.name ? coupon.name : `Cupon
@@ -107,6 +107,9 @@
                                 <p class="card-text"><strong>Código:</strong> {{ coupon.couponCode ? coupon.couponCode
                                     : `Cupon borrado`
                                     }}</p>
+                                <p class="card-text"><strong>{{ coupon.type ? coupon.type.charAt(0).toUpperCase() + coupon.type.slice(1) : `Balance` }}:</strong> {{ coupon.balance ? `$${coupon.balance}` : `$0` }}
+
+                                </p>
                                 <p class="card-text"><strong>Aplicado el dia:</strong> {{ formatDate(coupon.appliedDate)
                                     }}</p>
                                 <p class="card-text"><strong>Para el cliente:</strong> {{ coupon.clientName || `Aplicado
@@ -125,7 +128,7 @@
 <script>
 import { db } from '@/firebase/init';
 import { ref as dbRef, get } from 'firebase/database';
-import { isWithinInterval, parseISO } from 'date-fns';
+import { isWithinInterval, parseISO, isSameDay } from 'date-fns';
 
 export default {
     props: {
@@ -197,9 +200,11 @@ export default {
                                     clientName,
                                     appliedDate: couponDetails.appliedDate,
                                     ...fullCouponData, // Merge full coupon data from Coupons table
-                                    name: fullCouponData.name || "Unknown Coupon",
-                                    couponCode: fullCouponData.couponCode || "N/A",
-                                    qrFileUrl: fullCouponData.qrFileUrl || null,
+                                    name: fullCouponData.name || couponDetails.name,
+                                    couponCode: fullCouponData.couponCode || couponDetails.couponCode,
+                                    balance: fullCouponData.balance || couponDetails.balance,
+                                    type: fullCouponData.type || couponDetails.type,
+                                    image: fullCouponData.qrFileUrl || couponDetails.image,
                                 };
                             });
 
@@ -322,28 +327,19 @@ export default {
                     return;
                 }
 
-                // Set start and end date
-                // const start = new Date(this.startDate);
-                // const localStart = new Date(start.getTime() + start.getTimezoneOffset() * 60000);
-                // localStart.setHours(0, 0, 0, 0);
-
-                // const end = new Date(this.endDate);
-                // const localEnd = new Date(end.getTime() + end.getTimezoneOffset() * 60000);
-                // localEnd.setHours(23, 59, 59, 999); // Include the entire end date
-
                 const start = parseISO(this.startDate);
                 const end = parseISO(this.endDate);
 
-                // const filteredCoupons = this.allAppliedCoupons.filter((coupon) => {
-                //   const couponDate = new Date(coupon.appliedDate);
-                //   return couponDate >= start && couponDate <= end;
-                // });
+                this.displayedCoupons = this.allAppliedCoupons.filter((coupon) => {
+                    const appliedDate = parseISO(coupon.appliedDate);
 
-                // this.displayedCoupons = [...filteredCoupons];
-
-                this.displayedCoupons = this.allAppliedCoupons.filter((coupon) =>
-                    isWithinInterval(new Date(coupon.appliedDate), { start, end })
-                );
+                    // Check if the appliedDate falls on or between the selected days
+                    return (
+                        isSameDay(appliedDate, start) ||
+                        isSameDay(appliedDate, end) ||
+                        isWithinInterval(appliedDate, { start, end })
+                    );
+                });
             } catch (error) {
                 console.error('Error filtering coupons', error);
             } finally {

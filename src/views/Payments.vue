@@ -944,14 +944,14 @@ export default {
                             @click.prevent="validateSubscriptionPayment(userModalData)" :disabled="isSubmitting">
                             <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
                                 aria-hidden="true"></span>
-                            <span v-else>Aprobar Pago</span>
+                            <span v-else>Aprobar</span>
                         </a>
-                        <a class="validate btn btn-outline-success btn-sm m-3" href="#"
+                        <!-- <a class="validate btn btn-outline-success btn-sm m-3" href="#"
                             @click.prevent="disapproveSubscriptionPayment(userModalData)" :disabled="isSubmitting">
                             <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
                                 aria-hidden="true"></span>
-                            <span v-else>Aprobar Pago</span>
-                        </a>
+                            <span v-else>Denegar</span>
+                        </a> -->
                     </div>
 
                     <div v-if="paymentType === 'cuota'">
@@ -964,7 +964,7 @@ export default {
                         <a class="validate btn btn-outline-danger btn-sm m-3" href="#" 
                             @click.prevent="disapproveCuotaPayment(userModalData)" :disabled="isSubmitting">
                             <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                            <span v-else>Negar</span>
+                            <span v-else>Denegar</span>
                         </a>
                     </div>
                 </div>
