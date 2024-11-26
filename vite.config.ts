@@ -75,5 +75,8 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0', // Listen on all local IPs
+    watch: {
+      usePolling: true, // Use polling to detect file changes (helpful for network file systems)
+    },
   }
 });
