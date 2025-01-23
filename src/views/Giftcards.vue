@@ -3,7 +3,7 @@ import { ref as dbRef, query, orderByChild, equalTo, set, get, push, update, rem
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '@/firebase/init';
 import { Modal } from 'bootstrap';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import { useUserStore } from "@/stores/user-role";
 import SearchInput from '@/components/app/SearchInput.vue';
@@ -126,19 +126,6 @@ export default {
         }
     },
     methods: {
-        showToast(message) {
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                },
-            }).showToast();
-        },
         formatDate(date) {
             if (!date) return ''; // Handle invalid dates or null values
             const d = new Date(date);
@@ -369,7 +356,7 @@ export default {
                 const newGiftcardRef = push(giftcardRef);
                 await set(newGiftcardRef, data);
 
-                this.showToast('Giftcard creada!');
+                showToast('Giftcard creada!');
 
                 //Reset form fields
                 this.resetForm();
@@ -396,17 +383,11 @@ export default {
                     // Remove the coupon from the local state
                     this.giftcards.splice(index, 1);
 
-                    Toastify({
-                        text: 'Giftcard eliminada!',
-                        duration: 3000,
-                        close: true,
-                        gravity: 'top',
-                        position: 'right',
-                        stopOnFocus: true,
+                    showToast('Giftcard eliminada!', {
                         style: {
                             background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
                         },
-                    }).showToast();
+                    });
                 } catch (error) {
                     console.error('Error deleting Giftcard:', error);
                     alert('La eliminación de la giftcard falló.');
@@ -442,7 +423,7 @@ export default {
                 console.log("Giftcard updated successfully");
 
                 // Success notification
-                this.showToast('Giftcard actualizada con exito!');
+                showToast('Giftcard actualizada con exito!');
                 // Close the modal after saving
                 const modal = Modal.getInstance(document.getElementById('editGiftcardModal'));
                 modal.hide();
@@ -470,7 +451,7 @@ export default {
                     console.log("Giftcard marked as paid.");
 
                     // Success notification
-                    this.showToast('Giftcard se marco como Pagada!');
+                    showToast('Giftcard se marco como Pagada!');
 
 
                 } catch (error) {
@@ -565,7 +546,7 @@ export default {
                 // Check if the giftcard was successfully added to 'appliedGiftcards'
                 const checkAppliedCoupon = await get(newAppliedGiftcardRef);
                 if (checkAppliedCoupon.exists()) {
-                    this.showToast('Giftcard aplicada con éxito.');
+                    showToast('Giftcard aplicada con éxito.');
                 } else {
                     console.error('Failed to apply coupon');
                     alert('Error al aplicar la giftcard');

@@ -3,7 +3,7 @@ import { ref as dbRef, query, orderByChild, equalTo, set, get, push, update, rem
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/firebase/init';
 import { Modal } from 'bootstrap';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import { useUserStore } from "@/stores/user-role";
 
@@ -50,19 +50,6 @@ export default {
         }
     },
     methods: {
-        showToast(message) {
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                },
-            }).showToast();
-        },
         formatDate(date) {
             if (!date) return ''; // Handle invalid dates or null values
             const d = new Date(date);
@@ -295,7 +282,7 @@ export default {
                     }
                 }
 
-                this.showToast('Sorteo creado con exito!');
+                showToast('Sorteo creado con exito!');
                 console.log('Saving Affiliates:', this.selectedAffiliateIds, 'for Giveaway:', newGiveawayRef.key, 'for users: ', this.selectedSubscriptions);
 
                 //Reset form fields
@@ -317,17 +304,7 @@ export default {
                     // Remove the coupon from the local state
                     this.giveaways.splice(index, 1);
 
-                    Toastify({
-                        text: 'Sorteo eliminado!',
-                        duration: 3000,
-                        close: true,
-                        gravity: 'top',
-                        position: 'right',
-                        stopOnFocus: true,
-                        style: {
-                            background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
-                        },
-                    }).showToast();
+                    showToast('Sorteo eliminado!');
                 } catch (error) {
                     console.error('Error deleting giveaway:', error);
                     alert('La eliminación del sorteo falló.');

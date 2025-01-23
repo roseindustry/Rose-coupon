@@ -3,7 +3,7 @@ import { db, storage, functions } from '../firebase/init';
 import { ref as dbRef, update, get, query, orderByChild, equalTo, push, set, remove } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import SearchInput from '@/components/app/SearchInput.vue';
 import moment from 'moment';
@@ -301,19 +301,6 @@ export default {
         }
     },
     methods: {
-        showToast(message) {
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                },
-            }).showToast();
-        },
         async sendEmail(payload) {
             try {
                 const sendEmailFunction = httpsCallable(functions, 'sendEmail');
@@ -351,7 +338,7 @@ export default {
 
                     await set(newPlanRef, data);
 
-                    this.showToast('Suscripción creada con exito!');
+                    showToast('Suscripción creada con exito!');
                     // Reset form fields
                     this.clientPlan.order = '';
                     this.clientPlan.name = '';
@@ -381,7 +368,7 @@ export default {
 
                     await set(newPlanRef, data);
 
-                    this.showToast('Suscripción creada con exito!');
+                    showToast('Suscripción creada con exito!');
                     // Reset form fields
                     this.affiliatePlan.order = '';
                     this.affiliatePlan.name = '';
@@ -452,7 +439,7 @@ export default {
                 console.log("Suscription updated successfully");
 
                 // Success notification
-                this.showToast('Suscripción actualizada con exito!');
+                showToast('Suscripción actualizada con exito!');
                 // Close the modal after saving
                 const modal = Modal.getInstance(document.getElementById('editPlanModal'));
                 modal.hide();
@@ -494,7 +481,7 @@ export default {
                 }
 
                 // Show success message after deletion
-                this.showToast('Suscripción eliminada');
+                showToast('Suscripción eliminada');
 
             } catch (error) {
                 console.error('Error deleting subscription:', error);
@@ -864,7 +851,7 @@ export default {
                 };
                 await this.sendNotificationEmail(adminEmailPayload);
 
-                this.showToast('Suscripción asignada con éxito!');
+                showToast('Suscripción asignada con éxito!');
                 // Reset selection after assigning the plan
                 this.selectedPlan = null;
                 this.selectedClient = null;
@@ -962,7 +949,7 @@ export default {
                         };
                         await this.sendNotificationEmail(adminEmailPayload);
 
-                        this.showToast('Suscripción asignada con éxito!');
+                        showToast('Suscripción asignada con éxito!');
                         // Reset selection after assigning the plan
                         this.selectedPlan = null;
                         // Redirect to Client Panel
@@ -1071,7 +1058,7 @@ export default {
                 await this.sendNotificationEmail(adminEmailPayload);
 
                 //Success toast
-                this.showToast('Archivo subido!');
+                showToast('Archivo subido!');
 
                 //reset the image previews
                 this.paymentPreview = null;
@@ -1136,10 +1123,14 @@ export default {
         copyToClipboard(text) {
             navigator.clipboard.writeText(text)
                 .then(() => {
-                    this.showToast('Texto copiado!');
+                    showToast('Texto copiado!');
                 })
                 .catch(err => {
-                    this.showToast.error('Error: ', err);
+                    showToast.error(`Error: , ${err}`, {
+                        style: {
+                            background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
+                        },
+                    });
                 });
         },
         //File uploads
@@ -1166,7 +1157,7 @@ export default {
                     }
                     await update(creditRef, value);
 
-                    this.showToast('Tasa actualizada!');
+                    showToast('Tasa actualizada!');
 
                     // Reset form fields
                     await this.fetchCurrentExchange();

@@ -8,7 +8,7 @@ import { ref as dbRef, update, get } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL, listAll } from 'firebase/storage';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import { Modal } from 'bootstrap';
 import venezuela from 'venezuela';
@@ -154,19 +154,6 @@ export default defineComponent({
 		this.paymentModal = new Modal(document.getElementById('notifyPaymentModal'));
 	},
 	methods: {
-		showToast(message) {
-			Toastify({
-				text: message,
-				duration: 3000,
-				close: true,
-				gravity: 'top',
-				position: 'right',
-				stopOnFocus: true,
-				style: {
-					background: 'linear-gradient(to right, #00b09b, #96c93d)',
-				},
-			}).showToast();
-		},
 		formatDate(date) {
 			if (!date) return ''; // Handle invalid dates or null values
 			const d = new Date(date);
@@ -338,17 +325,7 @@ export default defineComponent({
 				await update(userDataRef, updateData);
 
 				// Success notification
-				Toastify({
-					text: "Datos actualizados con éxito!",
-					duration: 3000,
-					close: true,
-					gravity: "top",
-					position: "right",
-					stopOnFocus: true,
-					style: {
-						background: "linear-gradient(to right, #00b09b, #96c93d)",
-					},
-				}).showToast();
+				showToast("Datos actualizados con éxito!");
 
 				// Toggle off edit mode for this field
 				this.toggleEdit(fieldName);
@@ -368,17 +345,7 @@ export default defineComponent({
 			try {
 				await reauthenticateWithCredential(user, credential);
 				await updatePassword(user, this.newPassword);
-				Toastify({
-					text: 'contraseña actualizada con éxito.',
-					duration: 3000,
-					close: true,
-					gravity: 'top',
-					position: 'right',
-					stopOnFocus: true,
-					style: {
-						background: 'linear-gradient(to right, #00b09b, #96c93d)',
-					},
-				}).showToast();
+				showToast('contraseña actualizada con éxito.');
 				this.currentPassword = '';
 				this.newPassword = '';
 				this.confirmPassword = '';
@@ -478,7 +445,7 @@ export default defineComponent({
 				await this.sendEmail(emailPayload);
 
 				//Success toast
-				this.showToast('Archivos subidos!');
+				showToast('Archivos subidos!');
 
 				//reset the image previews
 				this.idFrontPreview = null;
@@ -534,7 +501,7 @@ export default defineComponent({
 				});
 
 				//Success toast
-				this.showToast('Archivo subido!');
+				showToast('Archivo subido!');
 				if (this.role === 'cliente') {
 					this.fetchClientPlan();
 				} else if (this.role === 'afiliado') {
@@ -573,7 +540,7 @@ export default defineComponent({
 						paymentUploaded: false,
 					});
 
-					this.showToast('Debes subir tu comprobante de pago para este mes.');
+					showToast('Debes subir tu comprobante de pago para este mes.');
 				}
 			}
 		},
@@ -813,7 +780,7 @@ export default defineComponent({
 									</div>
 
 									<!-- Botones -->
-									<div class="btn-group" role="group">
+									<div class="btn-group" role="group" v-if="field.name !== 'identification'">
 										<!-- Show "Edit" button when not in edit mode -->
 										<button class="btn btn-transparent btn-sm me-1" v-if="!editStates[field.name]"
 											@click.prevent="toggleEdit(field.name); handleEditClick(field.name)">

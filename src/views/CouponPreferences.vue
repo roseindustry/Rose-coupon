@@ -1,7 +1,7 @@
 <script>
 import { ref as dbRef, query, orderByChild, equalTo, set, get, push, update, remove } from 'firebase/database';
 import { db } from '@/firebase/init';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import { useUserStore } from "@/stores/user-role";
 
@@ -18,30 +18,6 @@ export default {
         }
     },
     methods: {
-        showToast(message, type) {
-            let backgroundColor;
-
-            // Set background color based on the toast type (success or error)
-            if (type === 'success') {
-                backgroundColor = 'linear-gradient(to right, #00b09b, #96c93d)'; // Greenish for success
-            } else if (type === 'error') {
-                backgroundColor = 'linear-gradient(to right, #e74c3c, #e74c3c)'; // Red for error
-            } else {
-                backgroundColor = 'linear-gradient(to right, #00b09b, #96c93d)'; // Default to success if no type is provided
-            }
-
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: backgroundColor,
-                },
-            }).showToast();
-        },
 
         async fetchCategories() {
             const categoryRef = dbRef(db, 'Affiliate_categories');
@@ -137,7 +113,12 @@ export default {
             }
             // Validate selected categories and affiliates
             if (this.selectedCategoriesIds.length === 0 || this.selectedSubcategoriesIds.length === 0) {
-                this.showToast('Error: Debe seleccionar al menos una categoría', 'error');
+                showToast('Error: Debe seleccionar al menos una categoría', {
+                    style: {
+                        background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
+                    },
+                });
+
                 return;
             }
 
@@ -165,7 +146,7 @@ export default {
                 // Save the updated preferences back to Firebase
                 await set(userRef, updatedPreferences);
                 //Success toast
-                this.showToast('Preferencias guardadas!', 'success');
+                showToast('Preferencias guardadas!');
                 console.log('Preferences updated successfully!');
             } catch (error) {
                 console.error('Error saving preferences:', error);

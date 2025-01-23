@@ -1,7 +1,7 @@
 <script>
 import { db } from '../firebase/init';
 import { ref as dbRef, update, get, query, orderByChild, equalTo, push, set, remove } from 'firebase/database';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import SearchInput from '@/components/app/SearchInput.vue';
 import { Modal } from 'bootstrap';
@@ -57,20 +57,6 @@ export default {
         }
     },
     methods: {
-        showToast(message) {
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                },
-            }).showToast();
-        },
-
         // Filters
         toggleFilters() {
             if (this.filterJobs) {
@@ -260,7 +246,7 @@ export default {
 
                 await set(newJobRef, data);
 
-                this.showToast('Vacante registrada con éxito!');
+                showToast('Vacante registrada con éxito!');
                 // Reset form fields
                 this.job.title = '';
                 this.job.desc = '';
@@ -308,7 +294,7 @@ export default {
                 console.log("Job updated successfully");
 
                 // Success notification
-                this.showToast('Vacante actualizada con exito!');
+                showToast('Vacante actualizada con exito!');
                 // Close the modal after saving
                 const modal = Modal.getInstance(document.getElementById('editJob'));
                 modal.hide();
@@ -328,7 +314,7 @@ export default {
                     this.jobs.splice(index, 1);
                     this.fetchJobs();
 
-                    this.showToast('Vacante eliminada con éxito!')
+                    showToast('Vacante eliminada con éxito!')
                 } catch (error) {
                     console.error('Error deleting job:', error);
                     alert('Error al eliminar la vacante.');

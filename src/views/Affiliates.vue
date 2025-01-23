@@ -1,15 +1,27 @@
 <script>
+import ManageCategoriesModal from '@/components/affiliates/ManageCategoriesModal.vue';
+import AddCategoryModal from '@/components/affiliates/AddCategoryModal.vue';
+import ManageSubcategoriesModal from '@/components/affiliates/ManageSubcategoriesModal.vue';
+import AddSubcategoryModal from '@/components/affiliates/AddSubcategoryModal.vue';
+import AddNewAffiliate from '@/components/affiliates/AddNewAffiliate.vue';
 import { ref as dbRef, query, orderByChild, equalTo, get, update, remove, push, set } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage, functions } from '@/firebase/init';
 import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import { useUserStore } from "@/stores/user-role";
 import venezuela from 'venezuela';
 
 export default {
+    components: {
+        ManageCategoriesModal,
+        AddCategoryModal,
+        ManageSubcategoriesModal,
+        AddSubcategoryModal,
+        AddNewAffiliate
+    },
     data() {
         return {
             // Logged User data
@@ -70,10 +82,10 @@ export default {
             municipios: [],
             parroquias: [],
 
-            imageFile: null,
-            uploadImage: false,
-            imagePreview: null,
-            updatedImagePreview: null,
+            // imageFile: null,
+            // uploadImage: false,
+            // imagePreview: null,
+            // updatedImagePreview: null,
             isSubmitting: false,
 
             //Categories
@@ -215,6 +227,18 @@ export default {
                 this.showParroquias = true;
             }
         },
+        onStateChange(newState) {
+            this.affiliate.state = newState;
+            this.displayMunicipios(newState); // Call existing logic to update municipios
+        },
+        onMunicipioChange(newMunicipio) {
+            this.affiliate.municipio = newMunicipio;
+            this.displayParroquias(newMunicipio); // Call existing logic to update parroquias
+        },
+        onParroquiaChange(newParroquia) {
+            this.affiliate.parroquia = newParroquia;
+        },
+
         filterByState(state) {
             this.filteredAffiliates = this.affiliates.filter(affiliate =>
                 affiliate.state === state
@@ -327,18 +351,8 @@ export default {
                     this.showParroquias = false;
                     this.selectedCategory = null;
 
-                    Toastify({
-                        text: "Información actualizada!",
-                        duration: 3000,
-                        close: true,
-                        gravity: 'top',
-                        position: 'right',
-                        stopOnFocus: true,
-                        style: {
-                            background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                        },
-                    }).showToast();
-                    
+                    showToast("Información actualizada!");
+
                 } else {
                     alert('No hay campos para actualizar.');
                 }
@@ -400,17 +414,7 @@ export default {
                     affiliate.imageFile = null;
 
                     // Optionally, display a success message
-                    Toastify({
-                        text: "Imagen actualizada!",
-                        duration: 3000,
-                        close: true,
-                        gravity: 'top',
-                        position: 'right',
-                        stopOnFocus: true,
-                        style: {
-                            background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                        },
-                    }).showToast();
+                    showToast("Imagen actualizada!");
                 }
             } catch (error) {
                 console.error('Error updating image:', error);
@@ -487,15 +491,7 @@ export default {
                 const response = await createAffiliateFunction({ userData });
 
                 if (response.data.success) {
-                    Toastify({
-                        text: "Nuevo Comercio Afiliado registrado con exito! Se ha enviado la contraseña al correo.",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
-                        style: { background: "linear-gradient(to right, #00b09b, #96c93d)" }
-                    }).showToast();
+                    showToast("Nuevo Comercio Afiliado registrado con exito! Se ha enviado la contraseña al correo.");
 
                     // Reset form
                     this.resetForm();
@@ -533,17 +529,7 @@ export default {
                     }
 
                     // Show success toast
-                    Toastify({
-                        text: "Afiliado eliminado.",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
-                        style: {
-                            background: "linear-gradient(to right, #db231d, #96c93d)",
-                        },
-                    }).showToast();
+                    showToast("Afiliado eliminado.");
 
                     // Remove the client from the UI
                     this.fetchAffiliates();
@@ -573,14 +559,6 @@ export default {
             this.selectedCategory = null;
         },
 
-        // Handle image upload
-        previewImage(event) {
-            const file = event.target.files[0];
-            if (file) {
-                this.imageFile = file;
-                this.imagePreview = URL.createObjectURL(file);
-            }
-        },
         async uploadImageToStorage(imageFile, affiliate) {
             let imageUrl = null;
             try {
@@ -647,17 +625,7 @@ export default {
                 });
 
                 // Show success notification
-                Toastify({
-                    text: "Categoria agregada con exito!",
-                    duration: 3000,
-                    close: true,
-                    gravity: "top",
-                    position: "right",
-                    stopOnFocus: true,
-                    style: {
-                        background: "linear-gradient(to right, #00b09b, #96c93d)",
-                    },
-                }).showToast();
+                showToast("Categoria agregada con exito!");
 
                 // Hide the 'Add Category' modal
                 const addCategoryModal = Modal.getInstance(document.getElementById('addCategoryModal'));
@@ -694,33 +662,17 @@ export default {
                         name: categoryToUpdate.name,
                     });
                     // Show success notification
-                    Toastify({
-                        text: "Categoría actualizada con éxito!",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
-                        style: {
-                            background: "linear-gradient(to right, #00b09b, #96c93d)",
-                        },
-                    }).showToast();
+                    showToast("Categoría actualizada con éxito!");
                     this.fetchCategories();
                     this.editingCategoryId = false;
                 }
             } catch (e) {
                 console.error("Ocurrió un error al actualizar la categoría: ", e);
-                Toastify({
-                    text: "Error al actualizar la categoría.",
-                    duration: 3000,
-                    close: true,
-                    gravity: "top",
-                    position: "right",
-                    stopOnFocus: true,
+                showToast("Error al actualizar la categoría.", {
                     style: {
                         background: "linear-gradient(to right, #ff0000, #ff7f50)", // Red gradient for error
-                    },
-                }).showToast();
+                    }
+                });
             }
         },
         async deleteCategory(categoryId) {
@@ -735,31 +687,15 @@ export default {
                     // Remove category from the local modalData array
                     this.modalData = this.modalData.filter(cat => cat.id !== categoryId);
                     // Show success notification
-                    Toastify({
-                        text: "Categoría eliminada con éxito!",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
-                        style: {
-                            background: "linear-gradient(to right, #00b09b, #ff0000)", // Red gradient for success
-                        },
-                    }).showToast();
+                    showToast("Categoría eliminada con éxito!");
 
                 } catch (e) {
                     console.error("Ocurrió un error al eliminar la categoría: ", e);
-                    Toastify({
-                        text: "Error al eliminar la categoría.",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
+                    showToast("Error al eliminar la categoría.", {
                         style: {
                             background: "linear-gradient(to right, #ff0000, #ff7f50)", // Red gradient for error
-                        },
-                    }).showToast();
+                        }
+                    });
                 }
             }
 
@@ -823,17 +759,7 @@ export default {
                 });
 
                 // Show success notification
-                Toastify({
-                    text: "Subcategoria agregada con exito!",
-                    duration: 3000,
-                    close: true,
-                    gravity: "top",
-                    position: "right",
-                    stopOnFocus: true,
-                    style: {
-                        background: "linear-gradient(to right, #00b09b, #96c93d)",
-                    },
-                }).showToast();
+                showToast("Subcategoria agregada con exito!");
 
                 // Hide the 'Add Subcategory' modal
                 const addSubcategoryModal = Modal.getOrCreateInstance(document.getElementById('addSubcategoryModal'));
@@ -870,32 +796,16 @@ export default {
                         name: subcategoryToUpdate.name,
                     });
                     // Show success notification
-                    Toastify({
-                        text: "Subcategoría actualizada con éxito!",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
-                        style: {
-                            background: "linear-gradient(to right, #00b09b, #96c93d)",
-                        },
-                    }).showToast();
+                    showToast("Subcategoría actualizada con éxito!");
                     this.editingSubcategoryId = false;
                 }
             } catch (e) {
                 console.error("Ocurrió un error al actualizar la subcategoría: ", e);
-                Toastify({
-                    text: "Error al actualizar la subcategoría.",
-                    duration: 3000,
-                    close: true,
-                    gravity: "top",
-                    position: "right",
-                    stopOnFocus: true,
+                showToast("Error al actualizar la subcategoría.", {
                     style: {
                         background: "linear-gradient(to right, #ff0000, #ff7f50)", // Red gradient for error
-                    },
-                }).showToast();
+                    }
+                });
             }
         },
         async deleteSubcategory(subcategoryId) {
@@ -910,31 +820,15 @@ export default {
                     // Remove category from the local modalData array
                     this.subcategoriesModalData = this.subcategoriesModalData.filter(subcat => subcat.id !== subcategoryId);
                     // Show success notification
-                    Toastify({
-                        text: "Subcategoría eliminada con éxito!",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
-                        style: {
-                            background: "linear-gradient(to right, #00b09b, #ff0000)", // Red gradient for success
-                        },
-                    }).showToast();
+                    showToast("Subcategoría eliminada con éxito!");
 
                 } catch (e) {
                     console.error("Ocurrió un error al eliminar la Subcategoría: ", e);
-                    Toastify({
-                        text: "Error al eliminar la Subcategoría.",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
+                    showToast("Error al eliminar la Subcategoría.", {
                         style: {
                             background: "linear-gradient(to right, #ff0000, #ff7f50)", // Red gradient for error
-                        },
-                    }).showToast();
+                        }
+                    });
                 }
             }
 
@@ -953,7 +847,7 @@ export default {
                 this.affiliate.rif = rif;
             }
         },
-        
+
     }
 }
 </script>
@@ -1143,200 +1037,19 @@ export default {
         </div>
 
         <!-- Modal for Adding New Affiliate -->
-        <div class="modal fade" id="addAffiliateModal" tabindex="-1" aria-labelledby="addAffiliateModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="addAffiliateModalLabel">Agregar Afiliado</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"
-                            @click="resetForm()"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="container">
-                            <div class="row">
-                                <!-- Categoria -->
-                                <div class="col-6 mb-3">
-                                    <label for="categoryDropdown" class="form-label">Categoría</label>
-                                    <div class="dropdown" id="categoryDropdown">
-                                        <button class="btn btn-secondary dropdown-toggle" type="button"
-                                            id="dropdownMenuCategory" data-bs-toggle="dropdown" aria-expanded="false">
-                                            {{ selectedCategory ? selectedCategory.name : 'Seleccione...' }}
-                                        </button>
-                                        <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-                                            <li v-if="categories.length === 0">
-                                                <p style="margin: 10px;">No hay categorias registradas.</p>
-                                            </li>
-                                            <li v-for="category in categories" :key="category.id">
-                                                <a class="dropdown-item" href="#"
-                                                    @click="setSelectedCategory(category)">
-                                                    {{ category.name }}
-                                                </a>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </div>
-                                <!-- Affiliate Order Number -->
-                                <div class="col-6 mb-3">
-                                    <label for="affiliateOrder" class="form-label">Orden
-                                        <!-- <span class="text-muted">
-                                            Este número determinará la posición en que aparezca listado el Comercio
-                                        </span> -->
-                                    </label>
-                                    <input type="number" class="form-control" id="affiliateOrder"
-                                        v-model="affiliate.order" />
-                                </div>
-                                <!-- Affiliate Name -->
-                                <div class="col-6 mb-3">
-                                    <label for="affiliateName" class="form-label">Nombre <span
-                                            class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="affiliateName" v-model="affiliate.name"
-                                        required />
-                                </div>
-                                <!-- RIF -->
-                                <div class="col-6 mb-3">
-                                    <label for="affiliateRif" class="form-label">RIF <span
-                                            class="text-danger">*</span></label>
-                                    <input class="form-control" id="affiliateRif" v-model="affiliate.rif"
-                                        @input="applyRifMask" required />
-                                </div>
-                                <!-- Email -->
-                                <div class="col-6 mb-3">
-                                    <label for="affiliateEmail" class="form-label">Email <span
-                                            class="text-danger">*</span></label>
-                                    <input class="form-control" id="affiliateEmail" v-model="affiliate.email"
-                                        required />
-                                </div>
-                                <!-- Phone Number -->
-                                <div class="col-6 mb-3">
-                                    <label for="affiliatePhone" class="form-label">Teléfono</label>
-                                    <input class="form-control" id="affiliatePhone" v-model="affiliate.phoneNumber" />
-                                </div>
-                                <!-- State -->
-                                <div class="col-6 mb-3">
-                                    <label class="form-label">Estado <span class="text-danger">*</span></label>
-                                    <select v-model="affiliate.state" @change="displayMunicipios(affiliate.state)"
-                                        class="form-control mb-2">
-                                        <option value="" disabled selected>Selecciona un estado</option>
-                                        <option v-for="(state, index) in venezuelanStates" :key="index" :value="state">
-                                            {{ state }}</option>
-                                    </select>
-                                </div>
-                                <!-- Municipality -->
-                                <div class="col-6 mb-3">
-                                    <label class="form-label">Municipio <span class="text-danger">*</span></label>
-                                    <select v-model="affiliate.municipio"
-                                        @change="displayParroquias(affiliate.municipio)" class="form-control mb-2">
-                                        <option value="" disabled selected>Selecciona un municipio</option>
-                                        <option v-for="(municipio, index) in municipios" :key="index"
-                                            :value="municipio">{{
-                                                municipio }}</option>
-                                    </select>
-                                </div>
-                                <!-- Parroquia -->
-                                <div class="col-6 mb-3">
-                                    <label class="form-label">Parroquia <span class="text-danger">*</span></label>
-                                    <select v-model="affiliate.parroquia" class="form-control mb-2">
-                                        <option value="" disabled selected>Selecciona una parroquia</option>
-                                        <option v-for="(parroquia, index) in parroquias" :key="index"
-                                            :value="parroquia">{{
-                                                parroquia }}</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <hr>
-
-                            <div class="row">
-                                <h5 for="affiliateSocials" class="form-label text-center mb-3">Redes sociales</h5>
-                                <div class="col-6 mb-3">
-                                    <div class="input-group">
-                                        <span class="input-group-text">
-                                            <i class="fa-brands fa-x-twitter"></i>
-                                        </span>
-                                        <input type="text" class="form-control" id="affiliateTwitter"
-                                            v-model="affiliate.twitter" />
-                                    </div>
-                                </div>
-                                <div class="col-6 mb-3">
-                                    <div class="input-group">
-                                        <span class="input-group-text">
-                                            <i class="fa-brands fa-instagram"></i>
-                                        </span>
-                                        <input type="text" class="form-control" id="affiliateInstagram"
-                                            v-model="affiliate.instagram" />
-                                    </div>
-                                </div>
-                                <div class="col-6 mb-3">
-                                    <div class="input-group">
-                                        <span class="input-group-text">
-                                            <i class="fa-brands fa-facebook-f"></i>
-                                        </span>
-                                        <input type="text" class="form-control" id="affiliateFacebook"
-                                            v-model="affiliate.facebook" />
-                                    </div>
-                                </div>
-                                <div class="col-6 mb-3">
-                                    <div class="input-group">
-                                        <span class="input-group-text">
-                                            <i class="fa-brands fa-tiktok"></i>
-                                        </span>
-                                        <input type="text" class="form-control" id="affiliateTiktok"
-                                            v-model="affiliate.tiktok" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <p>(<span class="text-danger">*</span>) Campos obligatorios.</p>
-
-                            <div class="row">
-                                <!-- Affiliate Status -->
-                                <div class="col-12 mb-3">
-                                    <div class="form-check mt-4">
-                                        <input type="checkbox" class="form-check-input" id="affiliateStatus"
-                                            v-model="affiliate.status" />
-                                        <label class="form-check-label" for="affiliateStatus">Activo</label>
-                                    </div>
-                                </div>
-                                <!-- Upload Image Checkbox -->
-                                <div class="col-12 mb-3">
-                                    <div class="form-check">
-                                        <input type="checkbox" class="form-check-input" id="uploadImageCheckbox"
-                                            v-model="uploadImage">
-                                        <label class="form-check-label" for="uploadImageCheckbox">Subir imagen</label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Image Upload -->
-                            <div class="row" v-if="uploadImage">
-                                <div class="col-12 mb-3">
-                                    <label for="menuItemImg" class="form-label">Imagen</label>
-                                    <input type="file" class="form-control" id="menuItemImg" @change="previewImage"
-                                        accept="image/*">
-                                    <div v-if="imagePreview" class="mt-2">
-                                        <img :src="imagePreview" class="img-thumbnail" alt="preview"
-                                            style="max-height: 200px;">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
-                            @click="resetForm()">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="createAffiliate()"
-                            :disabled="isSubmitting">Guardar</button>
-                        <!-- Loader Spinner -->
-                        <div v-if="isSubmitting" class="d-flex justify-content-center my-3">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Cargando...</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <AddNewAffiliate 
+        :affiliate="affiliate" 
+        :categories="categories" 
+        :venezuelanStates="venezuelanStates"
+        :municipios="municipios" 
+        :parroquias="parroquias" 
+        :isSubmitting="isSubmitting"
+        @close="resetForm"
+        @save="createAffiliate"
+        @select-category="setSelectedCategory" 
+        @state-changed="onStateChange"
+        @municipality-changed="onMunicipioChange" 
+        @parish-changed="onParroquiaChange" />
 
         <!-- Modal for Editing Affiliate -->
         <div class="modal fade" id="editAffiliateModal" tabindex="-1" aria-labelledby="editAffiliateModalLabel"
@@ -1504,171 +1217,24 @@ export default {
         </div>
 
         <!-- Modal for Managing Categories -->
-        <div class="modal fade" id="manageCategoriesModal" tabindex="-1" aria-labelledby="manageCategoriesModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="manageCategoriesModalLabel">Administrar categorias</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="container">
-                            <table class="table text-center table-responsive">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">Categoría</th>
-                                        <th scope="col">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="category in modalData" :key="category.id">
-                                        <td v-if="editingCategoryId === category.id"><input type="text"
-                                                class="form-control" v-model="category.name"></td>
-                                        <td v-else>{{ category.name }}</td>
-                                        <td>
-                                            <button class="btn btn-sm btn-theme me-1" data-bs-toggle="tooltip"
-                                                data-bs-placement="top" title="Subcategorias"
-                                                @click="manageSubcategories(category.id)">
-                                                <i class="fa-solid fa-list"></i>
-                                            </button>
-                                            <button v-if="editingCategoryId === category.id"
-                                                class="btn btn-sm btn-outline-success me-1" data-bs-toggle="tooltip"
-                                                data-bs-placement="top" title="actualizar comercio"
-                                                @click="updateCategory(category.id)">
-                                                <i class="fa-solid fa-check"></i>
-                                            </button>
-                                            <button v-else class="btn btn-sm btn-outline-success me-1"
-                                                data-bs-toggle="tooltip" data-bs-placement="top"
-                                                title="Editar categoria" @click="toggleEditing(category.id)">
-                                                <i class="fa-solid fa-pencil"></i>
-                                            </button>
-                                            <button v-if="editingCategoryId === category.id" @click="cancelEditing()"
-                                                class="btn btn-sm btn-outline-danger">
-                                                <i class="fa-solid fa-times"></i>
-                                            </button>
-                                            <button v-else class="btn btn-sm btn-outline-danger"
-                                                @click="deleteCategory(category.id, index)">
-                                                <i class="fa-solid fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="addCategory">Agregar Categoría</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <manage-categories-modal :modalData="categories" :editingCategoryId="editingCategoryId"
+            @manage-subcategories="manageSubcategories" @toggle-editing="toggleEditing"
+            @update-category="updateCategory" @cancel-editing="cancelEditing" @delete-category="deleteCategory"
+            @add-category="addCategory">
+        </manage-categories-modal>
 
-        <!-- Modal to add new category -->
-        <div class="modal fade" id="addCategoryModal" tabindex="-1" aria-labelledby="addCategoryModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="addCategoryModalLabel">Nueva categoria</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <input id="newCategory" type="text" class="form-control" v-model="newCategory"
-                                aria-label="Monto" aria-describedby="value-addon">
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="createCategory()">Guardar</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Add New Category -->
+        <add-category-modal @create-category="createCategory"></add-category-modal>
 
-        <!-- Modal for Managing Subcategories -->
-        <div class="modal fade" id="manageSubcategoriesModal" tabindex="-1"
-            aria-labelledby="manageSubcategoriesModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="manageSubcategoriesModalLabel">Administrar Subcategorias</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="container">
-                            <table class="table text-center table-responsive">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">Subctegoría</th>
-                                        <th scope="col">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="subcategory in subcategoriesModalData" :key="subcategory.id">
-                                        <td v-if="editingSubcategoryId === subcategory.id"><input type="text"
-                                                class="form-control" v-model="subcategory.name"></td>
-                                        <td v-else>{{ subcategory.name }}</td>
-                                        <td>
-                                            <button v-if="editingSubcategoryId === subcategory.id"
-                                                class="btn btn-sm btn-outline-success me-1" data-bs-toggle="tooltip"
-                                                data-bs-placement="top" title="actualizar comercio"
-                                                @click="updateSubcategory(subcategory.id)">
-                                                <i class="fa-solid fa-check"></i>
-                                            </button>
-                                            <button v-else class="btn btn-sm btn-outline-success me-1"
-                                                data-bs-toggle="tooltip" data-bs-placement="top"
-                                                title="Editar subcategoria" @click="toggleSubEditing(subcategory.id)">
-                                                <i class="fa-solid fa-pencil"></i>
-                                            </button>
-                                            <button v-if="editingSubcategoryId === subcategory.id"
-                                                @click="cancelSubEditing()" class="btn btn-sm btn-outline-danger">
-                                                <i class="fa-solid fa-times"></i>
-                                            </button>
-                                            <button v-else class="btn btn-sm btn-outline-danger"
-                                                @click="deleteSubcategory(subcategory.id, index)">
-                                                <i class="fa-solid fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button type="button" class="btn btn-theme" :disabled="editingSubcategoryId"
-                            @click="addSubcategory">Agregar
-                            Subcategoría</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Modal for Managing Subcatogories -->
+        <manage-subcategories-modal :subcategoriesModalData="subcategories" :editingSubcategoryId="editingSubcategoryId"
+            @toggle-sub-editing="toggleSubEditing" @update-subcategory="updateSubcategory"
+            @cancel-sub-editing="cancelSubEditing" @delete-subcategory="deleteSubcategory"
+            @add-subcategory="addSubcategory">
+        </manage-subcategories-modal>
 
-        <!-- Modal to add new Subcategory -->
-        <div class="modal fade" id="addSubcategoryModal" tabindex="-1" aria-labelledby="addSubcategoryModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="addSubcategoryModalLabel">Nueva Subcategoria</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <input id="newSubcategory" type="text" class="form-control" v-model="newSubcategory"
-                                aria-label="Monto" aria-describedby="value-addon">
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="submitSubcategory()">Guardar</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Add New Subcategory -->
+        <add-subcategory-modal @submit-subcategory="submitSubcategory"></add-subcategory-modal>
     </div>
 
     <div v-if="this.role === 'cliente'" class="container">

@@ -7,7 +7,7 @@ import { ref as dbRef, get, update } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
 import { createPopper } from '@popperjs/core';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import { RouterLink } from 'vue-router';
 
@@ -67,19 +67,6 @@ export default defineComponent({
         };
     },
     methods: {
-        showToast(message) {
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                },
-            }).showToast();
-        },
         async sendEmail(payload) {
             try {
                 const sendEmailFunction = httpsCallable(functions, 'sendEmail');
@@ -227,7 +214,7 @@ export default defineComponent({
                 await this.sendEmail(emailPayload);
 
                 //Success toast
-                this.showToast('Archivos subidos!');
+                showToast('Archivos subidos!');
 
                 //reset the image previews
                 this.idFrontPreview = null;

@@ -4,10 +4,9 @@ import { ref as storageRef, listAll, getDownloadURL, deleteObject } from 'fireba
 import { db, storage, functions } from '@/firebase/init';
 import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
-import * as XLSX from 'xlsx';
-import moment from 'moment';
+import * as XLSX from "xlsx";
 import venezuela from 'venezuela';
 
 export default {
@@ -109,19 +108,6 @@ export default {
         }
     },
     methods: {
-        showToast(message) {
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                },
-            }).showToast();
-        },
         displayMunicipios(state) {
             const z = venezuela.estado(state, { municipios: true });
             const munis = z.municipios;
@@ -398,15 +384,7 @@ export default {
                 const response = await createClientFunction({ userData });
 
                 if (response.data.success) {
-                    Toastify({
-                        text: "Nuevo Cliente registrado con exito! Se ha enviado la contraseña al correo.",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
-                        style: { background: "linear-gradient(to right, #00b09b, #96c93d)" }
-                    }).showToast();
+                    showToast("Nuevo Cliente registrado con exito! Se ha enviado la contraseña al correo.");
 
                     // Reset form
                     this.resetForm();
@@ -462,17 +440,7 @@ export default {
                     this.cancelEdit();
                     this.fetchClients();
 
-                    Toastify({
-                        text: "Información actualizada!",
-                        duration: 3000,
-                        close: true,
-                        gravity: 'top',
-                        position: 'right',
-                        stopOnFocus: true,
-                        style: {
-                            background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                        },
-                    }).showToast();
+                    showToast("Información actualizada!");
                 } else {
                     alert('No hay campos para actualizar.');
                 }
@@ -503,17 +471,7 @@ export default {
                     console.log('Deleted from database: ', client.firstName + ' ' + client.lastName);
 
                     // Show success toast
-                    Toastify({
-                        text: "Borrado del registro y autenticación.",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
-                        style: {
-                            background: "linear-gradient(to right, #db231d, #96c93d)",
-                        },
-                    }).showToast();
+                    showToast("Borrado del registro y autenticación.");
 
                     // Remove the client from the UI
                     this.clients.splice(index, 1);
@@ -568,7 +526,7 @@ export default {
                 };
                 await this.sendEmail(emailPayload);
 
-                this.showToast('Usuario verificado con éxito.');
+                showToast('Usuario verificado con éxito.');
                 this.fetchIdFiles(client);
             } catch (error) {
                 console.error("Error approving ID:", error);
@@ -638,12 +596,12 @@ export default {
                     await this.sendEmail(emailPayload);
 
                     // Show a success toast and refresh client list
-                    this.showToast('Verificación denegada y archivos eliminados.');
+                    showToast('Verificación denegada y archivos eliminados.');
                     this.fetchClients();
 
                 } catch (error) {
                     console.error("Error disapproving verification:", error);
-                    this.showToast('Error al denegar la verificación. Por favor, inténtelo nuevamente.');
+                    showToast('Error al denegar la verificación. Por favor, inténtelo nuevamente.');
                 } finally {
                     // Hide the loader
                     this.isSubmitting = false;
@@ -671,7 +629,7 @@ export default {
                 };
                 await this.sendEmail(emailPayload);
 
-                this.showToast('Pago aprobado. Se ha notificado al cliente.');
+                showToast('Pago aprobado. Se ha notificado al cliente.');
                 //Close Payment modal after approval
                 const modal = Modal.getOrCreateInstance(document.getElementById('validateModal'));
                 modal.hide();
@@ -701,23 +659,34 @@ export default {
             window.open(url, '_blank');
         },
 
-        // async searchClient(){
-        //     const id = 26522446;
-        //     const clientRef = query(dbRef(db, `Users`), orderByChild('identification'), equalTo(id));
-        //     const clientSnapshot = await get(clientRef);
+        // Export clientos to xlsx file
+        async downloadClients() {
+            if (!this.clients || !this.clients.length) {
+                alert('No hay datos para descargar.');
+                return;
+            }
 
-        //     if (clientSnapshot.exists()) {
-        //         clientSnapshot.forEach(childSnapshot => {
-        //         const clientKey = childSnapshot.key; // Get the key of the client
-        //         const clientData = childSnapshot.val(); // Get the client data
+            const formattedClients = this.clients.map(client => ({
+                Nombre: `${client.firstName} ${client.lastName}` || "Desconocido",
+                Cedula: client.identification,
+                Email: client.email || "Sin Email",
+                Telefono: client.phoneNumber || "Sin telefono",
+                // Fecha de Registro: new Date(client.createdAt).toLocaleDateString(), // Format date
+            }));
 
-        //         console.log('Client Key:', clientKey);
-        //         console.log('Client Data:', clientData);
+            // Convert to worksheet and download
+            const worksheet = XLSX.utils.json_to_sheet(formattedClients);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Clients');
+            XLSX.writeFile(workbook, 'Clients.xlsx');
+        },
+
+        // testToast() {
+        //     showToast('Custom background color', {
+                style: {
+                    background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
+                },
         //     });
-
-        //     } else {
-        //         console.log('Cliente no existe')
-        //     }
         // }
     }
 }
@@ -729,11 +698,14 @@ export default {
         </h2>
 
         <div class="d-flex justify-content-end align-items-center">
-            <a href="#" class="btn btn-theme me-2" data-bs-toggle="modal" data-bs-target="#addClientModal">
+            <a href="#" class="btn btn-theme btn-sm me-2" data-bs-toggle="modal" data-bs-target="#addClientModal">
                 <i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Cliente
             </a>
-            <!-- <a href="#" class="btn btn-theme" @click="searchClient">
-                <i class="fa fa-plus-circle fa-fw me-1"></i> Search client
+            <a href="#" class="btn btn-theme btn-sm me-2" @click="downloadClients()">
+                <i class="fa fa-download fa-fw me-1"></i> Exportar clientes
+            </a>
+            <!-- <a href="#" class="btn btn-theme btn-sm me-2" @click="testToast()">
+                Test Toast
             </a> -->
         </div>
 
@@ -743,11 +715,12 @@ export default {
                 <input v-model="searchQuery" placeholder="Filtrar cliente por nombre o cedula..." class="form-control">
             </div>
 
+            <p class="m-3 text-center">{{ clients.length }} Clientes registrados</p>
+
             <div>
                 <div class="text-center" v-if="loading">
                     <p>Cargando lista de clientes, puede tardar un minuto...</p>
-                    <span class="spinner-border spinner-border-sm" role="status"
-                        aria-hidden="true"></span>
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                 </div>
                 <div v-else>
                     <div class="accordion" id="clientAccordion">
@@ -1001,35 +974,51 @@ export default {
                                                     <div class="accordion-body">
                                                         <!-- Check if coupons exist -->
                                                         <div v-if="clientCoupons[client.uid]">
-                                                        <!-- Responsive grid of coupons -->
-                                                        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 mb-4">
-                                                            <!-- Coupon card -->
-                                                            <div class="col" v-for="coupon in clientCoupons[client.uid]" :key="coupon.id">
-                                                                <div class="card h-100 shadow-lg rounded-3 border-0">
-                                                                    <div class="card-header bg-dark text-white text-center">
-                                                                        <h5 class="card-title mb-1">Cupón</h5>
-                                                                        <h6 class="fw-bold">{{ coupon.name }}</h6>
-                                                                    </div>
-                                                                    <div class="card-body">
-                                                                        <div class="d-flex flex-column justify-content-between h-100">
-                                                                            <p class="mb-3">
-                                                                                <strong class="d-block">
-                                                                                    {{ coupon.type === `saldo` ? `Saldo: $` : `Porcentaje: % ` }} {{ coupon.balance }}
-                                                                                </strong>
-                                                                                <strong>Válido hasta:</strong> {{ formatDate(coupon.expiration) }} <br>
-                                                                                <strong>Estado: </strong>
-                                                                                <span v-if="coupon.status" class="badge bg-success">Activo</span>
-                                                                                <span v-else class="badge bg-danger">Inactivo</span>
-                                                                            </p>
-                                                                            <div class="d-flex justify-content-center align-items-center mt-2">
-                                                                                <img class="thumbnail img-fluid" :src="coupon.qrFileUrl" alt="Código QR" style="max-width: 80px; border-radius: 8px;">
+                                                            <!-- Responsive grid of coupons -->
+                                                            <div
+                                                                class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 mb-4">
+                                                                <!-- Coupon card -->
+                                                                <div class="col"
+                                                                    v-for="coupon in clientCoupons[client.uid]"
+                                                                    :key="coupon.id">
+                                                                    <div
+                                                                        class="card h-100 shadow-lg rounded-3 border-0">
+                                                                        <div
+                                                                            class="card-header bg-dark text-white text-center">
+                                                                            <h5 class="card-title mb-1">Cupón</h5>
+                                                                            <h6 class="fw-bold">{{ coupon.name }}</h6>
+                                                                        </div>
+                                                                        <div class="card-body">
+                                                                            <div
+                                                                                class="d-flex flex-column justify-content-between h-100">
+                                                                                <p class="mb-3">
+                                                                                    <strong class="d-block">
+                                                                                        {{ coupon.type === `saldo` ?
+                                                                                            `Saldo: $` : `Porcentaje: % ` }}
+                                                                                        {{ coupon.balance }}
+                                                                                    </strong>
+                                                                                    <strong>Válido hasta:</strong> {{
+                                                                                        formatDate(coupon.expiration) }}
+                                                                                    <br>
+                                                                                    <strong>Estado: </strong>
+                                                                                    <span v-if="coupon.status"
+                                                                                        class="badge bg-success">Activo</span>
+                                                                                    <span v-else
+                                                                                        class="badge bg-danger">Inactivo</span>
+                                                                                </p>
+                                                                                <div
+                                                                                    class="d-flex justify-content-center align-items-center mt-2">
+                                                                                    <img class="thumbnail img-fluid"
+                                                                                        :src="coupon.qrFileUrl"
+                                                                                        alt="Código QR"
+                                                                                        style="max-width: 80px; border-radius: 8px;">
+                                                                                </div>
                                                                             </div>
                                                                         </div>
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    </div>
                                                         <!-- Show "No hay cupones" if no coupons are available -->
                                                         <p v-else class="text-center">No hay cupones.</p>
                                                     </div>
@@ -1092,7 +1081,7 @@ export default {
                                                                 <div v-else>
                                                                     <strong>Pago: </strong>
                                                                     <span class="badge bg-danger ms-2">Sin pagar</span>
-                                                                </div>                                                                
+                                                                </div>
                                                             </li>
 
                                                             <!-- Subscription Renewal Date -->

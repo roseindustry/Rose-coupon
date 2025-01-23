@@ -4,7 +4,7 @@ import { ref as dbRef, push, update, get, set, remove, query, orderByChild, equa
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import SearchInput from '@/components/app/SearchInput.vue';
 import ManageCoupons from '@/components/Admin/manageCoupons.vue';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import datepicker from 'vue3-datepicker';
 import 'vue-datepicker-next/index.css';
@@ -172,19 +172,6 @@ export default {
         },
     },
     methods: {
-        showToast(message) {
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                },
-            }).showToast();
-        },
         goToPage(page) {
             if (page >= 1 && page <= this.totalPages) {
                 this.currentPage = page;
@@ -818,13 +805,17 @@ export default {
                 }
 
                 // Show success message
-                this.showToast('Cupon actualizado con éxito!');
+                showToast('Cupon actualizado con éxito!');
 
                 // Clear the editingCoupon state after saving
                 this.editingCoupon = null;
             } catch (error) {
                 console.error('Error saving coupon:', error);
-                this.showToast('Error al actualizar el cupon. Inténtalo de nuevo.');
+                showToast('Error al actualizar el cupon. Inténtalo de nuevo.', {
+                    style: {
+                        background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
+                    },
+                });
             }
         },
         cancelEdit() {
@@ -835,7 +826,7 @@ export default {
                 const couponRef = dbRef(db, `Coupons/${coupon.id}`);
                 await update(couponRef, { status: coupon.status });
 
-                this.showToast('Estado del cupon actualizado con exito!');
+                showToast('Estado del cupon actualizado con exito!');
             } catch (error) {
                 console.error('Error updating coupon status:', error);
                 alert('La actualización del estado del cupon falló.');
@@ -846,7 +837,7 @@ export default {
                 const couponRef = dbRef(db, `Coupons/${coupon.id}`);
                 await update(couponRef, { isPaid: coupon.isPaid });
 
-                this.showToast('Cupon pagado!');
+                showToast('Cupon pagado!');
             } catch (error) {
                 console.error('Error updating coupon payment status:', error);
                 alert('La actualización del estado de pago falló.');
@@ -907,7 +898,7 @@ export default {
             try {
                 await set(newCouponRef, couponData);
 
-                this.showToast('Cupon creado con exito!');
+                showToast('Cupon creado con exito!');
 
                 // Reset form fields
                 this.couponName = '';
@@ -999,7 +990,7 @@ export default {
                     }
                 }
 
-                this.showToast('Cupones asignados con éxito!');
+                showToast('Cupones asignados con éxito!');
                 this.selectedCoupons = []; // Clear selected coupons
                 this.selectedClients = []; // Clear selected clients
                 this.searchClient = ''; // Reset client search if needed
@@ -1097,10 +1088,10 @@ export default {
                         // Assign existing coupon
                         const userCouponRef = dbRef(db, `Users/${clientId}/coupons/${newCouponKey}`);
                         await set(userCouponRef, newCouponKey);
-                        this.showToast('Cupon asignado con exito!');
+                        showToast('Cupon asignado con exito!');
                     }
                 } else {
-                    this.showToast('Cupon creado con exito!');
+                    showToast('Cupon creado con exito!');
                 }
 
                 // Reset form fields and UI
@@ -1122,17 +1113,11 @@ export default {
                     // Remove the coupon from the local state
                     this.coupons.splice(index, 1);
 
-                    Toastify({
-                        text: 'Cupon eliminado con éxito!',
-                        duration: 3000,
-                        close: true,
-                        gravity: 'top',
-                        position: 'right',
-                        stopOnFocus: true,
+                    showToast('Cupon eliminado con éxito!', {
                         style: {
                             background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
                         },
-                    }).showToast();
+                    });
                     this.loadCoupons();
                 } catch (error) {
                     console.error('Error deleting coupon:', error);
@@ -1355,7 +1340,7 @@ export default {
                 // Check if the coupon was successfully added to 'appliedCoupons' and removed from the client
                 const checkAppliedCoupon = await get(newAppliedCouponRef);
                 if (checkAppliedCoupon.exists()) {
-                    this.showToast('Cupón aplicado con éxito.');
+                    showToast('Cupón aplicado con éxito.');
                 } else {
                     console.error('Failed to apply coupon');
                     alert('Error al aplicar el cupón');

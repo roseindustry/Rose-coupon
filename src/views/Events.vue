@@ -3,7 +3,7 @@ import { ref as dbRef, query, orderByChild, equalTo, set, get, push, update, rem
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/firebase/init';
 import { Modal } from 'bootstrap';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import { useUserStore } from "@/stores/user-role";
 import { isAfter, parseISO, format } from "date-fns";
@@ -87,19 +87,6 @@ export default {
 
 			this.paymentFile = file;
 			this.paymentPreview = URL.createObjectURL(file);
-		},
-		showToast(message) {
-			Toastify({
-				text: message,
-				duration: 3000,
-				close: true,
-				gravity: 'top',
-				position: 'right',
-				stopOnFocus: true,
-				style: {
-					background: 'linear-gradient(to right, #00b09b, #96c93d)',
-				},
-			}).showToast();
 		},
 		sortEventsByOrder(order = 'asc') {
 			this.events.sort((a, b) => {
@@ -332,12 +319,16 @@ export default {
 					}
 				}
 
-				this.showToast('Evento creado con éxito!');
+				showToast('Evento creado con éxito!');
 				this.resetForm();
 				await this.fetchEvents();
 			} catch (error) {
 				console.error('Error creating event:', error);
-				this.showToast(error.message || 'Error al crear el evento.', 'error');
+				showToast(error.message || 'Error al crear el evento.', {
+					style: {
+						background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
+					},
+				});
 			} finally {
 				this.isSubmitting = false;
 			}
@@ -397,12 +388,16 @@ export default {
 				const newRaffleRef = push(raffleRef);
 				await set(newRaffleRef, data);
 
-				this.showToast('Rifa creada con éxito!');
+				showToast('Rifa creada con éxito!');
 				this.resetForm();
 				await this.fetchEvents();
 			} catch (error) {
 				console.error('Error creating raffle:', error);
-				this.showToast(error.message || 'Error al crear la rifa.', 'error');
+				showToast(error.message || 'Error al crear la rifa.', {
+					style: {
+						background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
+					},
+				});
 			} finally {
 				this.isSubmitting = false;
 			}
@@ -417,17 +412,7 @@ export default {
 					// Remove the coupon from the local state
 					this.events.splice(index, 1);
 
-					Toastify({
-						text: 'Evento eliminado con éxito!',
-						duration: 3000,
-						close: true,
-						gravity: 'top',
-						position: 'right',
-						stopOnFocus: true,
-						style: {
-							background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
-						},
-					}).showToast();
+					showToast('Evento eliminado con éxito!');
 				} catch (error) {
 					console.error('Error deleting event:', error);
 					alert('La eliminación del evento falló.');
@@ -547,7 +532,7 @@ export default {
 				}
 
 				// Success notification
-				this.showToast('Evento actualizado con exito!');
+				showToast('Evento actualizado con exito!');
 
 				// Close the modal after saving
 				const modal = Modal.getInstance(document.getElementById('editEventModal'));
@@ -701,10 +686,10 @@ export default {
 		copyToClipboard(text) {
 			navigator.clipboard.writeText(text)
 				.then(() => {
-					this.showToast('Texto copiado!');
+					showToast('Texto copiado!');
 				})
 				.catch(err => {
-					this.showToast.error('Error: ', err);
+					showToast.error('Error: ', err);
 				});
 		},
 		togglePaymentMethods() {
@@ -854,7 +839,7 @@ export default {
 
 				//Success toast
 
-				this.showToast('Boletos comprados exitosamente!');
+				showToast('Boletos comprados exitosamente!');
 
 				//reset the image previews
 				this.paymentPreview = null;
@@ -1431,8 +1416,7 @@ export default {
 						<!-- Tickets -->
 						<div class="d-flex justify-content-center flex-wrap gap-2 mb-3">
 							<button v-for="ticket in modalEvent?.raffle?.ticketLimit" :key="ticket"
-								:disabled="raffleTickets.some(soldTicket => soldTicket.ticketNumber === ticket)"
-								:class="[
+								:disabled="raffleTickets.some(soldTicket => soldTicket.ticketNumber === ticket)" :class="[
 									'btn',
 									'rounded-circle',
 									'ticket-button',

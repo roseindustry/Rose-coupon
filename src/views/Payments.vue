@@ -5,7 +5,7 @@ import { db, storage, functions } from '@/firebase/init';
 import { httpsCallable } from 'firebase/functions';
 import { useUserStore } from '@/stores/user-role';
 import { Modal } from 'bootstrap';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 
 export default {
@@ -30,19 +30,6 @@ export default {
         await this.fetchPaymentHistory('subscription');
     },
     methods: {
-        showToast(message) {
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                },
-            }).showToast();
-        },
         formatDate(date) {
             if (!date) return ''; // Handle invalid dates or null values
             const d = new Date(date);
@@ -457,7 +444,7 @@ export default {
                 };
                 await this.sendEmail(emailPayload);
 
-                this.showToast('Pago aprobado. Se ha notificado al cliente.');
+                showToast('Pago aprobado. Se ha notificado al cliente.');
                 //Close Payment modal after approval
                 const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
                 modal.hide();
@@ -586,7 +573,7 @@ export default {
                     };
                     await this.sendEmail(emailPayload);
 
-                    this.showToast('Pago aprobado. Se ha notificado al cliente.');
+                    showToast('Pago aprobado. Se ha notificado al cliente.');
                     //Close Payment modal after approval
                     const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
                     modal.hide();
@@ -635,7 +622,7 @@ export default {
                     };
                     await this.sendEmail(emailPayload);
 
-                    this.showToast('Pago desaprobado. Se ha notificado al cliente.');
+                    showToast('Pago desaprobado. Se ha notificado al cliente.');
                     const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
                     modal.hide();
 

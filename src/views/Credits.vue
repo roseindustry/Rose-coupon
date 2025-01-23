@@ -5,7 +5,7 @@ import { httpsCallable } from 'firebase/functions';
 import { ref as storageRef, uploadBytes, getDownloadURL, listAll } from 'firebase/storage';
 import SearchInput from '@/components/app/SearchInput.vue';
 import { Modal } from 'bootstrap';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import { useUserStore } from "@/stores/user-role";
 
@@ -162,19 +162,6 @@ export default {
         }
     },
     methods: {
-        showToast(message) {
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                },
-            }).showToast();
-        },
         formatDate(dateString) {
             const [year, month, day] = dateString.split("-");
             return `${day}-${month}-${year}`;
@@ -224,10 +211,25 @@ export default {
         },
         async sendEmail(payload) {
             try {
-                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-                await sendEmailFunction(payload);
+                const response = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/sendEmail', {
+                    method: 'POST', // HTTP method
+                    headers: {
+                        'Content-Type': 'application/json', // Content type for JSON data
+                    },
+                    body: JSON.stringify(payload), // Convert payload to JSON
+                });
+
+                const result = await response.json(); // Parse the JSON response
+
+                if (response.ok) {
+                    console.log("Email sent:", result.message);
+                } else {
+                    console.error('Error sending email:', result.error);
+                    alert("Failed to send email. Please try again later.");
+                }
             } catch (error) {
                 console.error('Error sending email:', error);
+                alert("Failed to send email. Please try again later.");
             }
         },
 
@@ -261,8 +263,8 @@ export default {
                     ...newLevel
                 });
 
-                this.showToast(`${newLevel.name} creado con éxito.`);
-                
+                showToast(`${newLevel.name} creado con éxito.`);
+
                 // Reset the form
                 this.level = { name: '', minPoints: 0, maxPoints: 0 };
             } catch (error) {
@@ -270,7 +272,7 @@ export default {
                 alert('No se pudo crear el nivel.');
             }
         },
-        async fetchLevels(){
+        async fetchLevels() {
             const levelsRef = dbRef(db, `Levels`);
 
             try {
@@ -292,7 +294,7 @@ export default {
                     this.levels = await Promise.all(levelPromises);
                 } else {
                     this.levels = [];
-                }                
+                }
             } catch (error) {
                 console.error('Error fetching levels:', error);
                 this.levels = [];
@@ -645,7 +647,7 @@ export default {
                     }
                     await update(creditRef, value);
 
-                    this.showToast('Valor actualizado!');
+                    showToast('Valor actualizado!');
 
                     // Reset form fields
                     this.creditValue = 0;
@@ -744,11 +746,11 @@ export default {
             if (!this.selectedEntities.some(entity => entity.id === selectedEntityId)) {
                 this.selectedEntities.push({
                     id: selectedEntityId,
-                    name: this.creditType === 'client' 
-                        ? `${user.firstName} ${user.lastName}` 
+                    name: this.creditType === 'client'
+                        ? `${user.firstName} ${user.lastName}`
                         : user.companyName,
-                    identification: this.creditType === 'client' 
-                        ? user.identification 
+                    identification: this.creditType === 'client'
+                        ? user.identification
                         : user.rif,
                     ...user
                 });
@@ -756,7 +758,7 @@ export default {
                 console.log(`Selected ${this.creditType}:`, selectedEntityId);
             } else {
                 console.log(`${this.creditType} already selected:`, selectedEntityId);
-            }            
+            }
 
             // Clear the search input and results after selection
             this.searchEntity = '';
@@ -770,7 +772,7 @@ export default {
             }
             console.log('DeSelected user: ', user.id);
         },
-        showUserDetails(user){
+        showUserDetails(user) {
             if (this.selectedUser?.id === user.id) {
                 this.showDetails = !this.showDetails;
             } else {
@@ -793,8 +795,8 @@ export default {
             }
 
             if (!this.selectedEntities.length || this.creditAmount <= 0) {
-                const message = this.creditType === 'client' 
-                    ? 'Por favor seleccione al menos un cliente y un monto a asignar.' 
+                const message = this.creditType === 'client'
+                    ? 'Por favor seleccione al menos un cliente y un monto a asignar.'
                     : 'Por favor seleccione al menos un comercio y un monto a asignar.';
                 alert(message);
                 return;
@@ -824,7 +826,7 @@ export default {
                         availableCredit: newEntityCredit,
                     });
 
-                    this.showToast(
+                    showToast(
                         `Al ${this.creditType === 'client' ? 'cliente' : 'comercio'} ${entity.id} se le asignó un crédito de $${newEntityCredit}`
                     );
 
@@ -869,27 +871,27 @@ export default {
             }
         },
         // Update an affiliate or client's credit
-        editCredit(user, userType, creditLine){
+        editCredit(user, userType, creditLine) {
             this.userType = userType;
             this.editUserData = user;
             this.creditLine = creditLine;
             const modal = new Modal(document.getElementById('edit-credit-modal'));
             modal.show();
         },
-        async updateCredit(user, creditType, creditLine){
+        async updateCredit(user, creditType, creditLine) {
             try {
                 this.loading = true;
 
                 let userName = '';
 
-                    if (creditType === 'client') {
-                        userName = `${user.firstName} ${user.lastName}`;
-                    } else if (creditType === 'affiliate') {
-                        userName = `${user.companyName}`;
-                    }
+                if (creditType === 'client') {
+                    userName = `${user.firstName} ${user.lastName}`;
+                } else if (creditType === 'affiliate') {
+                    userName = `${user.companyName}`;
+                }
 
                 const userCreditRef = dbRef(db, `Users/${user.id}/credit/${creditLine}`);
-                
+
                 // Fetch the current credit values
                 const snapshot = await get(userCreditRef);
                 if (!snapshot.exists()) {
@@ -908,25 +910,25 @@ export default {
 
                 // Update totalCredit and adjust availableCredit by the difference
                 const newAvailableCredit = currentAvailableCredit + creditDifference;
-                
+
                 await update(userCreditRef, {
                     totalCredit: newTotalCredit,
                     availableCredit: newAvailableCredit,
                 });
 
-                this.showToast('Crédito actualizado!');
+                showToast('Crédito actualizado!');
 
                 // Notify the user
                 const clientEmailPayload = {
-                        to: user.email,
-                        message: {
-                            subject: `Línea de crédito modificada`,
-                            text: `Hola ${userName}, su línea de crédito en Roseapp ha sido modificada.                        
+                    to: user.email,
+                    message: {
+                        subject: `Línea de crédito modificada`,
+                        text: `Hola ${userName}, su línea de crédito en Roseapp ha sido modificada.                        
                         Ingresa a la app.`,
-                            html: `<p>Hola ${userName}, su línea de crédito en Roseapp ha sido modificada.</p>
+                        html: `<p>Hola ${userName}, su línea de crédito en Roseapp ha sido modificada.</p>
                         <p>Ingresa a la app.</p>`
-                        },
-                    };
+                    },
+                };
                 await this.sendEmail(clientEmailPayload);
 
                 this.fetchClients();
@@ -970,7 +972,7 @@ export default {
 
                     if (purchasesSnapshot.exists()) {
                         const purchases = purchasesSnapshot.val();
-                        
+
                         // Move purchases to archive
                         const archivePurchasesPath = `Archive/${user.id}/purchases`;
                         updates[archivePurchasesPath] = purchases;
@@ -1000,7 +1002,7 @@ export default {
                     // Update UI
                     this.calculateMainCredits();
 
-                    this.showToast(`Línea de crédito archivada.`);
+                    showToast(`Línea de crédito archivada.`);
 
                     // Notify the user
                     const clientEmailPayload = {
@@ -1154,20 +1156,29 @@ export default {
             }
         },
         async sendVerificationCode(client) {
-            const verificationCode = await this.generateAndStoreCode(client.id);
+            if (!client.email) {
+                console.error("Client email is missing.");
+                return;
+            }
 
-            const payload = {
-                to: client.email,
-                message: {
-                    subject: `Su Código de verificación`,
-                    text: `Hola ${client.firstName}, tu código de verificación de RoseCoupon es: ${verificationCode}.`,
-                    html: `<p>Hola ${client.firstName}, tu código de verificación de RoseCoupon es: ${verificationCode}.</p>`
-                },
-            };
+            try {
+                // Generate the verification code
+                const verificationCode = await this.generateAndStoreCode(client.id);
 
-            // Send via Email
-            if (client.email) {
+                // Create the payload
+                const payload = {
+                    to: client.email,
+                    message: {
+                        subject: "Su Código de verificación",
+                        text: `Hola ${client.firstName}, tu código de verificación de RoseCoupon es: ${verificationCode}.`,
+                        html: `<p>Hola ${client.firstName}, tu código de verificación de RoseCoupon es: ${verificationCode}.</p>`,
+                    },
+                };
+
+                // Send email via Cloud Function
                 await this.sendEmail(payload);
+            } catch (error) {
+                console.error("Error sending verification code:", error);
             }
         },
         async verifyCode(clientId, enteredCode) {
@@ -1299,7 +1310,7 @@ export default {
                 const affiliatePurchaseRef = dbRef(db, `Users/${this.userId}/credit/sales/${purchaseId}`);
                 await set(affiliatePurchaseRef, purchaseData);
 
-                this.showToast('Compra registrada!');
+                showToast('Compra registrada!');
 
                 // Reset form fields
                 this.selectedClient = null;
@@ -1335,7 +1346,7 @@ export default {
             const client = this.allClients.find(c => c.id === clientId);
             return client ? client.firstName + ' ' + client.lastName : "Unknown Client";
         },
-        getClientLevel(levelId){
+        getClientLevel(levelId) {
             const level = this.levels.find(l => l.id === levelId);
             return level ? level.name : "Nivel Desconocido";
         },
@@ -1410,7 +1421,7 @@ export default {
                     // Optionally update the UI to reflect the change
                     purchaseData.paid = true;
 
-                    this.showToast("Pagado!");
+                    showToast("Pagado!");
                 } catch (error) {
                     console.error("Error marking purchase as paid:", error);
                     alert("An error occurred while marking the purchase as paid.");
@@ -1463,7 +1474,7 @@ export default {
 
                 console.log(this.purchaseWithAffiliateData); // Verify enriched data
             }
-        },        
+        },
         payCuota(purchaseId, cuotaIndex) {
             if (confirm("¿Desea pagar esta cuota? Debe subir un comprobante de Pago")) {
                 this.cuotaToPay = {
@@ -1560,10 +1571,10 @@ export default {
                                 totalCredit
                             });
 
-                            this.showToast(`¡Felicidades! Has alcanzado el nivel ${newLevel.name}.`);
+                            showToast(`¡Felicidades! Has alcanzado el nivel ${newLevel.name}.`);
                         } else {
                             await update(userCreditRef, { points: currentPoints });
-                            this.showToast(`Ganaste ${pointsEarned} puntos. Total: ${currentPoints} puntos.`);
+                            showToast(`Ganaste ${pointsEarned} puntos. Total: ${currentPoints} puntos.`);
                         }
                     }
                 }
@@ -1583,7 +1594,7 @@ export default {
                 await set(paymentRef, paymentDetails);
 
                 //Success toast
-                this.showToast('Comprobante subido!');
+                showToast('Comprobante subido!');
 
                 //reset the image previews
                 this.paymentPreview = null;
@@ -1602,13 +1613,13 @@ export default {
                 this.loading = false;
             }
         },
-        showPointsSystem(){
+        showPointsSystem() {
             if (!this.showPointsBreakdown) {
                 this.showPointsBreakdown = true;
             } else {
                 this.showPointsBreakdown = false;
             }
-            
+
         }
     },
     async mounted() {
@@ -1643,8 +1654,8 @@ export default {
     <div v-if="this.role === 'admin'" class="container">
 
         <div class="d-flex justify-content-end align-items-center mb-4 mt-3">
-            <a href="#" class="btn btn-theme me-2" data-bs-toggle="modal"
-            data-bs-target="#levelsModal">Administrar Niveles
+            <a href="#" class="btn btn-theme me-2" data-bs-toggle="modal" data-bs-target="#levelsModal">Administrar
+                Niveles
             </a>
         </div>
 
@@ -2171,8 +2182,12 @@ export default {
                                                 <td>{{ level.name }}</td>
                                                 <td>{{ level.minPoints }} - {{ level.maxPoints }}</td>
                                                 <td>
-                                                    <button class="btn btn-info btn-sm me-2" @click="editLevel(level)"><i class="fa-solid fa-pencil"></i></button>
-                                                    <button class="btn btn-danger btn-sm" @click="deleteLevel(level.id)"><i class="fa-solid fa-trash"></i></button>
+                                                    <button class="btn btn-info btn-sm me-2"
+                                                        @click="editLevel(level)"><i
+                                                            class="fa-solid fa-pencil"></i></button>
+                                                    <button class="btn btn-danger btn-sm"
+                                                        @click="deleteLevel(level.id)"><i
+                                                            class="fa-solid fa-trash"></i></button>
                                                 </td>
                                             </tr>
                                         </tbody>
@@ -2196,17 +2211,20 @@ export default {
                             </div>
                             <div class="col-6 mb-3">
                                 <label class="form-label">Puntos Mínimos <span class="text-danger">*</span></label>
-                                <input v-model.number="level.minPoints" type="number" class="form-control form-control-lg fs-15px" required />
+                                <input v-model.number="level.minPoints" type="number"
+                                    class="form-control form-control-lg fs-15px" required />
                             </div>
                             <div class="col-6 mb-3">
                                 <label class="form-label">Puntos Máximos <span class="text-danger">*</span></label>
-                                <input v-model.number="level.maxPoints" type="number" class="form-control form-control-lg fs-15px" required />
+                                <input v-model.number="level.maxPoints" type="number"
+                                    class="form-control form-control-lg fs-15px" required />
                             </div>
-                            <button type="button" class="btn btn-theme d-inline-flex justify-content-center" @click="createLevel()" style="width: auto;">Guardar</button>
+                            <button type="button" class="btn btn-theme d-inline-flex justify-content-center"
+                                @click="createLevel()" style="width: auto;">Guardar</button>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>                        
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                     </div>
                 </div>
             </div>
@@ -2258,26 +2276,26 @@ export default {
                             <SearchInput v-model="searchEntity" :results="searchEntityResults"
                                 :placeholder="creditType === 'client' ? 'Busque un cliente por su cédula...' : 'Busque un comercio por su nombre...'"
                                 @input="searchEntities" @select="selectEntity" class="form-control mb-3" />
-                            
+
                             <!-- Display selected entities information -->
-                            <p>{{ selectedEntities.length }} {{ creditType === 'client' ? 'Clientes' : 'Comercios' }} seleccionados</p>
-                            
+                            <p>{{ selectedEntities.length }} {{ creditType === 'client' ? 'Clientes' : 'Comercios' }}
+                                seleccionados</p>
+
                             <div v-if="selectedEntities.length > 0" class="mb-3">
                                 <div class="row g-3">
-                                    <div class="col-4 col-sm-6 col-md-3" v-for="user in selectedEntities" 
+                                    <div class="col-4 col-sm-6 col-md-3" v-for="user in selectedEntities"
                                         :key="user.id">
-                                        <div class="p-3 border rounded d-flex justify-content-between align-items-center" style="background-color: transparent; height: auto;">
+                                        <div class="p-3 border rounded d-flex justify-content-between align-items-center"
+                                            style="background-color: transparent; height: auto;">
                                             <div class="text-truncate" style="max-width: 75%;">
                                                 <a href="#" @click.prevent="showUserDetails(user)">{{ user.name }}</a>
                                             </div>
-                                            <button 
-                                                class="btn btn-danger btn-sm" 
-                                                @click="deselectEntity(user)"
+                                            <button class="btn btn-danger btn-sm" @click="deselectEntity(user)"
                                                 aria-label="Remove selection">
                                                 <i class="fa fa-times"></i>
                                             </button>
                                         </div>
-                                    </div>                                
+                                    </div>
                                 </div>
                             </div>
 
@@ -2301,13 +2319,13 @@ export default {
                                     </p>
                                     <p>
                                         <strong>Disponible: </strong> {{ selectedUser.credit.availablePlusCredit ?
-                                        `$${selectedUser.credit.availablePlusCredit}` : '$0' }}
+                                            `$${selectedUser.credit.availablePlusCredit}` : '$0' }}
                                     </p>
                                 </div>
                                 <div v-else>
                                     <p class="text-center">El cliente no posee Líneas de Crédito.</p>
-                                </div>                                
-                            </div>                            
+                                </div>
+                            </div>
 
                             <div class="mb-3">
                                 <!-- Radio Buttons for Line of Credit -->
@@ -2356,11 +2374,13 @@ export default {
                         <div class="mb-3">
                             <label class="form-label d-block">Línea de Crédito</label>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" id="mainLine" value="main" v-model="creditLine">
+                                <input class="form-check-input" type="radio" id="mainLine" value="main"
+                                    v-model="creditLine">
                                 <label class="form-check-label" for="mainLine">Principal</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" id="plusLine" value="plus" v-model="creditLine">
+                                <input class="form-check-input" type="radio" id="plusLine" value="plus"
+                                    v-model="creditLine">
                                 <label class="form-check-label" for="plusLine">Plus</label>
                             </div>
                         </div>
@@ -2370,21 +2390,17 @@ export default {
                             <label for="editTotalCredit" class="form-label">Total asignado</label>
                             <div class="input-group">
                                 <span class="input-group-text">$</span>
-                                <input 
-                                    id="editTotalCredit" 
-                                    type="number" 
-                                    class="form-control" 
-                                    v-model.number="editUserData.credit.mainCredit" 
-                                    aria-label="Monto" 
-                                    aria-describedby="value-addon" 
-                                    min="0">
+                                <input id="editTotalCredit" type="number" class="form-control"
+                                    v-model.number="editUserData.credit.mainCredit" aria-label="Monto"
+                                    aria-describedby="value-addon" min="0">
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
                             @click="resetModal()">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="updateCredit(editUserData, creditType, creditLine)">Guardar</button>
+                        <button type="button" class="btn btn-theme"
+                            @click="updateCredit(editUserData, creditType, creditLine)">Guardar</button>
                     </div>
                 </div>
             </div>
@@ -2504,7 +2520,8 @@ export default {
                                                                 :data-bs-target="`#purchase-collapse-${clientIndex}-${purchaseIndex}`"
                                                                 aria-expanded="false"
                                                                 :aria-controls="`purchase-collapse-${clientIndex}-${purchaseIndex}`">
-                                                                {{ purchase.productName }} / {{ formatDate(purchase.purchaseDate) }}
+                                                                {{ purchase.productName }} / {{
+                                                                    formatDate(purchase.purchaseDate) }}
                                                             </button>
                                                         </h2>
                                                         <div :id="`purchase-collapse-${clientIndex}-${purchaseIndex}`"
@@ -2525,7 +2542,7 @@ export default {
                                                                 </p>
                                                                 <p><strong>Frecuencia de pago:</strong> {{
                                                                     purchase.frequency === 2 ? 'Quincenal' : 'Mensual'
-                                                                    }}</p>
+                                                                }}</p>
                                                                 <h6><strong>Plan de Pago:</strong></h6>
                                                                 <ul class="list-group list-group-flush">
                                                                     <li v-for="(cuota, index) in purchase.cuotas"
@@ -2606,11 +2623,15 @@ export default {
                     <div class="tab-pane fade show active" id="main">
 
                         <div class="row justify-content-center mb-2">
-                            <div class="alert alert-info d-inline-flex align-items-center mt-2" role="alert" style="width: auto;">
+                            <div class="alert alert-info d-inline-flex align-items-center mt-2" role="alert"
+                                style="width: auto;">
                                 <i class="fa-solid fa-info-circle me-2"></i>
                                 <div>
-                                    <strong>Acumula Puntos:</strong> Mantén el pago de tus cuotas al día para acumular puntos en Rose Coupon.
-                                    Estos te ayudarán a subir de nivel y mejorar tu crédito 🎉 <a class="btn btn-sm btn-theme" @click="showPointsSystem" href="#">Desglose de Puntos</a>
+                                    <strong>Acumula Puntos:</strong> Mantén el pago de tus cuotas al día para acumular
+                                    puntos en Rose Coupon.
+                                    Estos te ayudarán a subir de nivel y mejorar tu crédito 🎉 <a
+                                        class="btn btn-sm btn-theme" @click="showPointsSystem" href="#">Desglose de
+                                        Puntos</a>
                                 </div>
                             </div>
 
@@ -2629,43 +2650,40 @@ export default {
                                     </div>
                                 </div>
                             </div>
-                            
-                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center">
-                            <!-- Nivel Section -->
-                            <div class="d-inline-flex text-center align-items-center m-3">
-                                <i class="fa-solid fa-ranking-star me-2"></i>
-                                <strong class="me-2">Nivel:</strong>
-                                {{ getClientLevel(currentClient.mainLevel) }}
-                            </div>
 
-                            <!-- Puntos Section with Progress Bar -->
-                            <div class="d-inline-flex flex-column text-center align-items-center m-3" style="max-width: 200px">
-                                <div class="d-inline-flex align-items-center justify-content-center">
-                                    <i class="fa-solid fa-chart-line me-2"></i>
-                                    <strong class="me-2">Puntos:</strong>
-                                    {{ currentClient.mainPoints || 0 }}
+                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center">
+                                <!-- Nivel Section -->
+                                <div class="d-inline-flex text-center align-items-center m-3">
+                                    <i class="fa-solid fa-ranking-star me-2"></i>
+                                    <strong class="me-2">Nivel:</strong>
+                                    {{ getClientLevel(currentClient.mainLevel) }}
                                 </div>
-                                
-                                <div class="progress w-100 mt-2" style="height: 8px;">
-                                    <div
-                                        class="progress-bar"
-                                        role="progressbar"
-                                        :style="{ width: getLevelProgress(currentClient.mainPoints, currentClient.mainLevel) + '%' }"
-                                        :aria-valuenow="getLevelProgress(currentClient.mainPoints, currentClient.mainLevel)"
-                                        aria-valuemin="0"
-                                        aria-valuemax="100"
-                                    ></div>
-                                    
-                                </div>
-                                <small class="mt-1">
-                                    {{ getRemainingPoints(currentClient.mainPoints, currentClient.mainLevel) }} puntos para el siguiente nivel
-                                </small>   
-                                <span class="mt-2 text-muted fw-bold" 
-                                        style="font-size: 12px;">
+
+                                <!-- Puntos Section with Progress Bar -->
+                                <div class="d-inline-flex flex-column text-center align-items-center m-3"
+                                    style="max-width: 200px">
+                                    <div class="d-inline-flex align-items-center justify-content-center">
+                                        <i class="fa-solid fa-chart-line me-2"></i>
+                                        <strong class="me-2">Puntos:</strong>
+                                        {{ currentClient.mainPoints || 0 }}
+                                    </div>
+
+                                    <div class="progress w-100 mt-2" style="height: 8px;">
+                                        <div class="progress-bar" role="progressbar"
+                                            :style="{ width: getLevelProgress(currentClient.mainPoints, currentClient.mainLevel) + '%' }"
+                                            :aria-valuenow="getLevelProgress(currentClient.mainPoints, currentClient.mainLevel)"
+                                            aria-valuemin="0" aria-valuemax="100"></div>
+
+                                    </div>
+                                    <small class="mt-1">
+                                        {{ getRemainingPoints(currentClient.mainPoints, currentClient.mainLevel) }}
+                                        puntos para el siguiente nivel
+                                    </small>
+                                    <span class="mt-2 text-muted fw-bold" style="font-size: 12px;">
                                         +10% crédito al subir nivel
-                                </span>                             
-                            </div>                            
-                        </div>                
+                                    </span>
+                                </div>
+                            </div>
 
                         </div>
 
@@ -2682,7 +2700,8 @@ export default {
                                 <div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
                                     <div class="card-body text-center py-5">
                                         <h5 class="card-title mb-3">Crédito Disponible</h5>
-                                        <h3><strong>${{ currentClient.availableMainCredit.toFixed(2) || 0 }}</strong></h3>
+                                        <h3><strong>${{ currentClient.availableMainCredit.toFixed(2) || 0 }}</strong>
+                                        </h3>
                                         <button v-if="currentClient.mainPurchases" class="btn btn-info mt-3"
                                             @click="openPurchases(currentClient.mainPurchases)">
                                             <span v-if="this.showPurchases">
@@ -3195,7 +3214,8 @@ export default {
                                         </div>
 
                                         <div class="row justify-content-center">
-                                            <div v-if="showSubscription && selectedClient?.subscription" class="col-4 mb-3 text-center">
+                                            <div v-if="showSubscription && selectedClient?.subscription"
+                                                class="col-4 mb-3 text-center">
                                                 <label for="clientSubscription">Suscripción</label>
                                                 <h6 class="mt-2 text-success">{{ selectedClient.subscription.name ?
                                                     selectedClient.subscription.name.toUpperCase() : null }}
@@ -3205,7 +3225,8 @@ export default {
                                                 <label for="addOn">Aumento Fijo</label>
                                                 <div class="input-group mt-2">
                                                     <span class="input-group-text text-wrap" id="assign-addon">$</span>
-                                                    <input v-if="selectedClient?.subscription" id="addOn" class="form-control"
+                                                    <input v-if="selectedClient?.subscription" id="addOn"
+                                                        class="form-control"
                                                         :value="`${selectedClient.subscription.order == 2 ? 2 : 1}`"
                                                         aria-label="Monto" aria-describedby="assign-addon" disabled>
                                                 </div>
@@ -3332,13 +3353,14 @@ export default {
 </template>
 <style>
 .progress {
-  background-color: #e9ecef;
-  border-radius: 5px;
-  overflow: hidden;
+    background-color: #e9ecef;
+    border-radius: 5px;
+    overflow: hidden;
 }
 
 .progress-bar {
-  background-color: #6f42c1; /* Purple color to match your theme */
+    background-color: #6f42c1;
+    /* Purple color to match your theme */
 }
 
 .custom-accordion-button {

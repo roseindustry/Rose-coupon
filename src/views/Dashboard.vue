@@ -5,7 +5,7 @@ import { ref as storageRef, deleteObject } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { useUserStore } from "@/stores/user-role";
 import { Modal } from 'bootstrap';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import moment from 'moment';
 
@@ -70,19 +70,6 @@ export default {
 			const venezuelanTimeZone = 'America/Caracas';
 			const date = new Date().toLocaleDateString('en-CA', { timeZone: venezuelanTimeZone });
 			return date; // Outputs in 'yyyy-mm-dd' format
-		},
-		showToast(message) {
-			Toastify({
-				text: message,
-				duration: 3000,
-				close: true,
-				gravity: 'top',
-				position: 'right',
-				stopOnFocus: true,
-				style: {
-					background: 'linear-gradient(to right, #00b09b, #96c93d)',
-				},
-			}).showToast();
 		},
 		formatDate(date) {
 			if (!date) return ''; // Handle invalid dates or null values
@@ -346,7 +333,7 @@ export default {
 				const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
 				modal.hide();
 
-				this.showToast('Usuario verificado con éxito.');
+				showToast('Usuario verificado con éxito.');
 				this.fetchIdFiles(client);
 			} catch (error) {
 				console.error("Error approving ID:", error);
@@ -416,12 +403,16 @@ export default {
 					await this.sendEmail(emailPayload);
 
 					// Show a success toast and refresh client list
-					this.showToast('Verificación denegada y archivos eliminados.');
+					showToast('Verificación denegada y archivos eliminados.');
 					this.fetchClients();
 
 				} catch (error) {
 					console.error("Error disapproving verification:", error);
-					this.showToast('Error al denegar la verificación. Por favor, inténtelo nuevamente.');
+					showToast('Error al denegar la verificación. Por favor, inténtelo nuevamente.', {
+						style: {
+							background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
+						},
+					});
 				} finally {
 					// Hide the loader
 					this.isSubmitting = false;
@@ -538,7 +529,7 @@ export default {
 
 			const authUsers = await response.json();
 			this.cachedAuthUsers = authUsers.users;
-			
+
 			// Store the fetched data in localStorage for persistent caching
 			localStorage.setItem('authUsers', JSON.stringify(this.cachedAuthUsers));
 
@@ -589,29 +580,29 @@ export default {
 		},
 		// Method to filter referrals by date
 		async fetchDayReferrals() {
-		try {
-			if (this.filterDate) {
-				// Normalize the filter date to the start of the day
-				const day = moment(this.filterDate).startOf('day').toISOString();
+			try {
+				if (this.filterDate) {
+					// Normalize the filter date to the start of the day
+					const day = moment(this.filterDate).startOf('day').toISOString();
 
-				// Filter referral clients based on createdAt date
-				const filteredReferrals = this.referralClients.filter(client => {
-					// Check if createdAt exists and is a valid date
-					const clientCreationDate = moment(client.createdAt);
+					// Filter referral clients based on createdAt date
+					const filteredReferrals = this.referralClients.filter(client => {
+						// Check if createdAt exists and is a valid date
+						const clientCreationDate = moment(client.createdAt);
 
-					// Ensure client has a valid creation date
-					return clientCreationDate.isValid() && clientCreationDate.isSame(day, 'day');
-				});
+						// Ensure client has a valid creation date
+						return clientCreationDate.isValid() && clientCreationDate.isSame(day, 'day');
+					});
 
-				// Update the referrals list
-				this.dayReferrals = filteredReferrals;
-			} else {
-				// If no filter date is selected, clear the filtered list
-				this.dayReferrals = [];
+					// Update the referrals list
+					this.dayReferrals = filteredReferrals;
+				} else {
+					// If no filter date is selected, clear the filtered list
+					this.dayReferrals = [];
+				}
+			} catch (error) {
+				console.error('Error filtering referrals:', error);
 			}
-		} catch (error) {
-			console.error('Error filtering referrals:', error);
-		}
 		},
 		openClientsModal(dataType = 'referralClients') {
 			this.clientsModalData = dataType === 'dayReferrals' ? this.dayReferrals : this.referralClients;
@@ -704,7 +695,7 @@ export default {
 				};
 				await this.sendNotificationEmail(adminEmailPayload);
 
-				this.showToast('Suscripción activada!');
+				showToast('Suscripción activada!');
 
 				// Reset state
 				this.resetModal();
@@ -718,7 +709,7 @@ export default {
 				this.isSubmitting = false;
 			}
 
-		},		
+		},
 		resetModal() {
 			this.assigningSubscription = false;
 			this.fetchCurrentUserData();

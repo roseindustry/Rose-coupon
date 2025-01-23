@@ -4,7 +4,7 @@ import { ref as storageRef, listAll, getDownloadURL, deleteObject } from 'fireba
 import { db, storage, functions } from '@/firebase/init';
 import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 
 export default {
@@ -82,19 +82,6 @@ export default {
         }
     },
     methods: {
-        showToast(message) {
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                },
-            }).showToast();
-        },
         displayMunicipios(state) {
             const z = venezuela.estado(state, { municipios: true });
             const munis = z.municipios;
@@ -225,15 +212,7 @@ export default {
                 const response = await createClientFunction({ userData });
 
                 if (response.data.success) {
-                    Toastify({
-                        text: "Nuevo empleado registrado con exito! Se ha enviado la contraseña al correo.",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
-                        style: { background: "linear-gradient(to right, #00b09b, #96c93d)" }
-                    }).showToast();
+                    showToast("Nuevo empleado registrado con exito! Se ha enviado la contraseña al correo.");
 
                     // Reset form
                     this.resetForm();
@@ -291,17 +270,7 @@ export default {
                     this.cancelEdit();
                     this.fetchEmployees();
 
-                    Toastify({
-                        text: "Información actualizada!",
-                        duration: 3000,
-                        close: true,
-                        gravity: 'top',
-                        position: 'right',
-                        stopOnFocus: true,
-                        style: {
-                            background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                        },
-                    }).showToast();
+                    showToast("Información actualizada!");
                 } else {
                     alert('No hay campos para actualizar.');
                 }
@@ -332,17 +301,7 @@ export default {
                     console.log('Deleted from database: ', employee.firstName + ' ' + employee.lastName);
 
                     // Show success toast
-                    Toastify({
-                        text: "Borrado del registro y autenticación.",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
-                        style: {
-                            background: "linear-gradient(to right, #db231d, #96c93d)",
-                        },
-                    }).showToast();
+                    showToast("Borrado del registro y autenticación.");
 
                     // Remove the employee from the UI
                     this.employees.splice(index, 1);

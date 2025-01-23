@@ -6,7 +6,7 @@ import { auth, db, functions } from '@/firebase/init';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { ref as dbRef, set, get, query, orderByChild, equalTo } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import venezuela from 'venezuela';
 
@@ -73,19 +73,6 @@ export default defineComponent({
 		}
 	},
 	methods: {
-		showToast(message) {
-			Toastify({
-				text: message,
-				duration: 3000,
-				close: true,
-				gravity: 'top',
-				position: 'right',
-				stopOnFocus: true,
-				style: {
-					background: 'linear-gradient(to right, #00b09b, #96c93d)',
-				},
-			}).showToast();
-		},
 		async sendEmail(payload) {
 			try {
 				const sendEmailFunction = httpsCallable(functions, 'sendEmail');
@@ -138,17 +125,7 @@ export default defineComponent({
 							this.formErrors.rifUsed = users[uid].rif === this.rif;
 
 							// Show a Toastify notification if the email, rif or cedula is already in use
-							Toastify({
-								text: "El usuario que intenta registrar ya existe.",
-								duration: 3000,
-								close: true,
-								gravity: "top", // `top` or `bottom`
-								position: "right", // `left`, `center` or `right`
-								stopOnFocus: true, // Prevents dismissing of toast on hover
-								style: {
-									background: "linear-gradient(to right, #ff5f6d, #ffc371)",
-								},
-							}).showToast();
+							showToast("El usuario que intenta registrar ya existe.");
 							this.loading = false; // Hide loader
 							return;
 						}
@@ -185,17 +162,11 @@ export default defineComponent({
 
 					if (!referredByEmployee) {
 						// Invalid referral code
-						Toastify({
-							text: "Código de referido inválido.",
-							duration: 3000,
-							close: true,
-							gravity: "top",
-							position: "right",
-							stopOnFocus: true,
+						showToast("Código de referido inválido.", {
 							style: {
-								background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+								background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
 							},
-						}).showToast();
+						});
 						this.loading = false;
 						return;
 					}
@@ -251,7 +222,7 @@ export default defineComponent({
 				await this.sendEmail(emailPayload);
 
 				// Toastify success message
-				this.showToast('Bienvenido a bordo!');
+				showToast('Bienvenido a bordo!');
 
 				// After successful signup and data storage, redirect based on role
 				if (this.role === 'cliente') {
@@ -267,17 +238,11 @@ export default defineComponent({
 				console.error(error);
 
 				// Check for other errors
-				Toastify({
-					text: "Error al registrarse. Inténtalo de nuevo.",
-					duration: 3000,
-					close: true,
-					gravity: "top", // `top` or `bottom`
-					position: "right", // `left`, `center` or `right`
-					stopOnFocus: true, // Prevents dismissing of toast on hover
+				showToast("Error al registrarse. Inténtalo de nuevo.", {
 					style: {
-						background: "linear-gradient(to right, #ff5f6d, #ffc371)",
+						background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
 					},
-				}).showToast();
+				});
 			}
 
 			// // Validation of Terms and conditions

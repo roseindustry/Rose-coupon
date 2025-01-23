@@ -1,7 +1,7 @@
 <script>
 import { ref as dbRef, query, orderByChild, equalTo, set, get, push, update, remove } from 'firebase/database';
 import { db } from '@/firebase/init';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import { useUserStore } from "@/stores/user-role";
 
@@ -38,30 +38,6 @@ export default {
         },
     },
     methods: {
-        showToast(message, type) {
-            let backgroundColor;
-
-            // Set background color based on the toast type (success or error)
-            if (type === 'success') {
-                backgroundColor = 'linear-gradient(to right, #00b09b, #96c93d)'; // Greenish for success
-            } else if (type === 'error') {
-                backgroundColor = 'linear-gradient(to right, #e74c3c, #e74c3c)'; // Red for error
-            } else {
-                backgroundColor = 'linear-gradient(to right, #00b09b, #96c93d)'; // Default to success if no type is provided
-            }
-
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: backgroundColor,
-                },
-            }).showToast();
-        },
         goToPage(page) {
             if (page >= 1 && page <= this.totalPages) {
                 this.currentPage = page;
@@ -168,7 +144,11 @@ export default {
             }
             // Validate selected categories and affiliates
             if (this.selectedCategoriesIds.length === 0 && this.selectedAffiliatesIds.length === 0) {
-                this.showToast('Error: Debe seleccionar al menos una categoría o un comercio afiliado', 'error');
+                showToast('Error: Debe seleccionar al menos una categoría o un comercio afiliado', {
+                    style: {
+                        background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
+                    },
+                });
                 return;
             }
             const selectedAffiliates = {};
@@ -258,7 +238,7 @@ export default {
                 await push(dbRef(db, `Users/${this.userId}/coupon_requests`), newRequest);
 
                 // Success toast
-                this.showToast('¡Solicitud enviada con éxito!', 'success');
+                showToast('¡Solicitud enviada con éxito!');
                 console.log('Request submitted successfully!');
             } catch (error) {
                 console.error('Error submitting request.');
@@ -298,11 +278,11 @@ export default {
                             <br><small class="text-info">Solicitudes se resetean cada mes.</small>
                         </div>
                     </div>
-                </div>                
+                </div>
                 <div class="col-lg-6 col-sm-12 d-flex justify-content-center text-center">
                     <div v-if="userSubscriptionId && availableRequests !== null"
-                        class="alert alert-info d-inline-flex text-center align-items-center m-3"
-                        role="alert" style="width: auto;">
+                        class="alert alert-info d-inline-flex text-center align-items-center m-3" role="alert"
+                        style="width: auto;">
                         <i class="me-2" :class="userSubscriptionIcon"></i>
                         <strong class="me-2">Suscripción:</strong> {{ userSubscriptionName.charAt(0).toUpperCase() +
                             userSubscriptionName.slice(1) }} <br>
@@ -311,8 +291,7 @@ export default {
                 </div>
                 <div class="col-lg-6 col-sm-12 d-flex justify-content-center">
                     <div v-if="userSubscriptionId && availableRequests !== null"
-                        class="alert alert-info d-inline-flex text-center align-items-center 0 m-3"
-                        role="alert">
+                        class="alert alert-info d-inline-flex text-center align-items-center 0 m-3" role="alert">
                         <i class="fa-solid fa-bell-concierge me-2"></i>
                         <strong class="me-2">Solicitudes disponibles:</strong> {{ availableRequests }}
                     </div>

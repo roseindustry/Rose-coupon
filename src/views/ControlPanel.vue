@@ -11,7 +11,7 @@ import { ScrollSpy } from 'bootstrap';
 import datepicker from 'vue3-datepicker';
 import 'vue-datepicker-next/index.css';
 import moment from 'moment';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 
 export default {
@@ -75,19 +75,6 @@ export default {
         }
     },
     methods: {
-        showToast(message) {
-            Toastify({
-                text: message,
-                duration: 3000,
-                close: true,
-                gravity: 'top',
-                position: 'right',
-                stopOnFocus: true,
-                style: {
-                    background: 'linear-gradient(to right, #00b09b, #96c93d)',
-                },
-            }).showToast();
-        },
         // async getTenantId() {
         //     const tenancyStore = useTenancyStore();
         //     await tenancyStore.findOrCreateTenant();
@@ -111,7 +98,7 @@ export default {
         //     // Update tenant name and optionally the logo URL
         //     await tenancyStore.updateTenantDetails(this.tenantName, imageUrl);
 
-        //     this.showToast('Información guardada con éxito!');
+        //     showToast('Información guardada con éxito!');
         // },
         // async uploadLogoToStorage(imageFile) {
         //     let imageUrl = null;
@@ -169,7 +156,7 @@ export default {
         //     try {
         //         await update(roleRef, { role: updatedRole });
 
-        //         this.showToast('Rol asignado con éxito!');
+        //         showToast('Rol asignado con éxito!');
 
         //         // Reset selection if needed
         //         this.selectedUser = null;
@@ -295,7 +282,7 @@ export default {
                 const userPlanRef = dbRef(db, `Users/${clientId}/subscription`);
                 await update(userPlanRef, subscriptionData);
 
-                this.showToast('Suscripción asignada con éxito!');
+                showToast('Suscripción asignada con éxito!');
                 // Reset selection after assigning the plan
                 this.selectedPlan = null;
                 this.selectedClientPlan = null;

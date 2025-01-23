@@ -8,7 +8,7 @@ import { useUserStore } from '@/stores/user-role';
 // import { useTenancyStore } from '@/stores/tenancy';
 // import { getSubdomain } from '@/utils/subdomain';
 import { Collapse } from 'bootstrap';
-import Toastify from 'toastify-js'
+import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import moment from 'moment';
 
@@ -204,17 +204,7 @@ export default {
                 .then(() => {
                     console.log('Data submitted successfully');
                     //Toast to show Success form Submission
-                    Toastify({
-                        text: "Gracias por tu feedback!",
-                        duration: 3000,
-                        close: true,
-                        gravity: "top",
-                        position: "right",
-                        stopOnFocus: true,
-                        style: {
-                            background: "linear-gradient(to right, #00b09b, #96c93d)",
-                        },
-                    }).showToast();
+                    showToast("Gracias por tu feedback!");
 
                     // Reset selections and UI states
                     this.resetMenuSelections();
