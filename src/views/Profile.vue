@@ -961,22 +961,22 @@ export default defineComponent({
 						<form @submit.prevent="submitVerification">
 							<div class="mb-3">
 								<label for="idFront" class="form-label">Frontal de la Cédula/Identificación</label>
-								<input type="file" class="form-control" id="idFront"
-								accept="image/*" @change="handleFileUpload($event, 'front')" required>
+								<input type="file" class="form-control" id="idFront" accept="image/*"
+									@change="handleFileUpload($event, 'front')" required>
 								<img v-if="idFrontPreview" :src="idFrontPreview" alt="Front ID Preview"
 									class="img-fluid mt-2" />
 							</div>
 							<div class="mb-3">
 								<label for="idBack" class="form-label">Parte Trasera de la Cédula/Identificación</label>
-								<input type="file" class="form-control" id="idBack"
-								accept="image/*" @change="handleFileUpload($event, 'back')" required>
+								<input type="file" class="form-control" id="idBack" accept="image/*"
+									@change="handleFileUpload($event, 'back')" required>
 								<img v-if="idBackPreview" :src="idBackPreview" alt="Back ID Preview"
 									class="img-fluid mt-2" />
 							</div>
 							<div class="mb-3">
 								<label for="selfie" class="form-label">Foto Selfie con Cédula visible</label>
-								<input type="file" class="form-control" id="selfie"
-								accept="image/*" @change="handleFileUpload($event, 'selfie')" required>
+								<input type="file" class="form-control" id="selfie" accept="image/*"
+									@change="handleFileUpload($event, 'selfie')" required>
 								<img v-if="selfiePreview" :src="selfiePreview" alt="Selfie Preview"
 									class="img-fluid mt-2" />
 							</div>
@@ -1020,14 +1020,14 @@ export default defineComponent({
 									<label for="amountPaid" class="form-label">Monto Pagado</label>
 									<div class="input-group">
 										<span class="input-group-text text-wrap" id="assign-addon">Bs.</span>
-										<input id="amountPaid" class="form-control" type="number" step=".01" v-model="amountPaid"
-											aria-label="Monto" aria-describedby="assign-addon">
+										<input id="amountPaid" class="form-control" type="number" step=".01"
+											v-model="amountPaid" aria-label="Monto" aria-describedby="assign-addon">
 									</div>
 								</div>
 								<div class="col-12">
 									<label for="payment" class="form-label">Captura de Pago</label>
 									<input type="file" class="form-control" id="payment"
-										@change="handleFileUpload($event, 'payment')" required>
+										@change="handleFileUpload($event, 'payment')" required accept="image/*">
 									<img v-if="paymentPreview" :src="paymentPreview" alt="payment preview"
 										class="img-fluid mt-2" />
 								</div>
@@ -1042,11 +1042,14 @@ export default defineComponent({
 									<span class="visually-hidden">Cargando...</span>
 								</div>
 							</div>
-							<button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cerrar</button>
-							<!-- Submit Button is disabled during submission -->
-							<button type="submit" class="btn btn-theme" :disabled="isSubmitting">
-								Subir
-							</button>
+							<div class="mt-3">
+								<button type="button" class="btn btn-secondary me-2"
+									data-bs-dismiss="modal">Cerrar</button>
+								<!-- Submit Button is disabled during submission -->
+								<button type="submit" class="btn btn-theme" :disabled="isSubmitting">
+									Subir
+								</button>
+							</div>
 						</form>
 					</div>
 				</div>

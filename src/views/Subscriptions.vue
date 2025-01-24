@@ -500,22 +500,31 @@ export default {
                 if (snapshot.exists()) {
                     const users = snapshot.val();
 
-                    // Call the Cloud Function to fetch all users in one request
-                    const response = await fetch("https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers", {
-                        method: "POST",
+                    // Call the `getAllUsers` onRequest Cloud Function using an HTTP request
+                    const functionUrl = "https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers";
+                    const response = await fetch(functionUrl, {
+                        method: "GET",
                         headers: {
                             "Content-Type": "application/json",
+                            // Add an Authorization header if you require user authentication
+                            // "Authorization": `Bearer ${authToken}`
                         },
                     });
 
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        throw new Error(`Failed to call Cloud Function: ${response.statusText}`);
                     }
 
-                    const authUsers = await response.json();
+                    const data = await response.json();
+
+                    if (!data || !data.users) {
+                        throw new Error("Failed to retrieve users from Cloud Function");
+                    }
+
+                    const authUsers = data.users;
 
                     // Create a lookup object for auth users based on UID
-                    const authUsersLookup = authUsers.users.reduce((lookup, authUser) => {
+                    const authUsersLookup = authUsers.reduce((lookup, authUser) => {
                         lookup[authUser.uid] = authUser;
                         return lookup;
                     }, {});

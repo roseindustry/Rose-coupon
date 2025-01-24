@@ -119,7 +119,7 @@ export default {
 					} else {
 						// Fetch auth users if not cached
 						const response = await fetch("https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers", {
-							method: "POST",
+							method: "GET",
 							headers: {
 								"Content-Type": "application/json",
 							},

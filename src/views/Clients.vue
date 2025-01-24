@@ -379,18 +379,25 @@ export default {
                     userData.phoneNumber = this.client.phoneNumber;
                 }
 
-                // Call Cloud Function to create the client
-                const createClientFunction = httpsCallable(functions, 'createUser');
-                const response = await createClientFunction({ userData });
+                // Call Cloud Function to create the client via onRequest
+                const response = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/createUser', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ userData }),
+                });
 
-                if (response.data.success) {
+                const result = await response.json();
+
+                if (result.success) {
                     showToast("Nuevo Cliente registrado con exito! Se ha enviado la contraseña al correo.");
 
                     // Reset form
                     this.resetForm();
                     this.fetchClients();
                 } else {
-                    alert('Error al crear al cliente: ' + response.data.message);
+                    alert('Error al crear al cliente: ' + result.message);
                 }
 
             } catch (error) {
@@ -432,9 +439,28 @@ export default {
                     // Update email via Cloud Function if the email is changed
                     const newEmail = this.selectedClient.email;
                     if (newEmail && client.email !== newEmail) {
+                        // Call the Cloud Function for updating the email
+                        const data = {
+                            uid: clientId,
+                            newEmail: newEmail,
+                        };
 
-                        const updateEmailFunction = httpsCallable(functions, 'updateUserEmail');
-                        await updateEmailFunction({ uid: clientId, newEmail });
+                        const response = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/updateUserEmail', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(data),
+                        });
+
+                        const result = await response.json();
+
+                        if (response.ok) {
+                            console.log(result.message); // Show success message from the response
+                        } else {
+                            console.error('Error updating email:', result.message);
+                            alert('Error updating email: ' + result.message);
+                        }
                     }
 
                     this.cancelEdit();
@@ -452,29 +478,46 @@ export default {
                 this.isSubmitting = false;
             }
         },
-        deleteClient(client, index) {
+        async deleteClient(client, index) {
             console.log(client.uid);
             // Confirmation dialog
             if (confirm("¿Desea borrar este cliente?")) {
                 // User clicked "OK"
 
                 try {
-                    // Call the Cloud Function to delete the user from Authentication
-                    const deleteClientFunction = httpsCallable(functions, 'deleteUser');
-                    deleteClientFunction({ uid: client.uid });
-                    console.log('Deleted from authentication: ', client.email);
+                    // Prepare the data to send to the Cloud Function
+                    const data = {
+                        uid: client.uid,
+                    };
 
-                    // Remove Client from the database
-                    const clientRef = dbRef(db, `Users/${client.uid}`);
+                    // Call the Cloud Function to delete the user using fetch
+                    const response = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/deleteUser', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data),
+                    });
 
-                    remove(clientRef);
-                    console.log('Deleted from database: ', client.firstName + ' ' + client.lastName);
+                    const result = await response.json();
 
-                    // Show success toast
-                    showToast("Borrado del registro y autenticación.");
+                    if (response.ok) {
+                        console.log(result.message); // Show success message from the response
 
-                    // Remove the client from the UI
-                    this.clients.splice(index, 1);
+                        // Remove affiliate from the database
+                        const clientRef = dbRef(db, `Users/${client.uid}`);
+                        await remove(clientRef);
+
+                        // Show success toast
+                        showToast("Cliente eliminado.");
+
+                        // Remove the client from the UI
+                        this.fetchClients();
+                        this.clients.splice(index, 1);
+                    } else {
+                        console.error('Error deleting client:', result.message);
+                        alert('Error deleting client: ' + result.message);
+                    }
                 } catch (error) {
                     console.error('Error deleting client:', error);
                 }
@@ -683,9 +726,9 @@ export default {
 
         // testToast() {
         //     showToast('Custom background color', {
-                style: {
-                    background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
-                },
+        style: {
+            background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
+        },
         //     });
         // }
     }

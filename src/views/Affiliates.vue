@@ -337,10 +337,29 @@ export default {
 
                     // Update email via Cloud Function if the email is changed
                     const newEmail = affiliate.email;
-                    if (newEmail) {
+                    if (newEmail && affiliate.email !== newEmail) {
+                        // Call the Cloud Function for updating the email
+                        const data = {
+                            uid: affiliate.id,
+                            newEmail: newEmail,
+                        };
 
-                        const updateEmailFunction = httpsCallable(functions, 'updateUserEmail');
-                        await updateEmailFunction({ uid: affiliate.id, newEmail });
+                        const response = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/updateUserEmail', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(data),
+                        });
+
+                        const result = await response.json();
+
+                        if (response.ok) {
+                            console.log(result.message); // Show success message from the response
+                        } else {
+                            console.error('Error updating email:', result.message);
+                            alert('Error updating email: ' + result.message);
+                        }
                     }
 
                     // Close the modal after saving
@@ -486,18 +505,25 @@ export default {
                     userData.tiktok = this.affiliate.tiktok;
                 }
 
-                // Call Cloud Function to create the client
-                const createAffiliateFunction = httpsCallable(functions, 'createUser');
-                const response = await createAffiliateFunction({ userData });
+                // Call Cloud Function to create the client via onRequest
+                const response = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/createUser', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ userData }),
+                });
 
-                if (response.data.success) {
+                const result = await response.json();
+
+                if (result.success) {
                     showToast("Nuevo Comercio Afiliado registrado con exito! Se ha enviado la contraseña al correo.");
 
                     // Reset form
                     this.resetForm();
                     this.fetchAffiliates();
                 } else {
-                    alert('Error al crear al afiliado: ' + response.data.message);
+                    alert('Error al crear al afiliado: ' + result.message);
                 }
             } catch (error) {
                 console.error("Error creating affiliate:", error);
@@ -513,27 +539,46 @@ export default {
                 // User clicked "OK"
 
                 try {
-                    // Call the Cloud Function to delete the user from Authentication
-                    const deleteUserFunction = httpsCallable(functions, 'deleteUser');
-                    deleteUserFunction({ uid: affiliate.id });
+                    // Prepare the data to send to the Cloud Function
+                    const data = {
+                        uid: affiliate.id,
+                    };
 
-                    // Remove affiliate from the database
-                    const affiliateRef = dbRef(db, `Users/${affiliate.id}`);
-                    remove(affiliateRef);
+                    // Call the Cloud Function to delete the user using fetch
+                    const response = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/deleteUser', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data),
+                    });
 
-                    // Remove Affiliate ImageLogo from Storage
-                    if (affiliate.image) {
-                        const fileRef = storageRef(storage, affiliate.image);
-                        await deleteObject(fileRef);
-                        console.log(`${affiliate.image} deleted successfully.`);
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        console.log(result.message); // Show success message from the response
+
+                        // Remove affiliate from the database
+                        const affiliateRef = dbRef(db, `Users/${affiliate.id}`);
+                        await remove(affiliateRef);
+
+                        // Remove Affiliate ImageLogo from Storage
+                        if (affiliate.image) {
+                            const fileRef = storageRef(storage, affiliate.image);
+                            await deleteObject(fileRef);
+                            console.log(`${affiliate.image} deleted successfully.`);
+                        }
+
+                        // Show success toast
+                        showToast("Afiliado eliminado.");
+
+                        // Remove the client from the UI
+                        this.fetchAffiliates();
+                        this.affiliates.splice(index, 1);
+                    } else {
+                        console.error('Error deleting affiliate:', result.message);
+                        alert('Error deleting affiliate: ' + result.message);
                     }
-
-                    // Show success toast
-                    showToast("Afiliado eliminado.");
-
-                    // Remove the client from the UI
-                    this.fetchAffiliates();
-                    this.affiliates.splice(index, 1);
 
                 } catch (error) {
                     console.error('Error deleting affiliate:', error);
@@ -1037,19 +1082,10 @@ export default {
         </div>
 
         <!-- Modal for Adding New Affiliate -->
-        <AddNewAffiliate 
-        :affiliate="affiliate" 
-        :categories="categories" 
-        :venezuelanStates="venezuelanStates"
-        :municipios="municipios" 
-        :parroquias="parroquias" 
-        :isSubmitting="isSubmitting"
-        @close="resetForm"
-        @save="createAffiliate"
-        @select-category="setSelectedCategory" 
-        @state-changed="onStateChange"
-        @municipality-changed="onMunicipioChange" 
-        @parish-changed="onParroquiaChange" />
+        <AddNewAffiliate :affiliate="affiliate" :categories="categories" :venezuelanStates="venezuelanStates"
+            :municipios="municipios" :parroquias="parroquias" :isSubmitting="isSubmitting" @close="resetForm"
+            @save="createAffiliate" @select-category="setSelectedCategory" @state-changed="onStateChange"
+            @municipality-changed="onMunicipioChange" @parish-changed="onParroquiaChange" />
 
         <!-- Modal for Editing Affiliate -->
         <div class="modal fade" id="editAffiliateModal" tabindex="-1" aria-labelledby="editAffiliateModalLabel"
