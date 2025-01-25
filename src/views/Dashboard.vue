@@ -6,6 +6,7 @@ import { httpsCallable } from 'firebase/functions';
 import { useUserStore } from "@/stores/user-role";
 import { Modal } from 'bootstrap';
 import { showToast } from '@/utils/toast';
+import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import moment from 'moment';
 
@@ -79,17 +80,16 @@ export default {
 			const year = d.getFullYear();
 			return `${day}/${month}/${year}`;
 		},
-		async sendEmail(payload) {
-			try {
-				const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-				await sendEmailFunction(payload);
-			} catch (error) {
-				console.error('Error sending email:', error);
-			}
-		},
 		async sendNotificationEmail(emailPayload) {
 			try {
-				await this.sendEmail(emailPayload);
+				// Send email via the utility function
+                const result = await sendEmail(emailPayload);
+
+                if (result.success) {
+                    console.log("Email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send email:", result.error);
+                }
 			} catch (error) {
 				console.error('Error sending email:', error);
 			}
@@ -327,7 +327,14 @@ export default {
 						text: `Hola ${userName}, tu solicitud de verificación ha sido aprobada.`,
 					},
 				};
-				await this.sendEmail(emailPayload);
+				// Send email via the utility function
+                const result = await sendEmail(emailPayload);
+
+                if (result.success) {
+                    console.log("Email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send email:", result.error);
+                }
 
 				// Hide the image Modal after approving
 				const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
@@ -400,7 +407,14 @@ export default {
 							text: `Hola ${client.firstName}, tu solicitud de verificación ha sido denegada. Por favor, sube nuevamente tus archivos de verificación.`,
 						},
 					};
-					await this.sendEmail(emailPayload);
+					// Send email via the utility function
+					const result = await sendEmail(emailPayload);
+
+if (result.success) {
+	console.log("Email sent successfully:", result.message);
+} else {
+	console.error("Failed to send email:", result.error);
+}
 
 					// Show a success toast and refresh client list
 					showToast('Verificación denegada y archivos eliminados.');

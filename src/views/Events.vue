@@ -4,6 +4,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage
 import { db, storage } from '@/firebase/init';
 import { Modal } from 'bootstrap';
 import { showToast } from '@/utils/toast';
+import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import { useUserStore } from "@/stores/user-role";
 import { isAfter, parseISO, format } from "date-fns";
@@ -120,17 +121,16 @@ export default {
 				console.error("Error fetching events to calculate order:", error);
 			}
 		},
-		async sendEmail(payload) {
-			try {
-				const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-				await sendEmailFunction(payload);
-			} catch (error) {
-				console.error('Error sending email:', error);
-			}
-		},
 		async sendNotificationEmail(emailPayload) {
 			try {
-				await this.sendEmail(emailPayload);
+				// Send email via the utility function
+                const result = await sendEmail(emailPayload);
+
+                if (result.success) {
+                    console.log("Email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send email:", result.error);
+                }
 			} catch (error) {
 				console.error('Error sending email:', error);
 			}

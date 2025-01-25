@@ -6,6 +6,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { ref as dbRef, set, get } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 import { showToast } from '@/utils/toast';
+import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import venezuela from 'venezuela';
 
@@ -60,15 +61,6 @@ export default defineComponent({
         }
     },
     methods: {
-        async sendEmail(payload) {
-            try {
-                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-                await sendEmailFunction(payload);
-            } catch (error) {
-                console.error('Error sending email:', error);
-            }
-        },
-
         async submitForm() {
             // Password length validation
             if (this.password.length < 6) {
@@ -142,7 +134,14 @@ export default defineComponent({
                         text: `Hola administrador, el ${this.role.charAt(0).toUpperCase() + this.role.slice(1)} ${this.firstName} ${this.lastName} se ha registrado en Roseapp.`,
                     },
                 };
-                await this.sendEmail(emailPayload);
+                // Send email via the utility function
+                const result = await sendEmail(emailPayload);
+
+                if (result.success) {
+                    console.log("Email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send email:", result.error);
+                }
 
                 // Toastify success message
                 showToast("Bienvenido a bordo!");

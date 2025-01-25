@@ -114,14 +114,6 @@ export default {
             const year = d.getUTCFullYear();
             return `${day}/${month}/${year}`;
         },
-        async sendEmail(payload) {
-            try {
-                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-                await sendEmailFunction(payload);
-            } catch (error) {
-                console.error('Error sending email:', error);
-            }
-        },
         goToPage(page) {
             if (page >= 1 && page <= this.totalPages) {
                 this.currentPage = page;

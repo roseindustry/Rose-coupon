@@ -6,10 +6,9 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage
 import { ref as dbRef, get, update } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
-import { createPopper } from '@popperjs/core';
 import { showToast } from '@/utils/toast';
+import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
-import { RouterLink } from 'vue-router';
 
 export default defineComponent({
     data() {
@@ -67,15 +66,6 @@ export default defineComponent({
         };
     },
     methods: {
-        async sendEmail(payload) {
-            try {
-                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-                await sendEmailFunction(payload);
-            } catch (error) {
-                console.error('Error sending email:', error);
-            }
-        },
-
         async fetchSubscriptionPlan() {
             const userId = this.userId;
 
@@ -211,7 +201,15 @@ export default defineComponent({
                <p>Para verificar el usuario, por favor <a href="${appUrl}" target="_blank">abre la app</a>.</p>`
                     },
                 };
-                await this.sendEmail(emailPayload);
+                
+                // Send email via the utility function
+                const result = await sendEmail(emailPayload);
+
+                if (result.success) {
+                    console.log("Verification email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send verification email:", result.error);
+                }
 
                 //Success toast
                 showToast('Archivos subidos!');

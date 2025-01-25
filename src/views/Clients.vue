@@ -5,6 +5,7 @@ import { db, storage, functions } from '@/firebase/init';
 import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
 import { showToast } from '@/utils/toast';
+import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import * as XLSX from "xlsx";
 import venezuela from 'venezuela';
@@ -121,30 +122,56 @@ export default {
         },
 
         async fetchClients() {
-            this.loading = true;
             const role = 'cliente';
             const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
 
             try {
+                this.loading = true;
+
+                // Fetch clients from Firebase
                 const snapshot = await get(clientRef);
                 if (!snapshot.exists()) {
                     this.clients = [];
                     return;
                 }
-
                 const users = snapshot.val();
-                // const getUserDetails = httpsCallable(functions, 'getUserDetails');
-                // const clientPromises = [];
 
-                this.clients = Object.entries(users).map(([uid, user]) => ({
-                    uid,
-                    ...user
-                }));
+                // Check if we have cached auth users
+                const cachedAuthUsers = localStorage.getItem('authUsers');
+                let authUsers = [];
 
-                // Wait for all clients data to be fetched
-                // const clientsWithTimestamp = await Promise.all(clientPromises);
+                if (cachedAuthUsers) {
+                    authUsers = JSON.parse(cachedAuthUsers);
+                } else {
+                    // Fetch auth users if not cached
+                    const response = await fetch("https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers", {
+                        method: "GET",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                    });
 
-                // this.clients = clientsWithTimestamp.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    authUsers = data.users;
+
+                    // Cache auth users for future use
+                    localStorage.setItem('authUsers', JSON.stringify(authUsers));
+                }
+
+                this.clients = Object.entries(users)
+                    .map(([uid, user]) => {
+                        const authUser = authUsers.find(auth => auth.uid === uid);
+                        return {
+                            uid,
+                            ...user,
+                            createdAt: authUser ? new Date(authUser.creationTime).getTime() : null, // Parse to timestamp
+                        };
+                    })
+                    .sort((a, b) => b.createdAt - a.createdAt); // Sort by descending createdAt
 
             } catch (error) {
                 console.error('Error fetching clients:', error);
@@ -567,7 +594,14 @@ export default {
                         text: `Hola ${userName}, tu solicitud de verificación ha sido aprobada.`,
                     },
                 };
-                await this.sendEmail(emailPayload);
+                // Send email via the utility function
+                const result = await sendEmail(emailPayload);
+
+                if (result.success) {
+                    console.log("Email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send email:", result.error);
+                }
 
                 showToast('Usuario verificado con éxito.');
                 this.fetchIdFiles(client);
@@ -636,7 +670,14 @@ export default {
                             text: `Hola ${client.firstName}, tu solicitud de verificación ha sido denegada. Por favor, sube nuevamente tus archivos de verificación.`,
                         },
                     };
-                    await this.sendEmail(emailPayload);
+                    // Send email via the utility function
+                    const result = await sendEmail(emailPayload);
+
+                    if (result.success) {
+                        console.log("Email sent successfully:", result.message);
+                    } else {
+                        console.error("Failed to send email:", result.error);
+                    }
 
                     // Show a success toast and refresh client list
                     showToast('Verificación denegada y archivos eliminados.');
@@ -670,7 +711,14 @@ export default {
                         text: `Hola ${userName}, tu pago del día ${paymentDate} ha sido aprobado.`,
                     },
                 };
-                await this.sendEmail(emailPayload);
+                // Send email via the utility function
+                const result = await sendEmail(emailPayload);
+
+                if (result.success) {
+                    console.log("Email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send email:", result.error);
+                }
 
                 showToast('Pago aprobado. Se ha notificado al cliente.');
                 //Close Payment modal after approval
@@ -682,15 +730,6 @@ export default {
             } finally {
                 // Hide the loader
                 this.isSubmitting = false;
-            }
-        },
-
-        async sendEmail(payload) {
-            try {
-                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-                await sendEmailFunction(payload);
-            } catch (error) {
-                console.error('Error sending email:', error);
             }
         },
         goToPage(page) {

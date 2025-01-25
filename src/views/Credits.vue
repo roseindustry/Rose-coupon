@@ -6,6 +6,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL, listAll } from 'firebas
 import SearchInput from '@/components/app/SearchInput.vue';
 import { Modal } from 'bootstrap';
 import { showToast } from '@/utils/toast';
+import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import { useUserStore } from "@/stores/user-role";
 
@@ -19,6 +20,7 @@ export default {
             userId: '',
             role: '',
             userName: '',
+            isProfileCompleted: null,
 
             level: {
                 // order: 0,
@@ -102,6 +104,8 @@ export default {
             remainingAmount: 0,
             loanAmount: 0,
             calc: false,
+            initialPercentage: "50", // Default to 50%
+            customInitial: 0, // Custom value for the initial amount
             terms: 2, // default to 2 cuota
             frequency: 2, // default to bi-weekly payments
             cuotaDates: [],
@@ -208,29 +212,6 @@ export default {
             const start = (this.currentPage - 1) * this.itemsPerPage;
             const end = this.currentPage * this.itemsPerPage;
             return data.slice(start, end);
-        },
-        async sendEmail(payload) {
-            try {
-                const response = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/sendEmail', {
-                    method: 'POST', // HTTP method
-                    headers: {
-                        'Content-Type': 'application/json', // Content type for JSON data
-                    },
-                    body: JSON.stringify(payload), // Convert payload to JSON
-                });
-
-                const result = await response.json(); // Parse the JSON response
-
-                if (response.ok) {
-                    console.log("Email sent:", result.message);
-                } else {
-                    console.error('Error sending email:', result.error);
-                    alert("Failed to send email. Please try again later.");
-                }
-            } catch (error) {
-                console.error('Error sending email:', error);
-                alert("Failed to send email. Please try again later.");
-            }
         },
 
         //FOR ADMIN USE
@@ -696,7 +677,7 @@ export default {
 
             const searchQuery = this.searchEntity.toLowerCase();
 
-            const clients = this.allClients.filter((client) => client.state && client.municipio && client.parroquia);
+            const clients = this.allClients; // .filter((client) => client.state && client.municipio && client.parroquia) line commented by admn request
 
             // Determine which list to search based on the creditType ('client' or 'affiliate')
             const userList = this.creditType === 'client' ? clients : this.allAffiliates;
@@ -850,7 +831,14 @@ export default {
                         },
                     };
 
-                    await this.sendEmail(clientEmailPayload);
+                    // Send email via the utility function
+                    const result = await sendEmail(clientEmailPayload);
+
+                    if (result.success) {
+                        console.log("Verification email sent successfully:", result.message);
+                    } else {
+                        console.error("Failed to send verification email:", result.error);
+                    }
                 }
 
                 // Update UI
@@ -929,7 +917,15 @@ export default {
                         <p>Ingresa a la app.</p>`
                     },
                 };
-                await this.sendEmail(clientEmailPayload);
+
+                // Send email via the utility function
+                const result = await sendEmail(clientEmailPayload);
+
+                if (result.success) {
+                    console.log("Verification email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send verification email:", result.error);
+                }
 
                 this.fetchClients();
                 this.fetchAffiliates();
@@ -1015,7 +1011,15 @@ export default {
                         <p>Comunícate con soporte si tienes alguna duda.</p>`
                         },
                     };
-                    await this.sendEmail(clientEmailPayload);
+
+                    // Send email via the utility function
+                    const result = await sendEmail(clientEmailPayload);
+
+                    if (result.success) {
+                        console.log("Verification email sent successfully:", result.message);
+                    } else {
+                        console.error("Failed to send verification email:", result.error);
+                    }
                 } catch (error) {
                     console.error('Error removing credit line:', error);
                     alert('No se pudo cancelar la línea de crédito.');
@@ -1045,8 +1049,7 @@ export default {
 
             // Calculate half the product price and set variables for initial payment and remaining amount
             const halfProductPrice = this.productPrice / 2;
-            let initial = 0;
-            let remainingAmount = 0;
+            let initial, remainingAmount;
 
             // Condition 1: If available credit is greater than half the product price
             if (client.credit.availableMainCredit > halfProductPrice) {
@@ -1063,24 +1066,46 @@ export default {
             this.purchaseAmount = initial;
             this.remainingAmount = remainingAmount;
 
-            // Adjust the fixed addOn amount based on the client's subscription tier
-            let additionalAmount = 0;
-            if (client.subscription.order == 1) {
-                additionalAmount = 3;
-            } else if (client.subscription.order == 2) {
-                additionalAmount = 2;
-            } else if (client.subscription.order == 3) {
-                additionalAmount = 1;
+            // Adjust additional amount based on subscription tier
+            const additionalAmount =
+                client.subscription.order === 1 ? 3 :
+                    client.subscription.order === 2 ? 2 :
+                        1;
+
+            this.loanAmount = remainingAmount + additionalAmount;
+
+            // Calculate installments and due dates
+            this.quotesAmount = Array(this.terms).fill(this.loanAmount / this.terms);
+            this.cuotaDates = this.calculatePaymentDates(this.purchaseDate, this.terms, this.frequency);
+        },
+        updateInitial(client) {
+
+            // Step 1: Calculate the initial amount based on percentage selection
+            if (this.initialPercentage === "50") {
+                this.purchaseAmount = this.productPrice * 0.5;
+            } else if (this.initialPercentage === "25") {
+                this.purchaseAmount = this.productPrice * 0.25;
+            } else if (this.initialPercentage === "custom") {
+                const customValue = parseFloat(this.customInitial);
+                if (customValue && customValue > 0 && customValue <= 100) {
+                    this.purchaseAmount = this.productPrice * (customValue / 100);
+                } else {
+                    alert('Ingrese un porcentaje válido para la inicial.');
+                    return;
+                }
             }
 
-            // Calculate the remaining amount with the subscription adjustment
-            const adjustedRemainingAmount = remainingAmount + additionalAmount;
-            this.loanAmount = adjustedRemainingAmount;
+            // Step 2: Calculate remaining amount and adjust loan
+            this.remainingAmount = this.productPrice - this.purchaseAmount;
+            const additionalAmount =
+                client.subscription.order === 1 ? 3 :
+                    client.subscription.order === 2 ? 2 :
+                        1;
 
-            // Divide the adjusted remaining amount into terms and set quotesAmount array
-            this.quotesAmount = Array(this.terms).fill(adjustedRemainingAmount / this.terms);
+            this.loanAmount = this.remainingAmount + additionalAmount;
 
-            // Calculate the payment dates based on frequency
+            // Recalculate installments and due dates
+            this.quotesAmount = Array(this.terms).fill(this.loanAmount / this.terms);
             this.cuotaDates = this.calculatePaymentDates(this.purchaseDate, this.terms, this.frequency);
         },
         calculatePaymentDates(startDate, terms, frequency) {
@@ -1175,8 +1200,14 @@ export default {
                     },
                 };
 
-                // Send email via Cloud Function
-                await this.sendEmail(payload);
+                // Send email via the utility function
+                const result = await sendEmail(payload);
+
+                if (result.success) {
+                    console.log("Email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send email:", result.error);
+                }
             } catch (error) {
                 console.error("Error sending verification code:", error);
             }
@@ -1628,6 +1659,7 @@ export default {
         this.userId = userStore.userId;
         this.role = userStore.role;
         this.userName = userStore.userName;
+        this.isProfileCompleted = userStore.isProfileCompleted;
 
         if (this.role === 'admin') {
             await this.fetchCurrentTotalCredit();
@@ -2283,17 +2315,30 @@ export default {
 
                             <div v-if="selectedEntities.length > 0" class="mb-3">
                                 <div class="row g-3">
-                                    <div class="col-4 col-sm-6 col-md-3" v-for="user in selectedEntities"
+                                    <div class="col-12 col-sm-6 col-md-4 col-lg-3" v-for="user in selectedEntities"
                                         :key="user.id">
-                                        <div class="p-3 border rounded d-flex justify-content-between align-items-center"
-                                            style="background-color: transparent; height: auto;">
-                                            <div class="text-truncate" style="max-width: 75%;">
-                                                <a href="#" @click.prevent="showUserDetails(user)">{{ user.name }}</a>
+                                        <div
+                                            class="p-3 border rounded bg-light d-flex flex-column justify-content-between">
+                                            <!-- User Name and Danger Button -->
+                                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                                <a href="#" @click.prevent="showUserDetails(user)"
+                                                    class="text-primary fw-bold">
+                                                    {{ user.name }}
+                                                </a>
+                                                <button class="btn btn-danger btn-sm" @click="deselectEntity(user)"
+                                                    aria-label="Remove selection">
+                                                    <i class="fa fa-times"></i>
+                                                </button>
                                             </div>
-                                            <button class="btn btn-danger btn-sm" @click="deselectEntity(user)"
-                                                aria-label="Remove selection">
-                                                <i class="fa fa-times"></i>
-                                            </button>
+
+                                            <!-- Warning Message -->
+                                            <div class="mt-2">
+                                                <p v-if="!user.state || !user.municipio || !user.parroquia"
+                                                    class="alert alert-warning text-center mb-0">
+                                                    <i class="fa fa-exclamation-triangle me-2"></i>
+                                                    El usuario seleccionado no ha completado su perfil.
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -2623,6 +2668,16 @@ export default {
                     <div class="tab-pane fade show active" id="main">
 
                         <div class="row justify-content-center mb-2">
+                            <div v-if="isProfileIncompleted"
+                                class="alert alert-warning d-inline-flex align-items-center mt-2" role="alert"
+                                style="width: auto;">
+                                <i class="fa-solid fa-exclamation-circle me-2"></i>
+                                <div>
+                                    <strong>Completa tu perfil:</strong> Para disfrutar de los beneficios de descuentos
+                                    exclusivos y la posibilidad de adquirir una línea de crédito, completa toda la
+                                    información de tu perfil.
+                                </div>
+                            </div>
                             <div class="alert alert-info d-inline-flex align-items-center mt-2" role="alert"
                                 style="width: auto;">
                                 <i class="fa-solid fa-info-circle me-2"></i>
@@ -3160,7 +3215,8 @@ export default {
                                         v-model="purchaseDate">
                                 </div>
                                 <div class="col-6 mb-3 d-flex align-items-end">
-                                    <button class="btn btn-theme" @click="calcs(selectedClient)">Calcular
+                                    <button class="btn btn-theme" @click="calcs(selectedClient)"
+                                        :disabled="!selectedClient">Calcular
                                         cuotas</button>
                                 </div>
 
@@ -3168,6 +3224,36 @@ export default {
 
                                 <div v-if="calc">
                                     <div class="row">
+                                        <div class="row justify-content-center m-3">
+                                            <h5 class="text-center mb-4">Ajustar porcentaje de Cuota Inicial</h5>
+                                            <div class="form-check col-4">
+                                                <input class="form-check-input" type="radio" id="initial-50" value="50"
+                                                    v-model="initialPercentage"
+                                                    @change="updateInitial(selectedClient)" />
+                                                <label class="form-check-label" for="initial-50">
+                                                    50%
+                                                </label>
+                                            </div>
+                                            <div class="form-check col-4">
+                                                <input class="form-check-input" type="radio" id="initial-25" value="25"
+                                                    v-model="initialPercentage"
+                                                    @change="updateInitial(selectedClient)" />
+                                                <label class="form-check-label" for="initial-25">
+                                                    25%
+                                                </label>
+                                            </div>
+                                            <div class="form-check col-4">
+                                                <input class="form-check-input" type="radio" id="initial-custom"
+                                                    value="custom" v-model="initialPercentage" />
+                                                <label class="form-check-label" for="initial-custom">
+                                                    Personalizado
+                                                </label>
+                                                <input v-if="initialPercentage === 'custom'" type="number"
+                                                    class="form-control mt-2" placeholder="Ingrese el porcentaje"
+                                                    v-model="customInitial" @input="updateInitial(selectedClient)" />
+                                            </div>
+                                        </div>
+
                                         <div class="col-4 mb-3">
                                             <label for="purchaseAmount">Inicial</label>
                                             <div class="input-group mt-2">

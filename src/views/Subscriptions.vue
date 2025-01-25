@@ -4,6 +4,7 @@ import { ref as dbRef, update, get, query, orderByChild, equalTo, push, set, rem
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { showToast } from '@/utils/toast';
+import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import SearchInput from '@/components/app/SearchInput.vue';
 import moment from 'moment';
@@ -301,17 +302,16 @@ export default {
         }
     },
     methods: {
-        async sendEmail(payload) {
-            try {
-                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-                await sendEmailFunction(payload);
-            } catch (error) {
-                console.error('Error sending email:', error);
-            }
-        },
         async sendNotificationEmail(emailPayload) {
             try {
-                await this.sendEmail(emailPayload);
+                // Send email via the utility function
+                const result = await sendEmail(emailPayload);
+
+                if (result.success) {
+                    console.log("Email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send email:", result.error);
+                }
             } catch (error) {
                 console.error('Error sending email:', error);
             }

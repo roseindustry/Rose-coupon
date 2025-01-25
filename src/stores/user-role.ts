@@ -7,6 +7,7 @@ interface UserRoleState {
   userId: string | null;
   userName: string | null;
   isVerified: boolean;
+  isProfileCompleted: boolean;
 }
 
 export const useUserStore = defineStore('user-role', {
@@ -15,6 +16,7 @@ export const useUserStore = defineStore('user-role', {
     userId: null,
     userName: null,
     isVerified: false,
+    isProfileCompleted: false,
   }),
   actions: {
     async searchUsers() {
@@ -46,6 +48,7 @@ export const useUserStore = defineStore('user-role', {
             ? `${data.firstName} ${data.lastName}` 
             : data.companyName;
           this.isVerified = data.isVerified;
+          this.isProfileCompleted = !!(data.state && data.municipio && data.parroquia);
         } else {
           console.log("No data available");
           this.resetUser();
@@ -70,6 +73,7 @@ export const useUserStore = defineStore('user-role', {
       this.userId = null;
       this.userName = null;
       this.isVerified = false;
+      this.isProfileCompleted = false;
     },
   },
   getters: {
@@ -77,5 +81,6 @@ export const useUserStore = defineStore('user-role', {
     getUserId: (state) => state.userId,
     getUserName: (state) => state.userName,
     getUserVerifiedStatus: (state) => state.isVerified,
+    getProfileStatus: (state) => state.isProfileCompleted,
   },
 });

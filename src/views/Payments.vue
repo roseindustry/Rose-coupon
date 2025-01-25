@@ -6,6 +6,7 @@ import { httpsCallable } from 'firebase/functions';
 import { useUserStore } from '@/stores/user-role';
 import { Modal } from 'bootstrap';
 import { showToast } from '@/utils/toast';
+import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 
 export default {
@@ -442,8 +443,21 @@ export default {
                         text: `Hola ${userName}, tu pago del día ${paymentDate} ha sido aprobado.`,
                     },
                 };
-                await this.sendEmail(emailPayload);
+                // Send email via the utility function
+                // Send email via the utility function
+                const result = await sendEmail(emailPayload);
 
+                if (result.success) {
+                    console.log("Email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send email:", result.error);
+                }
+
+                if (result.success) {
+                    console.log("Email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send email:", result.error);
+                }
                 showToast('Pago aprobado. Se ha notificado al cliente.');
                 //Close Payment modal after approval
                 const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
@@ -571,7 +585,14 @@ export default {
                             text: `Hola ${user.firstName} ${user.lastName}, tu pago del día ${selectedCuota.paidAt.split('T')[0]} ha sido aprobado.`,
                         },
                     };
-                    await this.sendEmail(emailPayload);
+                    // Send email via the utility function
+                    const result = await sendEmail(emailPayload);
+
+                    if (result.success) {
+                        console.log("Email sent successfully:", result.message);
+                    } else {
+                        console.error("Failed to send email:", result.error);
+                    }
 
                     showToast('Pago aprobado. Se ha notificado al cliente.');
                     //Close Payment modal after approval
@@ -606,7 +627,7 @@ export default {
 
                     // Mark payment as disapproved in the client's cuotas
                     const cuotaRef = dbRef(db, `Users/${user.id}/credit/main/purchases/${selectedPurchase.purchaseId}/cuotas/${selectedCuota.cuotaId}`);
-                    await update(cuotaRef, { paid: false, disapproved: true,  });
+                    await update(cuotaRef, { paid: false, disapproved: true, });
 
                     // Mark payment as disapproved in the affiliate's cuotas
                     const AffiliateCuotaRef = dbRef(db, `Users/${selectedPurchase.affiliate_id}/credit/sales/${selectedPurchase.purchaseId}/cuotas/${selectedCuota.cuotaId}`);
@@ -620,7 +641,14 @@ export default {
                             text: `Hola ${user.firstName}, lamentamos informarte que tu pago del ${selectedCuota.paidAt.split('T')[0]} ha sido desaprobado. Vuelve a subir tu captura de pago en la app.`,
                         },
                     };
-                    await this.sendEmail(emailPayload);
+                    // Send email via the utility function
+                    const result = await sendEmail(emailPayload);
+
+                    if (result.success) {
+                        console.log("Email sent successfully:", result.message);
+                    } else {
+                        console.error("Failed to send email:", result.error);
+                    }
 
                     showToast('Pago desaprobado. Se ha notificado al cliente.');
                     const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
@@ -635,14 +663,6 @@ export default {
                 } finally {
                     this.isSubmitting = false;
                 }
-            }
-        },
-        async sendEmail(payload) {
-            try {
-                const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-                await sendEmailFunction(payload);
-            } catch (error) {
-                console.error('Error sending email:', error);
             }
         },
     },
@@ -884,8 +904,7 @@ export default {
                         <div class="row g-3">
                             <div v-if="approvedPayments.length > 0">
                                 <div v-for="payment in approvedPayments.filter(p => p.type === 'credit-cuota' && p.approved === true)"
-                                    :key="payment.id"
-                                    class="col-12 col-md-6">
+                                    :key="payment.id" class="col-12 col-md-6">
                                     <div class="card custom-card text-center shadow-sm">
                                         <div
                                             class="card-body d-flex flex-column justify-content-center align-items-center">
@@ -926,7 +945,7 @@ export default {
                     <img :src="modalImageUrl" alt="Comprobante" class="img-fluid">
 
                     <!-- Conditional button based on payment type -->
-                     <div v-if="paymentType === 'subscription'">
+                    <div v-if="paymentType === 'subscription'">
                         <a class="validate btn btn-outline-success btn-sm m-3" href="#"
                             @click.prevent="validateSubscriptionPayment(userModalData)" :disabled="isSubmitting">
                             <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
@@ -942,15 +961,16 @@ export default {
                     </div>
 
                     <div v-if="paymentType === 'cuota'">
-                        <a class="validate btn btn-outline-success btn-sm m-3" href="#" 
+                        <a class="validate btn btn-outline-success btn-sm m-3" href="#"
                             @click.prevent="validateCuotaPayment(userModalData)" :disabled="isSubmitting">
                             <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
                                 aria-hidden="true"></span>
                             <span v-else>Aprobar</span>
                         </a>
-                        <a class="validate btn btn-outline-danger btn-sm m-3" href="#" 
+                        <a class="validate btn btn-outline-danger btn-sm m-3" href="#"
                             @click.prevent="disapproveCuotaPayment(userModalData)" :disabled="isSubmitting">
-                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+                                aria-hidden="true"></span>
                             <span v-else>Denegar</span>
                         </a>
                     </div>

@@ -9,6 +9,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL, listAll } from 'firebas
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { showToast } from '@/utils/toast';
+import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import { Modal } from 'bootstrap';
 import venezuela from 'venezuela';
@@ -161,14 +162,6 @@ export default defineComponent({
 			const month = String(d.getUTCMonth() + 1).padStart(2, '0'); // Ensure two-digit month (months are zero-indexed)
 			const year = d.getUTCFullYear();
 			return `${day}/${month}/${year}`;
-		},
-		async sendEmail(payload) {
-			try {
-				const sendEmailFunction = httpsCallable(functions, 'sendEmail');
-				await sendEmailFunction(payload);
-			} catch (error) {
-				console.error('Error sending email:', error);
-			}
 		},
 
 		async fetchClientPlan() {
@@ -442,7 +435,14 @@ export default defineComponent({
 						<p>Para verificar el usuario, por favor <a href="${appUrl}" target="_blank">abre la app</a>.</p>`
 					},
 				};
-				await this.sendEmail(emailPayload);
+				// Send email via the utility function
+                const result = await sendEmail(emailPayload);
+
+                if (result.success) {
+                    console.log("Verification email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send verification email:", result.error);
+                }
 
 				//Success toast
 				showToast('Archivos subidos!');
