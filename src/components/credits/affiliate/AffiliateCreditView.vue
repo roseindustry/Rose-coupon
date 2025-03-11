@@ -10,7 +10,7 @@
     <div v-else>
       <!-- Header with Credit Stats -->
       <div class="mb-4">
-        <h4 class="mb-3 fw-500">{{ currentAffiliate?.companyName }}</h4>
+        <h2 class="mb-3 fw-500 text-center">{{ currentAffiliate?.companyName }}</h2>
         <div class="row g-3">
           <div class="col-md-6">
             <div class="card h-100">

@@ -1293,14 +1293,7 @@ export default {
                     toast.error(`Error: ${err}`);
                 });
         },
-        editLevel(level) {
-            // Implementation for editing level
-            console.log('Editing level:', level);
-        },
-        deleteLevel(levelId) {
-            // Implementation for deleting level
-            console.log('Deleting level:', levelId);
-        },
+        
         async submitPayment(paymentData) {
             try {
                 this.loading = true;
@@ -1458,6 +1451,22 @@ export default {
         handleAffiliatePageChange(page) {
             this.currentPage.affiliates = page;
         },
+        handleLevelCreated(newLevel) {
+            this.levels.push(newLevel);
+        },
+        handleLevelUpdated(updatedLevel) {
+            const index = this.levels.findIndex(l => l.id === updatedLevel.id);
+            if (index !== -1) {
+                this.levels.splice(index, 1, updatedLevel);
+            }
+        },
+        handleLevelDeleted(levelId) {
+            this.levels = this.levels.filter(l => l.id !== levelId);
+        },
+        openLevelsModal() {
+            const modal = new Modal(document.getElementById('levels-modal'));
+            modal.show();
+        }
     },
     async mounted() {
         const userStore = useUserStore();
@@ -1513,9 +1522,7 @@ export default {
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h4 class="mb-0 fw-500">Administración de Créditos</h4>
                 <a href="#" 
-                    class="btn btn-sm btn-theme" 
-                    data-bs-toggle="modal" 
-                    data-bs-target="#levelsModal">
+                    class="btn btn-sm btn-theme" @click="openLevelsModal">
                     <i class="fa-solid fa-layer-group me-1"></i>
                     Administrar Niveles
                 </a>
@@ -1591,9 +1598,9 @@ export default {
         <!-- Modals -->
         <LevelsModal 
             :levels="levels"
-            @create="createLevel"
-            @edit="editLevel"
-            @delete="deleteLevel"
+            @levelCreated="handleLevelCreated"
+            @levelUpdated="handleLevelUpdated"
+            @levelDeleted="handleLevelDeleted"
         />
 
         <AppCreditModal
