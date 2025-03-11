@@ -66,6 +66,12 @@ export default defineComponent({
 			instagram: '',
 			facebook: '',
 			tiktok: '',
+			paymentDetails: {
+				bank: '',
+				phoneNumber: '',
+				identification: '',
+				bankAccount: '',
+			},
 
 			// Edit states
 			editStates: {
@@ -85,6 +91,7 @@ export default defineComponent({
 				instagram: false,
 				facebook: false,
 				tiktok: false,
+				paymentDetails: false,
 			},
 
 			//Verification data
@@ -126,6 +133,8 @@ export default defineComponent({
 		this.userName = userStore.userName;
 		const isVerified = userStore.isVerified;
 		this.userVerified = isVerified;
+
+		// console.log(this.userId)
 
 		// Corrected condition
 		if (isVerified && role !== 'admin') {
@@ -252,7 +261,7 @@ export default defineComponent({
 									paymentUploaded: subscriptionData.paymentUploaded || null,
 									paymentVerified: subscriptionData.paymentVerified || null,
 								};
-								console.log('Plan details: ', this.subscriptionPlan)
+								// console.log('Plan details: ', this.subscriptionPlan)
 							}
 							else {
 								// Handle case where there is no subscription plan
@@ -347,6 +356,12 @@ export default defineComponent({
 				alert('Error al actualizar la contraseña. Inténtalo de nuevo.');
 			}
 		},
+		async updatePaymentDetails() {
+			if (!this.userId) return;
+			const userRef = dbRef(db, `Users/${this.userId}/paymentDetails`);
+			await update(userRef, this.paymentDetails);
+			showToast("Detalles de pago actualizados correctamente.");
+		},
 
 		//File uploads
 		handleFileUpload(event, type) {
@@ -436,13 +451,13 @@ export default defineComponent({
 					},
 				};
 				// Send email via the utility function
-                const result = await sendEmail(emailPayload);
+				const result = await sendEmail(emailPayload);
 
-                if (result.success) {
-                    console.log("Verification email sent successfully:", result.message);
-                } else {
-                    console.error("Failed to send verification email:", result.error);
-                }
+				if (result.success) {
+					console.log("Verification email sent successfully:", result.message);
+				} else {
+					console.error("Failed to send verification email:", result.error);
+				}
 
 				//Success toast
 				showToast('Archivos subidos!');
@@ -799,6 +814,60 @@ export default defineComponent({
 									</div>
 								</div>
 							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Payment Details section -->
+				<div class="col mb-5">
+					<h4><i class="fa-solid fa-file-invoice-dollar fa-fw"></i> Detalles de Pago</h4>
+					<p>Registra aquí tus datos para que tus clientes realicen sus pagos.</p>
+					<div class="card shadow-sm">
+						<div class="card-body">
+							<div class="row">
+								<hr>
+								<h5 for="paymentDetails" class="form-label text-center mb-3">Datos de Pago</h5>
+
+								<div class="col-12 mb-3">
+									<div class="input-group">
+										<span class="input-group-text">
+											Banco
+										</span>
+										<input type="text" class="form-control" id="bank"
+											v-model="paymentDetails.bank" />
+									</div>
+								</div>
+								<div class="col-12 mb-3">
+									<div class="input-group">
+										<span class="input-group-text">
+											RIF o Cédula
+										</span>
+										<input type="text" class="form-control" id="identification"
+											v-model="paymentDetails.identification" />
+									</div>
+								</div>
+								<div class="col-12 mb-3">
+									<div class="input-group">
+										<span class="input-group-text">
+											Número de Teléfono
+										</span>
+										<input type="text" class="form-control" id="phone"
+											v-model="paymentDetails.phoneNumber" />
+									</div>
+								</div>
+								<div class="col-12 mb-3">
+									<div class="input-group">
+										<span class="input-group-text">
+											Número de Cuenta
+										</span>
+										<input type="text" class="form-control" id="account"
+											v-model="paymentDetails.bankAccount" />
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="card-footer text-end">
+							<button class="btn btn-theme" @click.prevent="updatePaymentDetails">Actualizar</button>
 						</div>
 					</div>
 				</div>

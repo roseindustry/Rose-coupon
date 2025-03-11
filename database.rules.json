@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "rateLimits": {
+      "verificationCodes": {
+        "$userId": {
+          // Only allow read/write through Cloud Functions
+          ".read": false,
+          ".write": false
+        }
+      }
+    }
+  }
+} 

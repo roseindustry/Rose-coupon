@@ -1748,6 +1748,11 @@
   resolved "https://registry.npmjs.org/@firebase/app-check-interop-types/-/app-check-interop-types-0.3.0.tgz"
   integrity sha512-xAxHPZPIgFXnI+vb4sbBjZcde7ZluzPPaSK7Lx3/nmuVk4TjZvnL8ONnkd4ERQKL8WePQySU+pRcWkh8rDf5Sg==
 
+"@firebase/app-check-interop-types@0.3.3":
+  version "0.3.3"
+  resolved "https://registry.npmjs.org/@firebase/app-check-interop-types/-/app-check-interop-types-0.3.3.tgz"
+  integrity sha512-gAlxfPLT2j8bTI/qfe3ahl2I2YcBQ8cFIBdhAQA4I2f3TndcO+22YizyGYuttLHPQEpWkhmpFW60VCFEPg4g5A==
+
 "@firebase/app-check-types@0.5.0":
   version "0.5.0"
   resolved "https://registry.npmjs.org/@firebase/app-check-types/-/app-check-types-0.5.0.tgz"
@@ -1807,6 +1812,11 @@
   resolved "https://registry.npmjs.org/@firebase/auth-interop-types/-/auth-interop-types-0.2.1.tgz"
   integrity sha512-VOaGzKp65MY6P5FI84TfYKBXEPi6LmOCSMMzys6o2BN2LOsqy7pCuZCup7NYnfbk5OkkQKzvIfHOzTm0UDpkyg==
 
+"@firebase/auth-interop-types@0.2.4":
+  version "0.2.4"
+  resolved "https://registry.npmjs.org/@firebase/auth-interop-types/-/auth-interop-types-0.2.4.tgz"
+  integrity sha512-JPgcXKCuO+CWqGDnigBtvo09HeBs5u/Ktc2GaFj2m01hLarbxthLNm7Fk8iOP1aqAtXV+fnnGj7U28xmk7IwVA==
+
 "@firebase/auth-types@0.12.0":
   version "0.12.0"
   resolved "https://registry.npmjs.org/@firebase/auth-types/-/auth-types-0.12.0.tgz"
@@ -1822,6 +1832,14 @@
     "@firebase/util" "1.9.4"
     tslib "^2.1.0"
     undici "5.28.3"
+
+"@firebase/component@0.6.12":
+  version "0.6.12"
+  resolved "https://registry.npmjs.org/@firebase/component/-/component-0.6.12.tgz"
+  integrity sha512-YnxqjtohLbnb7raXt2YuA44cC1wA9GiehM/cmxrsoxKlFxBLy2V0OkRSj9gpngAE0UoJ421Wlav9ycO7lTPAUw==
+  dependencies:
+    "@firebase/util" "1.10.3"
+    tslib "^2.1.0"
 
 "@firebase/component@0.6.5":
   version "0.6.5"
@@ -1918,6 +1936,18 @@
   resolved "https://registry.npmjs.org/@firebase/functions-types/-/functions-types-0.6.0.tgz"
   integrity sha512-hfEw5VJtgWXIRf92ImLkgENqpL6IWpYaXVYiRkFY1jJ9+6tIhWM7IzzwbevwIIud/jaxKVdRzD7QBWfPmkwCYw==
 
+"@firebase/functions@^0.12.2":
+  version "0.12.2"
+  resolved "https://registry.npmjs.org/@firebase/functions/-/functions-0.12.2.tgz"
+  integrity sha512-iKpFDoCYk/Qm+Qwv5ynRb9/yq64QOt0A0+t9NuekyAZnSoV56kSNq/PmsVmBauar5SlmEjhHk6QKdMBP9S0gXA==
+  dependencies:
+    "@firebase/app-check-interop-types" "0.3.3"
+    "@firebase/auth-interop-types" "0.2.4"
+    "@firebase/component" "0.6.12"
+    "@firebase/messaging-interop-types" "0.2.3"
+    "@firebase/util" "1.10.3"
+    tslib "^2.1.0"
+
 "@firebase/functions@0.11.2":
   version "0.11.2"
   resolved "https://registry.npmjs.org/@firebase/functions/-/functions-0.11.2.tgz"
@@ -1993,6 +2023,11 @@
   version "0.2.1"
   resolved "https://registry.npmjs.org/@firebase/messaging-interop-types/-/messaging-interop-types-0.2.1.tgz"
   integrity sha512-jfGJ7Jc32BDHXvXHyXi34mVLzZY8X0t929DTMwz7Tj2Hc40Zuzx8VRCIPLRrRUyvBrJCd5EpIcQgCygXhtaN1A==
+
+"@firebase/messaging-interop-types@0.2.3":
+  version "0.2.3"
+  resolved "https://registry.npmjs.org/@firebase/messaging-interop-types/-/messaging-interop-types-0.2.3.tgz"
+  integrity sha512-xfzFaJpzcmtDjycpDeCUj0Ge10ATFi/VHVIvEEjDNc3hodVBQADZ7BWQU7CuFpjSHE+eLuBI13z5F/9xOoGX8Q==
 
 "@firebase/messaging@^0.12.8":
   version "0.12.8"
@@ -2099,6 +2134,13 @@
     "@firebase/util" "1.9.4"
     tslib "^2.1.0"
     undici "5.28.3"
+
+"@firebase/util@1.10.3":
+  version "1.10.3"
+  resolved "https://registry.npmjs.org/@firebase/util/-/util-1.10.3.tgz"
+  integrity sha512-wfoF5LTy0m2ufUapV0ZnpcGQvuavTbJ5Qr1Ze9OJGL70cSMvhDyjS4w2121XdA3lGZSTOsDOyGhpoDtYwck85A==
+  dependencies:
+    tslib "^2.1.0"
 
 "@firebase/util@1.9.4", "@firebase/util@1.x":
   version "1.9.4"

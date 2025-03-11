@@ -40,10 +40,19 @@ export default {
                 parroquia: '',
                 address: '',
                 type: '',
+
+                // socials
                 twitter: '',
                 instagram: '',
                 facebook: '',
                 tiktok: '',
+            },
+            // Payment details
+            paymentDetails: {
+                bank: '',
+                identification: '',
+                phoneNumber: '',
+                bankAccount: ''
             },
             editData: {
                 order: '',
@@ -61,6 +70,10 @@ export default {
                 instagram: '',
                 facebook: '',
                 tiktok: '',
+                paymentDetails: {
+                    bank: '',
+
+                }
             },
 
             affiliates: [],
@@ -149,6 +162,7 @@ export default {
 
                         affiliatesList.push({
                             id: childSnapshot.key,
+                            paymentDetails: affiliateData.paymentDetails || {},
                             ...affiliateData,
                             category_id: categoryId,
                             categoryName: categoriesMap[categoryId] || 'Sin categoría'
@@ -289,7 +303,7 @@ export default {
         editAffiliate(affiliate) {
             // Populate the modal fields with the plan data
             this.editData = {
-                ...affiliate
+                ...affiliate,
             };
 
             // Open the modal
@@ -318,6 +332,16 @@ export default {
                 if (affiliate.parroquia) updateData.parroquia = affiliate.parroquia;
                 if (affiliate.type) updateData.type = affiliate.type;
                 if (affiliate.status !== undefined) updateData.status = affiliate.status;
+
+                // Payment Details
+                if (affiliate.paymentDetails) {
+                    updateData.paymentDetails = {}; // Initialize paymentDetails object
+
+                    if (affiliate.paymentDetails.bank) updateData.paymentDetails.bank = affiliate.paymentDetails.bank;
+                    if (affiliate.paymentDetails.identification) updateData.paymentDetails.identification = affiliate.paymentDetails.identification;
+                    if (affiliate.paymentDetails.phoneNumber) updateData.paymentDetails.phoneNumber = affiliate.paymentDetails.phoneNumber;
+                    if (affiliate.paymentDetails.bankAccount) updateData.paymentDetails.bankAccount = affiliate.paymentDetails.bankAccount;
+                }
 
                 // Social media
                 if (affiliate.twitter) updateData.twitter = affiliate.twitter;
@@ -450,6 +474,14 @@ export default {
                 return;
             }
 
+            if (!this.paymentDetails.bank ||
+                !this.paymentDetails.identification ||
+                !this.paymentDetails.phoneNumber ||
+                !this.paymentDetails.bankAccount) {
+                alert('Por favor, ingrese todos los Datos de Pago del Afiliado.');
+                return;
+            }
+
             try {
                 this.isSubmitting = true;
 
@@ -478,32 +510,17 @@ export default {
                     municipio: this.affiliate.municipio,
                     parroquia: this.affiliate.parroquia,
                     order: this.affiliate.order,
+                    paymentDetails: this.paymentDetails,
                 };
 
-                if (categoryId) {
-                    userData.category_id = categoryId;
-                }
-                if (imageUrl) {
-                    userData.image = imageUrl;
-                }
-                if (this.affiliate.status) {
-                    userData.status = this.affiliate.status;
-                }
-                if (this.affiliate.phoneNumber) {
-                    userData.phoneNumber = this.affiliate.phoneNumber;
-                }
-                if (this.affiliate.twitter) {
-                    userData.twitter = this.affiliate.twitter;
-                }
-                if (this.affiliate.instagram) {
-                    userData.instagram = this.affiliate.instagram;
-                }
-                if (this.affiliate.facebook) {
-                    userData.facebook = this.affiliate.facebook;
-                }
-                if (this.affiliate.tiktok) {
-                    userData.tiktok = this.affiliate.tiktok;
-                }
+                if (categoryId) userData.category_id = categoryId;
+                if (imageUrl) userData.image = imageUrl;
+                if (this.affiliate.status) userData.status = this.affiliate.status;
+                if (this.affiliate.phoneNumber) userData.phoneNumber = this.affiliate.phoneNumber;
+                if (this.affiliate.twitter) userData.twitter = this.affiliate.twitter;
+                if (this.affiliate.instagram) userData.instagram = this.affiliate.instagram;
+                if (this.affiliate.facebook) userData.facebook = this.affiliate.facebook;
+                if (this.affiliate.tiktok) userData.tiktok = this.affiliate.tiktok;
 
                 // Call Cloud Function to create the client via onRequest
                 const response = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/createUser', {
@@ -597,6 +614,12 @@ export default {
                 address: '',
                 sector: '',
                 imageFile: null
+            };
+            this.paymentDetails = {
+                bank: '',
+                identification: '',
+                phoneNumber: '',
+                bankAccount: ''
             };
             // Reset image upload state if there's one
             this.uploadImage = false;
@@ -1082,9 +1105,10 @@ export default {
         </div>
 
         <!-- Modal for Adding New Affiliate -->
-        <AddNewAffiliate :affiliate="affiliate" :categories="categories" :venezuelanStates="venezuelanStates"
-            :municipios="municipios" :parroquias="parroquias" :isSubmitting="isSubmitting" @close="resetForm"
-            @save="createAffiliate" @select-category="setSelectedCategory" @state-changed="onStateChange"
+        <AddNewAffiliate :affiliate="affiliate" :paymentDetails="paymentDetails" :categories="categories"
+            :venezuelanStates="venezuelanStates" :municipios="municipios" :parroquias="parroquias"
+            :isSubmitting="isSubmitting" @close="resetForm" @save="createAffiliate"
+            @select-category="setSelectedCategory" @state-changed="onStateChange"
             @municipality-changed="onMunicipioChange" @parish-changed="onParroquiaChange" />
 
         <!-- Modal for Editing Affiliate -->
@@ -1183,8 +1207,51 @@ export default {
                                 </div>
                             </div>
 
+                            <!-- Payment details -->
+                            <div class="row">
+                                <hr>
+                                <h5 for="affiliatePaymentDetails" class="form-label text-center mb-3">Datos de Pago</h5>
+                                <div class="col-12 mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            Banco
+                                        </span>
+                                        <input type="text" class="form-control" id="affiliateBank"
+                                            v-model="editData.paymentDetails.bank" />
+                                    </div>
+                                </div>
+                                <div class="col-12 mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            RIF o Cédula
+                                        </span>
+                                        <input type="text" class="form-control" id="affiliateIdentification"
+                                            v-model="editData.paymentDetails.identification" />
+                                    </div>
+                                </div>
+                                <div class="col-12 mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            Número de Teléfono
+                                        </span>
+                                        <input type="text" class="form-control" id="affiliatePhone"
+                                            v-model="editData.paymentDetails.phoneNumber" />
+                                    </div>
+                                </div>
+                                <div class="col-12 mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            Número de Cuenta
+                                        </span>
+                                        <input type="text" class="form-control" id="affiliateAccount"
+                                            v-model="editData.paymentDetails.bankAccount" />
+                                    </div>
+                                </div>
+                            </div>
+
                             <hr>
 
+                            <!-- Socials -->
                             <div class="row">
                                 <h5 for="affiliateSocials" class="form-label text-center mb-3">Redes sociales</h5>
                                 <div class="col-6 mb-3">

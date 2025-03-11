@@ -94,8 +94,53 @@
                                 </select>
                             </div>
                         </div>
+
                         <hr>
 
+                        <!-- Payment details -->
+                        <div class="row">
+                            <h5 for="affiliatePaymentDetails" class="form-label text-center mb-3">Datos de Pago</h5>
+                            <div class="col-12 mb-3">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        Banco
+                                    </span>
+                                    <input type="text" class="form-control" id="affiliateBank"
+                                        v-model="paymentDetails.bank" required />
+                                </div>
+                            </div>
+                            <div class="col-12 mb-3">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        RIF o Cédula
+                                    </span>
+                                    <input type="text" class="form-control" id="affiliateIdentification"
+                                        v-model="paymentDetails.identification" required />
+                                </div>
+                            </div>
+                            <div class="col-12 mb-3">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        Número de Teléfono
+                                    </span>
+                                    <input type="text" class="form-control" id="affiliatePhone"
+                                        v-model="paymentDetails.phoneNumber" required />
+                                </div>
+                            </div>
+                            <div class="col-12 mb-3">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        Número de Cuenta
+                                    </span>
+                                    <input type="text" class="form-control" id="affiliateAccount"
+                                        v-model="paymentDetails.bankAccount" required />
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Socials -->
                         <div class="row">
                             <h5 for="affiliateSocials" class="form-label text-center mb-3">Redes sociales</h5>
                             <div class="col-6 mb-3">
@@ -135,6 +180,8 @@
                                 </div>
                             </div>
                         </div>
+
+                        <hr>
 
                         <p>(<span class="text-danger">*</span>) Campos obligatorios.</p>
 
@@ -193,6 +240,10 @@
 export default {
     props: {
         affiliate: {
+            type: Object,
+            required: true,
+        },
+        paymentDetails: {
             type: Object,
             required: true,
         },
