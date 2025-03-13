@@ -36,6 +36,7 @@
         @view-quotas="showQuotas"
       />
 
+      <!-- Modals -->
       <PayCuotaModal
         v-if="selectedPurchase"
         :purchase="selectedPurchase"

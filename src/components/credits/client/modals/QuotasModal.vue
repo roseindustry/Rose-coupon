@@ -20,9 +20,9 @@
               <tbody>
                 <tr v-for="(cuota, index) in purchase.cuotas" :key="index">
                   <td>{{ formatDate(new Date(cuota.date)) }}</td>
-                  <td>${{ (purchase.loanAmount / purchase.terms).toLocaleString() }}</td>
+                  <td>${{ Number(purchase.loanAmount / purchase.terms).toFixed(2) }}</td>
                   <td>
-                    <span class="badge" :class="cuota.paid ? 'bg-success' : 'bg-warning'">
+                    <span class="badge" :class="cuota.paid ? 'badge-success' : 'badge-warning'">
                       {{ cuota.paid ? 'Pagado' : 'Pendiente' }}
                     </span>
                   </td>
@@ -92,5 +92,19 @@ export default {
 
 .btn-theme:disabled {
   opacity: 0.65;
+}
+
+.badge {
+  padding: 0.5em 1em;
+  border: 1px solid;
+  background-color: transparent !important;
+}
+.badge-success {
+  color: #198754;
+  border-color: #198754;
+}
+.badge-warning {
+  color: #ffc107;
+  border-color: #ffc107;
 }
 </style> 

@@ -4,8 +4,8 @@
       <h5 class="text-black">Mis Compras</h5>
     </div>
     <div class="card-body">
-      <div v-if="purchases && purchases.length" class="row g-4">
-        <div v-for="purchase in purchases" :key="purchase.id" class="col-12">
+      <div v-if="sortedPurchases && sortedPurchases.length" class="row g-4">
+        <div v-for="purchase in sortedPurchases" :key="purchase.id" class="col-12">
           <div class="card bg-dark">
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-start mb-3">
@@ -62,6 +62,11 @@ export default {
       type: Array,
       required: true,
       default: () => []
+    }
+  },
+  computed: {
+    sortedPurchases() {
+      return [...this.purchases].sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate));
     }
   },
   methods: {

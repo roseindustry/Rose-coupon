@@ -18,39 +18,57 @@
             <h6 class="text-light">Detalles de la Compra</h6>
             <div class="text-light small">
               <p class="mb-1">Producto: {{ purchase.productName }}</p>
-              <p class="mb-1">Monto del préstamo: ${{ purchase.loanAmount?.toLocaleString() }}</p>
-              <p class="mb-1">Monto restante: ${{ purchase.remainingAmount?.toLocaleString() }}</p>
-              <p class="mb-0">Cuotas: {{ purchase.terms }}</p>
+              <p class="mb-0" v-if="currentCuota">Cuota a pagar: ${{ Number(currentCuota.amount).toFixed(2) }}</p>
+              <p class="mb-0 text-warning" v-else>No hay cuotas pendientes por pagar</p>
             </div>
           </div>
 
           <div class="mb-3">
-            <label class="form-label text-light">Monto a Pagar</label>
+            <label class="form-label text-light">Monto a Pagar en Bs.</label>
             <div class="input-group">
-              <span class="input-group-text bg-dark text-light border-secondary">$</span>
+              <span class="input-group-text bg-dark text-light border-secondary">Bs.</span>
               <input 
                 type="number" 
                 class="form-control bg-dark text-light border-secondary" 
                 v-model.number="amountPaid"
                 :min="0"
-                :max="purchase.remainingAmount"
+                :value="cuotaInBs"
+                readonly
                 required />
             </div>
+            <small class="text-secondary mt-1 d-block">
+              Tasa de cambio: {{ exchangeRate }} Bs.
+            </small>
           </div>
 
-          <div class="mb-3">
-            <label class="form-label text-light">Método de Pago</label>
-            <select 
-              class="form-select bg-dark text-light border-secondary"
-              v-model="selectedMethod"
-              required>
-              <option value="">Seleccionar método</option>
-              <option v-for="method in paymentMethods" 
-                :key="method.id" 
-                :value="method.id">
-                {{ method.name }}
-              </option>
-            </select>
+          <div class="payment-details mb-4">
+            <h6 class="text-light mb-3">Datos de Pago</h6>
+            <div v-if="affiliatePaymentDetails" class="bg-dark-subtle p-3 rounded border border-secondary">
+              <div class="row g-3">
+                <div class="col-sm-6">
+                  <small class="text-secondary d-block">Banco</small>
+                  <span class="text-light">{{ affiliatePaymentDetails.bank }}</span>
+                </div>
+                <div class="col-sm-6">
+                  <small class="text-secondary d-block">Número de Cuenta</small>
+                  <span class="text-light">{{ affiliatePaymentDetails.bankAccount }}</span>
+                </div>
+                <div class="col-sm-6">
+                  <small class="text-secondary d-block">Teléfono</small>
+                  <span class="text-light">{{ affiliatePaymentDetails.phoneNumber }}</span>
+                </div>
+                <div class="col-sm-6">
+                  <small class="text-secondary d-block">Cédula / RIF</small>
+                  <span class="text-light">{{ affiliatePaymentDetails.identification }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="!loading" class="text-warning">
+              <small>
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                No se encontraron los datos de pago del afiliado
+              </small>
+            </div>
           </div>
 
           <div class="mb-3">
@@ -89,8 +107,9 @@
 </template>
 
 <script>
-import { storage } from '@/firebase/init'
+import { ref as dbRef, get } from 'firebase/database'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { db, storage } from '@/firebase/init'
 
 export default {
   name: 'PayCuotaModal',
@@ -98,31 +117,72 @@ export default {
     purchase: {
       type: Object,
       required: true
-    },
-    paymentMethods: {
-      type: Array,
-      required: true
     }
   },
   data() {
     return {
       amountPaid: 0,
-      selectedMethod: '',
       paymentFile: null,
       paymentPreview: null,
       errorMessage: '',
-      loading: false
+      loading: false,
+      affiliatePaymentDetails: null,
+      exchangeRate: 0,
+      currentCuota: null
     }
   },
   computed: {
     isValid() {
       return this.amountPaid > 0 && 
-             this.amountPaid <= this.purchase.remainingAmount &&
-             this.selectedMethod &&
              this.paymentFile
+    },
+    cuotaInBs() {
+      const amount = (this.currentCuota?.amount || 0) * this.exchangeRate;
+      return Number(amount.toFixed(2));
+    },
+    nextUnpaidCuota() {
+      if (!this.purchase.cuotas) return null;
+      return this.purchase.cuotas.find(cuota => !cuota.paid);
     }
   },
   methods: {
+    async fetchExchangeRate() {
+      try {
+        const exchangeRef = dbRef(db, 'Exchange');
+        const snapshot = await get(exchangeRef);
+        if (snapshot.exists()) {
+          this.exchangeRate = Number(snapshot.val().value.toFixed(2));
+          // Set the initial amount to pay in Bs
+          this.amountPaid = (this.currentCuota?.amount || 0) * this.exchangeRate;
+          
+        } else {
+          this.errorMessage = 'No se encontró la tasa de cambio';
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rate:', error);
+        this.errorMessage = 'Error al cargar la tasa de cambio';
+      }
+    },
+    async fetchAffiliateDetails() {
+      try {
+        this.loading = true;
+        const affiliateRef = dbRef(db, `Users/${this.purchase.affiliate_id}`);
+        const snapshot = await get(affiliateRef);
+        
+        if (snapshot.exists()) {
+          const affiliate = snapshot.val();
+          this.affiliatePaymentDetails = affiliate.paymentDetails || null;
+        } else {
+          this.errorMessage = 'No se encontraron los datos de pago del afiliado';
+        }
+      } catch (error) {
+        console.error('Error fetching affiliate details:', error);
+        this.errorMessage = 'Error al cargar los datos de pago';
+      } finally {
+        this.loading = false;
+      }
+    },
+
     handleFileUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -159,7 +219,7 @@ export default {
         const paymentData = {
           purchaseId: this.purchase.id,
           amount: this.amountPaid,
-          paymentMethod: this.selectedMethod,
+          paymentMethod: 'pago movil',
           proofUrl: downloadURL,
           purchaseDate: this.purchase.purchaseDate,
           frequency: this.purchase.frequency,
@@ -174,13 +234,35 @@ export default {
         this.loading = false;
       }
     }
+  },
+  async mounted() {
+    this.currentCuota = this.nextUnpaidCuota;
+    if (!this.currentCuota) {
+      this.errorMessage = 'No hay cuotas pendientes por pagar';
+    }
+    await Promise.all([
+      this.fetchAffiliateDetails(),
+      this.fetchExchangeRate()
+    ]);
   }
 }
 </script>
 
 <style scoped>
+.modal-header {
+  background-color: #29122f;
+}
 .text-purple {
   color: #6f42c1;
+}
+
+/* Add higher z-index for this modal */
+#payCuotaModal {
+  z-index: 1060 !important;
+}
+
+.modal-backdrop.show:nth-child(2) {
+  z-index: 1055;
 }
 
 .btn-theme {
@@ -210,5 +292,9 @@ export default {
   padding: 0.375rem 0.75rem;
   margin-right: 0.75rem;
   border-radius: 0.25rem;
+}
+
+.bg-dark-subtle {
+  background-color: #2d2d2d !important;
 }
 </style> 

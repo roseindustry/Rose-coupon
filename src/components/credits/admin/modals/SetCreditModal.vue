@@ -84,10 +84,12 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @click="clearForm">
+            Cerrar
+          </button>
           <button type="button" 
                   class="btn btn-theme" 
-                  @click="$emit('assign', { creditLine, amount: creditAmount })"
+                  @click="handleAssign"
                   :disabled="!creditLine || creditAmount <= 0 || selectedEntities.length === 0">
             Asignar
           </button>
@@ -98,9 +100,36 @@
 </template>
 
 <script>
+import { Modal } from 'bootstrap';
+
 export default {
   name: 'SetCreditModal',
   inheritAttrs: false,
+  data() {
+    return {
+      searchEntity: '',
+      creditAmount: 0,
+      creditLine: '',
+      modalInstance: null
+    }
+  },
+  mounted() {
+    // Get modal instance
+    const modalEl = document.getElementById('set-credit-modal');
+    if (modalEl) {
+      this.modalInstance = new Modal(modalEl);
+      modalEl.addEventListener('hide.bs.modal', this.clearForm);
+      modalEl.addEventListener('hidden.bs.modal', this.clearForm);
+    }
+  },
+  beforeUnmount() {
+    // Clean up event listener
+    const modalEl = document.getElementById('set-credit-modal');
+    if (modalEl) {
+      modalEl.removeEventListener('hide.bs.modal', this.clearForm);
+      modalEl.removeEventListener('hidden.bs.modal', this.clearForm);
+    }
+  },
   props: {
     creditType: {
       type: String,
@@ -116,26 +145,33 @@ export default {
     selectedEntities: {
       type: Array,
       required: true,
-      default: () => []
-    }
-  },
-  data() {
-    return {
-      searchEntity: '',
-      creditAmount: 0,
-      creditLine: ''
+      default: () => [],
     }
   },
   methods: {
     handleSearch() {
-      // Emit the search event with the current search value
       this.$emit('search', this.searchEntity);
     },
     handleSelect(entity) {
-      // Emit the select event with the selected entity
       this.$emit('select', entity);
-      // Clear the search input
       this.searchEntity = '';
+    },
+    clearForm() {
+      this.searchEntity = '';      
+      this.creditAmount = 0;
+      this.creditLine = '';
+      // Emit event to clear selected entities
+      this.$emit('deselect', 'all');
+    },
+    handleAssign() {
+      this.$emit('assign', { 
+        creditLine: this.creditLine, 
+        amount: this.creditAmount 
+      });
+      this.clearForm();
+      if (this.modalInstance) {
+        this.modalInstance.hide();
+      }
     }
   },
   watch: {
@@ -150,6 +186,17 @@ export default {
 <style scoped>
 .form-control {
   font-size: 0.9rem;
+}
+
+.form-select {
+  font-size: 0.9rem;
+  background-color: #29122f;
+  color: white;
+}
+
+.form-select option {
+  background-color: #29122f;
+  color: white;
 }
 
 .list-group-item {

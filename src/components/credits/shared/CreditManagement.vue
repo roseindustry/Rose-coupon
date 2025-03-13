@@ -26,7 +26,7 @@ export default {
 <style scoped>
 .custom-card {
   transition: transform .2s ease-in-out, box-shadow .2s ease-in-out;
-  background-color: #2d2d2d;
+  background-color: #29122f;
 }
 
 .custom-card:hover {

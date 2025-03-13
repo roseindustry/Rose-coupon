@@ -75,6 +75,7 @@ export default {
             searchClient: '',
             searchEntity: '',
             filterClients: '',
+            filterAffiliates: '',
 
             appCreditType: '',
             editUserData: null,
@@ -220,30 +221,30 @@ export default {
             this.filterClients = query;
             this.currentPage.clients = 1; // Reset to first page when filtering
         },
+        handleFilterAffiliates(query) {
+            this.filterAffiliates = query;
+            this.currentPage.affiliates = 1; // Reset to first page when filtering
+        },
         applyFilter(data, type) {
             let query;
             if (type === 'client') {
                 query = this.filterClients?.trim().toString().toLowerCase();
             } else if (type === 'affiliate') {
-                query = this.searchQuery?.trim().toString().toLowerCase();
+                query = this.filterAffiliates?.trim().toString().toLowerCase();
             }
 
-            let filteredData = [...data];
+            if (!query) return data;
 
-            if (query) {
-                filteredData = filteredData.filter(item => {
-                    let identification, name;
-                    if (type === 'client') {
-                        identification = item.identification?.toString().toLowerCase() || '';
-                        name = (item.firstName + ' ' + item.lastName).toLowerCase();
-                    } else if (type === 'affiliate') {
-                        identification = item.rif?.toString().toLowerCase() || '';
-                        name = item.companyName?.toLowerCase() || '';
-                    }
-                    return identification.includes(query) || name.includes(query);
-                });
-            }
-            return filteredData;
+            return data.filter(item => {
+                if (type === 'client') {
+                    return item.firstName?.toLowerCase().includes(query) ||
+                           item.lastName?.toLowerCase().includes(query) ||
+                           item.identification?.toLowerCase().includes(query);
+                } else if (type === 'affiliate') {
+                    return item.companyName?.toLowerCase().includes(query) ||
+                           item.rif?.toLowerCase().includes(query);
+                }
+            });
         },
 
         //FOR ADMIN USE
@@ -380,7 +381,7 @@ export default {
                                 const subData = subDataSnapshot.val();
                                 client.subscription = {
                                     ...subData,
-                                    subId // Include the subscription ID
+                                    id: subId // Include the subscription ID
                                 };
                             } else {
                                 client.subscription = null; // Handle case where subscription data is not found
@@ -452,7 +453,7 @@ export default {
                                 const subData = subDataSnapshot.val();
                                 affiliate.subscription = {
                                     ...subData,
-                                    subId, // Include the subscription ID
+                                    id: subId, // Include the subscription ID
                                     isPaid
                                 };
                             } else {
@@ -551,6 +552,7 @@ export default {
                     for (const [id, sale] of Object.entries(sales)) {
                         mappedSales[id] = {
                             ...sale,
+                            id,
                             clientName: sale.clientName || await this.getClientName(sale.client_id)
                         };
                     }
@@ -852,17 +854,25 @@ export default {
             this.searchEntity = '';
             this.searchEntityResults = [];
         },
-        deselectEntity(user) {
-            this.selectedEntities = this.selectedEntities.filter(entity => entity.id !== user.id);
-            // Only toggle off if the user being deselected is currently selected
-            if (this.showDetails && this.selectedUser?.id === user.id) {
-                this.showUserDetails(user);
+        deselectEntity(entity) {
+            if (entity === 'all') {
+                this.selectedEntities = [];
+                return;
             }
-            console.log('DeSelected user: ', user.id);
+            const index = this.selectedEntities.indexOf(entity);
+            if (index > -1) {
+                this.selectedEntities.splice(index, 1);
+            }
         },
         showUserDetails(user) {
-            this.selectedUser = user;
-            this.creditType = user.role === 'cliente' ? 'client' : 'affiliate';
+            this.selectedUser = {
+                ...user,
+                credit: {
+                    ...user.credit,
+                    sales: user.credit?.sales || {},  // Keep as object
+                    mainPurchases: user.credit?.mainPurchases || []
+                }
+            };
             const modal = new Modal(document.getElementById('credit-details-modal'));
             modal.show();
         },
@@ -1366,7 +1376,9 @@ export default {
             }
         },
         async registerAffiliatePurchase(purchaseData) {
-            try {
+            try {   
+                this.loading = true;
+                
                 // First verify the purchase code
                 const response = await fetch(
                     `https://us-central1-rose-app-e062e.cloudfunctions.net/verifyPurchaseCode?clientId=${purchaseData.clientId}&code=${purchaseData.verificationCode}`
@@ -1385,6 +1397,7 @@ export default {
                 const purchase = {
                     id: purchaseId,
                     clientName: purchaseData.clientName,
+                    client_id: purchaseData.clientId,
                     affiliate_id: this.userId,
                     productName: purchaseData.productName,
                     productPrice: purchaseData.productPrice,
@@ -1433,6 +1446,8 @@ export default {
                 console.error('Error registering purchase:', error);
                 toast.error(error.message || 'Error al registrar la venta');
                 throw error;
+            } finally {
+                this.loading = false;
             }
         },
         async verifyPurchaseCode(clientId, code) {
@@ -1488,7 +1503,7 @@ export default {
                 credit: {
                     mainCredit: creditData?.mainCredit || 0,
                     availableMainCredit: creditData?.availableMainCredit || 0,
-                    sales: creditData?.sales || []
+                    sales: creditData?.sales || {}
                 }
             };
             await this.fetchClients();
@@ -1564,17 +1579,17 @@ export default {
                 @page-change="handleClientPageChange"
             />
 
-            <AffiliateCreditList
+            <AffiliateCreditList            
                 :affiliates="paginatedAffiliates"
                 :current-page="currentPage.affiliates"
                 :total-pages="totalPages.affiliates"
-                :search-query="searchQuery"
-                @update:search-query="searchQuery = $event"
-                @assign-credit="openCreditModal('affiliate')"
+                @assign-credit="(type) => openCreditModal('affiliate')"
                 @edit-credit="editCredit"
                 @remove-credit="removeCreditLine"
                 @view-details="showUserDetails"
                 @page-change="handleAffiliatePageChange"
+                :filter-affiliates="filterAffiliates"
+                @update:filter-affiliates="handleFilterAffiliates"                
             />
         </template>
 
@@ -1632,8 +1647,10 @@ export default {
 
         <CreditDetailsModal
             :user-data="selectedUser"
-            :is-client="true"
+            :is-client="!selectedUser?.firstName || !selectedUser?.lastName"
+            :is-affiliate="!!selectedUser?.companyName"
             :purchases="selectedUser?.credit?.mainPurchases || []"
+            :sales="selectedUser?.credit?.sales || {}"
         />
     </div>
 </template>
