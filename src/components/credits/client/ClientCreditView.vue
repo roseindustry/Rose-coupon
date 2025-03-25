@@ -8,7 +8,9 @@
     <div v-else>
       <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h4 class="mb-0 fw-500">Mi Crédito</h4>
+          <h4 class="mb-0 fw-500 text-theme">
+            <i class="fas fa-credit-card me-2"></i>
+            Mi Crédito</h4>
           <small class="text-light">
             Nivel: {{ currentClient?.level?.name || 'Sin nivel' }} 
             ({{ currentClient?.points || 0 }} puntos)
@@ -28,27 +30,35 @@
       />
 
       <ClientPurchaseHistory
-        :purchases="currentClient?.credit?.mainPurchases"
+        :purchases="paginatedPurchases"
+        :affiliates="affiliates"
         :filter-options="filterOptions"
         :sort-options="sortOptions"
+        :total-pages="totalPages"
+        :current-page="currentPage"
+        :date-filter="dateFilter"
         @filter-change="handleFilterChange"
         @sort-change="handleSortChange"
+        @page-change="handlePageChange"
+        @date-filter-change="handleDateFilterChange"
+        @clear-filters="clearFilters"
         @view-quotas="showQuotas"
       />
 
       <!-- Modals -->
-      <PayCuotaModal
-        v-if="selectedPurchase"
-        :purchase="selectedPurchase"
-        :payment-methods="paymentMethods"
-        @submit-payment="submitPayment"
-      />
-      
       <QuotasModal
-        v-if="selectedPurchase"
+        v-if="selectedPurchase"        
         :purchase="selectedPurchase"
         ref="quotasModal"
         @pay-quota="payCuota"
+      />
+      
+      <PayCuotaModal
+        v-if="selectedPurchase"
+        ref="payCuotaModal"
+        :purchase="selectedPurchase"
+        :selected-cuota-id="selectedCuotaId"
+        @payment-success="handlePaymentSuccess"
       />
       
       <PointsSystemModal
@@ -102,12 +112,26 @@ export default {
       type: Array,
       required: true,
       default: () => []
+    },
+    affiliates: {
+      type: Array,
+      required: true,
+      default: () => []
     }
   },
   data() {
     return {
       loading: true,
       selectedPurchase: null,
+      selectedCuotaId: null,
+      quotasModal: null,
+      payCuotaModal: null,
+      currentPage: 1,
+      itemsPerPage: 5,
+      dateFilter: {
+        startDate: '',
+        endDate: new Date().toISOString().split('T')[0]
+      },
       filterOptions: {
         status: ['Todos', 'Pendiente', 'Pagado', 'Atrasado'],
         date: ['Último mes', 'Últimos 3 meses', 'Último año', 'Todos']
@@ -118,11 +142,73 @@ export default {
         { value: 'amount-desc', label: 'Mayor monto' },
         { value: 'amount-asc', label: 'Menor monto' }
       ],
-      paymentMethods: [
-        { id: 'transfer', name: 'Transferencia Bancaria' },
-        { id: 'nequi', name: 'Nequi' },
-        { id: 'daviplata', name: 'Daviplata' }
-      ]
+      activeFilters: {
+        status: 'Todos',
+        date: 'Todos'
+      },
+      activeSort: 'date-desc'
+    }
+  },
+  computed: {
+    filteredPurchases() {
+      if (!this.currentClient?.credit?.mainPurchases) return [];
+      
+      let purchases = [...this.currentClient.credit.mainPurchases];
+
+      // Apply date filter
+      if (this.dateFilter.startDate && this.dateFilter.endDate) {
+        purchases = purchases.filter(purchase => {
+          const purchaseDate = new Date(purchase.purchaseDate);
+          const startDate = new Date(this.dateFilter.startDate);
+          const endDate = new Date(this.dateFilter.endDate);
+          return purchaseDate >= startDate && purchaseDate <= endDate;
+        });
+      }
+
+      // Apply status filter
+      if (this.activeFilters.status !== 'Todos') {
+        purchases = purchases.filter(purchase => {
+          const isPaid = purchase.cuotas?.every(cuota => cuota.paid);
+          switch (this.activeFilters.status) {
+            case 'Pagado':
+              return isPaid;
+            case 'Pendiente':
+              return !isPaid;
+            case 'Atrasado':
+              return purchase.cuotas?.some(cuota => 
+                !cuota.paid && new Date(cuota.date) < new Date()
+              );
+            default:
+              return true;
+          }
+        });
+      }
+
+      // Apply sorting
+      purchases.sort((a, b) => {
+        switch (this.activeSort) {
+          case 'date-desc':
+            return new Date(b.purchaseDate) - new Date(a.purchaseDate);
+          case 'date-asc':
+            return new Date(a.purchaseDate) - new Date(b.purchaseDate);
+          case 'amount-desc':
+            return b.productPrice - a.productPrice;
+          case 'amount-asc':
+            return a.productPrice - b.productPrice;
+          default:
+            return 0;
+        }
+      });
+
+      return purchases;
+    },
+    totalPages() {
+      return Math.ceil(this.filteredPurchases.length / this.itemsPerPage);
+    },
+    paginatedPurchases() {
+      const start = (this.currentPage - 1) * this.itemsPerPage;
+      const end = start + this.itemsPerPage;
+      return this.filteredPurchases.slice(start, end);
     }
   },
   methods: {
@@ -145,29 +231,74 @@ export default {
         }
       });
     },
+    hideQuotasModal() {
+      if (this.$refs.quotasModal) {
+        this.$refs.quotasModal.hide();
+      }
+    },
     payCuota(quotaData) {
       this.selectedPurchase = quotaData.purchase;
+      this.selectedCuotaId = quotaData.cuotaId;
       this.$nextTick(() => {
-        const modalElement = document.getElementById('payCuotaModal');
-        if (modalElement) {
-          const modal = new Modal(modalElement);
-          modal.show();
+        // Hide quotas modal first
+        this.hideQuotasModal();
+        
+        // Then show payment modal
+        if (this.$refs.payCuotaModal) {
+          this.$refs.payCuotaModal.show();
         }
       });
     },
-    submitPayment(paymentData) {
-      this.$emit('submit-payment', paymentData)
+    handlePaymentSuccess() {
+      // Show quotas modal again to reflect changes
+      this.$nextTick(() => {
+        this.showQuotas(this.selectedPurchase);
+      });
     },
     handleFilterChange(filters) {
-      // Implementation for filtering purchases
+      this.activeFilters = { ...filters };
+      this.currentPage = 1; // Reset to first page when filter changes
     },
     handleSortChange(sortOption) {
-      // Implementation for sorting purchases
+      this.activeSort = sortOption;
+      this.currentPage = 1; // Reset to first page when sort changes
     },
+    handlePageChange(page) {
+      this.currentPage = page;
+    },
+    handleDateFilterChange(dates) {
+      this.dateFilter = { ...dates };
+      this.currentPage = 1; // Reset to first page when date filter changes
+    },
+    clearFilters() {
+      // Reset all filters to default values
+      this.activeFilters = {
+        status: 'Todos',
+        date: 'Todos'
+      };
+      this.activeSort = 'date-desc';
+      this.currentPage = 1;
+      
+      // Reset date filter to show all dates
+      const today = new Date();
+      this.dateFilter = {
+        startDate: '',
+        endDate: today.toISOString().split('T')[0]
+      };
+    },
+    setDefaultDateFilter() {
+      const today = new Date();
+      
+      this.dateFilter = {
+        startDate: '',
+        endDate: today.toISOString().split('T')[0]
+      };
+    }
   },
   async mounted() {
     await this.$nextTick();
     this.loading = false;
+    this.setDefaultDateFilter();
   },
   watch: {
     currentClient: {
@@ -193,5 +324,9 @@ h4 {
   background-color: #6f42c1;
   border-color: #6f42c1;
   color: white;
+}
+
+.text-theme {
+  color: #6f42c1;
 }
 </style> 

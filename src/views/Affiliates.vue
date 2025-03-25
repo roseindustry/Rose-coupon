@@ -9,10 +9,11 @@ import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'fi
 import { db, storage, functions } from '@/firebase/init';
 import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
-import { showToast } from '@/utils/toast';
+import { toast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import { useUserStore } from "@/stores/user-role";
 import venezuela from 'venezuela';
+import AffiliatesList from '@/components/affiliates/AffiliatesList.vue'
 
 export default {
     components: {
@@ -20,7 +21,8 @@ export default {
         AddCategoryModal,
         ManageSubcategoriesModal,
         AddSubcategoryModal,
-        AddNewAffiliate
+        AddNewAffiliate,
+        AffiliatesList
     },
     data() {
         return {
@@ -119,6 +121,25 @@ export default {
             newSubcategory: '',
             editingSubcategoryId: null,
             editSubcategoryName: '',
+
+            searchQuery: '',
+        }
+    },
+    computed: {
+        filteredAffiliatesList() {
+            if (!this.searchQuery) {
+                return this.filteredAffiliates.length ? this.filteredAffiliates : this.affiliates;
+            }
+            
+            const query = this.searchQuery.toLowerCase();
+            const affiliates = this.filteredAffiliates.length ? this.filteredAffiliates : this.affiliates;
+            
+            return affiliates.filter(affiliate => 
+                affiliate.companyName?.toLowerCase().includes(query) ||
+                affiliate.state?.toLowerCase().includes(query) ||
+                affiliate.municipio?.toLowerCase().includes(query) ||
+                affiliate.parroquia?.toLowerCase().includes(query)
+            );
         }
     },
     async mounted() {
@@ -394,7 +415,7 @@ export default {
                     this.showParroquias = false;
                     this.selectedCategory = null;
 
-                    showToast("Información actualizada!");
+                    toast.success('Comercio actualizado exitosamente');
 
                 } else {
                     alert('No hay campos para actualizar.');
@@ -457,7 +478,7 @@ export default {
                     affiliate.imageFile = null;
 
                     // Optionally, display a success message
-                    showToast("Imagen actualizada!");
+                    toast.success('Imagen actualizada!');
                 }
             } catch (error) {
                 console.error('Error updating image:', error);
@@ -534,7 +555,7 @@ export default {
                 const result = await response.json();
 
                 if (result.success) {
-                    showToast("Nuevo Comercio Afiliado registrado con exito! Se ha enviado la contraseña al correo.");
+                    toast.success("Nuevo Comercio Afiliado registrado con exito! Se ha enviado la contraseña al correo.");
 
                     // Reset form
                     this.resetForm();
@@ -587,7 +608,7 @@ export default {
                         }
 
                         // Show success toast
-                        showToast("Afiliado eliminado.");
+                        toast.success("Afiliado eliminado.");
 
                         // Remove the client from the UI
                         this.fetchAffiliates();
@@ -693,7 +714,7 @@ export default {
                 });
 
                 // Show success notification
-                showToast("Categoria agregada con exito!");
+                toast.success("Categoria agregada con exito!");
 
                 // Hide the 'Add Category' modal
                 const addCategoryModal = Modal.getInstance(document.getElementById('addCategoryModal'));
@@ -730,17 +751,13 @@ export default {
                         name: categoryToUpdate.name,
                     });
                     // Show success notification
-                    showToast("Categoría actualizada con éxito!");
+                    toast.success("Categoría actualizada con éxito!");
                     this.fetchCategories();
                     this.editingCategoryId = false;
                 }
             } catch (e) {
                 console.error("Ocurrió un error al actualizar la categoría: ", e);
-                showToast("Error al actualizar la categoría.", {
-                    style: {
-                        background: "linear-gradient(to right, #ff0000, #ff7f50)", // Red gradient for error
-                    }
-                });
+                toast.error("Error al actualizar la categoría.");
             }
         },
         async deleteCategory(categoryId) {
@@ -755,15 +772,11 @@ export default {
                     // Remove category from the local modalData array
                     this.modalData = this.modalData.filter(cat => cat.id !== categoryId);
                     // Show success notification
-                    showToast("Categoría eliminada con éxito!");
+                    toast.success("Categoría eliminada con éxito!");
 
                 } catch (e) {
                     console.error("Ocurrió un error al eliminar la categoría: ", e);
-                    showToast("Error al eliminar la categoría.", {
-                        style: {
-                            background: "linear-gradient(to right, #ff0000, #ff7f50)", // Red gradient for error
-                        }
-                    });
+                    toast.error("Error al eliminar la categoría.");
                 }
             }
 
@@ -827,7 +840,7 @@ export default {
                 });
 
                 // Show success notification
-                showToast("Subcategoria agregada con exito!");
+                toast.success("Subcategoria agregada con exito!");
 
                 // Hide the 'Add Subcategory' modal
                 const addSubcategoryModal = Modal.getOrCreateInstance(document.getElementById('addSubcategoryModal'));
@@ -864,16 +877,12 @@ export default {
                         name: subcategoryToUpdate.name,
                     });
                     // Show success notification
-                    showToast("Subcategoría actualizada con éxito!");
+                    toast.success("Subcategoría actualizada con éxito!");
                     this.editingSubcategoryId = false;
                 }
             } catch (e) {
                 console.error("Ocurrió un error al actualizar la subcategoría: ", e);
-                showToast("Error al actualizar la subcategoría.", {
-                    style: {
-                        background: "linear-gradient(to right, #ff0000, #ff7f50)", // Red gradient for error
-                    }
-                });
+                toast.error("Error al actualizar la subcategoría.");
             }
         },
         async deleteSubcategory(subcategoryId) {
@@ -888,15 +897,11 @@ export default {
                     // Remove category from the local modalData array
                     this.subcategoriesModalData = this.subcategoriesModalData.filter(subcat => subcat.id !== subcategoryId);
                     // Show success notification
-                    showToast("Subcategoría eliminada con éxito!");
+                    toast.success("Subcategoría eliminada con éxito!");
 
                 } catch (e) {
                     console.error("Ocurrió un error al eliminar la Subcategoría: ", e);
-                    showToast("Error al eliminar la Subcategoría.", {
-                        style: {
-                            background: "linear-gradient(to right, #ff0000, #ff7f50)", // Red gradient for error
-                        }
-                    });
+                    toast.error("Error al eliminar la Subcategoría.");
                 }
             }
 
@@ -916,6 +921,15 @@ export default {
             }
         },
 
+        cancelImageEdit(affiliate) {
+            affiliate.isEditing = false;
+            affiliate.updatedImagePreview = null;
+            affiliate.imageFile = null;
+        },
+
+        handleSearch(query) {
+            this.searchQuery = query;
+        }
     }
 }
 </script>
@@ -925,7 +939,7 @@ export default {
     </h2>
 
     <div v-if="this.role === 'admin'" class="container">
-        <div class="row">
+        <div class="row mb-3">
             <div class="col d-flex justify-content-start align-items-center">
                 <a href="#" class="btn btn-theme" style="margin: 14px;" @click="manageCategories()">
                     <i class="fa fa-list fa-fw me-1"></i> Administrar categorias
@@ -941,168 +955,43 @@ export default {
         </div>
 
         <!-- Affiliates List -->
-        <div class="container-fluid mt-2">
-            <div class="row">
-
-                <div v-if="affiliates.length === 0" class="d-flex justify-content-center align-items-center"
-                    style="height: 100vh;">
-                    <div class="text-center">
-                        <div class="mb-3 mt-5">
-                            <i class="fa fa-building text-body text-opacity-25" style="font-size: 5em"></i>
-                        </div>
-                        <h5>No hay Comercios Afiliados registrados.</h5>
-                    </div>
-                </div>
-                <div v-else>
-
-                    <!-- Filters -->
-                    <div class="row mb-4">
-                        <!-- Filters -->
-                        <div class="d-flex justify-content-end flex-wrap mt-3">
-                            <div v-if="!filterAffiliates" class="btn btn-theme me-2 mb-2"
-                                @click.prevent="habilitateFilters()">
-                                <i class="fa-solid fa-filter"></i>
-                                Filtrar comercios
-                            </div>
-                            <div v-else class="btn btn-theme me-2 mb-2" @click.prevent="habilitateFilters()">
-                                <i class="fa-solid fa-filter"></i>
-                                Limpiar filtros
-                            </div>
-
-                            <div v-if="filterAffiliates" class="dropdown mb-2 me-2">
-                                <button class="btn btn-theme dropdown-toggle me-2 w-100 w-md-auto" type="button"
-                                    id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fa-solid fa-filter"></i>
-                                    {{ selectedState ? selectedState : 'Filtrar por Estado' }}
-                                </button>
-                                <ul class="dropdown-menu" aria-labelledby="filterDropdown"
-                                    style="max-height: 200px; overflow-y: auto;">
-                                    <li v-for="state in venezuelanStates" :key="state">
-                                        <a class="dropdown-item" href="#"
-                                            @click.prevent="filterByState(state), displayMunicipios(state), setSelectedState(state)">
-                                            {{ state }}</a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="#" @click.prevent="clearFilter">Ver todos</a>
-                                    </li>
-                                </ul>
-                            </div>
-                            <div v-if="showMunicipios" class="dropdown mb-2 me-2">
-                                <button class="btn btn-theme dropdown-toggle me-2 w-100 w-md-auto" type="button"
-                                    id="filterMunicipios" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fa-solid fa-filter"></i>
-                                    {{ selectedMunicipio ? selectedMunicipio : 'Filtrar por Municipio' }}
-                                </button>
-                                <ul class="dropdown-menu" aria-labelledby="filterDropdown"
-                                    style="max-height: 200px; overflow-y: auto;">
-                                    <li v-for="municipio in municipios" :key="municipio">
-                                        <a class="dropdown-item" href="#"
-                                            @click.prevent="filterByMunicipio(municipio), displayParroquias(municipio), setSelectedMunicipio(municipio)">
-                                            {{ municipio }}</a>
-                                    </li>
-                                </ul>
-                            </div>
-                            <div v-if="showParroquias" class="dropdown mb-2 me-2">
-                                <button class="btn btn-theme dropdown-toggle me-2 w-100 w-md-auto" type="button"
-                                    id="filterParroquias" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fa-solid fa-filter"></i>
-                                    {{ selectedParroquia ? selectedParroquia : 'Filtrar por Parroquia' }}
-                                </button>
-                                <ul class="dropdown-menu" aria-labelledby="filterDropdown"
-                                    style="max-height: 200px; overflow-y: auto;">
-                                    <li v-for="parroquia in parroquias" :key="parroquia">
-                                        <a class="dropdown-item" href="#"
-                                            @click.prevent="filterByParroquia(parroquia), setSelectedParroquia(parroquia)">
-                                            {{ parroquia }}</a>
-                                    </li>
-                                </ul>
-                            </div>
-                            <div v-if="showCategories" class="dropdown mb-2 me-2">
-                                <button class="btn btn-theme dropdown-toggle me-2 w-100 w-md-auto" type="button"
-                                    id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fa-solid fa-filter"></i>
-                                    {{ selectedCategory ? selectedCategory.name : 'Filtrar por Categoria' }}
-                                </button>
-                                <ul class="dropdown-menu" aria-labelledby="filterDropdown"
-                                    style="max-height: 200px; overflow-y: auto;">
-                                    <li v-for="category in categories" :key="category">
-                                        <a class="dropdown-item" href="#"
-                                            @click.prevent="filterByCategory(category), setSelectedCategory(category)">
-                                            {{ category.name }}</a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="#" @click.prevent="clearFilter">Ver todos</a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div v-for="(affiliate, index) in filteredAffiliates" :key="affiliate.id"
-                            class="col-12 col-sm-6 col-md-4 mb-4">
-                            <div class="card h-100 position-relative">
-                                <div class="img-container position-relative">
-                                    <!-- Image Display -->
-                                    <div v-if="!affiliate.updatedImagePreview" class="img"
-                                        :style="{ backgroundImage: 'url(' + affiliate.image + ')' }">
-                                        <button class="btn btn-sm btn-outline-info me-1 edit-button"
-                                            data-bs-toggle="tooltip" data-bs-placement="top" title="Editar imagen"
-                                            @click="editImage(affiliate)">
-                                            <i class="fa-solid fa-pencil"></i>
-                                        </button>
-                                    </div>
-
-                                    <!-- Image Edit: File Input -->
-                                    <div v-if="affiliate.isEditing">
-                                        <div v-if="affiliate.updatedImagePreview" class="mt-2">
-                                            <img :src="affiliate.updatedImagePreview" class="img" alt="preview">
-                                            <!-- Button to confirm the image update -->
-                                            <button class="btn btn-sm btn-outline-success mt-2 mb-2 edit-button"
-                                                @click="updateImage(affiliate)" :disabled="affiliate.isSubmitting">
-                                                <i class="fa-solid fa-check"></i>
-                                            </button>
-                                        </div>
-                                        <input type="file" @change="event => previewUpdatedImage(event, affiliate)"
-                                            class="form-control" />
-                                    </div>
-                                    <!-- Loader Spinner for only the current affiliate being updated -->
-                                    <div v-if="affiliate.isSubmitting"
-                                        class="spinner-overlay d-flex justify-content-center align-items-center">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Cargando...</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title text-truncate">{{ affiliate.companyName }}</h5>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" :id="'affiliate' + index"
-                                                v-model="affiliate.status" disabled />
-                                            <label class="form-check-label" :for="'affiliate' + index">
-                                                {{ affiliate.status ? 'Activo' : 'Inactivo' }}
-                                            </label>
-                                        </div>
-                                    </div>
-                                    <div class="d-flex justify-content-end mt-2">
-                                        <button class="btn btn-sm btn-outline-info me-1" data-bs-toggle="tooltip"
-                                            data-bs-placement="top" title="Editar comercio"
-                                            @click="editAffiliate(affiliate), fetchCategories(), displayMunicipios(affiliate.state), displayParroquias(affiliate.municipio)">
-                                            <i class="fa-solid fa-pencil"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger"
-                                            @click="deleteAffiliate(affiliate, index)">
-                                            <i class="fa-solid fa-trash"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <AffiliatesList 
+            :affiliates="affiliates"
+            :filtered-affiliates="filteredAffiliates"
+            :is-admin="role === 'admin'"
+            :is-client="role === 'cliente'"
+            :venezuelan-states="venezuelanStates"
+            :municipios="municipios"
+            :parroquias="parroquias"
+            :categories="categories"
+            :show-municipios="showMunicipios"
+            :show-parroquias="showParroquias"
+            :show-categories="showCategories"
+            :selected-state="selectedState"
+            :selected-municipio="selectedMunicipio"
+            :selected-parroquia="selectedParroquia"
+            :selected-category="selectedCategory"
+            :filter-affiliates="filterAffiliates"
+            @edit-image="editImage"
+            @update-image="updateImage"
+            @preview-image="previewUpdatedImage"
+            @cancel-image-edit="cancelImageEdit"
+            @edit-affiliate="editAffiliate"
+            @delete-affiliate="deleteAffiliate"
+            @search="handleSearch"
+            @filter-by-state="filterByState"
+            @filter-by-municipio="filterByMunicipio"
+            @filter-by-parroquia="filterByParroquia"
+            @filter-by-category="filterByCategory"
+            @display-municipios="displayMunicipios"
+            @display-parroquias="displayParroquias"
+            @set-selected-state="setSelectedState"
+            @set-selected-municipio="setSelectedMunicipio"
+            @set-selected-parroquia="setSelectedParroquia"
+            @set-selected-category="setSelectedCategory"
+            @clear-filter="clearFilter"
+            @habilitate-filters="habilitateFilters"
+        />
 
         <!-- Modal for Adding New Affiliate -->
         <AddNewAffiliate :affiliate="affiliate" :paymentDetails="paymentDetails" :categories="categories"
@@ -1341,222 +1230,42 @@ export default {
     </div>
 
     <div v-if="this.role === 'cliente'" class="container">
-        <!-- Display Affiliates -->
-        <div class="container-fluid">
-            <div class="row">
-                <div class="col-12 justify-content-center text-center">
-                    <div class="alert alert-info d-inline-flex align-items-center mt-2" role="alert"
-                        style="width: 50%;">
-                        <i class="fa-solid fa-info-circle me-2"></i>
-                        <div>
-                            Aca puedes explorar los Comercios en los que puedes canjear tus cupones proporcionados por
-                            Rose App.
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row mb-5">
-                <!-- Filters -->
-                <div class="d-flex justify-content-end flex-wrap mt-3">
-                    <div v-if="!filterAffiliates" class="btn btn-theme me-2 mb-2" @click.prevent="habilitateFilters()">
-                        <i class="fa-solid fa-filter"></i>
-                        Filtrar comercios
-                    </div>
-                    <div v-else class="btn btn-theme me-2 mb-2" @click.prevent="habilitateFilters()">
-                        <i class="fa-solid fa-filter"></i>
-                        Limpiar filtros
-                    </div>
-
-                    <div v-if="filterAffiliates" class="dropdown mb-2 me-2">
-                        <button class="btn btn-theme dropdown-toggle me-2 w-100 w-md-auto" type="button"
-                            id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fa-solid fa-filter"></i>
-                            {{ selectedState ? selectedState : 'Filtrar por Estado' }}
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="filterDropdown"
-                            style="max-height: 200px; overflow-y: auto;">
-                            <li v-for="state in venezuelanStates" :key="state">
-                                <a class="dropdown-item" href="#"
-                                    @click.prevent="filterByState(state), displayMunicipios(state), setSelectedState(state)">
-                                    {{ state }}</a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="#" @click.prevent="clearFilter">Ver todos</a>
-                            </li>
-                        </ul>
-                    </div>
-                    <div v-if="showMunicipios" class="dropdown mb-2 me-2">
-                        <button class="btn btn-theme dropdown-toggle me-2 w-100 w-md-auto" type="button"
-                            id="filterMunicipios" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fa-solid fa-filter"></i>
-                            {{ selectedMunicipio ? selectedMunicipio : 'Filtrar por Municipio' }}
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="filterDropdown"
-                            style="max-height: 200px; overflow-y: auto;">
-                            <li v-for="municipio in municipios" :key="municipio">
-                                <a class="dropdown-item" href="#"
-                                    @click.prevent="filterByMunicipio(municipio), displayParroquias(municipio), setSelectedMunicipio(municipio)">
-                                    {{ municipio }}</a>
-                            </li>
-                        </ul>
-                    </div>
-                    <div v-if="showParroquias" class="dropdown mb-2 me-2">
-                        <button class="btn btn-theme dropdown-toggle me-2 w-100 w-md-auto" type="button"
-                            id="filterParroquias" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fa-solid fa-filter"></i>
-                            {{ selectedParroquia ? selectedParroquia : 'Filtrar por Parroquia' }}
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="filterDropdown"
-                            style="max-height: 200px; overflow-y: auto;">
-                            <li v-for="parroquia in parroquias" :key="parroquia">
-                                <a class="dropdown-item" href="#"
-                                    @click.prevent="filterByParroquia(parroquia), setSelectedParroquia(parroquia)">
-                                    {{ parroquia }}</a>
-                            </li>
-                        </ul>
-                    </div>
-                    <div v-if="showCategories" class="dropdown mb-2 me-2">
-                        <button class="btn btn-theme dropdown-toggle me-2 w-100 w-md-auto" type="button"
-                            id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fa-solid fa-filter"></i>
-                            {{ selectedCategory ? selectedCategory.name : 'Filtrar por Categoria' }}
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="filterDropdown"
-                            style="max-height: 200px; overflow-y: auto;">
-                            <li v-for="category in categories" :key="category">
-                                <a class="dropdown-item" href="#"
-                                    @click.prevent="filterByCategory(category), setSelectedCategory(category)">
-                                    {{ category.name }}</a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="#" @click.prevent="clearFilter">Ver todos</a>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row">
-                <div v-if="filteredAffiliates.length === 0" class="d-flex justify-content-center align-items-center"
-                    style="height: 100vh;">
-                    <div class="text-center">
-                        <div class="mb-3 mt-n5">
-                            <i class="fa fa-building text-body text-opacity-25" style="font-size: 5em"></i>
-                        </div>
-                        <h5>No hay Comercios Afiliados registrados en el estado seleccionado.</h5>
-                    </div>
-                </div>
-
-                <div v-else>
-                    <!-- Loop through filtered affiliates -->
-                    <div class="row">
-                        <div v-for="affiliate in filteredAffiliates" :key="affiliate.id"
-                            class="col-12 col-sm-6 col-md-4 mb-4">
-                            <div class="card h-100 position-relative">
-                                <div class="img-container position-relative">
-                                    <div class="img" :style="{ backgroundImage: 'url(' + affiliate.image + ')' }"></div>
-                                </div>
-                                <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title text-truncate">{{ affiliate.companyName }}</h5>
-                                    <p class="card-text text-truncate flex-grow-1">
-                                        <i class="fa-brands fa-whatsapp fa-lg"></i>
-                                        {{ affiliate.phoneNumber }}
-                                    </p>
-                                    <p class="card-text text-truncate flex-grow-1">{{ affiliate.state }}</p>
-                                    <p class="card-text text-truncate flex-grow-1">
-                                        <i class="fa-solid fa-location-dot"></i>
-                                        {{ affiliate.address ? affiliate.address : affiliate.municipio }}
-                                    </p>
-
-                                    <!-- Accordion for Social Media Links -->
-                                    <div class="accordion" :id="'accordionSocial' + affiliate.id">
-                                        <div class="accordion-item">
-                                            <h2 class="accordion-header" :id="'heading' + affiliate.id">
-                                                <button class="accordion-button collapsed" type="button"
-                                                    data-bs-toggle="collapse"
-                                                    :data-bs-target="'#collapse' + affiliate.id" aria-expanded="false"
-                                                    :aria-controls="'collapse' + affiliate.id">
-                                                    Redes Sociales
-                                                </button>
-                                            </h2>
-                                            <div :id="'collapse' + affiliate.id" class="accordion-collapse collapse"
-                                                :aria-labelledby="'heading' + affiliate.id"
-                                                :data-bs-parent="'#accordionSocial' + affiliate.id">
-                                                <div class="accordion-body">
-                                                    <ul class="list-unstyled">
-                                                        <li v-if="affiliate.facebook" class="mb-2">
-                                                            <div class="input-group">
-                                                                <span class="input-group-text">
-                                                                    <i class="fa-brands fa-facebook-f"></i>
-                                                                </span>
-                                                                <input type="text" class="form-control"
-                                                                    :value="affiliate.facebook" readonly>
-                                                                <a :href="affiliate.facebook"
-                                                                    class="btn btn-outline-primary" target="_blank">
-                                                                    <i class="fa-solid fa-arrow-right"></i>
-                                                                </a>
-                                                            </div>
-                                                        </li>
-                                                        <li v-if="affiliate.instagram" class="mb-2">
-                                                            <div class="input-group">
-                                                                <span class="input-group-text">
-                                                                    <i class="fa-brands fa-instagram"></i>
-                                                                </span>
-                                                                <input type="text" class="form-control"
-                                                                    :value="affiliate.instagram" readonly>
-                                                                <a :href="affiliate.instagram"
-                                                                    class="btn btn-outline-primary" target="_blank">
-                                                                    <i class="fa-solid fa-arrow-right"></i>
-                                                                </a>
-                                                            </div>
-                                                        </li>
-                                                        <li v-if="affiliate.twitter" class="mb-2">
-                                                            <div class="input-group">
-                                                                <span class="input-group-text">
-                                                                    <i class="fa-brands fa-x-twitter"></i>
-                                                                </span>
-                                                                <input type="text" class="form-control"
-                                                                    :value="affiliate.twitter" readonly>
-                                                                <a :href="affiliate.twitter"
-                                                                    class="btn btn-outline-primary" target="_blank">
-                                                                    <i class="fa-solid fa-arrow-right"></i>
-                                                                </a>
-                                                            </div>
-                                                        </li>
-                                                        <li v-if="affiliate.tiktok" class="mb-2">
-                                                            <div class="input-group">
-                                                                <span class="input-group-text">
-                                                                    <i class="fa-brands fa-tiktok"></i>
-                                                                </span>
-                                                                <input type="text" class="form-control"
-                                                                    :value="affiliate.tiktok" readonly>
-                                                                <a :href="affiliate.tiktok"
-                                                                    class="btn btn-outline-primary" target="_blank">
-                                                                    <i class="fa-solid fa-arrow-right"></i>
-                                                                </a>
-                                                            </div>
-                                                        </li>
-                                                        <li
-                                                            v-if="!affiliate.facebook && !affiliate.instagram && !affiliate.twitter && !affiliate.tiktok">
-                                                            <p>Este comercio no ha registrado redes sociales.</p>
-                                                        </li>
-                                                    </ul>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <AffiliatesList 
+            :affiliates="affiliates"
+            :filtered-affiliates="filteredAffiliates"
+            :venezuelan-states="venezuelanStates"
+            :municipios="municipios"
+            :parroquias="parroquias"
+            :categories="categories"
+            :show-municipios="showMunicipios"
+            :show-parroquias="showParroquias"
+            :show-categories="showCategories"
+            :selected-state="selectedState"
+            :selected-municipio="selectedMunicipio"
+            :selected-parroquia="selectedParroquia"
+            :selected-category="selectedCategory"
+            :filter-affiliates="filterAffiliates"            
+            @search="handleSearch"
+            @filter-by-state="filterByState"
+            @filter-by-municipio="filterByMunicipio"
+            @filter-by-parroquia="filterByParroquia"
+            @filter-by-category="filterByCategory"
+            @display-municipios="displayMunicipios"
+            @display-parroquias="displayParroquias"
+            @set-selected-state="setSelectedState"
+            @set-selected-municipio="setSelectedMunicipio"
+            @set-selected-parroquia="setSelectedParroquia"
+            @set-selected-category="setSelectedCategory"
+            @clear-filter="clearFilter"
+            @habilitate-filters="habilitateFilters"
+        />
     </div>
 </template>
 
 <style scoped>
+.container {
+    padding: 0;
+}
 .btn-theme {
     background-color: purple;
     border-color: purple;
@@ -1589,8 +1298,64 @@ export default {
 .img-container {
     position: relative;
     height: 200px;
-    background-size: cover;
-    background-position: center;
+    background-color: #1a1a1a;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.affiliate-logo {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border-radius: 8px;
+    background-color: #1a1a1a;
+    overflow: visible; /* Changed from hidden to allow file input to show below */
+}
+
+.logo-container {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.logo-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    padding: 0.5rem;
+}
+
+.edit-image-container {
+    position: relative;
+    width: 100%;
+}
+
+.preview-container {
+    width: 120px;
+    height: 120px;
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.preview-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.file-input-wrapper {
+    margin-top: 0.5rem;
+    width: 200px;
+}
+
+.file-input-wrapper .d-flex {
+    gap: 0.5rem;
+}
+
+.file-input-wrapper input {
+    font-size: 0.875rem;
+    flex: 1;
 }
 
 .spinner-overlay {
@@ -1599,9 +1364,172 @@ export default {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(255, 255, 255, 0.6);
-    /* Light overlay to make spinner visible */
-    z-index: 10;
-    /* Ensure the spinner is on top of the image */
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 2;
+}
+
+/* Update header spacing for larger logo */
+.affiliate-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start; /* Changed from center to better align with larger logo */
+    margin-bottom: 1rem;
+    gap: 1.5rem;
+}
+
+.affiliate-info .d-flex {
+    gap: 1.5rem; /* Increased from 0.5rem */
+}
+
+.min-vh-50 {
+    min-height: 50vh;
+}
+
+.social-links a {
+    transition: all 0.3s ease;
+}
+
+.social-links a:hover {
+    transform: translateY(-2px);
+}
+
+.card {
+    transition: transform 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+/* Dark theme adjustments */
+.card {
+    background-color: #2d2d2d;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.card-body {
+    background-color: #2d2d2d;
+}
+
+.text-secondary {
+    color: #adb5bd !important;
+}
+
+.affiliates-list-wrapper {
+    background: #29122f;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.affiliate-item {
+    padding: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.affiliate-item:last-child {
+    border-bottom: none;
+}
+
+.affiliate-name {
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.affiliate-location, .affiliate-contact {
+    color: #adb5bd;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+
+.status-badge {
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background: #e9ecef;
+    color: #666;
+}
+
+.status-badge.active {
+    background: #d4edda;
+    color: #155724;
+}
+
+.affiliate-social {
+    margin: 1rem 0;
+}
+
+.affiliate-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.btn-outline-primary, .btn-outline-danger {
+    border-width: 1px;
+}
+
+@media (max-width: 768px) {
+    .affiliate-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .affiliate-info .d-flex {
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .affiliate-logo {
+        width: 90px;
+        height: 90px;
+        flex-shrink: 0;
+    }
+
+    .affiliate-status {
+        align-self: flex-start;
+        margin-top: 0.5rem;
+    }
+
+    .affiliate-social {
+        flex-wrap: wrap;
+    }
+
+    .affiliate-actions {
+        margin-top: 1rem;
+    }
+
+    .file-input-wrapper {
+        width: 100%;
+        max-width: 250px;
+    }
+}
+
+@media (max-width: 480px) {
+    .affiliate-item {
+        padding: 1rem;
+    }
+
+    .affiliate-info .d-flex {
+        gap: 0.75rem;
+    }
+
+    .affiliate-logo {
+        width: 70px;
+        height: 70px;
+    }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        font-size: 0.8rem;
+    }
+
+    .affiliate-social .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
 }
 </style>

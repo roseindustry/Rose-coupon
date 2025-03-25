@@ -210,10 +210,6 @@ export default {
         }
     },
     methods: {
-        formatDate(dateString) {
-            const [year, month, day] = dateString.split("-");
-            return `${day}-${month}-${year}`;
-        },
         goToPage(page, type) {
             this.currentPage[type] = page;
         },
@@ -1326,7 +1322,7 @@ export default {
                 const paymentRef = dbRef(db, `Payments/${this.userId}-${formattedDate.split('T')[0]}`);
                 await set(paymentRef, paymentDetails);
 
-                toast.success('Comprobante subido!');
+                showToast('Comprobante subido!', 'success');
 
                 // Hide the modal after submission
                 const modal = Modal.getInstance(document.getElementById('payCuotaModal'));
@@ -1336,7 +1332,7 @@ export default {
                 this.currentClient = await this.fetchCredit(this.userId);
             } catch (error) {
                 console.error('Error during payment:', error);
-                toast.error('Error al procesar el pago');
+                showToast('Error al procesar el pago', 'error');
             } finally {
                 this.loading = false;
             }
@@ -1375,19 +1371,19 @@ export default {
                 return 0;
             }
         },
-        async registerAffiliatePurchase(purchaseData) {
+
+        async registerPurchase(purchaseData) {
             try {   
                 this.loading = true;
                 
                 // First verify the purchase code
-                const response = await fetch(
-                    `https://us-central1-rose-app-e062e.cloudfunctions.net/verifyPurchaseCode?clientId=${purchaseData.clientId}&code=${purchaseData.verificationCode}`
+                const verificationResult = await this.verifyCode(
+                    purchaseData.clientId, 
+                    purchaseData.verificationCode
                 );
                 
-                const verificationResult = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(verificationResult.error || `Error al verificar el código: ${response.statusText}`);
+                if (!verificationResult.success) {
+                    throw new Error(verificationResult.message || 'Error al verificar el código');
                 }
 
                 // Generate a unique ID for the purchase
@@ -1404,6 +1400,7 @@ export default {
                     purchaseAmount: purchaseData.purchaseAmount,
                     remainingAmount: purchaseData.remainingAmount,
                     loanAmount: purchaseData.loanAmount,
+                    includeFee: purchaseData.includeFee,
                     terms: purchaseData.terms,
                     frequency: purchaseData.frequency,
                     purchaseDate: new Date(purchaseData.purchaseDate).toISOString().split('T')[0],
@@ -1441,7 +1438,10 @@ export default {
 
                 // Perform all updates atomically
                 await update(dbRef(db), updates);
-
+                
+                // Return success
+                return true;
+                
             } catch (error) {
                 console.error('Error registering purchase:', error);
                 toast.error(error.message || 'Error al registrar la venta');
@@ -1450,16 +1450,48 @@ export default {
                 this.loading = false;
             }
         },
-        async verifyPurchaseCode(clientId, code) {
+        async verifyCode(clientId, code) {
             try {
-                const verifyCode = httpsCallable(functions, 'verifyPurchaseCode');
-                const result = await verifyCode({ clientId, code });
-                return result.data;
+                // Input validation
+                if (!code) {
+                    throw new Error('Introduzca un código');
+                }
+
+                // Call the cloud function using fetch
+                const baseUrl = 'https://us-central1-rose-app-e062e.cloudfunctions.net/verifyCode';
+                
+                // Send data in the request body
+                const response = await fetch(baseUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        clientId: clientId,
+                        code: code.toString(),
+                        type: 'purchase'
+                    })
+                });
+
+                const result = await response.json();
+
+                // Check if the response was not ok
+                if (!response.ok) {
+                    throw new Error(result.message || `Error ${response.status}: ${response.statusText}`);
+                }
+
+                // Check the result directly since we're not using a callable function
+                if (!result.success) {
+                    throw new Error(result.message || 'Error al verificar el código');
+                }
+
+                return result;
             } catch (error) {
                 console.error('Error verifying code:', error);
                 throw error;
             }
         },
+
         handleClientPageChange(page) {
             this.currentPage.clients = page;
         },
@@ -1535,7 +1567,9 @@ export default {
         <!-- Admin View -->
         <template v-if="role === 'admin'">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h4 class="mb-0 fw-500">Administración de Créditos</h4>
+                <h4 class="mb-0 fw-500 text-theme">
+                    <i class="fas fa-credit-card me-2"></i>
+                    Administración de Créditos</h4>
                 <a href="#" 
                     class="btn btn-sm btn-theme" @click="openLevelsModal">
                     <i class="fa-solid fa-layer-group me-1"></i>
@@ -1598,6 +1632,7 @@ export default {
             v-else-if="role === 'cliente'"
             :current-client="currentClient"
             :levels="levels"
+            :affiliates="allAffiliates"
             @submit-payment="submitPayment"
         />
 
@@ -1606,7 +1641,7 @@ export default {
             v-else-if="role === 'afiliado'"
             :current-affiliate="currentAffiliate || {}"
             :clients="clients"
-            @register-purchase="registerAffiliatePurchase"
+            @register-purchase="registerPurchase"
             @view-details="showUserDetails"
         />
 
@@ -1675,6 +1710,10 @@ h4 {
     background-color: #5a32a3;
     border-color: #5a32a3;
     color: white;
+}
+
+.text-theme {
+    color: #6f42c1;
 }
 
 /* Add some spacing between sections */

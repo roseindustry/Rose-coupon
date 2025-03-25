@@ -53,29 +53,39 @@ export default {
 
             currentPage: 1,
             itemsPerPage: 10,
-            paymentClient: ''
+            paymentClient: '',
+            expandedClients: new Set(),
+            loadingStates: {}
         }
     },
-    async created() {
+    async mounted() {
         await this.fetchClients();
+        
     },
     computed: {
         filteredUsers() {
-            // Filter clients by search input
-            const trimmedSearchQuery = this.searchQuery?.trim().toString().toLowerCase();
+            // If no search query, return all clients
+            const trimmedSearchQuery = this.searchQuery?.trim().toLowerCase();
             if (!trimmedSearchQuery) {
                 return this.clients;
             }
+
             return this.clients.filter(client => {
+                // Basic fields search
                 const identification = client.identification?.toString().toLowerCase() || '';
                 const firstName = client.firstName?.toLowerCase() || '';
                 const lastName = client.lastName?.toLowerCase() || '';
+                
+                // Combined full name (both firstName + lastName)
+                const fullName = `${firstName} ${lastName}`.toLowerCase();
+                const reversedFullName = `${lastName} ${firstName}`.toLowerCase();
 
-                return (
-                    identification.includes(trimmedSearchQuery) ||
-                    firstName.includes(trimmedSearchQuery) ||
-                    lastName.includes(trimmedSearchQuery)
-                );
+                // Search in individual fields and combined names
+                return identification.includes(trimmedSearchQuery) ||
+                       firstName.includes(trimmedSearchQuery) ||
+                       lastName.includes(trimmedSearchQuery) ||
+                       fullName.includes(trimmedSearchQuery) ||
+                       reversedFullName.includes(trimmedSearchQuery);
             });
         },
         paginatedFilteredUsers() {
@@ -127,57 +137,70 @@ export default {
 
             try {
                 this.loading = true;
-
-                // Fetch clients from Firebase
                 const snapshot = await get(clientRef);
+                
                 if (!snapshot.exists()) {
                     this.clients = [];
                     return;
                 }
-                const users = snapshot.val();
-
-                // Check if we have cached auth users
-                const cachedAuthUsers = localStorage.getItem('authUsers');
-                let authUsers = [];
-
-                if (cachedAuthUsers) {
-                    authUsers = JSON.parse(cachedAuthUsers);
-                } else {
-                    // Fetch auth users if not cached
-                    const response = await fetch("https://us-central1-rose-app-e062e.cloudfunctions.net/getAllUsers", {
-                        method: "GET",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    authUsers = data.users;
-
-                    // Cache auth users for future use
-                    localStorage.setItem('authUsers', JSON.stringify(authUsers));
-                }
-
-                this.clients = Object.entries(users)
-                    .map(([uid, user]) => {
-                        const authUser = authUsers.find(auth => auth.uid === uid);
-                        return {
-                            uid,
-                            ...user,
-                            createdAt: authUser ? new Date(authUser.creationTime).getTime() : null, // Parse to timestamp
-                        };
-                    })
-                    .sort((a, b) => b.createdAt - a.createdAt); // Sort by descending createdAt
+                
+                // Only fetch basic information initially
+                this.clients = Object.entries(snapshot.val()).map(([uid, user]) => ({
+                    uid,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    identification: user.identification,
+                    email: user.email,
+                    phoneNumber: user.phoneNumber,
+                    state: user.state,
+                    municipio: user.municipio,
+                    parroquia: user.parroquia,
+                    isVerified: user.isVerified || false,
+                    _detailsLoaded: false // Flag to track if details are loaded
+                }));
 
             } catch (error) {
                 console.error('Error fetching clients:', error);
                 this.clients = [];
             } finally {
                 this.loading = false;
+            }
+        },
+
+        async toggleClientDetails(client) {
+            // Toggle expanded state
+            if (this.expandedClients.has(client.uid)) {
+                this.expandedClients.delete(client.uid);
+                return;
+            }
+
+            this.expandedClients.add(client.uid);
+
+            // If details are already loaded, don't fetch again
+            if (client._detailsLoaded) return;
+
+            // Set loading state for this client
+            this.loadingStates[client.uid] = true;
+            this.loadingStates = { ...this.loadingStates }; // Trigger reactivity
+
+            try {
+                // Fetch all details in parallel
+                await Promise.all([
+                    this.fetchClientCredit(client),
+                    this.fetchClientSubscription(client),
+                    this.fetchClientPreferences(client),
+                    this.fetchClientCoupons(client),
+                    this.fetchIdFiles(client)
+                ]);
+
+                // Mark details as loaded
+                client._detailsLoaded = true;
+            } catch (error) {
+                console.error('Error loading client details:', error);
+                showToast('Error al cargar los detalles del cliente', { type: 'error' });
+            } finally {
+                this.loadingStates[client.uid] = false;
+                this.loadingStates = { ...this.loadingStates }; // Trigger reactivity
             }
         },
 
@@ -376,14 +399,6 @@ export default {
                 client.paymentUrl = null;
             }
         },
-        openPaymentModal(client) {
-            this.paymentClient = client;
-            // Ensure paymentClient and subscription data are available before showing the modal
-
-            const modal = new Modal(document.getElementById('validateModal'));
-
-            modal.show();
-        },
 
         async createClient() {
             if (!this.client.firstName || !this.client.lastName || !this.client.identification || !this.client.email) {
@@ -437,7 +452,7 @@ export default {
             this.currentEditing = client.uid;
             this.selectedClient = { ...client };
         },
-        cancelEdit() {
+        cancelEdit(client) {
             // Reset editing state
             this.currentEditing = null;
         },
@@ -707,7 +722,7 @@ export default {
                 const emailPayload = {
                     to: client.email,
                     message: {
-                        subject: "Su pago de Suscripción ha sido aprobado en Rose App",
+                        subject: "Pago de Suscripción Aprobado",
                         text: `Hola ${userName}, tu pago del día ${paymentDate} ha sido aprobado.`,
                     },
                 };
@@ -762,620 +777,529 @@ export default {
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Clients');
             XLSX.writeFile(workbook, 'Clients.xlsx');
         },
+        toggleEdit(client) {
+            // If already editing, cancel edit
+            if (client.isEditing) {
+                this.cancelEdit(client);
+                return;
+            }
 
-        // testToast() {
-        //     showToast('Custom background color', {
-        style: {
-            background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
+            // Close any other open edit forms
+            this.clients.forEach(c => {
+                if (c.isEditing) this.cancelEdit(c);
+            });
+
+            // Store original values and enable editing
+            client._original = { ...client };
+            client.isEditing = true;
+
+            // Load location data if needed
+            if (client.state) {
+                this.displayMunicipios(client.state);
+                if (client.municipio) {
+                    this.displayParroquias(client.municipio);
+                }
+            }
         },
-        //     });
-        // }
+        cancelEdit(client) {
+            // Restore original values
+            if (client._original) {
+                Object.assign(client, client._original);
+                delete client._original;
+            }
+            client.isEditing = false;
+        },
+        async saveClientChanges(client) {
+            try {
+                this.isSubmitting = true;
+                
+                // Update in Firebase
+                await update(dbRef(db, `Users/${client.uid}`), {
+                    firstName: client.firstName,
+                    lastName: client.lastName,
+                    identification: client.identification,
+                    email: client.email,
+                    phoneNumber: client.phoneNumber,
+                    state: client.state,
+                    municipio: client.municipio,
+                    parroquia: client.parroquia
+                });
+
+                // Clean up edit state
+                delete client._original;
+                client.isEditing = false;
+                
+                showToast('Cliente actualizado exitosamente', { type: 'success' });
+            } catch (error) {
+                console.error('Error updating client:', error);
+                showToast('Error al actualizar el cliente', { type: 'error' });
+            } finally {
+                this.isSubmitting = false;
+            }
+        },
+        openIdImage(imageUrl) {
+            if (!imageUrl) return;
+            this.modalImageUrl = imageUrl;
+            const modal = new Modal(document.getElementById('idImgModal'));
+            modal.show();
+        }
     }
 }
 </script>
 <template>
     <div class="container">
-        <h2 class="mb-4 text-center text-uppercase fw-bold">
-            Clientes
-        </h2>
-
-        <div class="d-flex justify-content-end align-items-center">
-            <a href="#" class="btn btn-theme btn-sm me-2" data-bs-toggle="modal" data-bs-target="#addClientModal">
-                <i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Cliente
-            </a>
-            <a href="#" class="btn btn-theme btn-sm me-2" @click="downloadClients()">
-                <i class="fa fa-download fa-fw me-1"></i> Exportar clientes
-            </a>
-            <!-- <a href="#" class="btn btn-theme btn-sm me-2" @click="testToast()">
-                Test Toast
-            </a> -->
+        <!-- Header Actions -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="mb-0 text-primary">
+                <i class="fa fa-users me-2"></i>
+                Clientes Registrados
+            </h4>
+            <div class="d-flex gap-2">
+                <button class="btn btn-theme btn-sm" data-bs-toggle="modal" data-bs-target="#addClientModal">
+                    <i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Cliente
+                </button>
+                <button class="btn btn-theme btn-sm" @click="downloadClients()">
+                    <i class="fa fa-download fa-fw me-1"></i> Exportar clientes
+                </button>
+            </div>
         </div>
 
-        <div class="shadow-lg p-3 mb-5 bg-body rounded">
-
-            <div class="search-box mb-3">
-                <input v-model="searchQuery" placeholder="Filtrar cliente por nombre o cedula..." class="form-control">
+        <!-- Search and Stats -->
+        <div class="clients-wrapper">
+            <div class="search-section p-3">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark border-secondary">
+                                <i class="fas fa-search text-light"></i>
+                            </span>
+                            <input 
+                                v-model="searchQuery" 
+                                class="form-control bg-dark text-light border-secondary" 
+                                placeholder="Buscar por nombre o cédula..."
+                            >
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                        <span class="badge bg-dark fs-6">
+                            {{ clients.length }} Clientes registrados
+                        </span>
+                    </div>
+                </div>
             </div>
 
-            <p class="m-3 text-center">{{ clients.length }} Clientes registrados</p>
-
-            <div>
-                <div class="text-center" v-if="loading">
-                    <p>Cargando lista de clientes, puede tardar un minuto...</p>
-                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <!-- Clients List -->
+            <div class="clients-list">
+                <!-- Loading State -->
+                <div v-if="loading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="mt-2 text-secondary">Cargando lista de clientes...</p>
                 </div>
-                <div v-else>
-                    <div class="accordion" id="clientAccordion">
-                        <div v-for="(client, index) in paginatedFilteredUsers" :key="client.uid" class="accordion-item">
-                            <h2 class="accordion-header" :id="'heading' + client.uid">
-                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-                                    :data-bs-target="'#collapse' + client.uid" aria-expanded="false"
-                                    :aria-controls="'collapse' + client.uid">
-                                    {{ client.firstName + " " + client.lastName }}
-                                    <span class="badge bg-secondary text-black ms-2">
-                                        {{ client.identification ? `V-${client.identification}` : null }}
-                                    </span>
 
-                                    <span v-if="client.isVerified === true" class="badge bg-success ms-2">
-                                        <i class="fa fa-user-check"></i>
-                                    </span>
-                                    <span v-else class="badge bg-danger ms-2">
-                                        <i class="fa fa-user-times"></i>
-                                    </span>
-                                </button>
-                            </h2>
-                            <div :id="'collapse' + client.uid" class="accordion-collapse collapse"
-                                :aria-labelledby="'heading' + client.uid">
-                                <div class="accordion-body">
-                                    <div v-if="currentEditing === client.uid">
-                                        <!-- Editable Inputs -->
-                                        <ul class="list-group">
-                                            <li class="list-group-item">
-                                                <label for="firstName">Nombre:</label>
-                                                <input type="text" v-model="selectedClient.firstName"
-                                                    class="form-control" />
-                                            </li>
-                                            <li class="list-group-item">
-                                                <label for="lastName">Apellido:</label>
-                                                <input type="text" v-model="selectedClient.lastName"
-                                                    class="form-control" />
-                                            </li>
-                                            <li class="list-group-item">
-                                                <label for="identification">Cedula:</label>
-                                                <input type="text" v-model="selectedClient.identification"
-                                                    class="form-control" />
-                                            </li>
-                                            <li class="list-group-item">
-                                                <label for="email">Email:</label>
-                                                <input type="email" v-model="selectedClient.email"
-                                                    class="form-control" />
-                                            </li>
-                                            <li class="list-group-item">
-                                                <label for="phoneNumber">Teléfono:</label>
-                                                <input type="text" v-model="selectedClient.phoneNumber"
-                                                    class="form-control" />
-                                            </li>
-                                            <li class="list-group-item">
-                                                <label class="form-label">Estado</label>
-                                                <select v-model="selectedClient.state"
-                                                    @change="displayMunicipios(selectedClient.state)"
-                                                    class="form-control mb-2">
-                                                    <option value="" disabled selected>Selecciona un estado</option>
-                                                    <option v-for="(state, index) in venezuelanStates" :key="index"
-                                                        :value="state">
-                                                        {{ state }}
-                                                    </option>
-                                                </select>
-                                            </li>
-                                            <li class="list-group-item">
-                                                <label class="form-label">Municipio</label>
-                                                <select v-model="selectedClient.municipio"
-                                                    @change="displayParroquias(selectedClient.municipio)"
-                                                    class="form-control mb-2">
-                                                    <option value="" disabled selected>Selecciona un municipio</option>
-                                                    <option v-for="(municipio, index) in municipios" :key="index"
-                                                        :value="municipio">
-                                                        {{ municipio }}
-                                                    </option>
-                                                </select>
-                                            </li>
-                                            <li class="list-group-item">
-                                                <label class="form-label">Parroquia</label>
-                                                <select v-model="selectedClient.parroquia" class="form-control mb-2">
-                                                    <option value="" disabled selected>Selecciona una parroquia</option>
-                                                    <option v-for="(parroquia, index) in parroquias" :key="index"
-                                                        :value="parroquia">
-                                                        {{ parroquia }}
-                                                    </option>
-                                                </select>
-                                            </li>
-                                        </ul>
+                <!-- Empty State -->
+                <div v-else-if="paginatedFilteredUsers.length === 0" class="text-center py-5">
+                    <div class="mb-3">
+                        <i class="fa fa-users text-secondary opacity-25" style="font-size: 5em"></i>
+                    </div>
+                    <h5 class="text-secondary">No se encontraron clientes</h5>
+                </div>
 
-                                        <!-- Save/Cancel Buttons -->
-                                        <div class="d-flex justify-content-center gap-2 mt-3">
-                                            <button class="btn btn-sm btn-success"
-                                                @click="updateClient(client)">Guardar</button>
-                                            <button class="btn btn-sm btn-secondary"
-                                                @click="cancelEdit()">Cancelar</button>
+                <!-- Clients Grid -->
+                <div v-else class="client-items">
+                    <div class="client-item" v-for="(client, index) in paginatedFilteredUsers" :key="client.uid">
+                        <!-- Header Section -->
+                        <div class="client-header" @click="!client.isEditing && toggleClientDetails(client)">
+                            <div class="client-info">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="client-avatar">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                    <div>
+                                        <h5 class="client-name mb-1">
+                                            {{ client.firstName + " " + client.lastName }}
+                                            <span class="badge bg-dark ms-2">V-{{ client.identification }}</span>
+                                        </h5>
+                                        <div class="client-contact">
+                                            <div class="text-secondary small">
+                                                <i class="fas fa-envelope me-2"></i>{{ client.email }}
+                                            </div>
+                                            <div class="text-secondary small">
+                                                <i class="fas fa-phone me-2"></i>{{ client.phoneNumber }}
+                                            </div>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+                            <div class="client-actions-group">
+                                <div class="verification-status">
+                                    <span :class="['status-badge', client.isVerified ? 'active' : '']">
+                                        <i :class="client.isVerified ? 'fa fa-user-check' : 'fa fa-user-times'"></i>
+                                        {{ client.isVerified ? 'Verificado' : 'No Verificado' }}
+                                    </span>
+                                </div>
+                                <div class="client-actions">
+                                    <button class="btn btn-sm btn-outline-primary me-2" 
+                                            @click.stop="toggleEdit(client)"
+                                            :title="client.isEditing ? 'Cancelar edición' : 'Editar cliente'">
+                                        <i :class="client.isEditing ? 'fas fa-times' : 'fas fa-edit'"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" 
+                                            @click.stop="deleteClient(client, index)"
+                                            title="Eliminar cliente">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-                                    <div v-else>
-                                        <!-- View Mode -->
-                                        <ul class="list-group">
-                                            <li class="list-group-item"><strong>Nombre:</strong> {{ client.firstName }}
-                                            </li>
-                                            <li class="list-group-item"><strong>Apellido:</strong> {{ client.lastName }}
-                                            </li>
-                                            <li class="list-group-item"><strong>Cedula:</strong> {{
-                                                client.identification }}
-                                            </li>
-                                            <li class="list-group-item"><strong>Email:</strong> {{ client.email }}</li>
-                                            <li class="list-group-item"><strong>Teléfono:</strong> {{ client.phoneNumber
-                                                }}</li>
-                                            <li class="list-group-item"><strong>Estado:</strong> {{ client.state }}</li>
-                                            <li class="list-group-item"><strong>Municipio:</strong> {{ client.municipio
-                                                }}</li>
-                                            <li class="list-group-item"><strong>Parroquia:</strong> {{ client.parroquia
-                                                }}</li>
-                                        </ul>
+                        <!-- Edit Form -->
+                        <div v-if="client.isEditing" class="edit-form mt-3">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Nombre</label>
+                                        <input type="text" class="form-control form-control-sm rounded-0" v-model="client.firstName">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Apellido</label>
+                                        <input type="text" class="form-control form-control-sm rounded-0" v-model="client.lastName">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Cédula</label>
+                                        <input type="text" class="form-control form-control-sm rounded-0" v-model="client.identification">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Email</label>
+                                        <input type="email" class="form-control form-control-sm rounded-0" v-model="client.email">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Teléfono</label>
+                                        <input type="text" class="form-control form-control-sm rounded-0" v-model="client.phoneNumber">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Estado</label>
+                                        <select class="form-select form-select-sm rounded-0" v-model="client.state" @change="displayMunicipios(client.state)">
+                                            <option v-for="state in venezuelanStates" :key="state" :value="state">{{ state }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6" v-if="municipios.length">
+                                    <div class="form-group">
+                                        <label class="form-label">Municipio</label>
+                                        <select class="form-select form-select-sm rounded-0" v-model="client.municipio" @change="displayParroquias(client.municipio)">
+                                            <option v-for="municipio in municipios" :key="municipio" :value="municipio">{{ municipio }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6" v-if="parroquias.length">
+                                    <div class="form-group">
+                                        <label class="form-label">Parroquia</label>
+                                        <select class="form-select form-select-sm rounded-0" v-model="client.parroquia">
+                                            <option v-for="parroquia in parroquias" :key="parroquia" :value="parroquia">{{ parroquia }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3 text-end">
+                                <button class="btn btn-sm btn-outline-secondary me-2" @click="cancelEdit(client)">
+                                    Cancelar
+                                </button>
+                                <button class="btn btn-sm btn-theme" @click="saveClientChanges(client)">
+                                    Guardar cambios
+                                </button>
+                            </div>
+                        </div>
 
-                                        <!-- Nested Accordions for Crédito, Cupones, Suscripción and Verification-->
-                                        <div class="accordion mt-3">
-                                            <!-- Crédito Accordion -->
-                                            <div class="accordion-item">
-                                                <h2 class="accordion-header" :id="'headingCredit' + client.uid">
-                                                    <button class="accordion-button collapsed text-primary"
-                                                        type="button" data-bs-toggle="collapse"
-                                                        :data-bs-target="'#collapseCredit' + client.uid"
-                                                        aria-expanded="false"
-                                                        :aria-controls="'collapseCredit' + client.uid"
-                                                        @click="fetchClientCredit(client)">
-                                                        <i class="fa-solid fa-dollar me-2"></i>Crédito
-                                                    </button>
-                                                </h2>
-                                                <div :id="'collapseCredit' + client.uid"
-                                                    class="accordion-collapse collapse"
-                                                    :aria-labelledby="'headingCredit' + client.uid">
-                                                    <div class="accordion-body">
-                                                        <div v-if="client.credit">
-                                                            <!-- Rose Credit -->
-                                                            <ul class="list-group" v-if="client.credit.mainCredit">
-                                                                <h5 class="text-center">{{ client.credit.mainCredit ?
-                                                                    `Rose Credit` : '' }}</h5>
-                                                                <li class="list-group-item"><strong>Aprobado:</strong>
-                                                                    {{ client.credit.mainCredit ?
-                                                                        `$${client.credit.mainCredit}` : `No Rose Credit` }}
-                                                                </li>
-                                                                <li class="list-group-item"><strong>Disponible:</strong>
-                                                                    {{ client.credit.availableMainCredit ?
-                                                                        `$${client.credit.availableMainCredit}` : `No Rose
-                                                                    Credit` }}
-                                                                </li>
-                                                                <li class="list-group-item"><strong>Usado:</strong>
-                                                                    {{ client.credit.mainCredit ?
-                                                                        `$${client.credit.mainCredit -
-                                                                        client.credit.availableMainCredit}` : `No Rose
-                                                                    Credit`
-                                                                    }}
-                                                                </li>
-                                                            </ul>
-                                                            <!-- Rose Credit Plus -->
-                                                            <ul class="list-group mt-3" v-if="client.credit.plusCredit">
-                                                                <h5 class="text-center">{{ client.credit.plusCredit ?
-                                                                    `Rose Credit Plus` : '' }}</h5>
-                                                                <li class="list-group-item"><strong>Aprobado:</strong>
-                                                                    {{ client.credit.plusCredit ?
-                                                                        `$${client.credit.plusCredit}` : `No Rose Credit
-                                                                    Plus` }}
-                                                                </li>
-                                                                <li class="list-group-item"><strong>Disponible:</strong>
-                                                                    {{ client.credit.availablePlusCredit ?
-                                                                        `$${client.credit.availablePlusCredit}` : `No Rose
-                                                                    Credit Plus` }}
-                                                                </li>
-                                                                <li class="list-group-item"><strong>Usado:</strong>
-                                                                    {{ client.credit.plusCredit ?
-                                                                        `$${client.credit.plusCredit -
-                                                                        client.credit.availablePlusCredit}` : `No Rose
-                                                                    Credit Plus`
-                                                                    }}
-                                                                </li>
-                                                            </ul>
-                                                        </div>
-                                                        <!-- Fallback message if no credit data is found -->
-                                                        <p v-else class="text-center">Este cliente no tiene una
-                                                            línea de crédito activa.</p>
+                        <!-- Expanded Details -->
+                        <div v-else-if="expandedClients.has(client.uid)" class="client-details mt-3">
+                            <!-- Loading State -->
+                            <div v-if="loadingStates[client.uid]" class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                                <p class="text-secondary small mb-0">Cargando detalles...</p>
+                            </div>
+
+                            <!-- Details Content -->
+                            <div v-else class="row g-4">
+                                <!-- Location Info -->
+                                <div class="col-md-4">
+                                    <div class="info-card">
+                                        <h6 class="text-secondary mb-2">
+                                            <i class="fas fa-map-marker-alt me-2"></i>Ubicación
+                                        </h6>
+                                        <div class="location-info">
+                                            <div class="mb-1">{{ client.state }}</div>
+                                            <div class="ms-3">{{ client.municipio }}{{ client.parroquia ? `, ${client.parroquia}` : '' }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Credits Info -->
+                                <div class="col-md-4">
+                                    <div class="info-card">
+                                        <h6 class="text-secondary mb-2">
+                                            <i class="fas fa-credit-card me-2"></i>Créditos
+                                        </h6>
+                                        <div class="credit-info">
+                                            <div v-if="client.credit?.mainCredit" class="mb-2">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <span>Rose Credit:</span>
+                                                    <span class="text-success">${{ client.credit.mainCredit }}</span>
+                                                </div>
+                                                <div class="progress" style="height: 6px;">
+                                                    <div class="progress-bar bg-success" 
+                                                         :style="{ width: `${(client.credit.availableMainCredit / client.credit.mainCredit) * 100}%` }">
                                                     </div>
                                                 </div>
+                                                <small class="text-muted">
+                                                    Disponible: ${{ client.credit.availableMainCredit }}
+                                                </small>
                                             </div>
-
-                                            <!-- Preferences Accordion -->
-                                            <div class="accordion-item">
-                                                <h2 class="accordion-header" :id="'headingPreferences' + client.uid">
-                                                    <button class="accordion-button collapsed text-primary"
-                                                        type="button" data-bs-toggle="collapse"
-                                                        :data-bs-target="'#collapsePreferences' + client.uid"
-                                                        aria-expanded="false"
-                                                        :aria-controls="'collapsePreferences' + client.uid"
-                                                        @click="fetchClientPreferences(client)">
-                                                        <i class="fa-solid fa-heart me-2"></i>Preferencias de
-                                                        Categorias para cupones
-                                                    </button>
-                                                </h2>
-
-                                                <div :id="'collapsePreferences' + client.uid"
-                                                    class="accordion-collapse collapse"
-                                                    :aria-labelledby="'headingPreferences' + client.uid">
-                                                    <div class="accordion-body">
-                                                        <div v-if="clientPreferences[client.uid]">
-                                                            <div
-                                                                class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-4">
-                                                                <div class="col"
-                                                                    v-for="(pref, categoryId) in clientPreferences[client.uid]"
-                                                                    :key="categoryId">
-                                                                    <div class="card h-100 shadow-sm">
-                                                                        <div class="card-header">
-                                                                            <h5
-                                                                                class="card-title text-center text-black">
-                                                                                {{ pref.category }}</h5>
-                                                                        </div>
-                                                                        <div class="card-body">
-                                                                            <ul>
-                                                                                <li v-for="(subcategory, index) in pref.subcategories"
-                                                                                    :key="index">{{ subcategory }}</li>
-                                                                            </ul>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <p v-else class="text-center">El cliente no ha especificado sus
-                                                            preferencias.</p>
+                                            <div v-if="client.credit?.plusCredit">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <span>Rose Credit Plus:</span>
+                                                    <span class="text-primary">${{ client.credit.plusCredit }}</span>
+                                                </div>
+                                                <div class="progress" style="height: 6px;">
+                                                    <div class="progress-bar bg-primary" 
+                                                         :style="{ width: `${(client.credit.availablePlusCredit / client.credit.plusCredit) * 100}%` }">
                                                     </div>
                                                 </div>
-
+                                                <small class="text-muted">
+                                                    Disponible: ${{ client.credit.availablePlusCredit }}
+                                                </small>
                                             </div>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                            <!-- Cupones Accordion -->
-                                            <div class="accordion-item">
-                                                <h2 class="accordion-header" :id="'headingCoupons' + client.uid">
-                                                    <button class="accordion-button collapsed text-primary"
-                                                        type="button" data-bs-toggle="collapse"
-                                                        :data-bs-target="'#collapseCoupons' + client.uid"
-                                                        aria-expanded="false"
-                                                        :aria-controls="'collapseCoupons' + client.uid"
-                                                        @click="fetchClientCoupons(client)">
-                                                        <i class="fa-solid fa-ticket me-2"></i>Cupones
-                                                    </button>
-                                                </h2>
-
-                                                <div :id="'collapseCoupons' + client.uid"
-                                                    class="accordion-collapse collapse"
-                                                    :aria-labelledby="'headingCoupons' + client.uid">
-                                                    <div class="accordion-body">
-                                                        <!-- Check if coupons exist -->
-                                                        <div v-if="clientCoupons[client.uid]">
-                                                            <!-- Responsive grid of coupons -->
-                                                            <div
-                                                                class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 mb-4">
-                                                                <!-- Coupon card -->
-                                                                <div class="col"
-                                                                    v-for="coupon in clientCoupons[client.uid]"
-                                                                    :key="coupon.id">
-                                                                    <div
-                                                                        class="card h-100 shadow-lg rounded-3 border-0">
-                                                                        <div
-                                                                            class="card-header bg-dark text-white text-center">
-                                                                            <h5 class="card-title mb-1">Cupón</h5>
-                                                                            <h6 class="fw-bold">{{ coupon.name }}</h6>
-                                                                        </div>
-                                                                        <div class="card-body">
-                                                                            <div
-                                                                                class="d-flex flex-column justify-content-between h-100">
-                                                                                <p class="mb-3">
-                                                                                    <strong class="d-block">
-                                                                                        {{ coupon.type === `saldo` ?
-                                                                                            `Saldo: $` : `Porcentaje: % ` }}
-                                                                                        {{ coupon.balance }}
-                                                                                    </strong>
-                                                                                    <strong>Válido hasta:</strong> {{
-                                                                                        formatDate(coupon.expiration) }}
-                                                                                    <br>
-                                                                                    <strong>Estado: </strong>
-                                                                                    <span v-if="coupon.status"
-                                                                                        class="badge bg-success">Activo</span>
-                                                                                    <span v-else
-                                                                                        class="badge bg-danger">Inactivo</span>
-                                                                                </p>
-                                                                                <div
-                                                                                    class="d-flex justify-content-center align-items-center mt-2">
-                                                                                    <img class="thumbnail img-fluid"
-                                                                                        :src="coupon.qrFileUrl"
-                                                                                        alt="Código QR"
-                                                                                        style="max-width: 80px; border-radius: 8px;">
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <!-- Show "No hay cupones" if no coupons are available -->
-                                                        <p v-else class="text-center">No hay cupones.</p>
-                                                    </div>
-                                                </div>
+                                <!-- Subscription Info -->
+                                <div class="col-md-4">
+                                    <div class="info-card">
+                                        <h6 class="text-secondary mb-2">
+                                            <i class="fas fa-clock me-2"></i>Suscripción
+                                        </h6>
+                                        <div class="subscription-info">
+                                            <div class="d-flex justify-content-start gap-2 align-items-center mb-2">
+                                                <span>Estado:</span>
+                                                <span :class="client.subscription?.isPaid ? 'text-success' : 'text-danger'">
+                                                    {{ client.subscription?.isPaid ? 'Activa' : 'Inactiva' }}
+                                                </span>
                                             </div>
-
-                                            <!-- Suscripción Accordion -->
-                                            <div class="accordion-item">
-                                                <h2 class="accordion-header" :id="'headingSubscription' + client.uid">
-                                                    <button class="accordion-button collapsed text-primary"
-                                                        type="button" data-bs-toggle="collapse"
-                                                        :data-bs-target="'#collapseSubscription' + client.uid"
-                                                        aria-expanded="false"
-                                                        :aria-controls="'collapseSubscription' + client.uid"
-                                                        @click="fetchClientSubscription(client)">
-                                                        <i class="fa-solid fa-handshake me-2"></i>Suscripción
-                                                    </button>
-                                                </h2>
-                                                <div :id="'collapseSubscription' + client.uid"
-                                                    class="accordion-collapse collapse"
-                                                    :aria-labelledby="'headingSubscription' + client.uid">
-                                                    <div class="accordion-body">
-                                                        <ul class="list-group" v-if="client.subscription">
-                                                            <!-- Subscription Name -->
-                                                            <li class="list-group-item" v-if="client.subscription.name">
-                                                                <strong>Nivel: </strong> {{
-                                                                    client.subscription.name.toUpperCase() }}
-                                                            </li>
-
-                                                            <!-- Subscription Status -->
-                                                            <li class="list-group-item">
-                                                                <strong>Estado: </strong>
-                                                                <span v-if="client.subscription.status === true"
-                                                                    class="badge bg-success ms-2">
-                                                                    Activo
-                                                                </span>
-                                                                <span v-else class="badge bg-danger ms-2">
-                                                                    Inactivo
-                                                                </span>
-                                                            </li>
-
-                                                            <!-- Subscription Price -->
-                                                            <li class="list-group-item"
-                                                                v-if="client.subscription.price">
-                                                                <strong>Monto: </strong> ${{ client.subscription.price
-                                                                }}
-                                                            </li>
-
-                                                            <!-- Subscription Payment Status -->
-                                                            <li class="list-group-item">
-                                                                <div v-if="client.subscription?.isPaid">
-                                                                    <strong>Pago: </strong>
-                                                                    <span class="badge bg-success ms-2">Pagado</span>
-                                                                    <a class="validate btn btn-outline-success btn-sm ms-2"
-                                                                        href="#"
-                                                                        @click.prevent="openPaymentModal(client)">
-                                                                        Comprobante
-                                                                    </a>
-                                                                </div>
-                                                                <div v-else>
-                                                                    <strong>Pago: </strong>
-                                                                    <span class="badge bg-danger ms-2">Sin pagar</span>
-                                                                </div>
-                                                            </li>
-
-                                                            <!-- Subscription Renewal Date -->
-                                                            <li class="list-group-item"
-                                                                v-if="client.subscription.payDay">
-                                                                <strong>Fecha de Renovación: </strong> {{
-                                                                    formatDate(client.subscription.payDay) }}
-                                                            </li>
-                                                        </ul>
-                                                        <!-- Fallback message if no subscription is found -->
-                                                        <p v-else class="text-center">Este cliente no tiene una
-                                                            suscripción activa.</p>
-                                                    </div>
-                                                </div>
+                                            <div v-if="client.subscription?.lastPaymentDate" class="small text-muted">
+                                                Último pago: {{ formatDate(client.subscription.lastPaymentDate) }}
                                             </div>
-
-                                            <!-- Verificación Accordion -->
-                                            <div v-if="client.requestedVerification" class="accordion-item">
-                                                <h2 class="accordion-header" :id="'headingVerification' + client.uid">
-                                                    <button class="accordion-button collapsed text-primary"
-                                                        type="button" data-bs-toggle="collapse"
-                                                        :data-bs-target="'#collapseVerification' + client.uid"
-                                                        aria-expanded="false"
-                                                        :aria-controls="'collapseVerification' + client.uid"
-                                                        @click="fetchIdFiles(client)">
-                                                        <i class="fa-solid fa-user-check me-2"></i> Petición de
-                                                        Verificación
+                                            <div v-if="client.subscription?.paymentUrl" class="mt-2">
+                                                <div class="d-flex justify-content-center align-items-center mb-2">
+                                                    <button class="btn btn-sm btn-theme" @click="openImageInNewTab(client.subscription.paymentUrl)">
+                                                        <i class="fa fa-eye"></i>
+                                                        Ver pago
                                                     </button>
-                                                </h2>
-                                                <div :id="'collapseVerification' + client.uid"
-                                                    class="accordion-collapse collapse"
-                                                    :aria-labelledby="'headingVerification' + client.uid">
-                                                    <div class="card accordion-body shadow-lg p-3">
-                                                        <div class="text-muted mb-3">
-                                                            <strong>Nota:</strong> Las imágenes pueden tardar unos
-                                                            segundos en
-                                                            cargar. Por favor, espere...
-                                                        </div>
-                                                        <div class="row g-4">
-                                                            <!-- ID card - Front -->
-                                                            <div class="col-md-6">
-                                                                <div class="card h-100 border-0 shadow-sm">
-                                                                    <div class="card-body text-center">
-                                                                        <h5 class="card-title">ID Frontal</h5>
-                                                                        <img :src="client.idFrontUrl"
-                                                                            class="img-fluid rounded" alt="ID Front"
-                                                                            v-if="client.idFrontUrl"
-                                                                            @click="openImgModal(client.idFrontUrl)"
-                                                                            style="cursor: pointer; max-height: 200px;">
-                                                                        <p v-else class="text-muted">No se encontró
-                                                                            imagen
-                                                                            frontal de la ID.</p>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <!-- ID card - Back -->
-                                                            <div class="col-md-6">
-                                                                <div class="card h-100 border-0 shadow-sm">
-                                                                    <div class="card-body text-center">
-                                                                        <h5 class="card-title">ID Reverso</h5>
-                                                                        <img :src="client.idBackUrl"
-                                                                            class="img-fluid rounded" alt="ID Back"
-                                                                            v-if="client.idBackUrl"
-                                                                            @click="openImgModal(client.idBackUrl)"
-                                                                            style="cursor: pointer; max-height: 200px;">
-                                                                        <p v-else class="text-muted">No se encontró
-                                                                            imagen
-                                                                            trasera de la ID.</p>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <!-- ID card - Selfie -->
-                                                            <div class="col-md-6">
-                                                                <div class="card h-100 border-0 shadow-sm">
-                                                                    <div class="card-body text-center">
-                                                                        <h5 class="card-title">Selfie</h5>
-                                                                        <img :src="client.selfieUrl"
-                                                                            class="img-fluid rounded" alt="Selfie"
-                                                                            v-if="client.selfieUrl"
-                                                                            @click="openImgModal(client.selfieUrl)"
-                                                                            style="cursor: pointer; max-height: 200px;">
-                                                                        <p v-else class="text-muted">No se encontró
-                                                                            imagen
-                                                                            selfie.</p>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div v-if="!client.isVerified"
-                                                            class="card-footer text-center mt-3">
-                                                            <!-- Approve and Disapprove buttons -->
-                                                            <div class="d-flex justify-content-center gap-3">
-                                                                <button
-                                                                    class="btn btn-outline-success d-flex align-items-center gap-1"
-                                                                    @click="approveID(client)" :disabled="isSubmitting">
-                                                                    <i class="fa-solid fa-check"></i> Aprobar
-                                                                </button>
-                                                                <button
-                                                                    class="btn btn-outline-danger d-flex align-items-center gap-1"
-                                                                    @click="dissapproveID(client)"
-                                                                    :disabled="isSubmitting">
-                                                                    <i class="fa-solid fa-times"></i> Denegar
-                                                                </button>
-                                                            </div>
-                                                            <!-- Loader Spinner -->
-                                                            <div v-if="isSubmitting"
-                                                                class="d-flex justify-content-center my-3">
-                                                                <div class="spinner-border text-primary" role="status">
-                                                                    <span class="visually-hidden">Cargando...</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div v-else class="mt-4">
-                                                            <div class="text-muted">
-                                                                <span
-                                                                    class="text-success d-flex justify-content-end align-items-center"
-                                                                    style="font-size: 0.9rem;">
-                                                                    <i class="fa fa-check me-2"
-                                                                        style="font-size: 1.25rem;"></i>
-                                                                    <strong>Cliente verificado.</strong>
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
 
-                                        <!-- Action Buttons -->
-                                        <div class="d-flex justify-content-end mt-2">
-                                            <button class="btn btn-sm btn-outline-info me-1" data-bs-toggle="tooltip"
-                                                data-bs-placement="top" title="Editar comercio"
-                                                @click="editClient(client)">
-                                                <i class="fa-solid fa-pencil"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-danger"
-                                                @click="deleteClient(client, index)">
-                                                <i class="fa-solid fa-trash"></i>
-                                            </button>
+                                <!-- ID Verification Section -->
+                                <div class="col-md-12 mt-4">
+                                    <div class="info-card">
+                                        <h6 class="text-secondary mb-3">
+                                            <i class="fas fa-id-card me-2"></i>Documentos de Identidad
+                                        </h6>
+                                        <div class="id-documents">
+                                            <div class="row g-3">
+                                                <!-- Front ID -->
+                                                <div class="col-md-4">
+                                                    <div class="document-card">
+                                                        <h6 class="text-muted mb-2">Cédula (Frontal)</h6>
+                                                        <div class="document-preview" @click="openIdImage(client.idFrontUrl)">
+                                                            <div v-if="client.idFrontUrl" class="preview-container">
+                                                                <img :src="client.idFrontUrl" alt="ID Front" class="img-fluid">
+                                                                <div class="preview-overlay">
+                                                                    <i class="fas fa-search-plus"></i>
+                                                                </div>
+                                                            </div>
+                                                            <div v-else class="no-document">
+                                                                <i class="fas fa-file-image text-muted"></i>
+                                                                <span>No disponible</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Back ID -->
+                                                <div class="col-md-4">
+                                                    <div class="document-card">
+                                                        <h6 class="text-muted mb-2">Cédula (Reverso)</h6>
+                                                        <div class="document-preview" @click="openIdImage(client.idBackUrl)">
+                                                            <div v-if="client.idBackUrl" class="preview-container">
+                                                                <img :src="client.idBackUrl" alt="ID Back" class="img-fluid">
+                                                                <div class="preview-overlay">
+                                                                    <i class="fas fa-search-plus"></i>
+                                                                </div>
+                                                            </div>
+                                                            <div v-else class="no-document">
+                                                                <i class="fas fa-file-image text-muted"></i>
+                                                                <span>No disponible</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Selfie -->
+                                                <div class="col-md-4">
+                                                    <div class="document-card">
+                                                        <h6 class="text-muted mb-2">Selfie con Cédula</h6>
+                                                        <div class="document-preview" @click="openIdImage(client.selfieUrl)">
+                                                            <div v-if="client.selfieUrl" class="preview-container">
+                                                                <img :src="client.selfieUrl" alt="Selfie" class="img-fluid">
+                                                                <div class="preview-overlay">
+                                                                    <i class="fas fa-search-plus"></i>
+                                                                </div>
+                                                            </div>
+                                                            <div v-else class="no-document">
+                                                                <i class="fas fa-file-image text-muted"></i>
+                                                                <span>No disponible</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Pagination Controls -->
-                    <nav class="mt-4" v-if="totalPages > 1" aria-label="Page navigation">
-                        <ul class="pagination justify-content-center">
-                            <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                                <button class="page-link" @click="goToPage(currentPage - 1)"
-                                    :disabled="currentPage === 1">Anterior</button>
-                            </li>
-                            <li class="page-item" v-for="page in visiblePages" :key="page"
-                                :class="{ active: page === currentPage }">
-                                <button class="page-link" @click="goToPage(page)">{{ page }}</button>
-                            </li>
-                            <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                                <button class="page-link" @click="goToPage(currentPage + 1)"
-                                    :disabled="currentPage === totalPages">Siguiente</button>
-                            </li>
-                        </ul>
-                    </nav>
                 </div>
-            </div>
 
+                <!-- Pagination -->
+                <nav v-if="totalPages > 1" class="mt-4 p-2" aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                            <button class="page-link" @click="goToPage(currentPage - 1)">Anterior</button>
+                        </li>
+                        <li class="page-item" v-for="page in visiblePages" :key="page"
+                            :class="{ active: page === currentPage }">
+                            <button class="page-link" @click="goToPage(page)">{{ page }}</button>
+                        </li>
+                        <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                            <button class="page-link" @click="goToPage(currentPage + 1)">Siguiente</button>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
         </div>
 
         <!-- Modal for Adding New Client -->
-        <div class="modal fade" id="addClientModal" tabindex="-1" aria-labelledby="addClientModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="addClientModalLabel">Agregar Cliente</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <div class="modal fade" id="addClientModal" tabindex="-1" aria-labelledby="addClientModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content bg-dark">
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title text-light" id="addClientModalLabel">
+                            <i class="fas fa-user-plus me-2"></i>
+                            Agregar Cliente
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="clientFirstName" class="form-label">Nombre <span
-                                    class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="clientFirstName" v-model="client.firstName"
-                                required />
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="clientFirstName" class="form-label">
+                                        Nombre <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control form-control-sm rounded-0" 
+                                           id="clientFirstName" 
+                                           v-model="client.firstName"
+                                           placeholder="Ingrese el nombre"
+                                           required />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="clientLastName" class="form-label">
+                                        Apellido <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control form-control-sm rounded-0" 
+                                           id="clientLastName" 
+                                           v-model="client.lastName"
+                                           placeholder="Ingrese el apellido"
+                                           required />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="clientIdentification" class="form-label">
+                                        Cédula <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-dark border-secondary text-light">V-</span>
+                                        <input type="text" 
+                                               class="form-control form-control-sm rounded-0" 
+                                               id="clientIdentification"
+                                               v-model="client.identification"
+                                               placeholder="Ingrese la cédula"
+                                               required />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="clientEmail" class="form-label">
+                                        Email <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="email" 
+                                           class="form-control form-control-sm rounded-0" 
+                                           id="clientEmail" 
+                                           v-model="client.email"
+                                           placeholder="ejemplo@correo.com"
+                                           required />
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-group">
+                                    <label for="clientPhoneNumber" class="form-label">
+                                        Teléfono
+                                    </label>
+                                    <input type="tel" 
+                                           class="form-control form-control-sm rounded-0" 
+                                           id="clientPhoneNumber"
+                                           v-model="client.phoneNumber"
+                                           placeholder="XXXX-XXXXXXX" />
+                                </div>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="clientLastName" class="form-label">Apellido <span
-                                    class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="clientLastName" v-model="client.lastName"
-                                required />
+                        <div class="alert alert-secondary mt-3 py-2 rounded-0">
+                            <small>
+                                <i class="fas fa-info-circle me-2"></i>
+                                Los campos marcados con <span class="text-danger">*</span> son obligatorios
+                            </small>
                         </div>
-                        <div class="mb-3">
-                            <label for="clientIdentification" class="form-label">Cédula <span
-                                    class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="clientIdentification"
-                                v-model="client.identification" required />
-                        </div>
-                        <div class="mb-3">
-                            <label for="clientEmail" class="form-label">Email <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="clientEmail" v-model="client.email" required />
-                        </div>
-                        <div class="mb-3">
-                            <label for="clientPhoneNumber" class="form-label">Teléfono</label>
-                            <input type="text" class="form-control" id="clientPhoneNumber"
-                                v-model="client.phoneNumber" />
-                        </div>
-                        <p>(<span class="text-danger">*</span>) Campos obligatorios.</p>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="createClient()">Guardar</button>
+                    <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-sm btn-outline-light" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i>Cancelar
+                        </button>
+                        <button type="button" class="btn btn-sm btn-theme" @click="createClient()">
+                            <i class="fas fa-save me-2"></i>Guardar
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1395,7 +1319,7 @@ export default {
             </div>
         </div>
         <!-- Modal for validating payment -->
-        <div class="modal fade" id="validateModal" tabindex="-1" aria-labelledby="validateModalLabel"
+        <!-- <div class="modal fade" id="validateModal" tabindex="-1" aria-labelledby="validateModalLabel"
             aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
@@ -1441,22 +1365,318 @@ export default {
                     </div>
                 </div>
             </div>
-        </div>
+        </div> -->
     </div>
 </template>
 <style scoped>
+.clients-wrapper {
+    background: #29122f;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.search-section {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.client-item {
+    padding: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    transition: background-color 0.2s ease;
+}
+
+.client-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.client-item:last-child {
+    border-bottom: none;
+}
+
+.client-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #adb5bd;
+    font-size: 1.5rem;
+}
+
+.client-name {
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.client-contact {
+    margin-top: 0.25rem;
+}
+
+.status-badge {
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background: #e9ecef;
+    color: #666;
+}
+
+.status-badge.active {
+    background: #d4edda;
+    color: #155724;
+}
+
+.client-header {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.client-actions-group {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.client-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.expand-indicator {
+    transition: transform 0.2s ease;
+}
+
+.expand-indicator.expanded {
+    transform: rotate(180deg);
+}
+
+.location-info {
+    color: #adb5bd;
+    font-size: 0.9rem;
+}
+
+.credit-info {
+    font-size: 0.9rem;
+}
+
+.progress {
+    background-color: rgba(255, 255, 255, 0.1);
+    margin-top: 0.5rem;
+}
+
 .btn-theme {
     background-color: purple;
     border-color: purple;
+    color: white;
 }
 
-.validate:hover {
-    color: green;
+.btn-theme:hover {
+    background-color: #660066;
+    border-color: #660066;
+    color: white;
 }
 
-#idImgModal {
-    z-index: 1055;
-    /* Higher than other elements */
-    position: fixed;
+/* Mobile Styles */
+@media (max-width: 768px) {
+    .client-header {
+        flex-direction: column;
+    }
+
+    .client-actions-group {
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+
+    .verification-status {
+        margin-bottom: 0.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .client-actions-group {
+        gap: 0.5rem;
+    }
+
+    .verification-status .status-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+}
+
+.info-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    height: 100%;
+}
+
+.edit-form {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-label {
+    color: #adb5bd;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.form-control, .form-select {
+    background-color: #1a1a1a;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: #1a1a1a;
+    border-color: purple;
+    color: #fff;
+    box-shadow: 0 0 0 0.25rem rgba(128, 0, 128, 0.25);
+}
+
+.form-select option {
+    background-color: #1a1a1a;
+    color: #fff;
+}
+
+.client-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.document-card {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+    height: 100%;
+}
+
+.document-preview {
+    cursor: pointer;
+    position: relative;
+    border-radius: 6px;
+    overflow: hidden;
+    aspect-ratio: 3/2;
+    background: #1a1a1a;
+}
+
+.preview-container {
+    width: 100%;
+    height: 100%;
+}
+
+.preview-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.preview-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.preview-overlay i {
+    color: white;
+    font-size: 1.5rem;
+}
+
+.document-preview:hover .preview-overlay {
+    opacity: 1;
+}
+
+.no-document {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    gap: 0.5rem;
+}
+
+.no-document i {
+    font-size: 2rem;
+}
+
+.no-document span {
+    font-size: 0.875rem;
+}
+
+@media (max-width: 768px) {
+    .document-card {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Modal Styles */
+.modal-content {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header {
+    padding: 1rem 1.5rem;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-footer {
+    padding: 1rem 1.5rem;
+}
+
+.form-control::placeholder,
+.form-select::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.alert-secondary {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #adb5bd;
+}
+
+.input-group-text {
+    font-size: 0.875rem;
+}
+
+/* Improve focus states */
+.form-control:focus,
+.form-select:focus {
+    border-color: purple;
+    box-shadow: 0 0 0 0.25rem rgba(128, 0, 128, 0.25);
+}
+
+/* Button hover states */
+.btn-outline-light:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 </style>

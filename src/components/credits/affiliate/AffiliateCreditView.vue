@@ -1,5 +1,5 @@
 <template>
-  <div class="container py-4">
+  <div class="container">
     <!-- Loading State -->
     <div v-if="loading" class="text-center py-5">
       <div class="spinner-border text-purple" role="status">
@@ -65,7 +65,7 @@
                   </div>
                   
                   <!-- Selected Client Info -->
-                  <div v-if="selectedClient" class="selected-client-info p-3 border rounded bg-dark-subtle">
+                  <div v-if="selectedClient" class="selected-client-info p-3 border rounded bg-dark">
                     <div class="d-flex justify-content-between align-items-start">
                       <div>
                         <h6 class="text-light mb-2">{{ selectedClient.firstName }} {{ selectedClient.lastName }}</h6>
@@ -117,6 +117,17 @@
                       </button>
                     </div>
                   </div>
+                  <div class="mb-3">
+                    <div class="form-check">
+                      <input type="checkbox" 
+                             class="form-check-input" 
+                             id="includeFee" 
+                             v-model="includeFee">
+                      <label class="form-check-label" for="includeFee">
+                        Incluir cargo por gestión ($1)
+                      </label>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- Step 3: Payment Plan -->
@@ -125,7 +136,7 @@
                   <div class="row">
                     <!-- Initial Payment Options -->
                     <div class="col-12 mb-4">
-                      <div class="payment-options p-3 border rounded bg-dark-subtle">
+                      <div class="payment-options p-3 border rounded bg-dark">
                         <h6 class="text-light mb-3">Cuota Inicial</h6>
                         <div class="d-flex justify-content-around">
                           <div class="form-check">
@@ -156,7 +167,7 @@
 
                     <!-- Payment Summary -->
                     <div class="col-12 mb-4">
-                      <div class="payment-summary p-3 border rounded bg-dark-subtle">
+                      <div class="payment-summary p-3 border rounded bg-dark">
                         <div class="row">
                           <div class="col-md-3">
                             <label class="text-secondary">Inicial</label>
@@ -216,7 +227,7 @@
                 <!-- Step 4: Verification -->
                 <div v-if="verificationRequested" class="form-section mb-4">
                   <h6 class="text-light mb-3">4. Verificación</h6>
-                  <div class="verification-code p-3 border rounded bg-dark-subtle">
+                  <div class="verification-code p-3 border rounded bg-dark">
                     <label class="form-label text-light">Código de verificación</label>
                     <input type="number" class="form-control bg-dark text-light border-secondary"
                       v-model="verificationCode" placeholder="Ingrese el código">
@@ -225,38 +236,65 @@
 
                 <!-- Form Actions -->
                 <div class="text-end mt-4">
-                  <!-- Rate Limit Info -->
-                  <div v-if="cooldownMessage || attemptsMessage" class="text-start mb-3">
-                    <div v-if="cooldownMessage" class="d-flex align-items-center text-warning mb-2">
-                      <i class="fas fa-clock me-2"></i>
-                      <small>{{ cooldownMessage }}</small>
+                    <!-- Rate Limit Info -->
+                    <div v-if="shouldShowVerificationMessages" class="text-start mb-3">
+                        <div v-if="hasExceededAttempts" class="d-flex align-items-center text-danger">
+                            <i class="fas fa-ban me-2"></i>
+                            <small>Cliente superó los intentos permitidos para hoy</small>
+                        </div>
+                        <template v-else>
+                            <div v-if="cooldownMessage" class="d-flex align-items-center text-warning mb-2">
+                                <i class="fas fa-clock me-2"></i>
+                                <small>{{ cooldownMessage }}</small>
+                            </div>
+                            <div v-if="attemptsMessage" class="d-flex align-items-center" 
+                                :class="{
+                                    'text-danger': rateLimitData[selectedClient?.id]?.attempts >= 4,
+                                    'text-warning': rateLimitData[selectedClient?.id]?.attempts < 4
+                                }">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <small>{{ attemptsMessage }}</small>
+                            </div>
+                        </template>
                     </div>
-                    <div v-if="attemptsMessage" class="d-flex align-items-center" 
-                      :class="{
-                        'text-danger': selectedClient && clientVerifications[selectedClient.id]?.attempts >= 3,
-                        'text-warning': selectedClient && clientVerifications[selectedClient.id]?.attempts < 3
-                      }">
-                      <i class="fas fa-exclamation-triangle me-2"></i>
-                      <small>{{ attemptsMessage }}</small>
+
+                    <!-- Add reset button for admins/testing -->
+                    <button 
+                        type="button" 
+                        class="btn btn-sm btn-outline-secondary mt-2" 
+                        title="Reiniciar intentos de verificación"
+                        @click="resetClientAttempts">
+                        <i class="fas fa-redo-alt me-1"></i>
+                        Reset Intentos
+                    </button>
+
+                    <div class="btn-group gap-2" role="group" aria-label="Basic example">
+                        <button type="button" class="btn btn-danger btn-sm" @click="cancelPurchase">
+                            <i class="fas fa-times me-2"></i>Cancelar
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm" 
+                            @click="sendDummyCode(selectedClient)"
+                            :disabled="waiting || !isFormValid || 
+                                (selectedClient && clientVerifications[this.selectedClient.id]?.cooldownEnds > Date.now())">
+                            <span v-if="waiting" class="spinner-border spinner-border-sm me-2"></span>
+                            <i v-else class="fas fa-envelope me-2"></i>
+                            Enviar Mensaje de Mantenimiento
+                        </button>
+                        <button type="button" class="btn btn-theme btn-sm" 
+                            @click="askForCode(selectedClient)"
+                            :disabled="waiting || !isFormValid || 
+                                (selectedClient && clientVerifications[this.selectedClient.id]?.cooldownEnds > Date.now())">
+                            <span v-if="waiting" class="spinner-border spinner-border-sm me-2"></span>
+                            <i v-else class="fas fa-sms me-2"></i>
+                            Solicitar Código
+                        </button>
+                        <button v-if="verificationRequested" type="submit" 
+                            class="btn btn-success btn-sm" :disabled="!verificationCode || loading">
+                            <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
+                            <i v-else class="fas fa-check me-2"></i>
+                            Confirmar Venta
+                        </button>
                     </div>
-                  </div>
-                  <button type="button" class="btn btn-danger me-2" @click="cancelPurchase">
-                    <i class="fas fa-times me-2"></i>Cancelar
-                  </button>
-                  <button type="button" class="btn btn-theme me-2" 
-                    @click="askForCode(selectedClient)"
-                    :disabled="waiting || !isFormValid || 
-                      (selectedClient && clientVerifications[this.selectedClient.id]?.cooldownEnds > Date.now())">
-                    <span v-if="waiting" class="spinner-border spinner-border-sm me-2"></span>
-                    <i v-else class="fas fa-sms me-2"></i>
-                    Solicitar Código
-                  </button>
-                  <button v-if="verificationRequested" type="submit" 
-                    class="btn btn-success" :disabled="!verificationCode || loading">
-                    <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
-                    <i v-else class="fas fa-check me-2"></i>
-                    Confirmar Venta
-                  </button>
                 </div>
               </form>
             </div>
@@ -320,32 +358,34 @@
         <!-- Full Width Sales History -->
         <div class="col-12">
           <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="text-black mb-0">Historial de Ventas</h5>
-              <div class="d-flex gap-3 align-items-center">
-                <!-- Status Filter -->
-                <select 
-                  v-model="salesFilter"
-                  class="form-select bg-dark text-light border-secondary"
-                  style="width: 150px;"
-                >
-                  <option value="all">Todas las ventas</option>
-                  <option value="pending">Pendientes</option>
-                  <option value="completed">Completadas</option>
-                </select>
-                
-                <!-- Search Bar -->
-                <div class="search-container" style="width: 300px;">
-                  <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary">
-                      <i class="fas fa-search text-secondary"></i>
-                    </span>
-                    <input 
-                      type="text" 
-                      class="form-control bg-dark text-light border-secondary" 
-                      v-model="searchSales"
-                      placeholder="Buscar por cliente, producto o fecha..."
-                    >
+            <!-- Card Header with Filters -->
+            <div class="card-header">
+              <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                <h5 class="text-black mb-0">Historial de Ventas</h5>
+                <div class="d-flex flex-column flex-sm-row gap-3 align-items-stretch align-items-sm-center">
+                  <!-- Status Filter -->
+                  <select 
+                    v-model="salesFilter"
+                    class="form-select bg-dark text-light border-secondary"
+                  >
+                    <option value="all">Todas las ventas</option>
+                    <option value="pending">Pendientes</option>
+                    <option value="completed">Completadas</option>
+                  </select>
+                  
+                  <!-- Search Bar -->
+                  <div class="search-container">
+                    <div class="input-group">
+                      <span class="input-group-text bg-dark border-secondary">
+                        <i class="fas fa-search text-secondary"></i>
+                      </span>
+                      <input 
+                        type="text" 
+                        class="form-control bg-dark text-light border-secondary" 
+                        v-model="searchSales"
+                        placeholder="Buscar por cliente, producto o fecha..."
+                      >
+                    </div>
                   </div>
                 </div>
               </div>
@@ -353,8 +393,8 @@
 
             <!-- Date Filter Section -->
             <div class="card-body border-bottom border-secondary pb-3">
-              <div class="d-flex align-items-center justify-content-center">
-                <div class="d-flex gap-2 align-items-center">
+              <div class="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center justify-content-center gap-3">
+                <div class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center">
                   <div class="d-flex flex-column">
                     <small class="text-secondary mb-1">Desde</small>
                     <input 
@@ -371,13 +411,14 @@
                       v-model="dateRange.end"
                     >
                   </div>
-                  <button 
-                    class="btn btn-outline-secondary mt-4" 
-                    @click="clearDateFilter"
-                    v-if="dateRange.start || dateRange.end">
-                    Limpiar
-                  </button>
                 </div>
+                <button 
+                  class="btn btn-outline-secondary align-self-sm-end mt-2 mt-sm-0" 
+                  @click="clearDateFilter"
+                  v-if="dateRange.start || dateRange.end"
+                >
+                  Limpiar
+                </button>
               </div>
             </div>
 
@@ -430,7 +471,6 @@
     <PurchaseDetailsModal 
       v-if="selectedSale"
       :sale="selectedSale"
-      :subscriptions="subscriptions"
       @close="closeModal"
       ref="purchaseModal"
     />
@@ -439,11 +479,14 @@
 
 <script>
 import SearchInput from '@/components/app/SearchInput.vue'
-import { toast } from '@/utils/toast'
-import { ref as dbRef, get } from 'firebase/database'
+import { toast } from '@/utils/toast.js'
+import { ref as dbRef, get, push, update, set } from 'firebase/database'
 import { db } from '@/firebase/init'
 import 'toastify-js/src/toastify.css'
 import PurchaseDetailsModal from './modals/PurchaseDetailsModal.vue'
+import { sendEmail } from '@/utils/emailService.js'
+import { auth } from '@/firebase/init'
+import { reactive } from 'vue'
 
 export default {
   name: 'AffiliateCreditView',
@@ -509,6 +552,8 @@ export default {
       countdownTimer: null,
       salesData: [],
       subscriptions: [],
+      includeFee: true, // Default to true to include the fee
+      rateLimitData: reactive({}),
     }
   },
   computed: {
@@ -524,12 +569,13 @@ export default {
                             this.quotesAmount.length > 0 &&
                             this.cuotaDates.length > 0;
       
-      // Verification attempts validation
-      const hasAttemptsLeft = !this.clientVerifications[this.selectedClient?.id] || 
-                               this.clientVerifications[this.selectedClient.id].attempts < 3;
+      // Verification attempts validation - only check for cooldown period
+      // We don't track attempts locally anymore, we rely on the cloud function
+      const isNotInCooldown = !this.selectedClient || 
+                             !this.clientVerifications[this.selectedClient.id] || 
+                             this.clientVerifications[this.selectedClient.id].cooldownEnds <= Date.now();
       
-      // Return true only if all conditions are met
-      return hasBasicInfo && hasPaymentPlan && hasAttemptsLeft;
+      return hasBasicInfo && hasPaymentPlan && isNotInCooldown;
     },
     canCalculate() {
       return this.selectedClient && 
@@ -599,27 +645,23 @@ export default {
     cooldownMessage() {
       if (!this.selectedClient) return '';
       
-      const clientInfo = this.clientVerifications[this.selectedClient.id];
-      if (!clientInfo) return '';
-      
-      if (clientInfo.cooldownEnds > Date.now()) {
-        const timeLeft = clientInfo.cooldownEnds - Date.now();
-        const minutes = Math.floor(timeLeft / 60000);
-        const seconds = Math.floor((timeLeft % 60000) / 1000);
-        return `Espere ${minutes}:${seconds.toString().padStart(2, '0')} minutos antes de solicitar otro código`;
+      const cooldownEnds = this.clientVerifications[this.selectedClient.id]?.cooldownEnds || 0;
+      if (cooldownEnds > Date.now()) {
+        const secondsLeft = Math.ceil((cooldownEnds - Date.now()) / 1000);
+        return `Espera ${secondsLeft} segundos antes de solicitar otro código`;
       }
+      
       return '';
     },
     attemptsMessage() {
-      if (!this.selectedClient) return '';
+      if (!this.selectedClient || !this.rateLimitData[this.selectedClient.id]) return '';
       
-      const clientInfo = this.clientVerifications[this.selectedClient.id];
-      if (!clientInfo) return '';
+      const attempts = this.rateLimitData[this.selectedClient.id].attempts || 0;
+      const remaining = 5 - attempts;
       
-      if (clientInfo.attempts > 0) {
-        return `${3 - clientInfo.attempts} intentos restantes`;
-      }
-      return '';
+      if (remaining <= 0) return 'Sin';
+      
+      return `${remaining} intentos restantes para hoy`;
     },
     paymentStats() {
       const totalSales = this.salesArray.length;
@@ -651,6 +693,54 @@ export default {
       
       return '';
     },
+    hasExceededAttempts() {
+      if (!this.selectedClient) return false;
+      
+      // Check if we have rate limit data from the server
+      const rateLimitRef = dbRef(db, `rateLimits/verificationCodes/${this.selectedClient.id}/purchase`);
+      
+      if (!this.rateLimitData[this.selectedClient.id]) {
+        // Fetch the data if we don't have it yet
+        get(rateLimitRef).then(snapshot => {
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            // Use Vue 3 reactivity
+            this.rateLimitData[this.selectedClient.id] = {
+              attempts: data.attempts || 0,
+              firstAttempt: data.firstAttempt || Date.now(),
+              lastAttempt: data.lastAttempt || 0
+            };
+          } else {
+            // No rate limit data exists yet
+            this.rateLimitData[this.selectedClient.id] = {
+              attempts: 0,
+              firstAttempt: Date.now(),
+              lastAttempt: 0
+            };
+          }
+        }).catch(error => {
+          console.error('Error fetching rate limit data:', error);
+        });
+        
+        // Return false while we're loading
+        return false;
+      }
+      
+      // Check if attempts have exceeded the limit
+      return this.rateLimitData[this.selectedClient.id].attempts >= 5;
+    },
+    shouldShowVerificationMessages() {
+      if (!this.selectedClient) return false;
+      
+      // Check if we have cooldown information
+      const hasCooldown = this.clientVerifications[this.selectedClient.id]?.cooldownEnds > Date.now();
+      
+      // Check if we have rate limit data
+      const hasRateLimitData = !!this.rateLimitData[this.selectedClient.id];
+      
+      // If we have either, show messages
+      return hasCooldown || hasRateLimitData;
+    },
   },
   watch: {
     frequency(newVal) {
@@ -675,33 +765,26 @@ export default {
         return identification.includes(searchQuery) || name.includes(searchQuery);
       });
     },
+    includeFee(newValue) {
+      if (this.calculationsPerformed) {
+        // Recalculate with the new fee setting
+        this.calcs(this.selectedClient);
+      }
+    },
+    verificationRequested(newVal, oldVal) {
+      console.log(`verificationRequested changed from ${oldVal} to ${newVal}`);
+    }
   },
   methods: {    
     async askForCode(client) {
       try {
+        if (!client.emailVerified) {
+          toast.error('El cliente debe tener su email verificado para solicitar un código');
+          return;
+        }
+        
         this.waiting = true;
-
-        // Initialize client verification tracking if needed
-        if (!this.clientVerifications[client.id]) {
-          this.clientVerifications[client.id] = {
-            attempts: 0,
-            cooldownEnds: 0
-          };
-        }
         
-        const clientInfo = this.clientVerifications[client.id];
-        
-        // Check if in cooldown for this client
-        if (clientInfo.cooldownEnds > Date.now()) {
-          return;
-        }
-        
-        // Check attempts for this client
-        if (clientInfo.attempts >= 3) {
-          toast.error('Has excedido el número máximo de intentos para este cliente');
-          return;
-        }
-
         // Initial validations
         if (!client || !client.id) {
           throw new Error('Primero seleccione un cliente');
@@ -715,61 +798,145 @@ export default {
           throw new Error('El cliente no tiene email registrado. Por favor actualice los datos del cliente.');
         }
 
-        // Make the cloud function request
-        const baseUrl = 'https://us-central1-rose-app-e062e.cloudfunctions.net/sendPurchaseCode';
-        const params = new URLSearchParams();
-        params.append('id', client.id);
-        params.append('email', client.email);
-        params.append('firstName', client.firstName || '');
-        params.append('lastName', client.lastName || '');
+        // Make the cloud function request with type=purchase
+        const baseUrl = 'https://us-central1-rose-app-e062e.cloudfunctions.net/sendVerificationCode';
+        const params = new URLSearchParams({
+          id: client.id,
+          email: client.email,
+          firstName: client.firstName || '',
+          lastName: client.lastName || '',
+          type: 'purchase'
+        });
         
         const response = await fetch(`${baseUrl}?${params.toString()}`);
         const result = await response.json();
+        
+        if (result.rateLimit) {
+          // Store only cooldown information for UI
+          this.clientVerifications[client.id] = {
+            cooldownEnds: result.rateLimit.cooldownEnds
+          };
+        }
 
         if (!response.ok) {
+          // Handle rate limiting responses
+          if (response.status === 429) {
+            if (result.message.includes('límite de intentos')) {
+              toast.error('Has excedido el número máximo de intentos para hoy');
+            } else if (result.message.includes('espera')) {
+              // Extract seconds from message
+              const seconds = parseInt(result.message.match(/\d+/)[0]) || 120;
+              this.clientVerifications[client.id] = {
+                cooldownEnds: Date.now() + (seconds * 1000)
+              };
+              this.startCooldownTimer();
+              toast.error(result.message);
+            }
+          }
           throw new Error(result.message || `Error ${response.status}: Error al enviar el código`);
         }
 
         if (result && result.success) {
           this.verificationRequested = true;
-          clientInfo.attempts++;
-          clientInfo.cooldownEnds = Date.now() + (60 * 1000); // 1 minute cooldown
-          this.startCountdown();
+
           toast.success(result.message);
+
+          // Update remaining attempts display if provided
+          if (result.rateLimit?.remainingAttempts) {
+            toast.info(`Te quedan ${result.rateLimit.remainingAttempts} intentos para hoy`);
+          }
+          
+          // Start the cooldown timer
+          this.startCooldownTimer();
+          
+          // Refresh client information to get updated rate limit data
+          await this.selectClient(client);
         } else {
           throw new Error(result.message || 'Error al enviar el código');
         }
-
       } catch (error) {
         console.error('Error sending code:', error);
         this.verificationRequested = false;
-        toast.error(`Error al enviar el código: ${error.message}`);
+        toast.error(`Error: ${error.message}`);
       } finally {
         this.waiting = false;
       }
     },
-    startCountdown() {
+    startCooldownTimer() {
       // Clear any existing timer
       if (this.countdownTimer) {
         clearInterval(this.countdownTimer);
       }
       
-      // Start a new timer that updates every second
+      // Start a new countdown timer
       this.countdownTimer = setInterval(() => {
-        if (!this.selectedClient) return;
+        if (!this.selectedClient) {
+          clearInterval(this.countdownTimer);
+          return;
+        }
         
         const clientInfo = this.clientVerifications[this.selectedClient.id];
         if (!clientInfo || clientInfo.cooldownEnds <= Date.now()) {
           clearInterval(this.countdownTimer);
           this.countdownTimer = null;
+          return;
+        }
+        
+        // Update the countdown message
+        const secondsLeft = Math.ceil((clientInfo.cooldownEnds - Date.now()) / 1000);
+        if (secondsLeft <= 0) {
+          clearInterval(this.countdownTimer);
+          this.countdownTimer = null;
         }
       }, 1000);
     },
-    selectClient(client) {
+    async selectClient(client) {
       this.selectedClient = client;
       this.searchClient = '';
-      this.verificationRequested = false;
-      this.verificationCode = '';
+      
+      // Save current verification state
+      const wasVerificationRequested = this.verificationRequested;
+      const currentVerificationCode = this.verificationCode;
+      
+      // Fetch current rate limit information from the database
+      try {
+        const rateLimitRef = dbRef(db, `rateLimits/verificationCodes/${client.id}/purchase`);
+        const snapshot = await get(rateLimitRef);
+        
+        if (snapshot.exists()) {
+          const rateLimitData = snapshot.val();
+          const now = Date.now();
+          const attempts = rateLimitData.attempts || 0;
+          const remainingAttempts = 5 - attempts;
+          const cooldownEnds = rateLimitData.lastAttempt ? rateLimitData.lastAttempt + (2 * 60 * 1000) : 0;
+          const resetTime = rateLimitData.firstAttempt + (24 * 60 * 60 * 1000);
+          
+          if (cooldownEnds > now) {
+            const secondsLeft = Math.ceil((cooldownEnds - now) / 1000);
+            console.log('Tiempo de espera restante:', secondsLeft, 'segundos');
+          } else {            
+            console.log('No hay tiempo de espera activo');
+          }
+          
+          // Store minimal information in clientVerifications for UI purposes only
+          this.clientVerifications[client.id] = {
+            cooldownEnds: cooldownEnds
+          };
+        } else {
+          
+          // Initialize with empty data
+          this.clientVerifications[client.id] = {
+            cooldownEnds: 0
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching rate limit data:', error);
+      }
+      
+      // Restore verification state instead of resetting it
+      this.verificationRequested = wasVerificationRequested;
+      this.verificationCode = currentVerificationCode;
+      
       // Clear any existing countdown when changing clients
       if (this.countdownTimer) {
         clearInterval(this.countdownTimer);
@@ -777,60 +944,51 @@ export default {
       }
     },
     formatDate(date) {
-      return new Date(date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const dateObj = new Date(date);
+      dateObj.setDate(dateObj.getDate() + 1); // Adjust for timezone
+      return dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },    
 
-    async calcs(client) {
+    calcs(client) {
       try {
-        if (!client) {
-          throw new Error('Debe seleccionar un cliente para calcular sus cuotas.');
-        }
+        if (!client || !this.newPurchase.productPrice) return;
 
-        if (this.newPurchase.productPrice <= 0) {
-          throw new Error('Ingrese el precio del producto para calcular.');
-        }
-
-        if (client.credit.availableMainCredit <= 0) {
-          throw new Error('El cliente no tiene crédito disponible.');
-        }
-
-        // Get subscription details
-        let subscriptionDetails = null;
-        if (client.subscription?.id) {
-          subscriptionDetails = await this.getSubscriptionDetails(client.subscription.id);
-        }
-        
-        if (!subscriptionDetails) {
-          throw new Error('El cliente debe tener una suscripción activa para realizar compras a crédito');
-        }
-        
-        // Toggle on: perform calculations
         this.calc = true;
-        this.calculationsPerformed = true;
-
+        const productPrice = parseFloat(this.newPurchase.productPrice);
+        
         // Calculate initial payment based on percentage
-        this.updateInitial(client);
-
-        // Adjust loan amount based on subscription tier
-        const tier = subscriptionDetails.order;
-        const additionalAmount = this.getTierFee(tier);
+        const initialPercentage = this.initialPercentage === 'custom' 
+            ? parseFloat(this.customInitial) 
+            : parseFloat(this.initialPercentage);
         
-        // Add the tier-based additional amount to the remaining amount
-        this.loanAmount = this.remainingAmount + additionalAmount;      
-
-        // Calculate dates based on selected terms and frequency
-        this.cuotaDates = this.calculateDates(this.purchaseDate, this.newPurchase.terms, this.frequency);
+        const initialPayment = (productPrice * initialPercentage) / 100;
+        this.purchaseAmount = initialPayment;
         
-        // Calculate quote amounts with adjusted loan amount
-        this.quotesAmount = Array(this.newPurchase.terms).fill(this.loanAmount / this.newPurchase.terms);
-
+        // Calculate loan amount with or without fee
+        let loanAmount = productPrice - initialPayment;
+        this.loanAmount = this.includeFee ? loanAmount + 1 : loanAmount;
+        
+        this.remainingAmount = this.loanAmount;
+        
+        // Calculate dates and quotes
+        this.cuotaDates = this.calculateDates(
+            this.purchaseDate,
+            this.newPurchase.terms,
+            this.frequency
+        );
+        
+        // Calculate quote amounts
+        const quoteAmount = this.loanAmount / this.newPurchase.terms;
+        this.quotesAmount = Array(this.newPurchase.terms).fill(quoteAmount);
+        
+        this.calculationsPerformed = true;
       } catch (error) {
         console.error('Error en cálculos:', error);
-        toast.error(error.message || 'Error al calcular las cuotas');
+        toast.error('Error al realizar los cálculos');
         this.cancelCalcs();
       }
     },
-    updateInitial(client) {
+    async updateInitial(client) {
       if (!client) return;
       
       try {
@@ -842,9 +1000,20 @@ export default {
           throw new Error('El porcentaje inicial debe estar entre 0 y 100');
         }
 
+        // Calculate base amounts
         this.purchaseAmount = (this.newPurchase.productPrice * percentage) / 100;
         this.loanAmount = this.newPurchase.productPrice - this.purchaseAmount;
         this.remainingAmount = this.loanAmount;
+
+        // Get subscription details and add tier fee
+        if (client.subscription?.id) {
+          const subscriptionDetails = await this.getSubscriptionDetails(client.subscription.id);
+          if (subscriptionDetails) {
+            const additionalAmount = this.includeFee ? this.getTierFee(subscriptionDetails.order) : 0;
+            this.loanAmount += additionalAmount;
+            this.remainingAmount += additionalAmount;
+          }
+        }
         
         if (this.loanAmount > client.credit?.availableMainCredit) {
           throw new Error('El monto del préstamo excede el crédito disponible del cliente');
@@ -855,6 +1024,23 @@ export default {
         console.error('Error al actualizar inicial:', error);
         toast.error(error.message);
         this.cancelCalcs();
+      }
+    },
+    getTierFee(tier) {
+      // Convert tier to number since it might come as a string
+      const tierNumber = Number(tier);
+      
+      switch(tierNumber) {
+        case 1: // Free tier
+          return 0; // Just return 0 for display purposes
+        case 2: // bronce tier
+          return 3;  // $3 increment
+        case 3: // silver tier
+          return 1;  // $1 increment
+        case 4: // Gold tier
+          return 0;  // No increment
+        default:
+          return 0; // Default to 0 for invalid tiers
       }
     },
     calculateQuotes() {
@@ -895,6 +1081,7 @@ export default {
         return [];
       }
     },
+
     cancelCalcs() {
       this.calc = false;
       this.calculationsPerformed = false;
@@ -954,61 +1141,50 @@ export default {
 
     async registerPurchase() {
       try {
-        if (!this.verificationCode) {
-          throw new Error('Debe ingresar el código de verificación');
+        this.isSubmitting = true;
+        
+        // Validate inputs
+        if (!this.validateInputs()) {
+          this.isSubmitting = false;
+          return;
         }
 
-        this.loading = true;
+        const loanAmount = parseFloat(this.loanAmount);
+        const finalAmount = this.includeFee ? loanAmount + 1 : loanAmount; // Add $1 fee if includeFee is true
 
-        // Emit purchase data to parent
-        this.$emit('register-purchase', {
-          clientId: this.selectedClient.id,
+        // Create the purchase data object to pass to the parent component
+        const purchaseData = {
+          clientId: this.selectedClient.uid || this.selectedClient.id,
           clientName: `${this.selectedClient.firstName} ${this.selectedClient.lastName}`,
           productName: this.newPurchase.productName,
           productPrice: this.newPurchase.productPrice,
           purchaseAmount: this.purchaseAmount,
           remainingAmount: this.remainingAmount,
-          loanAmount: this.loanAmount,
-          terms: this.newPurchase.terms,
+          loanAmount: finalAmount,
+          includeFee: this.includeFee,
+          terms: this.cuotaDates.length,
           frequency: this.frequency,
           purchaseDate: this.purchaseDate,
           verificationCode: this.verificationCode,
           cuotas: this.cuotaDates.map((date, index) => ({
-            date,
             amount: this.quotesAmount[index],
-            paid: false
+            date: date,
+            status: 'pending',
+            paymentDate: null
           }))
-        });
+        };
 
-        // Show success message
-        toast.success('Venta registrada exitosamente', {
-          duration: 4000,
-          gravity: 'top',
-          position: 'right',
-          style: {
-            background: 'linear-gradient(to right, #00b09b, #96c93d)',
-            color: 'white',
-            fontSize: '16px'
-          }
-        });
-
-        // Reset form after successful registration
-        this.resetForm();
+        // Emit the purchase data to the parent component
+        this.$emit('register-purchase', purchaseData);
+        
+        // Reset form after successful submission
+          this.resetForm();
         
       } catch (error) {
-        console.error('Error registering purchase:', error);
-        toast.error(error.message || 'Error al registrar la compra', {
-          duration: 5000,
-          gravity: 'top',
-          position: 'right',
-          style: {
-            background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
-            color: 'white',
-            fontSize: '16px'
-          }
-        });
+        console.error('Error preparing purchase data:', error);
+        toast.error(error.message || 'Error al preparar los datos de la compra');
       } finally {
-        this.loading = false;
+        this.isSubmitting = false;
       }
     },
 
@@ -1030,23 +1206,7 @@ export default {
         return null;
       }
     },
-    getTierFee(tier) {
-      // Convert tier to number since it might come as a string
-      const tierNumber = Number(tier);
-      
-      switch(tierNumber) {
-        case 1: // Free tier
-          return 0; // Just return 0 for display purposes
-        case 2: // bronce tier
-          return 3;  // $3 increment
-        case 3: // silver tier
-          return 1;  // $1 increment
-        case 4: // Gold tier
-          return 0;  // No increment
-        default:
-          return 0; // Default to 0 for invalid tiers
-      }
-    },
+    
     getClientSubscription(clientId) {
       if (!clientId || !this.clients) {
         return {
@@ -1086,24 +1246,6 @@ export default {
         }));
       } else {
         this.subscriptions = [];
-      }
-    },
-    getPurchaseIncrement(subId) {      
-      if (!subId) {
-        return "0.00";
-      }
-      
-      const subData = this.subscriptions.find(sub => sub.id === subId);
-      if (!subData || !subData.order) {
-        return "0.00";
-      }
-      
-      try {
-        const increment = this.getTierFee(subData.order);
-        return Number(increment).toFixed(2);
-      } catch (error) {
-        console.warn('Error getting tier fee:', error);
-        return "0.00";
       }
     },
 
@@ -1146,11 +1288,140 @@ export default {
       // Reset verification state for current client
       if (this.selectedClient && this.clientVerifications[this.selectedClient.id]) {
         this.clientVerifications[this.selectedClient.id] = {
-          attempts: 0,
           cooldownEnds: 0
         };
       }
     }, 
+    calculatePreview() {
+      if (!this.loanAmount || !this.selectedPlan) return;
+
+      const amount = parseFloat(this.loanAmount);
+      const finalAmount = this.includeFee ? amount + 1 : amount;
+
+      // Update preview calculations with finalAmount
+      this.previewData = {
+        originalAmount: amount,
+        finalAmount: finalAmount,
+        feeAmount: this.includeFee ? 1 : 0,
+        monthlyPayment: (finalAmount / this.selectedPlan.months).toFixed(2),
+        totalPayments: this.selectedPlan.months,
+        // ... other preview data
+      };
+    },
+    async sendDummyCode(client) {
+        try {
+            if (!client || !client.email) {
+                throw new Error('Cliente no válido o sin dirección de correo electrónico.');
+            }
+
+            const emailContent = 'Nuestro sistema se encuentra en mantenimiento en este momento. Intente más tarde.';
+            const emailData = {
+                to: client.email,
+                message: {
+                    subject: 'Notificación de Mantenimiento',
+                    text: emailContent
+                    ,
+                    html: `<p style="font-family: Arial, sans-serif; font-size: 16px; color: #333;">
+                        ${emailContent}
+                    </p>`
+                }
+            };
+
+            // Use the imported sendEmail function
+            const result = await sendEmail(emailData);
+
+            if (result.success) {
+                toast.success('Correo de mantenimiento enviado exitosamente.');
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error('Error al enviar el correo:', error);
+            toast.error('Error al enviar el correo de mantenimiento.');
+        }
+    },
+    validateInputs() {
+      // Check if client is selected
+      if (!this.selectedClient) {
+        toast.error('Por favor seleccione un cliente');
+        return false;
+      }
+
+      if (!this.selectedClient.emailVerified) {
+        toast.error('El cliente no tiene email verificado. Por favor verifique su email.');
+        return false;
+      }
+      
+      // Check if product name is provided
+      if (!this.newPurchase.productName || this.newPurchase.productName.trim() === '') {
+        toast.error('Por favor ingrese el nombre del producto');
+        return false;
+      }
+      
+      // Check if product price is valid
+      if (!this.newPurchase.productPrice || this.newPurchase.productPrice <= 0) {
+        toast.error('Por favor ingrese un precio válido');
+        return false;
+      }
+      
+      // Check if client has sufficient credit
+      if (this.selectedClient.credit?.availableMainCredit < this.loanAmount) {
+        toast.error('El cliente no tiene suficiente crédito disponible');
+        return false;
+      }
+      
+      // Check if verification code is provided when required
+      if (this.verificationRequested && (!this.verificationCode)) {
+        toast.error('Por favor ingrese el código de verificación');
+        return false;
+      }
+      
+      // Check if payment plan calculations have been performed
+      if (!this.calc) {
+        toast.error('Por favor calcule el plan de pagos');
+        return false;
+      }
+      
+      return true;
+    },
+    async resetClientAttempts() {
+      try {
+        if (!this.selectedClient || !this.selectedClient.id) {
+          toast.error('No hay cliente seleccionado');
+          return;
+        }
+        
+        // Reset attempts in the database
+        const rateLimitRef = dbRef(db, `rateLimits/verificationCodes/${this.selectedClient.id}/purchase`);
+        await set(rateLimitRef, {
+          attempts: 0,
+          firstAttempt: Date.now(),
+          lastAttempt: Date.now()
+        });
+        
+        // Reset minimal local tracking (just cooldown)
+        this.clientVerifications[this.selectedClient.id] = {
+          cooldownEnds: 0
+        };
+        
+        // Clear any active cooldown timer
+        if (this.countdownTimer) {
+          clearInterval(this.countdownTimer);
+          this.countdownTimer = null;
+        }
+        
+        console.log('=== INTENTOS REINICIADOS ===');
+        console.log('Cliente:', this.selectedClient.firstName, this.selectedClient.lastName);
+        
+        // Refresh rate limit information
+        await this.selectClient(this.selectedClient);
+        
+        toast.success('Intentos de verificación reiniciados');
+      } catch (error) {
+        console.error('Error resetting attempts:', error);
+        toast.error('Error al reiniciar intentos');
+      }
+    },
   },
   async mounted() {
     await this.$nextTick();
@@ -1166,148 +1437,44 @@ export default {
 }
 </script>
 
-<style scoped>
-.badge {
-  padding: 0.5em 1em;
-  border: 1px solid;
-  background-color: transparent !important;
+<style lang="scss" scoped>
+.card-header {
+  .form-select {
+    min-width: 150px;
+    @media (max-width: 575.98px) {
+      width: 100%;
+    }
+  }
+
+  .search-container {
+    @media (min-width: 576px) {
+      width: 300px;
+    }
+    @media (max-width: 575.98px) {
+      width: 100%;
+    }
+  }
 }
 
-.text-success {
-  color: #198754;
-  border-color: #198754;
+.card-body {
+  input[type="date"] {
+    @media (max-width: 575.98px) {
+      width: 100%;
+    }
+    @media (min-width: 576px) {
+      width: 140px;
+    }
+  }
 }
 
-.text-warning {
-  color: #ffc107;
-  border-color: #ffc107;
-}
-
-.text-purple {
-  color: #6f42c1;
-}
-
-.btn-theme {
-  background-color: #6f42c1;
-  border-color: #6f42c1;
-  color: white;
-}
-
-.btn-theme:hover:not(:disabled) {
-  background-color: #5a32a3;
-  border-color: #5a32a3;
-}
-
-.form-section {
-  position: relative;
-  padding-top: 1rem;
-}
-
-.form-section h6 {
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #444;
-}
-
-.bg-dark-subtle {
-  background-color: #2d2d2d !important;
-}
-
-.selected-client-info,
-.payment-options,
-.payment-summary,
-.verification-code {
-  transition: all 0.3s ease;
-}
-
-.selected-client-info:hover,
-.payment-options:hover,
-.payment-summary:hover {
-  border-color: #6f42c1 !important;
-}
-
-.form-check-input:checked {
-  background-color: #6f42c1;
-  border-color: #6f42c1;
-}
-
-.table-dark {
-  background-color: transparent;
-}
-
-.table-dark td, 
-.table-dark th {
-  border-color: #444;
-}
-
-/* Modal styles */
-.modal-content {
-  border: 1px solid #444;
-}
-
-.modal-header {
-  background-color: #2d2d2d;
-}
-
-.modal-body {
-  background-color: #222;
-}
-
-.card.bg-dark-subtle {
-  background-color: #2d2d2d !important;
-  border: 1px solid #444;
-}
-
-.badge {
-  font-size: 0.875rem;
-}
-
-.search-container .input-group-text {
-  color: #6c757d;
-}
-
-.search-container .form-control:focus {
-  border-color: #6f42c1;
-  box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
-}
-
-.form-select {
-  cursor: pointer;
-}
-
-.form-select:focus {
-  border-color: #6f42c1;
-  box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
-}
-
-.gap-3 {
-  gap: 1rem !important;
-}
-
-.price-warning {
-  font-size: 0.875rem;
-}
-
-.price-warning .fa-exclamation-triangle {
-  color: #ffc107;
-}
-
-input[type="date"] {
-  cursor: pointer;
-  width: 140px;
-}
-
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  cursor: pointer;
-}
-
-input[type="date"]:focus {
-  border-color: #6f42c1;
-  box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
-}
-
-.card-body.border-bottom {
-  background-color: #29122f;
+/* Adjust spacing */
+@media (max-width: 575.98px) {
+  .card-header {
+    padding-bottom: 1rem;
+  }
+  
+  .gap-3 {
+    gap: 0.75rem !important;
+  }
 }
 </style> 

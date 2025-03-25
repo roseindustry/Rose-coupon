@@ -1,0 +1,1 @@
+export { default as NotifyPaymentModal } from './NotifyPaymentModal.vue'; 

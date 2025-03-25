@@ -23,7 +23,7 @@
                 </div>
                 <div class="col-md-6">
                   <p class="text-secondary mb-1">Fecha de Compra</p>
-                  <h6 class="text-light">{{ sale.purchaseDate }}</h6>
+                  <h6 class="text-light">{{ formatDate(sale.purchaseDate) }}</h6>
                 </div>
                 <div class="col-md-6">
                   <p class="text-secondary mb-1">Producto</p>
@@ -64,10 +64,9 @@
                 <div class="col-md-3">
                   <p class="text-secondary mb-1">Monto Financiado</p>
                   <h6 class="text-light">${{ Number(sale.loanAmount).toFixed(2) }}</h6>
-                  <small class="text-secondary" v-if="sale.clientSubscription?.id">
-                    Incremento de: ${{ getPurchaseIncrement(sale.clientSubscription.id) }} por suscripción
+                  <small class="text-secondary" v-if="sale.includeFee">
+                    Incremento de $1 por gestión de la compra
                   </small>
-                  <small class="text-secondary" v-else>Sin incremento por suscripción</small>
                 </div>                  
               </div>
             </div>
@@ -95,7 +94,7 @@
                   <tbody>
                     <tr v-for="(cuota, index) in sale.cuotas" :key="index">
                       <td>Cuota {{ index + 1 }}</td>
-                      <td>{{ cuota.date }}</td>
+                      <td>{{ formatDate(cuota.date) }}</td>
                       <td>${{ Number(cuota.amount).toFixed(2) }}</td>
                       <td>
                         <span :class="['badge', cuota.paid ? 'text-success' : 'text-warning']">
@@ -124,10 +123,6 @@ export default {
       type: Object,
       required: true
     },
-    subscriptions: {
-      type: Array,
-      required: true
-    }
   },
   data() {
     return {
@@ -145,34 +140,22 @@ export default {
         this.$emit('close')
       }
     },
-    getPurchaseIncrement(subId) {      
-      if (!subId) {
-        return "0.00";
+    formatDate(dateString) {
+      if (!dateString) return 'N/A';
+      
+      // Check if it's already in the right format
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
+        return dateString;
       }
       
-      const subData = this.subscriptions.find(sub => sub.id === subId);
-      if (!subData || !subData.order) {
-        return "0.00";
+      // Simple conversion from YYYY-MM-DD to DD/MM/YYYY
+      if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        const [year, month, day] = dateString.split('-');
+        return `${day}/${month}/${year}`;
       }
       
-      try {
-        const increment = this.getTierFee(subData.order);
-        return Number(increment).toFixed(2);
-      } catch (error) {
-        console.warn('Error getting tier fee:', error);
-        return "0.00";
-      }
-    },
-    getTierFee(tier) {
-      const tierNumber = Number(tier);
-      
-      switch(tierNumber) {
-        case 1: return 0;
-        case 2: return 3;
-        case 3: return 1;
-        case 4: return 0;
-        default: return 0;
-      }
+      // Fallback for other formats
+      return dateString;
     }
   }
 }

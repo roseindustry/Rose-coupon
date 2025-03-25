@@ -91,18 +91,28 @@
         </div>
 
         <!-- Upcoming Payments Section -->
-        <div class="upcoming-payments" v-if="getAffiliatePayments(affiliate.id).length">
-          <div class="payments-header">
-            <h6 class="mb-3">
+        <div class="upcoming-payments" v-if="upcomingPayments.length">
+          <div class="payments-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">
               <i class="fas fa-calendar-alt me-2"></i>
               Próximos Pagos
             </h6>
+            <div class="payment-filter">
+              <select v-model="paymentFilter" class="form-select form-select-sm">
+                <option value="all">Próximos 5 pagos</option>
+                <option value="0">Vence hoy</option>
+                <option value="3">En 3 días o menos</option>
+                <option value="5">En 5 días o menos</option>
+                <option value="7">En 7 días o menos</option>
+              </select>
+            </div>
           </div>
           <div class="payments-table-wrapper">
             <table class="table table-sm">
               <thead>
                 <tr>
                   <th>Fecha</th>
+                  <th>Vencimiento</th>
                   <th>Cliente</th>
                   <th>Producto</th>
                   <th>Cuota</th>
@@ -110,13 +120,30 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="payment in getAffiliatePayments(affiliate.id).slice(0, 5)" 
-                    :key="`${payment.saleId}-${payment.cuotaNumber}`">
-                  <td>{{ formatDate(payment.date) }}</td>
-                  <td>{{ payment.clientName }}</td>
-                  <td>{{ payment.productName }}</td>
-                  <td>{{ payment.cuotaNumber }}</td>
-                  <td>${{ payment.amount.toFixed(2) }}</td>
+                <template v-if="getAffiliatePayments(affiliate.id).length">
+                  <tr v-for="payment in getAffiliatePayments(affiliate.id)" 
+                      :key="`${payment.saleId}-${payment.cuotaNumber}`"
+                      :class="{'table-danger': getPaymentStatus(payment.date).text === 'Hoy'}">
+                    <td>{{ formatDate(payment.date) }}</td>
+                    <td>
+                      <span class="payment-badge" 
+                            :class="getPaymentStatus(payment.date).class">
+                        {{ getPaymentStatus(payment.date).text }}
+                      </span>
+                    </td>
+                    <td>{{ payment.clientName }}</td>
+                    <td>{{ payment.productName }}</td>
+                    <td>{{ payment.cuotaNumber }}</td>
+                    <td>${{ payment.amount.toFixed(2) }}</td>
+                  </tr>
+                </template>
+                <tr v-else>
+                  <td colspan="6" class="text-center py-3">
+                    <div class="empty-payments">
+                      <i class="fas fa-calendar-check text-muted mb-2"></i>
+                      <p class="mb-0">No hay pagos por vencer en este período</p>
+                    </div>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -186,7 +213,8 @@ export default {
   },
   data() {
     return {
-      filterQuery: this.filterAffiliates
+      filterQuery: this.filterAffiliates,
+      paymentFilter: 'all'
     }
   },
   methods: {
@@ -205,7 +233,63 @@ export default {
       return `${day}/${month}/${year}`;
     },
     getAffiliatePayments(affiliateId) {
-      return this.upcomingPayments.filter(payment => payment.affiliateId === affiliateId);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const affiliatePayments = this.upcomingPayments.filter(payment => 
+            payment.affiliateId === affiliateId
+        );
+        
+        // First sort by date
+        const sortedPayments = affiliatePayments.sort((a, b) => 
+            new Date(a.date) - new Date(b.date)
+        );
+
+        // Filter based on selected option
+        const filteredPayments = sortedPayments.filter(payment => {
+            const paymentDate = new Date(payment.date);
+            // Set to noon to avoid timezone issues
+            paymentDate.setHours(12, 0, 0, 0);
+            
+            // Calculate difference in days using getTime for consistency
+            const diffTime = paymentDate.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            // Show payments due within the selected period
+            if (this.paymentFilter === 'all') {
+                return diffDays <= 7; // Show all payments due within 7 days
+            }
+            
+            return diffDays <= parseInt(this.paymentFilter);
+        });
+
+        // If showing all payments, get 5 closest payments
+        if (this.paymentFilter === 'all') {
+            return filteredPayments.slice(0, 5);
+        }
+
+        return filteredPayments;
+    },
+    getPaymentStatus(date) {
+        // Create dates without time component to avoid timezone issues
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Parse the date and handle timezone offset
+        const paymentDate = new Date(date);
+        // Adjust for timezone offset to ensure correct date comparison
+        paymentDate.setHours(12, 0, 0, 0); // Set to noon to avoid any timezone issues
+        
+        // Calculate difference in days
+        const diffTime = paymentDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 0) return { text: 'Hoy', class: 'bg-danger text-white' };
+        if (diffDays <= 3) return { text: '≤ 3 días', class: 'bg-warning text-dark' };
+        if (diffDays <= 5) return { text: '≤ 5 días', class: 'bg-info text-white' };
+        if (diffDays <= 7) return { text: '≤ 7 días', class: 'bg-primary text-white' };
+        
+        return { text: '', class: '' };
     }
   },
   watch: {
@@ -218,61 +302,46 @@ export default {
   },
   computed: {
     upcomingPayments() {
-      // Get current month's start and end dates
-      const today = new Date();
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      
-      const allPayments = this.affiliates.reduce((payments, affiliate) => {
-        if (!affiliate.credit?.sales) return payments;
-        
-        // Group payments by client
-        const clientPayments = {};
-        
-        const salesPayments = Object.entries(affiliate.credit.sales)
-          .flatMap(sale => {
-            const [saleId, saleData] = sale;
-            if (!saleData.cuotas) return [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const payments = [];
+
+        this.affiliates.forEach(affiliate => {
+            // Skip if no credit or sales
+            if (!affiliate.credit?.sales) return;
+
+            // Get sales as array
+            const sales = Object.entries(affiliate.credit.sales);
             
-            // Find the next unpaid cuota for this sale
-            const nextUnpaidCuota = saleData.cuotas
-              .map((cuota, index) => ({ ...cuota, index }))
-              .filter(cuota => {
-                const cuotaDate = new Date(cuota.date);
-                return !cuota.paid && 
-                       cuotaDate >= startOfMonth && 
-                       cuotaDate <= endOfMonth;
-              })
-              .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
-            
-            if (!nextUnpaidCuota) return [];
-            
-            const payment = {
-              affiliateId: affiliate.id,
-              affiliateName: affiliate.companyName,
-              saleId,
-              clientName: saleData.clientName,
-              clientId: saleData.client_id,
-              productName: saleData.productName,
-              cuotaNumber: nextUnpaidCuota.index + 1,
-              date: nextUnpaidCuota.date,
-              amount: nextUnpaidCuota.amount,
-              paid: nextUnpaidCuota.paid
-            };
-            
-            // Keep only the earliest payment for each client
-            if (!clientPayments[saleData.client_id] || 
-                new Date(payment.date) < new Date(clientPayments[saleData.client_id].date)) {
-              clientPayments[saleData.client_id] = payment;
-            }
-            
-            return [];
-          });
-        
-        return [...payments, ...Object.values(clientPayments)];
-      }, []).sort((a, b) => new Date(a.date) - new Date(b.date));
-      
-      return allPayments;
+            sales.forEach(([saleId, sale]) => {
+                // Skip if no cuotas
+                if (!sale.cuotas) return;
+
+                // Get cuotas as array
+                const cuotas = Object.entries(sale.cuotas);
+                
+                cuotas.forEach(([cuotaId, cuota]) => {
+                    const cuotaDate = new Date(cuota.date);
+                    
+                    // Only include unpaid future cuotas
+                    if (!cuota.isPaid && cuotaDate >= today) {
+                        payments.push({
+                            affiliateId: affiliate.id,
+                            clientId: sale.clientId,
+                            clientName: sale.clientName,
+                            saleId: saleId,
+                            productName: sale.productName,
+                            date: cuota.date,
+                            cuotaNumber: cuota.number,
+                            amount: cuota.amount
+                        });
+                    }
+                });
+            });
+        });
+
+        // Sort by date ascending (closest first)
+        return payments.sort((a, b) => new Date(a.date) - new Date(b.date));
     }
   }
 }
@@ -541,5 +610,97 @@ export default {
   .payments-table-wrapper table {
     font-size: 0.875rem;
   }
+}
+
+.payment-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.bg-danger {
+  background-color: #dc3545 !important;
+}
+
+.bg-warning {
+  background-color: #ffc107 !important;
+}
+
+.bg-info {
+  background-color: #0dcaf0 !important;
+}
+
+.bg-primary {
+  background-color: #6f42c1 !important;
+}
+
+.table-danger {
+  background-color: rgba(220, 53, 69, 0.15) !important;
+}
+
+.payments-table-wrapper td {
+  vertical-align: middle;
+}
+
+@media (max-width: 768px) {
+  .payment-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+  }
+}
+
+.payment-filter {
+    min-width: 140px;
+}
+
+.payment-filter .form-select {
+    background-color: #1a1a1a;
+    border-color: #444;
+    color: #fff;
+    font-size: 0.875rem;
+    padding: 0.25rem 2rem 0.25rem 0.5rem;
+}
+
+.payment-filter .form-select:focus {
+    border-color: #6f42c1;
+    box-shadow: 0 0 0 0.25rem rgba(111, 66, 193, 0.25);
+}
+
+.payment-filter .form-select option {
+    background-color: #1a1a1a;
+    color: #fff;
+}
+
+.payments-header {
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #444;
+}
+
+@media (max-width: 768px) {
+    .payments-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .payment-filter {
+        width: 100%;
+    }
+}
+
+.empty-payments {
+    padding: 1.5rem;
+    text-align: center;
+    color: #adb5bd;
+}
+
+.empty-payments i {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.empty-payments p {
+    font-size: 0.875rem;
 }
 </style> 

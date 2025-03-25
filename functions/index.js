@@ -306,118 +306,105 @@ exports.getAllUsers = onRequest({
 
 const getDatabase = () => admin.database();
 
-exports.verifyPurchaseCode = onRequest(async (req, res) => {
-  // Enable CORS
-  res.set('Access-Control-Allow-Origin', '*');
-  
-  if (req.method === 'OPTIONS') {
-    // Send response to OPTIONS requests
-    res.set('Access-Control-Allow-Methods', 'GET');
-    res.set('Access-Control-Allow-Headers', 'Content-Type');
-    res.status(204).send('');
-    return;
-  }
-
-  // Get parameters from query string
-  const { clientId, code } = req.query;
-  
+exports.verifyCode = onRequest({
+  cors: true // Enable CORS properly
+}, async (req, res) => {
   try {
-    // Log the incoming request parameters
-    console.log('Verifying code for:', { clientId, code });
+    const { clientId, code, type } = req.body;
 
-    const snapshot = await getDatabase().ref(`verificationCodes/${clientId}`).get();
+    // Validate request data
+    if (!clientId || !code || !type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Datos inválidos'
+      });
+    }
 
-    // Log if code exists
-    console.log('Code exists:', snapshot.exists());
+    // Get stored verification code
+    const verificationRef = admin.database().ref(`verificationCodes/${clientId}/${type}`);
+    const snapshot = await verificationRef.get();
 
     if (!snapshot.exists()) {
-      res.status(404).json({
-        error: "El código no existe. Por favor, solicite uno nuevo."
+      return res.status(404).json({
+        success: false,
+        message: 'Código no encontrado o expirado'
       });
-      return;
     }
 
-    const { code: storedCode, createdAt } = snapshot.val();
+    const verification = snapshot.val();
+    const now = Date.now();
 
-    // Log the stored code and entered code for comparison
-    console.log('Comparing codes:', { storedCode, enteredCode: code });
-
-    // Check if the entered code matches the stored code
-    if (Number(storedCode) !== Number(code)) {
-      res.status(400).json({
-        error: 'Código incorrecto.'
+    // Check if code has expired (5 minutes)
+    if (now - verification.createdAt > 5 * 60 * 1000) {
+      await verificationRef.remove();
+      return res.status(400).json({
+        success: false,
+        message: 'El código ha expirado'
       });
-      return;
     }
 
-    // Check if the code is within the 5-minute validity window
-    const fiveMinutes = 5 * 60 * 1000;
-    if (Date.now() - createdAt > fiveMinutes) {
-      res.status(400).json({
-        error: "El código de verificación ha expirado. Por favor, solicite uno nuevo."
+    // Verify code
+    // Error response if code is invalid
+    if (verification.code.toString() !== code.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Código inválido'
       });
-      return;
     }
 
-    // Delete the used code
-    await getDatabase().ref(`verificationCodes/${clientId}`).remove();
+    // Delete used verification code
+    await verificationRef.remove();
 
-    res.json({
-      valid: true,
+    // Success response
+    return res.status(200).json({
+      success: true,
       message: 'Código verificado exitosamente'
-    });
+    });       
 
   } catch (error) {
-    // Log the full error
-    console.error("Error verifying code:", error);
-    console.error("Error details:", {
-      message: error.message,
-      stack: error.stack
-    });
-
-    res.status(500).json({
-      error: 'Error al verificar el código. Por favor, intenta de nuevo.'
+    console.error('Error in verifyCode:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
     });
   }
 });
 
-exports.sendPurchaseCode = onRequest({
+exports.sendVerificationCode = onRequest({
   cors: true,
-  maxInstances: 10
+  maxInstances: 10 // Limit the number of instances to 10
 }, async (req, res) => {
-  // Get client data from query parameters
-  const clientId = req.query.id;
-  const email = req.query.email;
-  const firstName = req.query.firstName || '';
-  const lastName = req.query.lastName || '';
-  
-  const client = { id: clientId, email, firstName, lastName };
+  // Get data from query parameters
+  const { id, email, phone = null, firstName, lastName, type, newValue = null } = req.query;
+  const client = { id, email, firstName, lastName, phone };
   
   try {
-    // Validate client data
-    if (!client || !client.id) {
+    // Validate request data
+    if (!client || !client.id || !type ) {
       return res.status(400).json({
         success: false,
-        message: 'Datos del cliente inválidos'
+        message: 'Datos inválidos'
       });
     }
 
-    if (!client.email) {
+    // Validate contact method based on verification type
+    if ((type === 'email' && !newValue.includes('@')) || 
+        (type === 'phone' && !/^\d{10}$/.test(newValue))) {
       return res.status(400).json({
         success: false,
-        message: 'El cliente no tiene email registrado.'
+        message: `${type === 'email' ? 'Email' : 'Teléfono'} inválido`
       });
     }
 
     // Check rate limiting
-    const rateLimitRef = admin.database().ref(`rateLimits/verificationCodes/${client.id}`);
+    const rateLimitRef = admin.database().ref(`rateLimits/verificationCodes/${client.id}/${type}`);
     const rateLimitSnapshot = await rateLimitRef.get();
     const now = Date.now();
     
     if (rateLimitSnapshot.exists()) {
       const { attempts = 0, firstAttempt = now } = rateLimitSnapshot.val();
       
-      // Reset if it's been more than 24 hours since first attempt
+      // Reset if it's been more than 24 hours
       if (now - firstAttempt > 24 * 60 * 60 * 1000) {
         await rateLimitRef.set({
           attempts: 1,
@@ -425,18 +412,18 @@ exports.sendPurchaseCode = onRequest({
           lastAttempt: now
         });
       } else {
-        // Check if max attempts reached within 24 hours
-        if (attempts >= 10) {
+        // Check max attempts (5 per 24h)
+        if (attempts >= 5) {
           return res.status(429).json({
             success: false,
             message: 'Has excedido el límite de intentos. Por favor, intenta de nuevo mañana.'
           });
         }
         
-        // Check if minimum time between attempts has passed (2 minutes)
+        // Check cooldown period (2 min)
         const { lastAttempt } = rateLimitSnapshot.val();
         const timeSinceLastAttempt = now - lastAttempt;
-        if (timeSinceLastAttempt < 2 * 60 * 1000) { // 2 minutes in milliseconds
+        if (timeSinceLastAttempt < 2 * 60 * 1000) {
           const waitTime = Math.ceil((2 * 60 * 1000 - timeSinceLastAttempt) / 1000);
           return res.status(429).json({
             success: false,
@@ -463,66 +450,150 @@ exports.sendPurchaseCode = onRequest({
     const verificationCode = Math.floor(100000 + Math.random() * 900000);
 
     try {
-      // Store the code in Firebase first
-      await admin.database().ref(`verificationCodes/${client.id}`).set({
+      // Store the code with its type and new value
+      await admin.database().ref(`verificationCodes/${client.id}/${type}`).set({
         code: verificationCode,
-        createdAt: now
+        newValue: newValue, // Store the new value with the code
+        createdAt: Date.now()
       });
 
-      // Create email payload
-      const emailPayload = {
-        to: client.email,
-        message: {
-          subject: "Su Código de verificación",
-          text: `Hola ${client.firstName || ''}, tu código de verificación de RoseCoupon es: ${verificationCode}.`,
-          html: `<p>Hola ${client.firstName || ''}, tu código de verificación de RoseCoupon es: ${verificationCode}.</p>`
-        }
-      };
+      // Send code based on type
+      if (type === 'email') {
+        await transporter.sendMail({
+          from: EMAIL_USER,
+          to: newValue, // Send to the new email
+          subject: "Código de Verificación de Email",
+          html: `
+            <h3>Verificación de Email</h3>
+            <p>Hola ${client.firstName || ''},</p>
+            <p>Tu código de verificación es: <strong>${verificationCode}</strong></p>
+            <p>Este código expirará en 5 minutos.</p>
+          `
+        });
+      } else if (type === 'phone') {
+        console.log('Coming soon');
+        // Send SMS (implement your SMS service here)
+        // For example, using Twilio or similar service
+        // await sendSMS(newValue, `Tu código de verificación es: ${verificationCode}`);
+      } else if (type === 'purchase') {
+        await transporter.sendMail({
+          from: EMAIL_USER,
+          to: client.email,
+          subject: "Código de Verificación de Compra",
+          html: `
+            <h3>Verificación de Compra</h3>
+            <p>Hola ${client.firstName || ''},</p>
+            <p>Tu código de verificación para tu compra es: <strong>${verificationCode}</strong></p>
+            <p>Este código expirará en 5 minutos.</p>
+          `
+        });
+      }
 
-      // Send email using the sendEmail function
-      const emailResponse = await transporter.sendMail({
-        from: EMAIL_USER,
-        to: client.email,
-        subject: emailPayload.message.subject,
-        text: emailPayload.message.text,
-        html: emailPayload.message.html
-      });
-
-      console.log('Email sent successfully:', emailResponse);
-
-      // If we get here, both code storage and email sending were successful
-      const firstAttempt = rateLimitSnapshot.exists() ? rateLimitSnapshot.val().firstAttempt : now;
-      const attempts = rateLimitSnapshot.exists() ? rateLimitSnapshot.val().attempts : 1;
-
+      // Return success response
       return res.status(200).json({
         success: true,
         message: 'Código enviado exitosamente. Tienes 5 minutos para usarlo.',
         rateLimit: {
-          remainingAttempts: 5 - attempts,
+          remainingAttempts: 5 - (rateLimitSnapshot.exists() ? rateLimitSnapshot.val().attempts : 0),
           cooldownEnds: now + (2 * 60 * 1000),
-          resetTime: firstAttempt + (24 * 60 * 60 * 1000)
+          resetTime: (rateLimitSnapshot.exists() ? rateLimitSnapshot.val().firstAttempt : now) + (24 * 60 * 60 * 1000)
         }
       });
 
-    } catch (emailError) {
-      // If email fails, delete the stored code and throw error
-      console.error('Error sending email:', emailError);
-      try {
-        await admin.database().ref(`verificationCodes/${client.id}`).remove();
-      } catch (deleteError) {
-        console.error('Error cleaning up verification code:', deleteError);
-      }
+    } catch (sendError) {
+      // Clean up stored code if sending fails
+      console.error('Error sending verification code:', sendError);
+      await admin.database().ref(`verificationCodes/${client.id}/${type}`).remove();
+      
       return res.status(500).json({
         success: false,
-        message: 'Error al enviar el código por email. Por favor intente nuevamente.'
+        message: `Error al enviar el código por ${type === 'email' ? 'email' : 'SMS'}. Por favor intente nuevamente.`
       });
     }
 
   } catch (error) {
-    console.error("Error in sendPurchaseCode:", error);
+    console.error("Error in sendVerificationCode:", error);
     return res.status(500).json({
       success: false,
       message: error.message || 'Error interno del servidor'
+    });
+  }
+});
+
+// Request field update function
+exports.requestFieldUpdate = onRequest({
+  cors: true,
+  maxInstances: 10
+}, async (req, res) => {
+  try {
+    const { userId, userName, fieldName, fieldLabel, currentValue, userEmail } = req.body;
+
+    // Validate request data
+    if (!userId || !fieldName || !fieldLabel) {
+      return res.status(400).json({
+        success: false,
+        message: 'Datos incompletos para la solicitud'
+      });
+    }
+
+    // Create email content
+    const mailOptions = {
+      from: EMAIL_USER,
+      to: EMAIL_USER, // Send to admin email
+      subject: 'Solicitud de Actualización de Datos de Usuario',
+      html: `
+        <h3>Solicitud de Actualización de Datos</h3>
+        <p><strong>Usuario:</strong> ${userName}</p>
+        <p><strong>ID:</strong> ${userId}</p>
+        <p><strong>Email del usuario:</strong> ${userEmail}</p>
+        <p><strong>Campo a actualizar:</strong> ${fieldLabel}</p>
+        <p><strong>Valor actual:</strong> ${currentValue}</p>
+        <hr>
+        <p>Para procesar esta solicitud, por favor verificar la identidad del usuario 
+        y realizar los cambios necesarios en el panel de administración.</p>
+      `
+    };
+
+    // Send confirmation email to user
+    const userMailOptions = {
+      from: EMAIL_USER,
+      to: userEmail,
+      subject: 'Solicitud de Actualización Recibida',
+      html: `
+        <h3>Hemos recibido tu solicitud de actualización</h3>
+        <p>Hola ${userName},</p>
+        <p>Tu solicitud para actualizar el campo "${fieldLabel}" ha sido recibida.</p>
+        <p>Nos pondremos en contacto contigo pronto para procesar tu solicitud.</p>
+        <p>Gracias por tu paciencia.</p>
+      `
+    };
+
+    // Send both emails
+    await Promise.all([
+      transporter.sendMail(mailOptions),
+      transporter.sendMail(userMailOptions)
+    ]);
+
+    // Store the request in the database for tracking
+    const db = getDatabase();
+    await db.ref(`updateRequests/${userId}`).push({
+      fieldName,
+      fieldLabel,
+      currentValue,
+      requestedAt: new Date().toISOString(),
+      status: 'pending'
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Solicitud enviada correctamente'
+    });
+
+  } catch (error) {
+    console.error('Error in requestFieldUpdate:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al procesar la solicitud'
     });
   }
 });

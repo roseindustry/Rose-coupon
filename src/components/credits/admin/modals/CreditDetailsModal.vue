@@ -496,7 +496,7 @@ export default {
 }
 
 .purchase-header:hover {
-  background-color: ##6f42c1;
+  background-color: #6f42c1;
 }
 
 .purchase-summary {
@@ -509,7 +509,7 @@ export default {
 .purchase-details {
   padding: 1rem;
   border-top: 1px solid #dee2e6;
-  background: ##6f42c1;
+  background: #6f42c1;
 }
 
 .details-grid {

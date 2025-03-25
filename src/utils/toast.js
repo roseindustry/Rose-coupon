@@ -7,6 +7,7 @@ export function showToast(message, type = 'default', options = {}) {
         success: 'linear-gradient(to right, #00b09b, #96c93d)',
         error: 'linear-gradient(to right, #ff5f6d, #ffc371)',
         warning: 'linear-gradient(to right, #f7b733, #fc4a1a)',
+        info: 'linear-gradient(to right, #00b09b, #96c93d)',
         default: 'linear-gradient(to right, #00b09b, #96c93d)'
     };
 
@@ -55,5 +56,8 @@ export const toast = {
 
     show(message, options = {}) {
         showToast(message, 'default', options);
+    },
+    info(message, options = {}) {
+        showToast(message, 'info', options);
     }
 };
