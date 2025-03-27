@@ -72,17 +72,17 @@ export default {
             if (trimmedSearchQuery) {
                 filtered = this.clients.filter(client => {
                     // Basic fields search
-                    const identification = client.identification?.toString().toLowerCase() || '';
-                    const firstName = client.firstName?.toLowerCase() || '';
-                    const lastName = client.lastName?.toLowerCase() || '';
-                    
+                const identification = client.identification?.toString().toLowerCase() || '';
+                const firstName = client.firstName?.toLowerCase() || '';
+                const lastName = client.lastName?.toLowerCase() || '';
+
                     // Combined full name (both firstName + lastName)
                     const fullName = `${firstName} ${lastName}`.toLowerCase();
                     const reversedFullName = `${lastName} ${firstName}`.toLowerCase();
 
                     // Search in individual fields and combined names
                     return identification.includes(trimmedSearchQuery) ||
-                           firstName.includes(trimmedSearchQuery) ||
+                    firstName.includes(trimmedSearchQuery) ||
                            lastName.includes(trimmedSearchQuery) ||
                            fullName.includes(trimmedSearchQuery) ||
                            reversedFullName.includes(trimmedSearchQuery);
@@ -267,34 +267,34 @@ export default {
 
         async fetchClientSubscription(client) {
             try {
-                const subscriptionRef = dbRef(db, `Users/${client.uid}/subscription`);
-                const subscriptionSnapshot = await get(subscriptionRef);
+            const subscriptionRef = dbRef(db, `Users/${client.uid}/subscription`);
+            const subscriptionSnapshot = await get(subscriptionRef);
 
-                if (subscriptionSnapshot.exists()) {
-                    client.subscription = subscriptionSnapshot.val();
-                    const subscriptionId = client.subscription.subscription_id;
+            if (subscriptionSnapshot.exists()) {
+                client.subscription = subscriptionSnapshot.val();
+                const subscriptionId = client.subscription.subscription_id;
 
                     if (subscriptionId) {
-                        // Query the Suscriptions table to fetch the details
-                        const subscriptionDataRef = dbRef(db, `Suscriptions/${subscriptionId}`);
-                        const userSuscriptionSnapshot = await get(subscriptionDataRef);
+                // Query the Suscriptions table to fetch the details
+                const subscriptionDataRef = dbRef(db, `Suscriptions/${subscriptionId}`);
+                const userSuscriptionSnapshot = await get(subscriptionDataRef);
 
-                        if (userSuscriptionSnapshot.exists()) {
-                            const userSubscription = userSuscriptionSnapshot.val();
-                            // Merge the userSubscription into the client's subscription object
-                            client.subscription = {
-                                ...client.subscription,
-                                ...userSubscription
-                            };
-                            if (client.subscription.lastPaymentDate) {
-                                // In case the client made a payment
-                                const paymentDate = (client.subscription.lastPaymentDate).split('T')[0];
-                                this.fetchPaymentFiles(client, paymentDate);
+                if (userSuscriptionSnapshot.exists()) {
+                    const userSubscription = userSuscriptionSnapshot.val();
+                    // Merge the userSubscription into the client's subscription object
+                    client.subscription = {
+                        ...client.subscription,
+                        ...userSubscription
+                    };
+                    if (client.subscription.lastPaymentDate) {
+                        // In case the client made a payment
+                        const paymentDate = (client.subscription.lastPaymentDate).split('T')[0];
+                        this.fetchPaymentFiles(client, paymentDate);
                             }
-                        }
                     }
-                } else {
-                    // Set a default empty subscription if none exist
+                }
+            } else {
+                // Set a default empty subscription if none exist
                     client.subscription = null;
                 }
             } catch (error) {
@@ -310,9 +310,9 @@ export default {
 
                 if (creditSnapshot.exists()) {
                     const creditData = creditSnapshot.val();
-                    
+
                     // Set default values for missing credit data
-                    client.credit = {
+                        client.credit = {
                         mainCredit: creditData.main?.totalCredit || 0,
                         availableMainCredit: creditData.main?.availableCredit || 0,
                         plusCredit: creditData.plus?.totalCredit || 0,
@@ -711,7 +711,7 @@ export default {
                 
                 // Show success message
                 showToast.warning('Verificación de identidad rechazada');
-            } catch (error) {
+                } catch (error) {
                 console.error('Error disapproving ID verification:', error);
                 showToast.error('Error al rechazar la verificación');
             }
@@ -829,13 +829,13 @@ export default {
             </h4>
             <div class="d-flex gap-2">
                 <button class="btn btn-theme btn-sm" data-bs-toggle="modal" data-bs-target="#addClientModal">
-                    <i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Cliente
+                <i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Cliente
                 </button>
                 <button class="btn btn-theme btn-sm" @click="downloadClients()">
-                    <i class="fa fa-download fa-fw me-1"></i> Exportar clientes
+                <i class="fa fa-download fa-fw me-1"></i> Exportar clientes
                 </button>
-            </div>
         </div>
+            </div>
 
         <div class="clients-wrapper">
             <div class="search-section p-3">
@@ -844,7 +844,7 @@ export default {
                         <span class="badge bg-dark fs-6 p-2">
                             {{ clients.length }} Clientes registrados
                         </span>
-                    </div>
+                </div>
                 </div>
                 <div class="row align-items-center">
                     <!-- Search bar -->
@@ -853,7 +853,7 @@ export default {
                         <div class="input-group">
                             <span class="input-group-text bg-dark border-secondary">
                                 <i class="fas fa-search text-light"></i>
-                            </span>
+                                    </span>
                             <input 
                                 v-model="searchQuery" 
                                 class="form-control form-control-sm bg-dark text-light border-secondary" 
@@ -869,7 +869,7 @@ export default {
                             <option value="verified">Verificados ({{ verificationCounts.verified }})</option>
                             <option value="pending">Pendientes de verificación ({{ verificationCounts.pending }})</option>
                             <option value="unverified">No verificados ({{ verificationCounts.unverified }})</option>
-                        </select>
+                                                </select>
                     </div>                    
                 </div>
             </div>
@@ -880,9 +880,9 @@ export default {
                 <div v-if="loading" class="text-center py-5">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Cargando...</span>
-                    </div>
+                                        </div>
                     <p class="mt-2 text-secondary">Cargando lista de clientes...</p>
-                </div>
+                                    </div>
 
                 <!-- Empty State -->
                 <div v-else-if="paginatedFilteredUsers.length === 0" class="text-center py-5">
@@ -901,7 +901,7 @@ export default {
                                 <div class="d-flex align-items-center gap-3">
                                     <div class="client-avatar">
                                         <i class="fas fa-user"></i>
-                                    </div>
+                                                        </div>
                                     <div>
                                         <div class="d-flex align-items-center">
                                             <h6 class="mb-0">{{ client.firstName }} {{ client.lastName }}</h6>
@@ -915,11 +915,11 @@ export default {
                                                   title="Verificación pendiente">
                                                 <i class="fas fa-clock"></i>
                                             </span>
-                                        </div>
+                                                    </div>
                                         <div class="client-contact">
                                             <div class="text-secondary small">
                                                 <i class="fas fa-envelope me-2"></i>{{ client.email }}
-                                            </div>
+                                                </div>
                                             <div class="text-secondary small">
                                                 <i class="fas fa-phone me-2"></i>{{ client.phoneNumber }}
                                             </div>
@@ -933,16 +933,16 @@ export default {
                                             @click.stop="toggleEdit(client)"
                                             :title="client.isEditing ? 'Cancelar edición' : 'Editar cliente'">
                                         <i :class="client.isEditing ? 'fas fa-times' : 'fas fa-edit'"></i>
-                                    </button>
+                                                    </button>
                                     <button class="btn btn-sm btn-outline-danger" 
                                             @click.stop="deleteClient(client, index)"
                                             title="Eliminar cliente">
                                             <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                                             <i class="fas fa-trash" v-else></i>
                                     </button>
-                                </div>
-                            </div>
-                        </div>
+                                                                        </div>
+                                                                        </div>
+                                                                    </div>
 
                         <!-- Edit Form -->
                         <div v-if="client.isEditing" class="edit-form mt-3">
@@ -951,61 +951,61 @@ export default {
                                     <div class="form-group">
                                         <label class="form-label">Nombre</label>
                                         <input type="text" class="form-control form-control-sm rounded-0" v-model="client.firstName">
-                                    </div>
-                                </div>
+                                                                </div>
+                                                            </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label class="form-label">Apellido</label>
                                         <input type="text" class="form-control form-control-sm rounded-0" v-model="client.lastName">
-                                    </div>
-                                </div>
+                                                        </div>
+                                                    </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label class="form-label">Cédula</label>
                                         <input type="text" class="form-control form-control-sm rounded-0" v-model="client.identification">
-                                    </div>
-                                </div>
+                                                </div>
+                                            </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label class="form-label">Email</label>
                                         <input type="email" class="form-control form-control-sm rounded-0" v-model="client.email">
-                                    </div>
-                                </div>
+                                                                        </div>
+                                                                                </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label class="form-label">Teléfono</label>
                                         <input type="text" class="form-control form-control-sm rounded-0" v-model="client.phoneNumber">
-                                    </div>
-                                </div>
+                                                                            </div>
+                                                                        </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label class="form-label">Estado</label>
                                         <select class="form-select form-select-sm rounded-0" v-model="client.state" @change="displayMunicipios(client.state)">
                                             <option v-for="state in venezuelanStates" :key="state" :value="state">{{ state }}</option>
                                         </select>
-                                    </div>
-                                </div>
+                                                                    </div>
+                                                                </div>
                                 <div class="col-md-6" v-if="municipios.length">
                                     <div class="form-group">
                                         <label class="form-label">Municipio</label>
                                         <select class="form-select form-select-sm rounded-0" v-model="client.municipio" @change="displayParroquias(client.municipio)">
                                             <option v-for="municipio in municipios" :key="municipio" :value="municipio">{{ municipio }}</option>
                                         </select>
-                                    </div>
-                                </div>
+                                                            </div>
+                                                        </div>
                                 <div class="col-md-6" v-if="parroquias.length">
                                     <div class="form-group">
                                         <label class="form-label">Parroquia</label>
                                         <select class="form-select form-select-sm rounded-0" v-model="client.parroquia">
                                             <option v-for="parroquia in parroquias" :key="parroquia" :value="parroquia">{{ parroquia }}</option>
                                         </select>
-                                    </div>
-                                </div>
-                            </div>
+                                                    </div>
+                                                </div>
+                                            </div>
                             <div class="mt-3 text-end">
                                 <button class="btn btn-sm btn-outline-secondary me-2" @click="cancelEdit(client)">
                                     Cancelar
-                                </button>
+                                                    </button>
                                 <button class="btn btn-sm btn-theme" @click="updateClient(client)">
                                     Guardar cambios
                                 </button>
@@ -1018,9 +1018,9 @@ export default {
                             <div v-if="loadingStates[client.uid]" class="text-center py-3">
                                 <div class="spinner-border spinner-border-sm text-primary" role="status">
                                     <span class="visually-hidden">Cargando...</span>
-                                </div>
+                                                                </div>
                                 <p class="text-secondary small mb-0">Cargando detalles...</p>
-                            </div>
+                                                                </div>
 
                             <!-- Details Content -->
                             <div v-else class="row g-4">
@@ -1033,9 +1033,9 @@ export default {
                                         <div class="location-info">
                                             <div class="mb-1">{{ client.state }}</div>
                                             <div class="ms-3">{{ client.municipio }}{{ client.parroquia ? `, ${client.parroquia}` : '' }}</div>
-                                        </div>
-                                    </div>
-                                </div>
+                                                    </div>
+                                                </div>
+                                            </div>
 
                                 <!-- Credits Info -->
                                 <div class="col-md-4">
@@ -1049,41 +1049,41 @@ export default {
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span>Rose Credit:</span>
                                                         <span class="text-success">${{ client.credit.mainCredit }}</span>
-                                                    </div>
+                                                        </div>
                                                     <div class="progress" style="height: 6px;">
                                                         <div class="progress-bar bg-success" 
                                                              :style="{ width: `${(client.credit.availableMainCredit / client.credit.mainCredit) * 100}%` }">
-                                                        </div>
-                                                    </div>
+                                                                    </div>
+                                                                </div>
                                                     <small class="text-muted">
                                                         Disponible: ${{ client.credit.availableMainCredit }}
                                                     </small>
-                                                </div>
+                                                            </div>
                                                 <div v-if="client.credit?.plusCredit">
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span>Rose Credit Plus:</span>
                                                         <span class="text-primary">${{ client.credit.plusCredit }}</span>
-                                                    </div>
+                                                                    </div>
                                                     <div class="progress" style="height: 6px;">
                                                         <div class="progress-bar bg-primary" 
                                                              :style="{ width: `${(client.credit.availablePlusCredit / client.credit.plusCredit) * 100}%` }">
-                                                        </div>
-                                                    </div>
+                                                                </div>
+                                                            </div>
                                                     <small class="text-muted">
                                                         Disponible: ${{ client.credit.availablePlusCredit }}
                                                     </small>
-                                                </div>
+                                                                    </div>
                                                 <div v-if="!client.credit.mainCredit && !client.credit.plusCredit" class="text-center py-2">
                                                     <p class="text-secondary mb-0">Sin crédito asignado</p>
-                                                </div>
-                                            </div>
+                                                                </div>
+                                                            </div>
                                             <div v-else class="text-center py-3">
                                                 <i class="fas fa-exclamation-circle text-warning mb-2" style="font-size: 1.5rem;"></i>
                                                 <p class="text-secondary mb-0">Sin crédito asignado</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                                                        </div>
+                                                            </div>
+                                                                </div>
+                                                            </div>
 
                                 <!-- Subscription Info -->
                                 <div class="col-md-4">
@@ -1096,16 +1096,16 @@ export default {
                                                 <div class="d-flex justify-content-start gap-2 align-items-center mb-2">
                                                     <span class="fw-bold">Nivel:</span>
                                                     <span>{{ client.subscription?.name?.toUpperCase() || 'Básico' }}</span>
-                                                </div>
+                                                        </div>
                                                 <div class="d-flex justify-content-start gap-2 align-items-center mb-2">                                                
                                                     <span class="fw-bold">Estado:</span>
                                                     <span :class="client.subscription?.isPaid ? 'text-success' : 'text-danger'">
                                                         {{ client.subscription?.isPaid ? 'Activa' : 'Inactiva' }}
-                                                    </span>
-                                                </div>
+                                                                </span>
+                                                            </div>
                                                 <div v-if="client.subscription?.lastPaymentDate" class="small text-muted">
                                                     Último pago: {{ formatDate(client.subscription.lastPaymentDate) }}
-                                                </div>
+                                                        </div>
                                                 <div v-if="client.subscription?.paymentUrl" class="mt-2">
                                                     <div class="d-flex justify-content-center align-items-center mb-2">
                                                         <button class="btn btn-sm btn-theme" @click="openImageInNewTab(client.subscription.paymentUrl)">
@@ -1118,10 +1118,10 @@ export default {
                                             <div v-else class="text-center py-3">
                                                 <i class="fas fa-exclamation-circle text-warning mb-2" style="font-size: 1.5rem;"></i>
                                                 <p class="text-secondary mb-0">Sin suscripción activa</p>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
 
                                 <!-- ID Verification Section -->
                                 <div class="col-md-12 mt-4">
@@ -1143,21 +1143,21 @@ export default {
                                                 <div class="mt-3">
                                                     <button class="btn btn-sm btn-success me-2" @click="approveID(client)">
                                                         <i class="fas fa-check me-1"></i>Aprobar
-                                                    </button>
+                                            </button>
                                                     <button class="btn btn-sm btn-danger" @click="dissapproveID(client)">
                                                         <i class="fas fa-times me-1"></i>Rechazar
-                                                    </button>
-                                                </div>
-                                            </div>
+                                            </button>
+                                        </div>
+                                    </div>
                                             
                                             <!-- Show ID documents if client is verified -->
                                             <div v-else-if="client.isVerified" class="row g-3">
                                                 <div v-if="loadingStates[client.uid + '_files']" class="text-center py-3">
                                                     <div class="spinner-border spinner-border-sm text-secondary" role="status">
                                                         <span class="visually-hidden">Cargando...</span>
-                                                    </div>
+                                </div>
                                                     <p class="text-secondary mt-2 mb-0">Cargando documentos...</p>
-                                                </div>
+                            </div>
                                                 <template v-else>
                                                     <div v-if="client.idFiles && client.idFiles.length > 0" class="row g-3">
                                                         <div v-for="(file, index) in client.idFiles" :key="index" class="col-md-4">
@@ -1182,25 +1182,25 @@ export default {
                                 </div>
                             </div>
                         </div>
+                        </div>
                     </div>
-                </div>
 
                 <!-- Pagination -->
                 <nav v-if="totalPages > 1" class="mt-4 p-2" aria-label="Page navigation">
-                    <ul class="pagination justify-content-center">
-                        <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                        <ul class="pagination justify-content-center">
+                            <li class="page-item" :class="{ disabled: currentPage === 1 }">
                             <button class="page-link" @click="goToPage(currentPage - 1)">Anterior</button>
-                        </li>
-                        <li class="page-item" v-for="page in visiblePages" :key="page"
-                            :class="{ active: page === currentPage }">
-                            <button class="page-link" @click="goToPage(page)">{{ page }}</button>
-                        </li>
-                        <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                            </li>
+                            <li class="page-item" v-for="page in visiblePages" :key="page"
+                                :class="{ active: page === currentPage }">
+                                <button class="page-link" @click="goToPage(page)">{{ page }}</button>
+                            </li>
+                            <li class="page-item" :class="{ disabled: currentPage === totalPages }">
                             <button class="page-link" @click="goToPage(currentPage + 1)">Siguiente</button>
-                        </li>
-                    </ul>
-                </nav>
-            </div>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
         </div>
 
         <!-- Modal for Adding New Client -->
@@ -1226,8 +1226,8 @@ export default {
                                            id="clientFirstName" 
                                            v-model="client.firstName"
                                            placeholder="Ingrese el nombre"
-                                           required />
-                                </div>
+                                required />
+                        </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
@@ -1239,9 +1239,9 @@ export default {
                                            id="clientLastName" 
                                            v-model="client.lastName"
                                            placeholder="Ingrese el apellido"
-                                           required />
-                                </div>
-                            </div>
+                                required />
+                        </div>
+                        </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="clientIdentification" class="form-label">
@@ -1255,9 +1255,9 @@ export default {
                                                v-model="client.identification"
                                                placeholder="Ingrese la cédula"
                                                required />
-                                    </div>
-                                </div>
-                            </div>
+                        </div>
+                        </div>
+                    </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="clientEmail" class="form-label">

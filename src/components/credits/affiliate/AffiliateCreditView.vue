@@ -252,27 +252,27 @@
 
                 <!-- Form Actions -->
                 <div class="text-end mt-4">
-                    <!-- Rate Limit Info -->
+                  <!-- Rate Limit Info -->
                     <div v-if="shouldShowVerificationMessages" class="text-start mb-3">
                         <div v-if="hasExceededAttempts" class="d-flex align-items-center text-danger">
                             <i class="fas fa-ban me-2"></i>
                             <small>Cliente superó los intentos permitidos para hoy</small>
                         </div>
                         <template v-else>
-                            <div v-if="cooldownMessage" class="d-flex align-items-center text-warning mb-2">
-                                <i class="fas fa-clock me-2"></i>
-                                <small>{{ cooldownMessage }}</small>
-                            </div>
-                            <div v-if="attemptsMessage" class="d-flex align-items-center" 
-                                :class="{
+                    <div v-if="cooldownMessage" class="d-flex align-items-center text-warning mb-2">
+                      <i class="fas fa-clock me-2"></i>
+                      <small>{{ cooldownMessage }}</small>
+                    </div>
+                    <div v-if="attemptsMessage" class="d-flex align-items-center" 
+                      :class="{
                                     'text-danger': rateLimitData[selectedClient?.id]?.attempts >= 4,
                                     'text-warning': rateLimitData[selectedClient?.id]?.attempts < 4
-                                }">
-                                <i class="fas fa-exclamation-triangle me-2"></i>
-                                <small>{{ attemptsMessage }}</small>
-                            </div>
-                        </template>
+                      }">
+                      <i class="fas fa-exclamation-triangle me-2"></i>
+                      <small>{{ attemptsMessage }}</small>
                     </div>
+                        </template>
+                  </div>
 
                     <!-- Form Buttons -->
                     <div class="d-flex justify-content-between">
@@ -283,7 +283,7 @@
                                 :disabled="!selectedClient || hasExceededAttempts || clientHasTooManyUnpaidCuotas">
                             <i class="fas fa-wrench me-2"></i>
                             Mantenimiento
-                        </button>
+                  </button>
                         <div>
                             <button type="button" 
                                     class="btn btn-outline-light me-2" 
@@ -296,15 +296,15 @@
                                     @click="requestVerification"
                                     :disabled="!canRequestVerification">
                                 <i class="fas fa-key me-2"></i>
-                                Solicitar Código
-                            </button>
+                    Solicitar Código
+                  </button>
                             <button v-if="verificationRequested" 
                                     type="submit" 
                                     class="btn btn-theme"
                                     :disabled="!verificationCode || clientHasTooManyUnpaidCuotas">
                                 <i class="fas fa-check me-2"></i>
                                 Confirmar Compra
-                            </button>
+                  </button>
                         </div>
                     </div>
                 </div>
@@ -373,30 +373,30 @@
             <!-- Card Header with Filters -->
             <div class="card-header">
               <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-                <h5 class="text-black mb-0">Historial de Ventas</h5>
+              <h5 class="text-black mb-0">Historial de Ventas</h5>
                 <div class="d-flex flex-column flex-sm-row gap-3 align-items-stretch align-items-sm-center">
-                  <!-- Status Filter -->
-                  <select 
-                    v-model="salesFilter"
-                    class="form-select bg-dark text-light border-secondary"
-                  >
-                    <option value="all">Todas las ventas</option>
-                    <option value="pending">Pendientes</option>
-                    <option value="completed">Completadas</option>
-                  </select>
-                  
-                  <!-- Search Bar -->
+                <!-- Status Filter -->
+                <select 
+                  v-model="salesFilter"
+                  class="form-select bg-dark text-light border-secondary"
+                >
+                  <option value="all">Todas las ventas</option>
+                  <option value="pending">Pendientes</option>
+                  <option value="completed">Completadas</option>
+                </select>
+                
+                <!-- Search Bar -->
                   <div class="search-container">
-                    <div class="input-group">
-                      <span class="input-group-text bg-dark border-secondary">
-                        <i class="fas fa-search text-secondary"></i>
-                      </span>
-                      <input 
-                        type="text" 
-                        class="form-control bg-dark text-light border-secondary" 
-                        v-model="searchSales"
-                        placeholder="Buscar por cliente, producto o fecha..."
-                      >
+                  <div class="input-group">
+                    <span class="input-group-text bg-dark border-secondary">
+                      <i class="fas fa-search text-secondary"></i>
+                    </span>
+                    <input 
+                      type="text" 
+                      class="form-control bg-dark text-light border-secondary" 
+                      v-model="searchSales"
+                      placeholder="Buscar por cliente, producto o fecha..."
+                    >
                     </div>
                   </div>
                 </div>
@@ -423,14 +423,14 @@
                       v-model="dateRange.end"
                     >
                   </div>
-                </div>
-                <button 
+                  </div>
+                  <button 
                   class="btn btn-outline-secondary align-self-sm-end mt-2 mt-sm-0" 
-                  @click="clearDateFilter"
+                    @click="clearDateFilter"
                   v-if="dateRange.start || dateRange.end"
                 >
-                  Limpiar
-                </button>
+                    Limpiar
+                  </button>
               </div>
             </div>
 
@@ -806,7 +806,7 @@ export default {
         }
         
         this.waiting = true;
-        
+
         // Initial validations
         if (!client || !client.id) {
           throw new Error('Primero seleccione un cliente');
@@ -922,8 +922,8 @@ export default {
     },
     async selectClient(client) {
       try {
-        this.selectedClient = client;
-        this.searchClient = '';
+      this.selectedClient = client;
+      this.searchClient = '';
         this.searchClientResults = [];
         
         // Check for unpaid cuotas
@@ -933,8 +933,8 @@ export default {
         this.newPurchase.productName = '';
         this.newPurchase.productPrice = '';
         this.calc = false;
-        this.verificationRequested = false;
-        this.verificationCode = '';
+      this.verificationRequested = false;
+      this.verificationCode = '';
       } catch (error) {
         console.error("Error selecting client:", error);
       }
@@ -1001,7 +1001,7 @@ export default {
 
         this.calc = true;
         const productPrice = parseFloat(this.newPurchase.productPrice);
-        
+
         // Calculate initial payment based on percentage
         const initialPercentage = this.initialPercentage === 'custom' 
             ? parseFloat(this.customInitial) 
@@ -1240,7 +1240,7 @@ export default {
         this.$emit('register-purchase', purchaseData);
         
         // Reset form after successful submission
-          this.resetForm();
+        this.resetForm();
         
       } catch (error) {
         console.error('Error preparing purchase data:', error);
@@ -1519,30 +1519,30 @@ export default {
 
 <style lang="scss" scoped>
 .card-header {
-  .form-select {
+.form-select {
     min-width: 150px;
     @media (max-width: 575.98px) {
       width: 100%;
-    }
-  }
+}
+}
 
   .search-container {
     @media (min-width: 576px) {
       width: 300px;
-    }
+}
     @media (max-width: 575.98px) {
       width: 100%;
-    }
+}
   }
 }
 
 .card-body {
-  input[type="date"] {
+input[type="date"] {
     @media (max-width: 575.98px) {
       width: 100%;
     }
     @media (min-width: 576px) {
-      width: 140px;
+  width: 140px;
     }
   }
 }

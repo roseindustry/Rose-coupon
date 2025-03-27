@@ -118,9 +118,9 @@ export default defineComponent({
 				rif: false,
 				address: false,
 				twitter: false,
-        instagram: false,
-        facebook: false,
-        tiktok: false,
+				instagram: false,
+				facebook: false,
+				tiktok: false,
 				paymentDetails: false,
 			},
 
@@ -156,7 +156,7 @@ export default defineComponent({
       verifyModal: null,
       recaptchaVerifier: null,
       exchange: 0,
-      isCaptchaVerified: false,
+      captchaVerified: false,
 		};
 	},
 	async mounted() {
@@ -180,13 +180,13 @@ export default defineComponent({
             console.log("No verificado");
         }
         
-        await this.fetchClientPlan();
+			await this.fetchClientPlan();
         this.fetchVerificationStatus();
-    } else if (role === 'afiliado') {
-        await this.fetchAffiliatePlan();
-    }
+		} else if (role === 'afiliado') {
+			await this.fetchAffiliatePlan();
+		}
 
-    await this.checkPaymentReset();
+		await this.checkPaymentReset();
 
     // Initialize modals after a brief delay to ensure DOM is ready
     this.$nextTick(() => {
@@ -437,10 +437,10 @@ export default defineComponent({
 		},
 		async updatePaymentDetails() {
 			try {
-				if (!this.userId) return;
+			if (!this.userId) return;
 				
-				const userRef = dbRef(db, `Users/${this.userId}/paymentDetails`);
-				await update(userRef, this.paymentDetails);
+			const userRef = dbRef(db, `Users/${this.userId}/paymentDetails`);
+			await update(userRef, this.paymentDetails);
 				
 				showToast.success('Datos de pago actualizados correctamente');
 			} catch (error) {
@@ -469,7 +469,7 @@ export default defineComponent({
         console.error('Error updating social media:', error);
         showToast.error('Error al actualizar redes sociales');
       }
-    },
+		},
 
 		//File uploads
 		handleFileUpload(event, type) {
@@ -786,7 +786,7 @@ export default defineComponent({
 			
 			const y = venezuela.municipio(municipio, { parroquias: true });
 			if (y?.parroquias) {
-				this.parroquias = y.parroquias;
+			this.parroquias = y.parroquias;
 				this.showParroquias = true;
 			}
 		},
@@ -968,117 +968,119 @@ export default defineComponent({
 
     // Phone validation
     initRecaptcha() {
-      try {
-        this.isCaptchaVerified = false;
-        
-        // Clear existing recaptcha if any
-        if (this.recaptchaVerifier) {
-          this.recaptchaVerifier.clear();
-          this.recaptchaVerifier = null;
-        }
-        
-        // Check if we're on localhost and enable testing mode
-        const isLocalhost = window.location.hostname === 'tenant1.localhost' || 
-                            window.location.hostname === '127.0.0.1';
-        
-        if (isLocalhost) {
-          // For localhost testing, automatically set captcha as verified
-          console.log('Development environment detected - reCAPTCHA verification bypassed');
-          this.isCaptchaVerified = true;
-          return;
-        }
-        
-        // For production, continue with normal reCAPTCHA
-        const container = document.getElementById('recaptcha-container');
-        if (!container) {
-          console.error('Recaptcha container not found');
-          return;
-        }
-        
-        this.recaptchaVerifier = new RecaptchaVerifier(
-          'recaptcha-container', 
-          {
-            size: 'normal',
-            callback: () => {
-              this.isCaptchaVerified = true;
-              showToast.success('Captcha verificado correctamente');
-            },
-            'expired-callback': () => {
-              this.isCaptchaVerified = false;
-              showToast.warning('El captcha ha expirado, por favor verifique nuevamente');
-            }
-          }, 
-          auth
-        );
-        
-        this.recaptchaVerifier.render()
-          .catch(error => {
-            console.error('Error rendering reCAPTCHA:', error);
-          });
-          
-      } catch (error) {
-        console.error('Error initializing reCAPTCHA:', error);
-        // For development, set captcha as verified even on error
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          this.isCaptchaVerified = true;
-        } else {
-          showToast.error('Error al inicializar el captcha');
-        }
-      }
-    },
-    async sendPhoneVerificationCode() {
-      try {
-        // Check if recaptcha is ready
-        if (!window.recaptchaVerifier) {
-          showToast.error('Por favor complete el captcha antes de solicitar el código');
-          return;
-        }
-        
-        // Format phone number
-        let formattedPhone = this.phoneNumber;
-        if (formattedPhone.startsWith('04')) {
-          formattedPhone = '+58' + formattedPhone;
-        }
-        
-        this.phoneVerificationLoading = true;
-        
-        // Send verification code
-        const confirmationResult = await signInWithPhoneNumber(
-          auth, 
-          formattedPhone, 
-          this.recaptchaVerifier
-        );
-        
-        // Store verification ID
-        this.verificationId = confirmationResult.verificationId;
-        this.showVerificationInput = true;
-        
-        showToast.success('Código de verificación enviado. Por favor revise sus mensajes.');
-      } catch (error) {
-        console.error('Error sending verification code:', error);
-        showToast.error('Error al enviar el código. Verifique que completó el captcha.');
-      } finally {
-        this.phoneVerificationLoading = false;
-      }
-    },
-    async verifyPhoneCode() {
-      if (!this.phoneVerificationCode) {
-        showToast.error('Por favor, ingrese el código de verificación');
-        return;
-      }
-      
-      try {
-        this.phoneVerificationLoading = true;
-        
-        // Create credential with verification ID and code
-        const credential = PhoneAuthProvider.credential(
-          this.verificationId, 
-          this.phoneVerificationCode
-        );
-        
-        // Mark phone as verified
-        this.phoneVerified = true;
-        this.showVerificationInput = false;
+			if (this.recaptchaVerifier) {
+				this.recaptchaVerifier.clear();
+				this.recaptchaVerifier = null;
+			}
+			
+			try {
+				this.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+					'size': 'normal',
+					'callback': () => {
+						console.log('reCAPTCHA verified');
+						// Set a flag to indicate the captcha has been verified
+						this.captchaVerified = true;
+					},
+					'expired-callback': () => {
+						this.recaptchaVerifier = null;
+						this.recaptchaVisible = false;
+						this.captchaVerified = false;
+						showToast.error('El captcha ha expirado. Por favor, inténtelo de nuevo.');
+					},
+					'error-callback': (error) => {
+						console.error('reCAPTCHA error:', error);
+						showToast.error('Error en la verificación de reCAPTCHA. Por favor, recargue la página.');
+						this.recaptchaVerifier = null;
+						this.recaptchaVisible = false;
+						this.captchaVerified = false;
+					}
+				});
+
+        // Show the reCAPTCHA widget when initialized
+        this.recaptchaVisible = true;
+				
+				// Render the reCAPTCHA widget
+				this.recaptchaVerifier.render().then((widgetId) => {
+					this.recaptchaWidgetId = widgetId;
+				}).catch(error => {
+					console.error('Error rendering reCAPTCHA:', error);
+					showToast.error('Error al cargar el captcha. Por favor, recargue la página.');
+				});
+			} catch (error) {
+				console.error('Error initializing reCAPTCHA:', error);
+				showToast.error('Error al inicializar reCAPTCHA. Por favor, recargue la página.');
+			}
+		},		
+		async sendPhoneVerificationCode() {
+			try {
+				this.phoneVerificationLoading = true;
+				
+				// Check if recaptcha has been verified
+				if (!this.recaptchaVerifier) {
+					showToast.error('Por favor complete el captcha antes de solicitar el código de verificación');
+					this.phoneVerificationLoading = false;
+					return;
+				}
+				
+				// Check if the reCAPTCHA widget is visible and not yet verified
+				if (this.recaptchaVisible && !grecaptcha.getResponse(this.recaptchaWidgetId)) {
+					showToast.error('Por favor complete el captcha antes de solicitar el código de verificación');
+					this.phoneVerificationLoading = false;
+					return;
+				}
+				
+				// Format phone number for international format
+				let formattedPhone = this.phoneNumber;
+				if (formattedPhone.startsWith('04')) {
+					formattedPhone = '+58' + formattedPhone;
+				}
+				
+				// Send verification code
+				const appVerifier = this.recaptchaVerifier;
+				const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+				
+				this.verificationId = confirmationResult.verificationId;
+				this.showVerificationInput = true;
+				
+				showToast.success('Código de verificación enviado. Por favor revise sus mensajes.');
+			} catch (error) {
+				console.error('Error sending phone verification code:', error);
+				
+				// Show specific error messages based on error code
+				if (error.code === 'auth/invalid-phone-number') {
+					showToast.error('Número de teléfono inválido. Verifique el formato.');
+				} else if (error.code === 'auth/captcha-check-failed') {
+					showToast.error('Verificación de captcha fallida. Por favor intente nuevamente.');
+				} else {
+					showToast.error('Error al enviar el código de verificación. Intente nuevamente.');
+				}
+				
+				// Reset captcha if there was an error
+				if (window.recaptchaWidgetId) {
+					grecaptcha.reset(window.recaptchaWidgetId);
+				}
+			} finally {
+				this.phoneVerificationLoading = false;
+			}
+		},		
+		async verifyPhoneCode() {
+			if (!this.phoneVerificationCode) {
+				showToast.error('Por favor, ingrese el código de verificación');
+				return;
+			}
+			
+			try {
+				this.phoneVerificationLoading = true;
+				
+				// Create credential with verification ID and code
+				const credential = PhoneAuthProvider.credential(
+					this.verificationId, 
+					this.phoneVerificationCode
+				);
+				
+				// Mark phone as verified
+				this.phoneVerified = true;
+				this.showVerificationInput = false;
 
         // Update the database
         const userRef = dbRef(db, `Users/${this.userId}`);
@@ -1086,15 +1088,15 @@ export default defineComponent({
           phoneNumber: this.formattedPhoneNumber,
           phoneVerified: true
         });
-        
-        showToast.success('Número de teléfono verificado correctamente');
-      } catch (error) {
-        console.error('Error verifying code:', error);
-        showToast.error('Código de verificación inválido. Por favor, inténtelo de nuevo.');
-      } finally {
-        this.phoneVerificationLoading = false;
-      }
-    },
+				
+				showToast.success('Número de teléfono verificado correctamente');
+			} catch (error) {
+				console.error('Error verifying code:', error);
+				showToast.error('Código de verificación inválido. Por favor, inténtelo de nuevo.');
+			} finally {
+				this.phoneVerificationLoading = false;
+			}
+		},
     
     // Check verification status
     async fetchVerificationStatus() {
@@ -1122,8 +1124,8 @@ export default defineComponent({
         setTimeout(() => {
           element.classList.remove('highlight-section');
         }, 2000);
-      }
-    },    
+			}
+		},
 	},
 	computed: {
 		currentPageName() {
@@ -1246,14 +1248,14 @@ export default defineComponent({
         <div v-if="role === 'afiliado' && !isProfileComplete" class="alert alert-warning mb-4" role="alert">
           <div class="d-flex align-items-center">
             <i class="fas fa-exclamation-triangle me-3 fs-4"></i>
-            <div>
+			<div>
               <h5 class="alert-heading mb-1">¡Completa tu perfil!</h5>
               <p class="mb-0">
                 Para brindar una mejor experiencia a tus clientes, por favor completa tus datos de redes sociales y detalles de pago.
                 Esto ayudará a generar más confianza y facilitar las transacciones.
               </p>
-            </div>
-          </div>
+			</div>
+		</div>
           <div class="mt-3">
             <button class="btn btn-sm btn-warning" @click="scrollToSection('social-media')">
               <i class="fas fa-share-alt me-1"></i> Completar Redes Sociales
@@ -1328,10 +1330,10 @@ export default defineComponent({
               Información de Contacto
             </h4>
             <div class="row">
-              <!-- Email Field with input group -->
+              <!-- Email Field (Always First) -->
               <div class="col-md-6 mb-3">
                 <label for="email" class="form-label">Correo Electrónico</label>
-                <div class="input-group">
+                <div class="d-flex align-items-center gap-2">
                   <input
                     type="email"
                     id="email"
@@ -1340,6 +1342,7 @@ export default defineComponent({
                     placeholder="correo@ejemplo.com"
                     :disabled="role === 'cliente' && emailVerified"
                   />
+                  
                   <!-- Verification for clients -->
                   <template v-if="role === 'cliente'">
                     <button
@@ -1348,11 +1351,11 @@ export default defineComponent({
                       @click="handleVerification('email')"
                       title="Verificar correo"
                     >
-                      <i class="fas fa-envelope fa-sm me-1"></i>
+                      <i class="fas fa-envelope me-1"></i>
                       Verificar
                     </button>
-                    <span v-else class="input-group-text bg-success text-white">
-                      <i class="fas fa-check-circle fa-sm me-1"></i>
+                    <span v-else class="badge bg-success py-2 px-3">
+                      <i class="fas fa-check-circle me-1"></i>
                       Verificado
                     </span>
                   </template>
@@ -1364,7 +1367,8 @@ export default defineComponent({
                     @click.prevent="updateField({name: 'email', label: 'Correo Electrónico'})"
                     title="Actualizar correo electrónico"
                   >
-                    <i class="fas fa-save"></i>
+                    <i class="fas fa-save me-1"></i>
+                    Guardar
                   </button>
                 </div>
                 
@@ -1374,10 +1378,10 @@ export default defineComponent({
                 </small>
               </div>
 
-              <!-- Phone Field with input group -->
+              <!-- Phone Field (Always Second) -->
               <div class="col-md-6 mb-3">
                 <label for="phoneNumber" class="form-label">Teléfono</label>
-                <div class="input-group">
+                <div class="d-flex align-items-center gap-2">
                   <input
                     type="tel"
                     id="phoneNumber"
@@ -1393,14 +1397,18 @@ export default defineComponent({
                       v-if="!phoneVerified"
                       class="btn btn-outline-warning"
                       @click="handleVerification('phoneNumber')"
-                      :disabled="!isCaptchaVerified"
                       title="Verificar teléfono"
+                      :disabled="phoneVerificationLoading"
                     >
-                      <i class="fas fa-sms fa-sm me-1"></i>
-                      Verificar
+                      <i class="fas fa-sms me-1"></i>
+                      <span v-if="phoneVerificationLoading">
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        Enviando...
+                      </span>
+                      <span v-else>Verificar</span>
                     </button>
-                    <span v-else class="input-group-text bg-success text-white">
-                      <i class="fas fa-check-circle fa-sm me-1"></i>
+                    <span v-else class="badge bg-success py-2 px-3">
+                      <i class="fas fa-check-circle me-1"></i>
                       Verificado
                     </span>
                   </template>
@@ -1412,7 +1420,8 @@ export default defineComponent({
                     @click.prevent="updateField({name: 'phoneNumber', label: 'Teléfono'})"
                     title="Actualizar teléfono"
                   >
-                    <i class="fas fa-save"></i>
+                    <i class="fas fa-save me-1"></i>
+                    Guardar
                   </button>
                 </div>
                 
@@ -1422,41 +1431,24 @@ export default defineComponent({
                 </small>
                 
                 <!-- Phone format help text -->
-                <div class="mt-2">
+                <div>
                   <small class="form-text text-muted d-block">
-                    <i class="fas fa-info-circle me-1"></i> Importante: 
+                    <i class="fas fa-info-circle me-1"></i> Formatos de teléfono aceptados: 
                   </small>
                   <small class="form-text text-muted d-block">
                     • Venezuela: <span class="text-success">04145555555</span> (se añadirá +58)
                   </small>
                 </div>
                 
-                <!-- reCAPTCHA container -->
-                <div id="recaptcha-container" class="mt-2 d-flex justify-content-center"></div>
-
-                <!-- Phone Verification Code (only shown when needed) -->
-                <div v-if="showVerificationInput" class="mt-2">
-                  <label class="form-label">Código de verificación del teléfono</label>
-                  <div class="input-group">
-                    <input 
-                      type="text" 
-                      v-model="phoneVerificationCode" 
-                      class="form-control" 
-                      placeholder="Ingrese el código recibido por SMS" 
-                    />
-                    <button 
-                      type="button" 
-                      class="btn btn-outline-success" 
-                      @click="verifyPhoneCode"
-                      :disabled="!phoneVerificationCode || phoneVerificationLoading"
-                    >
-                      <i class="fas fa-check me-1"></i>
-                      Confirmar
-                    </button>
+                <!-- Add a more prominent captcha verification notice -->
+                <div v-if="role === 'cliente' && !phoneVerified" class="mt-2 phone-verification-notice">
+                  <div class="alert alert-info py-2">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Importante:</strong> Complete el captcha abajo y luego presione "Verificar" para recibir un código por SMS.
                   </div>
-                  <small class="form-text text-muted">
-                    Ingrese el código de 6 dígitos enviado a su teléfono
-                  </small>
+                  
+                  <!-- reCAPTCHA container -->
+                  <div id="recaptcha-container" class="mt-2 d-flex justify-content-center"></div>
                 </div>
               </div>
             </div>
@@ -1690,220 +1682,6 @@ export default defineComponent({
             </div>
           </div>
         </div>
-
-        <!-- Social Media Section for Affiliates -->
-        <div id="social-media" v-if="role === 'afiliado'" class="card section-card mb-4">
-          <div class="card-body">
-            <h4 class="mb-3 card-title">
-              <i class="fas fa-share-alt me-2"></i>
-              Redes Sociales
-            </h4>
-            <div class="row">
-              <!-- Twitter -->
-              <div class="col-md-6 mb-3">
-                <div class="form-group">
-                  <label class="form-label">Twitter</label>
-                  <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary">
-                      <i class="fab fa-twitter"></i>
-                    </span>
-                    <input
-                      type="text"
-                      class="form-control bg-dark border-secondary"
-                      v-model="twitter"
-                      placeholder="@usuario"
-                    />
-                    <button
-                      class="btn btn-transparent btn-sm"
-                      @click.prevent="updateSocialMedia"
-                    >
-                      <i class="fas fa-save"></i>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Instagram -->
-              <div class="col-md-6 mb-3">
-                <div class="form-group">
-                  <label class="form-label">Instagram</label>
-                  <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary">
-                      <i class="fab fa-instagram"></i>
-                    </span>
-                    <input
-                      type="text"
-                      class="form-control bg-dark border-secondary"
-                      v-model="instagram"
-                      placeholder="@usuario"
-                    />
-                    <button
-                      class="btn btn-transparent btn-sm"
-                      @click.prevent="updateSocialMedia"
-                    >
-                      <i class="fas fa-save"></i>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Facebook -->
-              <div class="col-md-6 mb-3">
-                <div class="form-group">
-                  <label class="form-label">Facebook</label>
-                  <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary">
-                      <i class="fab fa-facebook"></i>
-                    </span>
-                    <input
-                      type="text"
-                      class="form-control bg-dark border-secondary"
-                      v-model="facebook"
-                      placeholder="URL o nombre de usuario"
-                    />
-                    <button
-                      class="btn btn-transparent btn-sm"
-                      @click.prevent="updateSocialMedia"
-                    >
-                      <i class="fas fa-save"></i>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- TikTok -->
-              <div class="col-md-6 mb-3">
-                <div class="form-group">
-                  <label class="form-label">TikTok</label>
-                  <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary">
-                      <i class="fab fa-tiktok"></i>
-                    </span>
-                    <input
-                      type="text"
-                      class="form-control bg-dark border-secondary"
-                      v-model="tiktok"
-                      placeholder="@usuario"
-                    />
-                    <button
-                      class="btn btn-transparent btn-sm"
-                      @click.prevent="updateSocialMedia"
-                    >
-                      <i class="fas fa-save"></i>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Payment Details Section for Affiliates -->
-        <div id="payment-details" v-if="role === 'afiliado'" class="card section-card mb-4">
-          <div class="card-body">
-            <h4 class="mb-3 card-title">
-              <i class="fas fa-money-check-alt me-2"></i>
-              Datos de Pago
-            </h4>
-            <div class="row">
-              <!-- Identification -->
-              <div class="col-md-6 mb-3">
-                <div class="form-group">
-                  <label class="form-label">Cédula / RIF</label>
-                  <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary">
-                      <i class="fas fa-id-card"></i>
-                    </span>
-                    <input
-                      type="text"
-                      class="form-control bg-dark border-secondary"
-                      v-model="paymentDetails.identification"
-                      placeholder="Cédula / RIF"
-                    />
-                    <button
-                      class="btn btn-transparent btn-sm"
-                      @click.prevent="updatePaymentDetails"
-                    >
-                      <i class="fas fa-save"></i>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Bank -->
-              <div class="col-md-6 mb-3">
-                <div class="form-group">
-                  <label class="form-label">Banco</label>
-                  <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary">
-                      <i class="fas fa-university"></i>
-                    </span>
-                    <input
-                      type="text"
-                      class="form-control bg-dark border-secondary"
-                      v-model="paymentDetails.bank"
-                      placeholder="Nombre del banco"
-                    />
-                    <button
-                      class="btn btn-transparent btn-sm"
-                      @click.prevent="updatePaymentDetails"
-                    >
-                      <i class="fas fa-save"></i>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Phone Number -->
-              <div class="col-md-6 mb-3">
-                <div class="form-group">
-                  <label class="form-label">Teléfono Asociado</label>
-                  <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary">
-                      <i class="fas fa-phone"></i>
-                    </span>
-                    <input
-                      type="text"
-                      class="form-control bg-dark border-secondary"
-                      v-model="paymentDetails.phoneNumber"
-                      placeholder="+58 412 1234567"
-                    />
-                    <button
-                      class="btn btn-transparent btn-sm"
-                      @click.prevent="updatePaymentDetails"
-                    >
-                      <i class="fas fa-save"></i>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Account Number -->
-              <div class="col-md-6 mb-3">
-                <div class="form-group">
-                  <label class="form-label">Número de Cuenta</label>
-                  <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary">
-                      <i class="fas fa-credit-card"></i>
-                    </span>
-                    <input
-                      type="text"
-                      class="form-control bg-dark border-secondary"
-                      v-model="paymentDetails.bankAccount"
-                      placeholder="Número de cuenta"
-                    />
-                    <button
-                      class="btn btn-transparent btn-sm"
-                      @click.prevent="updatePaymentDetails"
-                    >
-                      <i class="fas fa-save"></i>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>        
       </div>
     </div>
 
@@ -1985,25 +1763,14 @@ export default defineComponent({
         </div>
       </div>
     </div>
-
-    <!-- Add a more prominent captcha notice -->
-    <div v-if="role === 'cliente' && !phoneVerified" class="alert alert-info mt-2 p-2">
-      <i class="fas fa-info-circle me-1"></i>
-      Para verificar su teléfono:
-      <ol class="mb-0 ps-3 mt-1">
-        <li>Complete el captcha abajo</li>
-        <li>Haga clic en "Enviar código"</li>
-        <li>Ingrese el código recibido por SMS</li>
-      </ol>
-    </div>
   </div>
 </template>
 
 <style scoped>
 #recaptcha-container {
-	transform: scale(0.9);
-	transform-origin: 0 0;
-	margin-bottom: 0.5rem;
+  transform: scale(0.9);
+  transform-origin: 0 0;
+  margin-bottom: 0.5rem;
 }
 .text-theme {
   color: var(--accent-color);
@@ -2227,5 +1994,101 @@ input[type="file"]::-webkit-file-upload-button {
   background-color: #e0a800;
   border-color: #d39e00;
   color: #000;
+}
+
+/* Add these styles to make the verification UI more user-friendly */
+.phone-verification-notice {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.btn-outline-warning {
+  color: #ffc107;
+  border-color: #ffc107;
+}
+
+.btn-outline-warning:hover {
+  color: #212529;
+  background-color: #ffc107;
+  border-color: #ffc107;
+}
+
+.alert-info {
+  background-color: rgba(13, 202, 240, 0.1);
+  border-color: rgba(13, 202, 240, 0.2);
+  color: #0dcaf0;
+}
+
+#recaptcha-container {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.verification-code-container {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 15px;
+}
+
+.verification-code-container .form-label {
+  font-weight: 500;
+}
+
+/* Fine-tune the input group styles to ensure perfect alignment */
+.d-flex.align-items-center.gap-2 {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0 !important; /* Remove any gap */
+}
+
+.d-flex.align-items-center.gap-2 .form-control {
+  flex: 1;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  margin-right: 0;
+  position: relative;
+  z-index: 1;
+  height: 38px; /* Explicitly set height to match buttons */
+}
+
+.d-flex.align-items-center.gap-2 .btn,
+.d-flex.align-items-center.gap-2 .badge {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -1px; /* Create overlap for borders */
+  height: 38px !important; /* Force exact same height as inputs */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  z-index: 2; /* Place above the input for proper border overlap */
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Specific styles for verification buttons */
+.btn-outline-warning,
+.btn-outline-primary {
+  line-height: 38px; /* Match the height */
+  min-width: 100px; /* Ensure buttons have reasonable width */
+  padding: 0 0.75rem !important; /* Override padding to use line-height instead */
+}
+
+/* Badge styles for verified status */
+.badge.bg-success {
+  line-height: 38px; /* Match the height */
+  padding: 0 0.75rem !important; /* Override padding to use line-height instead */
+  margin-left: -1px;
+  font-weight: normal;
+  font-size: 0.875rem;
+}
+
+/* Ensure content is vertically centered */
+.btn i, .badge i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

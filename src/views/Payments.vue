@@ -24,10 +24,10 @@ import { sendEmail } from "@/utils/emailService";
 import "toastify-js/src/toastify.css";
 
 export default {
-  data() {
-    return {
-      clients: [],
-      affiliates: [],
+    data() {
+        return {
+            clients: [],
+            affiliates: [],
       subscriptions: [],
       payments: [],
       approvedClientPayments: [],
@@ -41,7 +41,7 @@ export default {
       paymentModalData: null,
       modalImageUrl: "",
       paymentType: "",
-      isSubmitting: false,
+            isSubmitting: false,
       isLoading: false,
       activeFilter: "subscriptions",
       userType: "clients",
@@ -57,21 +57,21 @@ export default {
       isFromHistory: false,
       searchQuery: "",
     };
-  },
-  async mounted() {
-    await this.fetchClients();
-    await this.fetchAffiliates();
+    },
+    async mounted() {
+        await this.fetchClients();
+        await this.fetchAffiliates();
     await this.fetchSubscriptions();
     await this.fetchPayments(this.historyFilter);
-  },
-  methods: {
-    formatDate(date) {
+    },
+    methods: {
+        formatDate(date) {
       const dateString = date.split("T")[0];
       const [year, month, day] = dateString.split("-");
-      return `${day}/${month}/${year}`;
-    },
+            return `${day}/${month}/${year}`;
+        },
 
-    async fetchClients() {
+        async fetchClients() {
       const role = "cliente";
       const clientRef = query(
         dbRef(db, "Users"),
@@ -79,35 +79,35 @@ export default {
         equalTo(role)
       );
 
-      try {
-        const snapshot = await get(clientRef);
+            try {
+                const snapshot = await get(clientRef);
 
-        if (snapshot.exists()) {
-          const users = snapshot.val();
+                if (snapshot.exists()) {
+                    const users = snapshot.val();
 
-          // Map Firebase data to an array of promises
+                    // Map Firebase data to an array of promises
           const clientPromises = Object.keys(users).map(async (key) => {
-            const clientData = {
-              id: key,
-              ...users[key],
-              subscription: users[key].subscription || {},
+                        const clientData = {
+                            id: key,
+                            ...users[key],
+                            subscription: users[key].subscription || {},
               credit: users[key].credit || null,
-            };
+                        };
 
-            return clientData;
-          });
+                        return clientData;
+                    });
 
-          // Await for all promises to resolve
-          this.clients = await Promise.all(clientPromises);
-        } else {
-          this.clients = [];
-        }
-      } catch (error) {
+                    // Await for all promises to resolve
+                    this.clients = await Promise.all(clientPromises);
+                } else {
+                    this.clients = [];
+                }
+            } catch (error) {
         console.error("Error fetching clients:", error);
-        this.clients = [];
-      }
-    },
-    async fetchAffiliates() {
+                this.clients = [];
+            }
+        },
+        async fetchAffiliates() {
       const role = "afiliado";
       const affiliatesRef = query(
         dbRef(db, "Users"),
@@ -115,18 +115,18 @@ export default {
         equalTo(role)
       );
 
-      try {
-        const affiliateSnapshot = await get(affiliatesRef);
+            try {
+                const affiliateSnapshot = await get(affiliatesRef);
 
-        if (affiliateSnapshot.exists()) {
-          const affiliates = affiliateSnapshot.val();
+                if (affiliateSnapshot.exists()) {
+                    const affiliates = affiliateSnapshot.val();
 
           this.affiliates = Object.keys(affiliates).map((key) => ({
-            id: key,
-            ...affiliates[key],
-            subscription: affiliates[key].subscription || {},
-          }));
-        } else {
+                        id: key,
+                        ...affiliates[key],
+                        subscription: affiliates[key].subscription || {},
+                    }));
+                        } else {
           console.log("No data available.");
         }
       } catch (error) {
@@ -149,100 +149,100 @@ export default {
             return subData;
           });
           this.subscriptions = await Promise.all(subPromises);
-        }
-      } catch (error) {
+                }
+            } catch (error) {
         console.error("Error fetching subscription:", error);
         return "Error al obtener la suscripción";
-      }
-    },
+            }
+        },
 
-    // For subscriptions payments
-    async fetchSubscription(user, role) {
-      if (!user.subscription || !user.subscription.lastPaymentDate) {
+        // For subscriptions payments
+        async fetchSubscription(user, role) {
+            if (!user.subscription || !user.subscription.lastPaymentDate) {
         console.warn(
           `Skipping user ${user.id} due to missing subscription data.`
         );
-        return;
-      }
+                return;
+            }
 
-      try {
-        const subscriptionRef = dbRef(db, `Users/${user.id}/subscription`);
-        const subscriptionSnapshot = await get(subscriptionRef);
+            try {
+                const subscriptionRef = dbRef(db, `Users/${user.id}/subscription`);
+                const subscriptionSnapshot = await get(subscriptionRef);
 
-        if (subscriptionSnapshot.exists()) {
-          user.subscription = subscriptionSnapshot.val();
-          const subscriptionId = user.subscription.subscription_id;
+                if (subscriptionSnapshot.exists()) {
+                    user.subscription = subscriptionSnapshot.val();
+                    const subscriptionId = user.subscription.subscription_id;
 
-          // Query the Suscriptions table to fetch the details
-          let subscriptionDataRef;
+                    // Query the Suscriptions table to fetch the details
+                    let subscriptionDataRef;
           if (role === "cliente") {
-            subscriptionDataRef = dbRef(db, `Suscriptions/${subscriptionId}`);
+                        subscriptionDataRef = dbRef(db, `Suscriptions/${subscriptionId}`);
           } else if (role === "afiliado") {
             subscriptionDataRef = dbRef(
               db,
               `Affiliate_suscriptions/${subscriptionId}`
             );
-          }
+                    }
 
-          const userSuscriptionSnapshot = await get(subscriptionDataRef);
+                    const userSuscriptionSnapshot = await get(subscriptionDataRef);
 
-          if (userSuscriptionSnapshot.exists()) {
-            const userSubscription = userSuscriptionSnapshot.val();
-            // Merge the userSubscription into the user's subscription object
-            user.subscription = {
-              ...user.subscription,
+                    if (userSuscriptionSnapshot.exists()) {
+                        const userSubscription = userSuscriptionSnapshot.val();
+                        // Merge the userSubscription into the user's subscription object
+                        user.subscription = {
+                            ...user.subscription,
               ...userSubscription,
-            };
-            if (user.subscription.lastPaymentDate) {
-              // In case the user made a payment
+                        };
+                        if (user.subscription.lastPaymentDate) {
+                            // In case the user made a payment
               const paymentDate =
                 user.subscription.lastPaymentDate.split("T")[0];
 
-              await this.fetchPaymentFiles(user, paymentDate, role);
-            }
-          }
-        } else {
-          // Set a default empty subscription if none exist
-          user.subscription = null;
-        }
-      } catch (error) {
+                            await this.fetchPaymentFiles(user, paymentDate, role);
+                        }
+                    }
+                } else {
+                    // Set a default empty subscription if none exist
+                    user.subscription = null;
+                }
+            } catch (error) {
         console.error(
           `Error fetching subscription for user ${user.id}:`,
           error.message || error
         );
-      }
-    },
+            }
+        },
 
     // Fetch Payment Files for subscription payments
-    async fetchPaymentFiles(user, date, role) {
-      try {
-        let userName;
+        async fetchPaymentFiles(user, date, role) {
+            try {
+                let userName;
         if (role === "cliente") {
-          userName = `${user.firstName} ${user.lastName}`;
+                    userName = `${user.firstName} ${user.lastName}`;
         } else if (role === "afiliado") {
-          userName = `${user.companyName}`;
-        }
+                    userName = `${user.companyName}`;
+                }
 
         const folderRef = storageRef(
           storage,
           `payment-captures/${role}/${user.id}-${userName}`
         );
 
-        // List all files in the user's payment-captures folder
-        const fileList = await listAll(folderRef);
+                // List all files in the user's payment-captures folder
+                const fileList = await listAll(folderRef);
 
-        // Filter files by date (ignoring extension)
+                // Filter files by date (ignoring extension)
         const matchingFile = fileList.items.find((fileRef) =>
           fileRef.name.startsWith(date)
         );
 
-        if (matchingFile) {
-          // Get the download URL for the matched file
-          const paymentUrl = await getDownloadURL(matchingFile);
+                if (matchingFile) {
+                    // Get the download URL for the matched file
+                    const paymentUrl = await getDownloadURL(matchingFile);
 
-          // Assign the URL to the user object
-          user.paymentUrl = paymentUrl;
-        } else {
+                    // Assign the URL to the user object
+                    user.paymentUrl = paymentUrl;
+                } else {
           if (role === "cliente") {
             console.warn(
               "No payment file found for the given date for the user: ",
@@ -256,24 +256,24 @@ export default {
               user.companyName,
               `(${user.role})`
             );
-          }
-          user.paymentUrl = null;
-        }
-      } catch (error) {
+                    }
+                    user.paymentUrl = null;
+                }
+            } catch (error) {
         console.error("Error fetching payment file:", error.message || error);
-        user.paymentUrl = null;
-      }
-    },
+                user.paymentUrl = null;
+            }
+        },
 
-    // Fetch Payment History
+        // Fetch Payment History
     async fetchPayments(type) {
       this.isLoading = true;
       try {
         const paymentsRef = dbRef(db, "Payments");
-        const snapshot = await get(paymentsRef);
+                const snapshot = await get(paymentsRef);
 
-        if (snapshot.exists()) {
-          const payments = snapshot.val();
+                if (snapshot.exists()) {
+                    const payments = snapshot.val();
           const paymentsList = Object.entries(payments).map(
             ([id, payment]) => ({
               id,
@@ -330,7 +330,7 @@ export default {
                   return payment;
                 })
             );
-          } else {
+                                } else {
             this.pendingClientPayments = pendingPayments.filter(
               (p) => p.type === "subscription" && p.client_id
             );
@@ -348,9 +348,9 @@ export default {
             this.filteredAffiliatePayments = [
               ...this.approvedAffiliatePayments,
             ];
-          }
-        }
-      } catch (error) {
+                    }
+                }
+            } catch (error) {
         console.error("Error fetching payments:", error);
       } finally {
         this.isLoading = false;
@@ -381,31 +381,31 @@ export default {
     // Fetch purchase data
     async fetchPurchaseDataAsync(clientId, purchaseId) {
       const cacheKey = `${clientId}-${purchaseId}`;
-      try {
-        // Check active purchases first
+            try {
+                // Check active purchases first
         const activeRef = dbRef(
           db,
           `Users/${clientId}/credit/main/purchases/${purchaseId}`
         );
-        let purchaseSnapshot = await get(activeRef);
+                let purchaseSnapshot = await get(activeRef);
 
-        if (purchaseSnapshot.exists()) {
+                if (purchaseSnapshot.exists()) {
           const data = purchaseSnapshot.val();
           this.purchaseDataMap.set(cacheKey, {
             productName: data.productName || "Producto sin nombre",
             terms: data.terms || "N/A",
           });
           return;
-        }
+                }
 
-        // If not found, check archived purchases
+                // If not found, check archived purchases
         const archiveRef = dbRef(
           db,
           `Archive/${clientId}/purchases/${purchaseId}`
         );
-        purchaseSnapshot = await get(archiveRef);
+                purchaseSnapshot = await get(archiveRef);
 
-        if (purchaseSnapshot.exists()) {
+                if (purchaseSnapshot.exists()) {
           const data = purchaseSnapshot.val();
           this.purchaseDataMap.set(cacheKey, {
             productName: data.productName || "Producto sin nombre",
@@ -419,8 +419,8 @@ export default {
           productName: "Producto no encontrado",
           terms: "N/A",
         });
-      } catch (error) {
-        console.error(`Error fetching purchase data for ${purchaseId}:`, error);
+            } catch (error) {
+                console.error(`Error fetching purchase data for ${purchaseId}:`, error);
         this.purchaseDataMap.set(cacheKey, {
           productName: "Error al cargar producto",
           terms: "N/A",
@@ -437,100 +437,100 @@ export default {
       fromHistory = false
     ) {
       this.paymentModalData = payment;
-      this.modalImageUrl = url;
-      this.paymentType = type;
+            this.modalImageUrl = url;
+            this.paymentType = type;
       this.isFromHistory = fromHistory;
 
-      // Set selected purchase and cuota IDs for cuota payment validation
+            // Set selected purchase and cuota IDs for cuota payment validation
       if (type === "credit-cuota") {
         this.paymentModalData.selectedPurchaseId = purchaseId;
         this.paymentModalData.selectedCuotaId = cuotaId;
       }
 
       new Modal(document.getElementById("idImgModal")).show();
-    },
+        },
 
-    async validateSubscriptionPayment(user) {
-      if (!confirm("¿Está seguro de que desea aprobar este pago?")) {
-        return;
-      }
+        async validateSubscriptionPayment(user) {
+            if (!confirm("¿Está seguro de que desea aprobar este pago?")) {
+                return;
+            }
 
-      let userName;
+            let userName;
       if (user.role === "cliente") {
-        userName = `${user.firstName} ${user.lastName}`;
+                userName = `${user.firstName} ${user.lastName}`;
       } else if (user.role === "afiliado") {
-        userName = `${user.companyName}`;
-      }
-      const paymentDate = this.formatDate(user.subscription.lastPaymentDate);
+                userName = `${user.companyName}`;
+            }
+            const paymentDate = this.formatDate(user.subscription.lastPaymentDate);
 
-      try {
-        // Show the loader
-        this.isSubmitting = true;
+            try {
+                // Show the loader
+                this.isSubmitting = true;
 
-        // Mark client's subscription as paid and active
-        const userRef = dbRef(db, `Users/${user.id}/subscription`);
-        await update(userRef, {
-          isPaid: true,
+                // Mark client's subscription as paid and active
+                const userRef = dbRef(db, `Users/${user.id}/subscription`);
+                await update(userRef, {
+                    isPaid: true,
           paymentVerified: true,
-          status: true,
-        });
+                    status: true,
+                });
 
-        // Mark Payment as approved for bookeeping
-        const paymentRef = dbRef(db, `Payments`);
-        const paymentSnapshot = await get(paymentRef);
-        if (paymentSnapshot.exists()) {
-          const payments = paymentSnapshot.val();
+                // Mark Payment as approved for bookeeping
+                const paymentRef = dbRef(db, `Payments`);
+                const paymentSnapshot = await get(paymentRef);
+                if (paymentSnapshot.exists()) {
+                    const payments = paymentSnapshot.val();
 
-          // Find and update the relevant payment
-          Object.entries(payments).forEach(async ([paymentId, payment]) => {
+                    // Find and update the relevant payment
+                    Object.entries(payments).forEach(async ([paymentId, payment]) => {
             const clientId = paymentId.split("-")[0];
             const date = payment.date.split("T")[0];
             const comparableDate = payment.date.split("T")[0];
 
-            if (clientId === user.id && date === comparableDate) {
-              const specificPaymentRef = dbRef(db, `Payments/${paymentId}`);
-              await update(specificPaymentRef, { approved: true });
-            }
-          });
-        }
+                        if (clientId === user.id && date === comparableDate) {
+                            const specificPaymentRef = dbRef(db, `Payments/${paymentId}`);
+                            await update(specificPaymentRef, { approved: true });
+                        }
+                    });
+                }
 
-        // Send an email notification to the user through Firebase Cloud Functions
-        const emailPayload = {
-          to: user.email,
-          message: {
-            subject: "Su pago de Suscripción ha sido aprobado en Rose App",
-            text: `Hola ${userName}, tu pago del día ${paymentDate} ha sido aprobado.`,
-          },
-        };
+                // Send an email notification to the user through Firebase Cloud Functions
+                const emailPayload = {
+                    to: user.email,
+                    message: {
+                        subject: "Su pago de Suscripción ha sido aprobado en Rose App",
+                        text: `Hola ${userName}, tu pago del día ${paymentDate} ha sido aprobado.`,
+                    },
+                };
 
-        // Send email via the utility function
-        const result = await sendEmail(emailPayload);
+                // Send email via the utility function
+                const result = await sendEmail(emailPayload);
 
-        if (result.success) {
-          console.log("Email sent successfully:", result.message);
-        } else {
-          console.error("Failed to send email:", result.error);
-        }
+                if (result.success) {
+                    console.log("Email sent successfully:", result.message);
+                } else {
+                    console.error("Failed to send email:", result.error);
+                }
 
         showToast("Pago aprobado. Se ha notificado al cliente.");
-        //Close Payment modal after approval
+                //Close Payment modal after approval
         const modal = Modal.getOrCreateInstance(
           document.getElementById("idImgModal")
         );
-        modal.hide();
-        this.fetchClients();
-        this.fetchAffiliates();
-      } catch (error) {
-        console.error("Error approving ID:", error);
-      } finally {
-        // Hide the loader
-        this.isSubmitting = false;
-      }
-    },
+                modal.hide();
+                this.fetchClients();
+                this.fetchAffiliates();
+            } catch (error) {
+                console.error("Error approving ID:", error);
+            } finally {
+                // Hide the loader
+                this.isSubmitting = false;
+            }
+        },
     async deletePayment(paymentId) {
       if (!confirm("¿Está seguro de que desea eliminar este pago?")) {
-        return;
-      }
+                return;
+            }
       const paymentRef = dbRef(db, `Payments/${paymentId}`);
       await remove(paymentRef);
       await this.fetchPayments(this.historyFilter);
@@ -538,11 +538,11 @@ export default {
 
     async validateCuotaPayment(payment) {
       if (!confirm("¿Está seguro de que desea aprobar este pago?")) {
-        return;
-      }
+                return;
+            }
 
-      try {
-        this.isSubmitting = true;
+                try {
+                    this.isSubmitting = true;
 
         // Get purchase data first
         const purchaseRef = dbRef(
@@ -645,9 +645,9 @@ export default {
         const clientData = clientSnap.val();
 
         // Send email notification
-        const emailPayload = {
+                    const emailPayload = {
           to: clientData.email,
-          message: {
+                        message: {
             subject: `El pago de su cuota por la compra de (${purchaseData.productName}) ha sido aprobado en Rose App`,
             text: `Hola ${clientData.firstName} ${clientData.lastName}, tu pago del día ${payment.date.split("T")[0]} ha sido aprobado.`,
             html: `
@@ -676,83 +676,83 @@ export default {
         const modal = Modal.getOrCreateInstance(
           document.getElementById("idImgModal")
         );
-        modal.hide();
+                    modal.hide();
 
         await this.fetchPayments("credit-cuota");
-      } catch (error) {
+                } catch (error) {
         console.error("Error approving payment:", error);
         showToast("Error al aprobar el pago: " + error.message, "error");
-      } finally {
-        this.isSubmitting = false;
-      }
-    },
-    async disapproveCuotaPayment(user) {
+                } finally {
+                    this.isSubmitting = false;
+            }
+        },
+        async disapproveCuotaPayment(user) {
       const selectedPurchase =
         user.credit.main.purchases[user.selectedPurchaseId];
-      if (!selectedPurchase) {
-        console.error("Purchase not found for ID:", user.selectedPurchaseId);
-        return;
-      }
+            if (!selectedPurchase) {
+                console.error("Purchase not found for ID:", user.selectedPurchaseId);
+                return;
+            }
 
       const selectedCuota = selectedPurchase.cuotas.find(
         (cuota) => cuota.cuote == user.selectedCuotaId
       );
-      if (!selectedCuota) {
-        console.error("Cuota not found for ID:", user.selectedCuotaId);
-        return;
-      }
+            if (!selectedCuota) {
+                console.error("Cuota not found for ID:", user.selectedCuotaId);
+                return;
+            }
 
-      if (confirm("¿Está seguro de que desea desaprobar este pago?")) {
-        try {
-          this.isSubmitting = true;
+            if (confirm("¿Está seguro de que desea desaprobar este pago?")) {
+                try {
+                    this.isSubmitting = true;
 
-          // Mark payment as disapproved in the client's cuotas
+                    // Mark payment as disapproved in the client's cuotas
           const cuotaRef = dbRef(
             db,
             `Users/${user.id}/credit/main/purchases/${selectedPurchase.purchaseId}/cuotas/${selectedCuota.cuotaId}`
           );
           await update(cuotaRef, { paid: false });
 
-          // Mark payment as disapproved in the affiliate's cuotas
+                    // Mark payment as disapproved in the affiliate's cuotas
           const AffiliateCuotaRef = dbRef(
             db,
             `Users/${selectedPurchase.affiliate_id}/credit/sales/${selectedPurchase.purchaseId}/cuotas/${selectedCuota.cuotaId}`
           );
-          await update(AffiliateCuotaRef, { paid: false, disapproved: true });
+                    await update(AffiliateCuotaRef, { paid: false, disapproved: true });
 
-          // Optional: You may want to send a notification or email to the client
-          const emailPayload = {
-            to: user.email,
-            message: {
-              subject: `El pago de su cuota ha sido negado`,
+                    // Optional: You may want to send a notification or email to the client
+                    const emailPayload = {
+                        to: user.email,
+                        message: {
+                            subject: `El pago de su cuota ha sido negado`,
               text: `Hola ${user.firstName}, lamentamos informarte que tu pago del ${selectedCuota.paidAt.split("T")[0]} ha sido desaprobado. Vuelve a subir tu captura de pago en la app.`,
-            },
-          };
-          // Send email via the utility function
-          const result = await sendEmail(emailPayload);
+                        },
+                    };
+                    // Send email via the utility function
+                    const result = await sendEmail(emailPayload);
 
-          if (result.success) {
-            console.log("Email sent successfully:", result.message);
-          } else {
-            console.error("Failed to send email:", result.error);
-          }
+                    if (result.success) {
+                        console.log("Email sent successfully:", result.message);
+                    } else {
+                        console.error("Failed to send email:", result.error);
+                    }
 
           showToast("Pago desaprobado. Se ha notificado al cliente.");
           const modal = Modal.getOrCreateInstance(
             document.getElementById("idImgModal")
           );
-          modal.hide();
+                    modal.hide();
 
-          // Optionally refresh data
-          this.fetchClients();
-          this.fetchAffiliates();
-        } catch (error) {
-          console.error("Error disapproving cuota payment:", error);
-        } finally {
-          this.isSubmitting = false;
-        }
-      }
-    },
+                    // Optionally refresh data
+                    this.fetchClients();
+                    this.fetchAffiliates();
+                } catch (error) {
+                    console.error("Error disapproving cuota payment:", error);
+                } finally {
+                    this.isSubmitting = false;
+                }
+            }
+        },
 
     // Match data
     getClient(clientId) {
@@ -1063,7 +1063,7 @@ export default {
           </button>
         </div>
       </div>
-    </div>
+        </div>
 
     <!-- Subscription Section -->
     <div v-show="activeFilter === 'subscriptions'" class="payment-section">
@@ -1111,7 +1111,7 @@ export default {
                 </button>
               </div>
             </div>
-          </div>
+                </div>
 
           <!-- Payment Cards Grid -->
           <div v-if="isLoading" class="row g-4">
@@ -1120,8 +1120,8 @@ export default {
                 <div class="text-center">
                   <div class="mb-3 mt-5">
                     <i class="fa-solid fa-spinner fa-spin"></i>
-                  </div>
-                </div>
+                                        </div>
+                                        </div>
               </div>
             </div>
           </div>
@@ -1215,9 +1215,9 @@ export default {
                           "
                         >
                           <i class="fas fa-receipt me-2"></i>
-                          Ver Comprobante
-                        </button>
-                      </div>
+                                            Ver Comprobante
+                                        </button>
+                                    </div>
                       <div v-else class="payment-actions mt-auto pt-3">
                         <div class="d-flex justify-content-center gap-2">
                           <button
@@ -1238,14 +1238,14 @@ export default {
                             <i class="fas fa-times me-2"></i>
                             Cancelar
                           </button>
-                        </div>
+                                </div>
                         <small
                           class="d-flex justify-content-center text-muted mt-2"
                         >
                           Hubo un error al obtener la captura de pago.
                         </small>
-                      </div>
-                    </div>
+                            </div>
+                        </div>
                   </div>
                 </div>
               </div>
@@ -1253,19 +1253,19 @@ export default {
                 v-else
                 class="d-flex justify-content-center align-items-center"
               >
-                <div class="text-center">
-                  <div class="mb-3 mt-5">
+                            <div class="text-center">
+                                <div class="mb-3 mt-5">
                     <i
                       class="fa-solid fa-hand-holding-dollar text-body text-opacity-25"
                       style="font-size: 5em"
                     ></i>
-                  </div>
-                  <h5>No hay Pagos.</h5>
-                </div>
-              </div>
-            </div>
+                                </div>
+                                <h5>No hay Pagos.</h5>
+                            </div>
+                        </div>
+                    </div>
             <div v-if="userType === 'affiliates'" class="col-12">
-              <div class="row g-3">
+                        <div class="row g-3">
                 <div v-if="pendingAffiliatePayments.length > 0">
                   <div
                     v-for="payment in sortPayments(pendingAffiliatePayments)"
@@ -1278,7 +1278,7 @@ export default {
                         <div class="card-header-custom mb-3">
                           <div class="icon-wrapper mb-2">
                             <i class="fas fa-handshake"></i>
-                          </div>
+                                            </div>
                           <h5 class="card-title mb-1">
                             {{ getAffiliate(payment.affiliate_id).companyName }}
                           </h5>
@@ -1348,37 +1348,37 @@ export default {
                               "
                             >
                               <i class="fas fa-receipt me-2"></i>Ver Comprobante
-                            </button>
+                                            </button>
                             <small class="text-muted">
                               Haga clic en "Ver Comprobante" para validar el
                               pago
                             </small>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                   </div>
                 </div>
                 <div
                   v-else
                   class="d-flex justify-content-center align-items-center"
                 >
-                  <div class="text-center">
-                    <div class="mb-3 mt-5">
+                                <div class="text-center">
+                                    <div class="mb-3 mt-5">
                       <i
                         class="fa-solid fa-hand-holding-dollar text-body text-opacity-25"
                         style="font-size: 5em"
                       ></i>
-                    </div>
-                    <h5>No hay Pagos.</h5>
+                                    </div>
+                                    <h5>No hay Pagos.</h5>
                   </div>
                 </div>
-              </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Installments Section -->
     <div v-show="activeFilter === 'installments'" class="payment-section">
@@ -1397,7 +1397,7 @@ export default {
               <option value="newest">Más recientes</option>
               <option value="oldest">Más antiguos</option>
             </select>
-          </div>
+                                    </div>
 
           <!-- Payment Cards Grid -->
           <div v-if="isLoading" class="row g-4">
@@ -1468,7 +1468,7 @@ export default {
                                 }}
                               </template>
                             </span>
-                          </div>
+                                                    </div>
                           <div class="info-item">
                             <span class="info-label">Cuota:</span>
                             <span class="info-value"
@@ -1480,8 +1480,8 @@ export default {
                                 ).terms
                               }}</span
                             >
-                          </div>
-                        </div>
+                                                </div>
+                                            </div>
 
                         <!-- Common Payment Info -->
                         <div class="info-group">
@@ -1490,7 +1490,7 @@ export default {
                             <span class="info-value"
                               >Bs.{{ Number(payment.amount).toFixed(2) }}</span
                             >
-                          </div>
+                                        </div>
                           <div
                             class="info-item"
                             v-if="payment.type === 'credit-cuota'"
@@ -1505,15 +1505,15 @@ export default {
                                 >Cargando...
                               </template>
                             </span>
-                          </div>
+                                    </div>
                           <div class="info-item">
                             <span class="info-label">Fecha:</span>
                             <span class="info-value">{{
                               formatDate(payment.date)
                             }}</span>
-                          </div>
+                                </div>
+                            </div>
                         </div>
-                      </div>
 
                       <!-- Actions Section -->
                       <div class="payment-actions mt-auto pt-3">
@@ -1537,7 +1537,7 @@ export default {
                           <small class="text-muted">
                             Haga clic en "Ver Comprobante" para validar el pago
                           </small>
-                        </div>
+                    </div>
                       </div>
                     </div>
                   </div>
@@ -1547,21 +1547,21 @@ export default {
                 v-else
                 class="d-flex justify-content-center align-items-center"
               >
-                <div class="text-center">
-                  <div class="mb-3 mt-5">
+                        <div class="text-center">
+                            <div class="mb-3 mt-5">
                     <i
                       class="fa-solid fa-credit-card text-body text-opacity-25"
                       style="font-size: 5em"
                     ></i>
-                  </div>
+                            </div>
                   <h5>No hay pagos de cuotas pendientes.</h5>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
     <!-- History Section -->
     <div v-show="activeFilter === 'history'" class="payment-section">
@@ -1635,7 +1635,7 @@ export default {
                   </div>
                 </div>
               </div>
-            </div>
+                </div>
 
             <!-- Search and Filter Section -->
             <div class="card filters-section py-3 rounded-3">
@@ -1657,8 +1657,8 @@ export default {
                         placeholder="Buscar por nombre o identificación..."
                         @input="filterDisplayedPayments()"
                       />
-                    </div>
-                  </div>
+                                        </div>
+                                    </div>
 
                   <!-- Date Range Filter -->
                   <div class="col-12 col-md-6">
@@ -1674,7 +1674,7 @@ export default {
                           v-model="dateRange.from"
                           @change="filterPaymentsByDate"
                         />
-                      </div>
+                                </div>
                       <div class="input-group">
                         <span class="input-group-text">Hasta</span>
                         <input
@@ -1694,12 +1694,12 @@ export default {
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
+                            </div>
+                        </div>
+                    </div>
 
           <!-- Display filtered payments -->
-          <div class="row g-3">
+                        <div class="row g-3">
             <div v-if="isLoading" class="col-12">
               <div class="d-flex justify-content-center align-items-center">
                 <div class="text-center">
@@ -1715,7 +1715,7 @@ export default {
                 class="col-12 text-center"
               >
                 <p class="text-muted">No hay pagos para mostrar</p>
-              </div>
+                                            </div>
 
               <div
                 v-for="payment in displayedPayments"
@@ -1735,7 +1735,7 @@ export default {
                               : 'fa-handshake'
                           "
                         ></i>
-                      </div>
+                                        </div>
                       <h5 class="card-title mb-1">
                         {{
                           payment.affiliate_id
@@ -1752,8 +1752,8 @@ export default {
                       </small>
                       <div class="payment-status mt-2">
                         <span class="badge bg-success">Aprobado</span>
-                      </div>
-                    </div>
+                                    </div>
+                                </div>
 
                     <!-- Payment Details Section -->
                     <div class="payment-details">
@@ -1771,7 +1771,7 @@ export default {
                             getAffiliate(payment.purchaseData?.affiliate_id)
                               .companyName
                           }}</span>
-                        </div>
+                            </div>
                         <div class="info-item">
                           <span class="info-label">Producto:</span>
                           <span class="info-value">{{
@@ -1784,8 +1784,8 @@ export default {
                             >{{ Number(payment.cuota_id) + 1 }} de
                             {{ payment.purchaseData?.terms }}</span
                           >
-                        </div>
-                      </div>
+                    </div>
+                </div>
 
                       <!-- Subscription specific info -->
                       <div
@@ -1854,11 +1854,11 @@ export default {
             </template>
           </div>
         </div>
-      </div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- Modal for opening payment capture -->
+    <!-- Modal for opening payment capture -->
   <div
     class="modal fade"
     id="idImgModal"
@@ -1866,9 +1866,9 @@ export default {
     aria-labelledby="idImgModalLabel"
     aria-hidden="true"
   >
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
           <h5 class="modal-title">Comprobante de Pago</h5>
           <button
             type="button"
@@ -1876,8 +1876,8 @@ export default {
             data-bs-dismiss="modal"
             aria-label="Close"
           ></button>
-        </div>
-        <div class="modal-body text-center">
+                </div>
+                <div class="modal-body text-center">
           <img
             v-if="modalImageUrl"
             :src="modalImageUrl"
@@ -1909,7 +1909,7 @@ export default {
               </span>
               <span v-else> <i class="fas fa-check me-2"></i>Aprobar </span>
             </button>
-          </div>
+                    </div>
 
           <!-- Credit cuota payment buttons -->
           <div
@@ -1938,11 +1938,11 @@ export default {
               </span>
               <span v-else> <i class="fas fa-times me-2"></i>Denegar </span>
             </button>
-          </div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
     </div>
-  </div>
 </template>
 
 <style lang="scss" scoped>
