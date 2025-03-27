@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
 import { getStorage } from "firebase/storage";
-import { getAuth } from "firebase/auth";
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { getFunctions } from 'firebase/functions';
 import { getMessaging, getToken } from "firebase/messaging";
 import { firebaseConfig } from "./config";
@@ -13,4 +13,6 @@ const auth = getAuth(app);
 const functions = getFunctions(app);
 const messaging = getMessaging(app);
 
-export { db, storage, auth, functions, messaging };
+auth.useDeviceLanguage();
+
+export { db, storage, auth, RecaptchaVerifier, signInWithPhoneNumber, functions, messaging };

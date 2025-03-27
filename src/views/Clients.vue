@@ -4,7 +4,7 @@ import { ref as storageRef, listAll, getDownloadURL, deleteObject } from 'fireba
 import { db, storage, functions } from '@/firebase/init';
 import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
-import { showToast } from '@/utils/toast';
+import { toast as showToast } from '@/utils/toast';
 import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import * as XLSX from "xlsx";
@@ -55,7 +55,8 @@ export default {
             itemsPerPage: 10,
             paymentClient: '',
             expandedClients: new Set(),
-            loadingStates: {}
+            loadingStates: {},
+            verificationFilter: 'all'
         }
     },
     async mounted() {
@@ -64,29 +65,47 @@ export default {
     },
     computed: {
         filteredUsers() {
-            // If no search query, return all clients
+            // Start with search filter
             const trimmedSearchQuery = this.searchQuery?.trim().toLowerCase();
-            if (!trimmedSearchQuery) {
-                return this.clients;
+            let filtered = this.clients;
+            
+            if (trimmedSearchQuery) {
+                filtered = this.clients.filter(client => {
+                    // Basic fields search
+                    const identification = client.identification?.toString().toLowerCase() || '';
+                    const firstName = client.firstName?.toLowerCase() || '';
+                    const lastName = client.lastName?.toLowerCase() || '';
+                    
+                    // Combined full name (both firstName + lastName)
+                    const fullName = `${firstName} ${lastName}`.toLowerCase();
+                    const reversedFullName = `${lastName} ${firstName}`.toLowerCase();
+
+                    // Search in individual fields and combined names
+                    return identification.includes(trimmedSearchQuery) ||
+                           firstName.includes(trimmedSearchQuery) ||
+                           lastName.includes(trimmedSearchQuery) ||
+                           fullName.includes(trimmedSearchQuery) ||
+                           reversedFullName.includes(trimmedSearchQuery);
+                });
             }
-
-            return this.clients.filter(client => {
-                // Basic fields search
-                const identification = client.identification?.toString().toLowerCase() || '';
-                const firstName = client.firstName?.toLowerCase() || '';
-                const lastName = client.lastName?.toLowerCase() || '';
-                
-                // Combined full name (both firstName + lastName)
-                const fullName = `${firstName} ${lastName}`.toLowerCase();
-                const reversedFullName = `${lastName} ${firstName}`.toLowerCase();
-
-                // Search in individual fields and combined names
-                return identification.includes(trimmedSearchQuery) ||
-                       firstName.includes(trimmedSearchQuery) ||
-                       lastName.includes(trimmedSearchQuery) ||
-                       fullName.includes(trimmedSearchQuery) ||
-                       reversedFullName.includes(trimmedSearchQuery);
-            });
+            
+            // Apply verification filter
+            if (this.verificationFilter !== 'all') {
+                filtered = filtered.filter(client => {
+                    switch (this.verificationFilter) {
+                        case 'verified':
+                            return client.isVerified === true;
+                        case 'pending':
+                            return client.requestedVerification === true && client.isVerified !== true;
+                        case 'unverified':
+                            return !client.requestedVerification && !client.isVerified;
+                        default:
+                            return true;
+                    }
+                });
+            }
+            
+            return filtered;
         },
         paginatedFilteredUsers() {
             const start = (this.currentPage - 1) * this.itemsPerPage;
@@ -116,6 +135,26 @@ export default {
             }
 
             return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+        },
+        verificationCounts() {
+            const counts = {
+                all: this.clients.length,
+                verified: 0,
+                pending: 0,
+                unverified: 0
+            };
+            
+            this.clients.forEach(client => {
+                if (client.isVerified) {
+                    counts.verified++;
+                } else if (client.requestedVerification) {
+                    counts.pending++;
+                } else {
+                    counts.unverified++;
+                }
+            });
+            
+            return counts;
         }
     },
     methods: {
@@ -156,6 +195,8 @@ export default {
                     municipio: user.municipio,
                     parroquia: user.parroquia,
                     isVerified: user.isVerified || false,
+                    requestedVerification: user.requestedVerification || false,
+                    verificationFiles: user.verificationFiles || null,
                     _detailsLoaded: false // Flag to track if details are loaded
                 }));
 
@@ -180,8 +221,10 @@ export default {
             if (client._detailsLoaded) return;
 
             // Set loading state for this client
-            this.loadingStates[client.uid] = true;
-            this.loadingStates = { ...this.loadingStates }; // Trigger reactivity
+            this.loadingStates = {
+                ...this.loadingStates,
+                [client.uid]: true
+            };
 
             try {
                 // Fetch all details in parallel
@@ -197,10 +240,12 @@ export default {
                 client._detailsLoaded = true;
             } catch (error) {
                 console.error('Error loading client details:', error);
-                showToast('Error al cargar los detalles del cliente', { type: 'error' });
+                showToast.error('Error al cargar los detalles del cliente');
             } finally {
-                this.loadingStates[client.uid] = false;
-                this.loadingStates = { ...this.loadingStates }; // Trigger reactivity
+                this.loadingStates = {
+                    ...this.loadingStates,
+                    [client.uid]: false
+                };
             }
         },
 
@@ -221,32 +266,39 @@ export default {
         },
 
         async fetchClientSubscription(client) {
-            const subscriptionRef = dbRef(db, `Users/${client.uid}/subscription`);
-            const subscriptionSnapshot = await get(subscriptionRef);
+            try {
+                const subscriptionRef = dbRef(db, `Users/${client.uid}/subscription`);
+                const subscriptionSnapshot = await get(subscriptionRef);
 
-            if (subscriptionSnapshot.exists()) {
-                client.subscription = subscriptionSnapshot.val();
-                const subscriptionId = client.subscription.subscription_id;
+                if (subscriptionSnapshot.exists()) {
+                    client.subscription = subscriptionSnapshot.val();
+                    const subscriptionId = client.subscription.subscription_id;
 
-                // Query the Suscriptions table to fetch the details
-                const subscriptionDataRef = dbRef(db, `Suscriptions/${subscriptionId}`);
-                const userSuscriptionSnapshot = await get(subscriptionDataRef);
+                    if (subscriptionId) {
+                        // Query the Suscriptions table to fetch the details
+                        const subscriptionDataRef = dbRef(db, `Suscriptions/${subscriptionId}`);
+                        const userSuscriptionSnapshot = await get(subscriptionDataRef);
 
-                if (userSuscriptionSnapshot.exists()) {
-                    const userSubscription = userSuscriptionSnapshot.val();
-                    // Merge the userSubscription into the client's subscription object
-                    client.subscription = {
-                        ...client.subscription,
-                        ...userSubscription
-                    };
-                    if (client.subscription.lastPaymentDate) {
-                        // In case the client made a payment
-                        const paymentDate = (client.subscription.lastPaymentDate).split('T')[0];
-                        this.fetchPaymentFiles(client, paymentDate);
+                        if (userSuscriptionSnapshot.exists()) {
+                            const userSubscription = userSuscriptionSnapshot.val();
+                            // Merge the userSubscription into the client's subscription object
+                            client.subscription = {
+                                ...client.subscription,
+                                ...userSubscription
+                            };
+                            if (client.subscription.lastPaymentDate) {
+                                // In case the client made a payment
+                                const paymentDate = (client.subscription.lastPaymentDate).split('T')[0];
+                                this.fetchPaymentFiles(client, paymentDate);
+                            }
+                        }
                     }
+                } else {
+                    // Set a default empty subscription if none exist
+                    client.subscription = null;
                 }
-            } else {
-                // Set a default empty subscription if none exist
+            } catch (error) {
+                console.error('Error fetching client subscription:', error);
                 client.subscription = null;
             }
         },
@@ -258,33 +310,32 @@ export default {
 
                 if (creditSnapshot.exists()) {
                     const creditData = creditSnapshot.val();
-
-                    // Check if the mainCredit and plusCredit exist and are greater than 0
-                    const mainCredit = creditData?.main?.totalCredit || null;
-                    const availableMainCredit = creditData?.main?.availableCredit || null;
-                    const mainPurchases = creditData?.main?.purchases || null;
-
-                    const plusCredit = creditData?.plus?.totalCredit || null;
-                    const availablePlusCredit = creditData?.plus?.availableCredit || null;
-                    const plusPurchases = creditData?.plus?.purchases || null;
-
-                    // Only return the user credit if either credit line is assigned
-                    if (mainCredit > 0 || plusCredit > 0 || mainPurchases || plusPurchases) {
-                        client.credit = {
-                            mainCredit,
-                            availableMainCredit,
-                            mainPurchases,
-                            plusCredit,
-                            availablePlusCredit,
-                            plusPurchases
-                        };
-                    }
+                    
+                    // Set default values for missing credit data
+                    client.credit = {
+                        mainCredit: creditData.main?.totalCredit || 0,
+                        availableMainCredit: creditData.main?.availableCredit || 0,
+                        plusCredit: creditData.plus?.totalCredit || 0,
+                        availablePlusCredit: creditData.plus?.availableCredit || 0
+                    };
                 } else {
-                    client.credit = null; // No credit assigned, return null
+                    // Set default empty credit if none exists
+                    client.credit = {
+                        mainCredit: 0,
+                        availableMainCredit: 0,
+                        plusCredit: 0,
+                        availablePlusCredit: 0
+                    };
                 }
             } catch (error) {
-                console.error('Error fetching credit data from the client: ', client.uid, error);
-                client.credit = null;
+                console.error('Error fetching client credit:', error);
+                // Set default empty credit on error
+                client.credit = {
+                    mainCredit: 0,
+                    availableMainCredit: 0,
+                    plusCredit: 0,
+                    availablePlusCredit: 0
+                };
             }
         },
 
@@ -351,25 +402,56 @@ export default {
             }
         },
         async fetchIdFiles(client) {
+            // Skip fetching if client hasn't requested verification
+            if (!client.requestedVerification && !client.verificationFiles) {
+                return;
+            }
+            
             try {
-                // Fetch verification files data from the user's collection in the Realtime Database
-                const userRef = dbRef(db, `Users/${client.uid}/verificationFiles`);
-                const snapshot = await get(userRef);
-
-                if (snapshot.exists()) {
-                    const verificationFiles = snapshot.val();
-
-                    // Set the URLs for front and back ID images if they exist
-                    client.idFrontUrl = verificationFiles['Front-ID'] || null;
-                    client.idBackUrl = verificationFiles['Back-ID'] || null;
-                    client.selfieUrl = verificationFiles['Selfie'] || null;
-
-                    console.log('Verification files fetched:', verificationFiles);
-                } else {
-                    console.warn(`No verification files found for ${client.uid}`);
+                // Set loading state
+                this.loadingStates = {
+                    ...this.loadingStates,
+                    [client.uid + '_files']: true
+                };
+                
+                // Check if verification files exist in the database
+                const verificationFilesRef = dbRef(db, `Users/${client.uid}/verificationFiles`);
+                const snapshot = await get(verificationFilesRef);
+                
+                if (!snapshot.exists()) {
+                    // No verification files found
+                    client.idFiles = [];
+                    return;
                 }
+                
+                const verificationFiles = snapshot.val();
+                const idFiles = [];
+                
+                // Process each file type
+                for (const [type, path] of Object.entries(verificationFiles)) {
+                    if (path) {
+                        try {
+                            const url = await getDownloadURL(storageRef(storage, path));
+                            idFiles.push({
+                                type,
+                                url
+                            });
+                        } catch (error) {
+                            console.error(`Error fetching ${type} file:`, error);
+                        }
+                    }
+                }
+                
+                // Set the ID files on the client object
+                client.idFiles = idFiles;
             } catch (error) {
-                console.error('Error fetching ID files:', error.message || error);
+                console.error('Error fetching ID files:', error);
+            } finally {
+                // Clear loading state
+                this.loadingStates = {
+                    ...this.loadingStates,
+                    [client.uid + '_files']: false
+                };
             }
         },
         async fetchPaymentFiles(client, date) {
@@ -433,7 +515,7 @@ export default {
                 const result = await response.json();
 
                 if (result.success) {
-                    showToast("Nuevo Cliente registrado con exito! Se ha enviado la contraseña al correo.");
+                    showToast.success("Nuevo Cliente registrado con exito! Se ha enviado la contraseña al correo.");
 
                     // Reset form
                     this.resetForm();
@@ -445,16 +527,13 @@ export default {
             } catch (error) {
                 console.error('Error creating client:', error);
                 alert('Error creating client.');
+            } finally {
+                this.isSubmitting = false;
             }
-        },
-        editClient(client) {
-            // Set current client to edit mode
-            this.currentEditing = client.uid;
-            this.selectedClient = { ...client };
         },
         cancelEdit(client) {
             // Reset editing state
-            this.currentEditing = null;
+            client.isEditing = false;
         },
         async updateClient(client) {
             const clientId = client.uid;
@@ -465,13 +544,13 @@ export default {
                 // Create an updateData object, but only include non-empty fields
                 const updateData = {};
 
-                if (this.selectedClient.firstName) updateData.firstName = this.selectedClient.firstName;
-                if (this.selectedClient.lastName) updateData.lastName = this.selectedClient.lastName;
-                if (this.selectedClient.identification) updateData.identification = this.selectedClient.identification;
-                if (this.selectedClient.phoneNumber) updateData.phoneNumber = this.selectedClient.phoneNumber;
-                if (this.selectedClient.state) updateData.state = this.selectedClient.state;
-                if (this.selectedClient.municipio) updateData.municipio = this.selectedClient.municipio;
-                if (this.selectedClient.parroquia) updateData.parroquia = this.selectedClient.parroquia;
+                if (client.firstName) updateData.firstName = client.firstName;
+                if (client.lastName) updateData.lastName = client.lastName;
+                if (client.identification) updateData.identification = client.identification;
+                if (client.phoneNumber) updateData.phoneNumber = client.phoneNumber;
+                if (client.state) updateData.state = client.state;
+                if (client.municipio) updateData.municipio = client.municipio;
+                if (client.parroquia) updateData.parroquia = client.parroquia;
 
                 // Only proceed if there is something to update
                 if (Object.keys(updateData).length > 0) {
@@ -479,7 +558,7 @@ export default {
                     await update(userRef, updateData);
 
                     // Update email via Cloud Function if the email is changed
-                    const newEmail = this.selectedClient.email;
+                    const newEmail = client.email;
                     if (newEmail && client.email !== newEmail) {
                         // Call the Cloud Function for updating the email
                         const data = {
@@ -505,10 +584,10 @@ export default {
                         }
                     }
 
-                    this.cancelEdit();
+                    this.cancelEdit(client);
                     this.fetchClients();
 
-                    showToast("Información actualizada!");
+                    showToast.success("Información actualizada!");
                 } else {
                     alert('No hay campos para actualizar.');
                 }
@@ -532,6 +611,9 @@ export default {
                         uid: client.uid,
                     };
 
+                    // Show the loader
+                    this.isSubmitting = true;
+
                     // Call the Cloud Function to delete the user using fetch
                     const response = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/deleteUser', {
                         method: 'POST',
@@ -551,7 +633,7 @@ export default {
                         await remove(clientRef);
 
                         // Show success toast
-                        showToast("Cliente eliminado.");
+                        showToast.success("Cliente eliminado.");
 
                         // Remove the client from the UI
                         this.fetchClients();
@@ -562,6 +644,9 @@ export default {
                     }
                 } catch (error) {
                     console.error('Error deleting client:', error);
+                } finally {
+                    // Hide the loader
+                    this.isSubmitting = false;
                 }
             }
         },
@@ -588,123 +673,47 @@ export default {
             return `${day}/${month}/${year}`;
         },
 
-        openImgModal(imageUrl) {
-            this.modalImageUrl = imageUrl;
-            new Modal(document.getElementById('idImgModal')).show();
-        },
         async approveID(client) {
-            const userName = client.firstName + ' ' + client.lastName;
             try {
-                // Show the loader
-                this.isSubmitting = true;
-
-                const userRef = dbRef(db, `Users/${client.uid}`);
-                await update(userRef, { isVerified: true });
-
-                // Send an email notification to the client through Firebase Cloud Functions
-                const emailPayload = {
-                    to: client.email,
-                    message: {
-                        subject: "Verificación Aprobada en Rose App",
-                        text: `Hola ${userName}, tu solicitud de verificación ha sido aprobada.`,
-                    },
-                };
-                // Send email via the utility function
-                const result = await sendEmail(emailPayload);
-
-                if (result.success) {
-                    console.log("Email sent successfully:", result.message);
-                } else {
-                    console.error("Failed to send email:", result.error);
+                // Update the client's verification status in the database
+                const clientRef = dbRef(db, `Users/${client.uid}`);
+                await update(clientRef, {
+                    isVerified: true
+                });
+                
+                // Update the local client object
+                client.isVerified = true;
+                
+                // Show success message
+                showToast.success('Verificación de identidad aprobada');
+                
+                // Fetch ID files if they haven't been loaded yet
+                if (!client.idFiles) {
+                    await this.fetchIdFiles(client);
                 }
-
-                showToast('Usuario verificado con éxito.');
-                this.fetchIdFiles(client);
             } catch (error) {
-                console.error("Error approving ID:", error);
-            } finally {
-                // Hide the loader
-                this.isSubmitting = false;
+                console.error('Error approving ID verification:', error);
+                showToast.error('Error al aprobar la verificación');
             }
         },
         async dissapproveID(client) {
-            // Confirmation dialog
-            if (confirm("¿Desea rechazar la verificación de este cliente?")) {
-                // User clicked "OK"
-                try {
-                    this.isSubmitting = true;
-
-                    // Fetch the user's verification files from the Database
-                    const userRef = dbRef(db, `Users/${client.uid}`);
-                    const snapshot = await get(dbRef(db, `Users/${client.uid}/verificationFiles`));
-
-                    if (!snapshot.exists()) {
-                        console.warn(`No verification files found for ${client.uid}, skipping deletion.`);
-                        return;
-                    }
-
-                    const verificationFiles = snapshot.val();
-                    const filePaths = [
-                        verificationFiles['Front-ID'] || null,
-                        verificationFiles['Back-ID'] || null,
-                        verificationFiles['Selfie'] || null
-                    ].filter(Boolean); // Filter out null values
-
-                    // Function to delete files from Firebase Storage
-                    const deleteFile = async (fileUrl) => {
-                        try {
-                            const fileRef = storageRef(storage, fileUrl);
-                            await deleteObject(fileRef);
-                            console.log(`${fileUrl} deleted successfully.`);
-                        } catch (error) {
-                            if (error.code === 'storage/object-not-found') {
-                                console.warn(`${fileUrl} not found, skipping deletion.`);
-                            } else {
-                                console.error(`Error deleting ${fileUrl}:`, error);
-                            }
-                        }
-                    };
-
-                    // Delete the files
-                    for (const filePath of filePaths) {
-                        await deleteFile(filePath);
-                    }
-
-                    // Clear verification status and files from the user's database entry
-                    await update(userRef, {
-                        isVerified: null,
-                        requestedVerification: null,
-                        verificationFiles: null, // Clear verification files in the database
-                    });
-
-                    // Send an email notification to the client via Firebase Cloud Functions
-                    const emailPayload = {
-                        to: client.email,
-                        message: {
-                            subject: "Verificación Denegada",
-                            text: `Hola ${client.firstName}, tu solicitud de verificación ha sido denegada. Por favor, sube nuevamente tus archivos de verificación.`,
-                        },
-                    };
-                    // Send email via the utility function
-                    const result = await sendEmail(emailPayload);
-
-                    if (result.success) {
-                        console.log("Email sent successfully:", result.message);
-                    } else {
-                        console.error("Failed to send email:", result.error);
-                    }
-
-                    // Show a success toast and refresh client list
-                    showToast('Verificación denegada y archivos eliminados.');
-                    this.fetchClients();
-
-                } catch (error) {
-                    console.error("Error disapproving verification:", error);
-                    showToast('Error al denegar la verificación. Por favor, inténtelo nuevamente.');
-                } finally {
-                    // Hide the loader
-                    this.isSubmitting = false;
-                }
+            try {
+                // Update the client's verification status in the database
+                const clientRef = dbRef(db, `Users/${client.uid}`);
+                await update(clientRef, {
+                    isVerified: false,
+                    requestedVerification: false
+                });
+                
+                // Update the local client object
+                client.isVerified = false;
+                client.requestedVerification = false;
+                
+                // Show success message
+                showToast.warning('Verificación de identidad rechazada');
+            } catch (error) {
+                console.error('Error disapproving ID verification:', error);
+                showToast.error('Error al rechazar la verificación');
             }
         },
         async approvePayment(client) {
@@ -735,7 +744,7 @@ export default {
                     console.error("Failed to send email:", result.error);
                 }
 
-                showToast('Pago aprobado. Se ha notificado al cliente.');
+                showToast.success('Pago aprobado. Se ha notificado al cliente.');
                 //Close Payment modal after approval
                 const modal = Modal.getOrCreateInstance(document.getElementById('validateModal'));
                 modal.hide();
@@ -801,47 +810,11 @@ export default {
                 }
             }
         },
-        cancelEdit(client) {
-            // Restore original values
-            if (client._original) {
-                Object.assign(client, client._original);
-                delete client._original;
-            }
-            client.isEditing = false;
-        },
-        async saveClientChanges(client) {
-            try {
-                this.isSubmitting = true;
-                
-                // Update in Firebase
-                await update(dbRef(db, `Users/${client.uid}`), {
-                    firstName: client.firstName,
-                    lastName: client.lastName,
-                    identification: client.identification,
-                    email: client.email,
-                    phoneNumber: client.phoneNumber,
-                    state: client.state,
-                    municipio: client.municipio,
-                    parroquia: client.parroquia
-                });
-
-                // Clean up edit state
-                delete client._original;
-                client.isEditing = false;
-                
-                showToast('Cliente actualizado exitosamente', { type: 'success' });
-            } catch (error) {
-                console.error('Error updating client:', error);
-                showToast('Error al actualizar el cliente', { type: 'error' });
-            } finally {
-                this.isSubmitting = false;
-            }
-        },
-        openIdImage(imageUrl) {
-            if (!imageUrl) return;
-            this.modalImageUrl = imageUrl;
-            const modal = new Modal(document.getElementById('idImgModal'));
-            modal.show();
+        openIDImage(url) {
+            if (!url) return;
+            
+            // Open the image in a new tab
+            window.open(url, '_blank');
         }
     }
 }
@@ -864,27 +837,40 @@ export default {
             </div>
         </div>
 
-        <!-- Search and Stats -->
         <div class="clients-wrapper">
             <div class="search-section p-3">
+                <div class="row align-items-center mb-3">
+                    <div class="col-md-4 mt-3 mt-md-0">
+                        <span class="badge bg-dark fs-6 p-2">
+                            {{ clients.length }} Clientes registrados
+                        </span>
+                    </div>
+                </div>
                 <div class="row align-items-center">
-                    <div class="col-md-8">
+                    <!-- Search bar -->
+                    <div class="col-md-9 mb-3">
+                        <label class="form-label">Buscar cliente</label>
                         <div class="input-group">
                             <span class="input-group-text bg-dark border-secondary">
                                 <i class="fas fa-search text-light"></i>
                             </span>
                             <input 
                                 v-model="searchQuery" 
-                                class="form-control bg-dark text-light border-secondary" 
+                                class="form-control form-control-sm bg-dark text-light border-secondary" 
                                 placeholder="Buscar por nombre o cédula..."
                             >
                         </div>
                     </div>
-                    <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                        <span class="badge bg-dark fs-6">
-                            {{ clients.length }} Clientes registrados
-                        </span>
-                    </div>
+                    <!-- Filter by verification -->
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Filtrar por verificación</label>
+                        <select class="form-select form-select-sm bg-dark text-light border-secondary" v-model="verificationFilter">
+                            <option value="all">Todos los clientes ({{ verificationCounts.all }})</option>
+                            <option value="verified">Verificados ({{ verificationCounts.verified }})</option>
+                            <option value="pending">Pendientes de verificación ({{ verificationCounts.pending }})</option>
+                            <option value="unverified">No verificados ({{ verificationCounts.unverified }})</option>
+                        </select>
+                    </div>                    
                 </div>
             </div>
 
@@ -917,10 +903,19 @@ export default {
                                         <i class="fas fa-user"></i>
                                     </div>
                                     <div>
-                                        <h5 class="client-name mb-1">
-                                            {{ client.firstName + " " + client.lastName }}
-                                            <span class="badge bg-dark ms-2">V-{{ client.identification }}</span>
-                                        </h5>
+                                        <div class="d-flex align-items-center">
+                                            <h6 class="mb-0">{{ client.firstName }} {{ client.lastName }}</h6>
+                                            <span v-if="client.isVerified" 
+                                                  class="ms-2 badge bg-success" 
+                                                  title="Cliente verificado">
+                                                <i class="fas fa-check-circle"></i>
+                                            </span>
+                                            <span v-else-if="client.requestedVerification" 
+                                                  class="ms-2 badge bg-warning" 
+                                                  title="Verificación pendiente">
+                                                <i class="fas fa-clock"></i>
+                                            </span>
+                                        </div>
                                         <div class="client-contact">
                                             <div class="text-secondary small">
                                                 <i class="fas fa-envelope me-2"></i>{{ client.email }}
@@ -933,12 +928,6 @@ export default {
                                 </div>
                             </div>
                             <div class="client-actions-group">
-                                <div class="verification-status">
-                                    <span :class="['status-badge', client.isVerified ? 'active' : '']">
-                                        <i :class="client.isVerified ? 'fa fa-user-check' : 'fa fa-user-times'"></i>
-                                        {{ client.isVerified ? 'Verificado' : 'No Verificado' }}
-                                    </span>
-                                </div>
                                 <div class="client-actions">
                                     <button class="btn btn-sm btn-outline-primary me-2" 
                                             @click.stop="toggleEdit(client)"
@@ -948,7 +937,8 @@ export default {
                                     <button class="btn btn-sm btn-outline-danger" 
                                             @click.stop="deleteClient(client, index)"
                                             title="Eliminar cliente">
-                                        <i class="fas fa-trash"></i>
+                                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                            <i class="fas fa-trash" v-else></i>
                                     </button>
                                 </div>
                             </div>
@@ -1016,7 +1006,7 @@ export default {
                                 <button class="btn btn-sm btn-outline-secondary me-2" @click="cancelEdit(client)">
                                     Cancelar
                                 </button>
-                                <button class="btn btn-sm btn-theme" @click="saveClientChanges(client)">
+                                <button class="btn btn-sm btn-theme" @click="updateClient(client)">
                                     Guardar cambios
                                 </button>
                             </div>
@@ -1054,33 +1044,42 @@ export default {
                                             <i class="fas fa-credit-card me-2"></i>Créditos
                                         </h6>
                                         <div class="credit-info">
-                                            <div v-if="client.credit?.mainCredit" class="mb-2">
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <span>Rose Credit:</span>
-                                                    <span class="text-success">${{ client.credit.mainCredit }}</span>
-                                                </div>
-                                                <div class="progress" style="height: 6px;">
-                                                    <div class="progress-bar bg-success" 
-                                                         :style="{ width: `${(client.credit.availableMainCredit / client.credit.mainCredit) * 100}%` }">
+                                            <div v-if="client.credit">
+                                                <div v-if="client.credit?.mainCredit" class="mb-2">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <span>Rose Credit:</span>
+                                                        <span class="text-success">${{ client.credit.mainCredit }}</span>
                                                     </div>
+                                                    <div class="progress" style="height: 6px;">
+                                                        <div class="progress-bar bg-success" 
+                                                             :style="{ width: `${(client.credit.availableMainCredit / client.credit.mainCredit) * 100}%` }">
+                                                        </div>
+                                                    </div>
+                                                    <small class="text-muted">
+                                                        Disponible: ${{ client.credit.availableMainCredit }}
+                                                    </small>
                                                 </div>
-                                                <small class="text-muted">
-                                                    Disponible: ${{ client.credit.availableMainCredit }}
-                                                </small>
+                                                <div v-if="client.credit?.plusCredit">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <span>Rose Credit Plus:</span>
+                                                        <span class="text-primary">${{ client.credit.plusCredit }}</span>
+                                                    </div>
+                                                    <div class="progress" style="height: 6px;">
+                                                        <div class="progress-bar bg-primary" 
+                                                             :style="{ width: `${(client.credit.availablePlusCredit / client.credit.plusCredit) * 100}%` }">
+                                                        </div>
+                                                    </div>
+                                                    <small class="text-muted">
+                                                        Disponible: ${{ client.credit.availablePlusCredit }}
+                                                    </small>
+                                                </div>
+                                                <div v-if="!client.credit.mainCredit && !client.credit.plusCredit" class="text-center py-2">
+                                                    <p class="text-secondary mb-0">Sin crédito asignado</p>
+                                                </div>
                                             </div>
-                                            <div v-if="client.credit?.plusCredit">
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <span>Rose Credit Plus:</span>
-                                                    <span class="text-primary">${{ client.credit.plusCredit }}</span>
-                                                </div>
-                                                <div class="progress" style="height: 6px;">
-                                                    <div class="progress-bar bg-primary" 
-                                                         :style="{ width: `${(client.credit.availablePlusCredit / client.credit.plusCredit) * 100}%` }">
-                                                    </div>
-                                                </div>
-                                                <small class="text-muted">
-                                                    Disponible: ${{ client.credit.availablePlusCredit }}
-                                                </small>
+                                            <div v-else class="text-center py-3">
+                                                <i class="fas fa-exclamation-circle text-warning mb-2" style="font-size: 1.5rem;"></i>
+                                                <p class="text-secondary mb-0">Sin crédito asignado</p>
                                             </div>
                                         </div>
                                     </div>
@@ -1093,22 +1092,32 @@ export default {
                                             <i class="fas fa-clock me-2"></i>Suscripción
                                         </h6>
                                         <div class="subscription-info">
-                                            <div class="d-flex justify-content-start gap-2 align-items-center mb-2">
-                                                <span>Estado:</span>
-                                                <span :class="client.subscription?.isPaid ? 'text-success' : 'text-danger'">
-                                                    {{ client.subscription?.isPaid ? 'Activa' : 'Inactiva' }}
-                                                </span>
-                                            </div>
-                                            <div v-if="client.subscription?.lastPaymentDate" class="small text-muted">
-                                                Último pago: {{ formatDate(client.subscription.lastPaymentDate) }}
-                                            </div>
-                                            <div v-if="client.subscription?.paymentUrl" class="mt-2">
-                                                <div class="d-flex justify-content-center align-items-center mb-2">
-                                                    <button class="btn btn-sm btn-theme" @click="openImageInNewTab(client.subscription.paymentUrl)">
-                                                        <i class="fa fa-eye"></i>
-                                                        Ver pago
-                                                    </button>
+                                            <div v-if="client.subscription">
+                                                <div class="d-flex justify-content-start gap-2 align-items-center mb-2">
+                                                    <span class="fw-bold">Nivel:</span>
+                                                    <span>{{ client.subscription?.name?.toUpperCase() || 'Básico' }}</span>
                                                 </div>
+                                                <div class="d-flex justify-content-start gap-2 align-items-center mb-2">                                                
+                                                    <span class="fw-bold">Estado:</span>
+                                                    <span :class="client.subscription?.isPaid ? 'text-success' : 'text-danger'">
+                                                        {{ client.subscription?.isPaid ? 'Activa' : 'Inactiva' }}
+                                                    </span>
+                                                </div>
+                                                <div v-if="client.subscription?.lastPaymentDate" class="small text-muted">
+                                                    Último pago: {{ formatDate(client.subscription.lastPaymentDate) }}
+                                                </div>
+                                                <div v-if="client.subscription?.paymentUrl" class="mt-2">
+                                                    <div class="d-flex justify-content-center align-items-center mb-2">
+                                                        <button class="btn btn-sm btn-theme" @click="openImageInNewTab(client.subscription.paymentUrl)">
+                                                            <i class="fa fa-eye"></i>
+                                                            Ver pago
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div v-else class="text-center py-3">
+                                                <i class="fas fa-exclamation-circle text-warning mb-2" style="font-size: 1.5rem;"></i>
+                                                <p class="text-secondary mb-0">Sin suscripción activa</p>
                                             </div>
                                         </div>
                                     </div>
@@ -1121,63 +1130,52 @@ export default {
                                             <i class="fas fa-id-card me-2"></i>Documentos de Identidad
                                         </h6>
                                         <div class="id-documents">
-                                            <div class="row g-3">
-                                                <!-- Front ID -->
-                                                <div class="col-md-4">
-                                                    <div class="document-card">
-                                                        <h6 class="text-muted mb-2">Cédula (Frontal)</h6>
-                                                        <div class="document-preview" @click="openIdImage(client.idFrontUrl)">
-                                                            <div v-if="client.idFrontUrl" class="preview-container">
-                                                                <img :src="client.idFrontUrl" alt="ID Front" class="img-fluid">
-                                                                <div class="preview-overlay">
-                                                                    <i class="fas fa-search-plus"></i>
+                                            <!-- Show message if client is not verified -->
+                                            <div v-if="!client.requestedVerification" class="text-center py-3">
+                                                <i class="fas fa-exclamation-circle text-warning mb-2" style="font-size: 2rem;"></i>
+                                                <p class="text-secondary mb-0">Este cliente no ha solicitado verificación de identidad.</p>
+                                            </div>
+                                            
+                                            <!-- Show verification status if requested but not approved -->
+                                            <div v-else-if="client.requestedVerification && !client.isVerified" class="text-center py-3">
+                                                <i class="fas fa-clock text-info mb-2" style="font-size: 2rem;"></i>
+                                                <p class="text-secondary mb-0">Este cliente ha solicitado verificación pero aún no ha sido aprobada.</p>
+                                                <div class="mt-3">
+                                                    <button class="btn btn-sm btn-success me-2" @click="approveID(client)">
+                                                        <i class="fas fa-check me-1"></i>Aprobar
+                                                    </button>
+                                                    <button class="btn btn-sm btn-danger" @click="dissapproveID(client)">
+                                                        <i class="fas fa-times me-1"></i>Rechazar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Show ID documents if client is verified -->
+                                            <div v-else-if="client.isVerified" class="row g-3">
+                                                <div v-if="loadingStates[client.uid + '_files']" class="text-center py-3">
+                                                    <div class="spinner-border spinner-border-sm text-secondary" role="status">
+                                                        <span class="visually-hidden">Cargando...</span>
+                                                    </div>
+                                                    <p class="text-secondary mt-2 mb-0">Cargando documentos...</p>
+                                                </div>
+                                                <template v-else>
+                                                    <div v-if="client.idFiles && client.idFiles.length > 0" class="row g-3">
+                                                        <div v-for="(file, index) in client.idFiles" :key="index" class="col-md-4">
+                                                            <div class="id-file-card">
+                                                                <div class="id-file-preview" @click="openIDImage(file.url)">
+                                                                    <img :src="file.url" alt="ID Document" class="img-fluid">
                                                                 </div>
-                                                            </div>
-                                                            <div v-else class="no-document">
-                                                                <i class="fas fa-file-image text-muted"></i>
-                                                                <span>No disponible</span>
+                                                                <div class="id-file-info">
+                                                                    <span class="id-file-type">{{ file.type }}</span>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                </div>
-
-                                                <!-- Back ID -->
-                                                <div class="col-md-4">
-                                                    <div class="document-card">
-                                                        <h6 class="text-muted mb-2">Cédula (Reverso)</h6>
-                                                        <div class="document-preview" @click="openIdImage(client.idBackUrl)">
-                                                            <div v-if="client.idBackUrl" class="preview-container">
-                                                                <img :src="client.idBackUrl" alt="ID Back" class="img-fluid">
-                                                                <div class="preview-overlay">
-                                                                    <i class="fas fa-search-plus"></i>
-                                                                </div>
-                                                            </div>
-                                                            <div v-else class="no-document">
-                                                                <i class="fas fa-file-image text-muted"></i>
-                                                                <span>No disponible</span>
-                                                            </div>
-                                                        </div>
+                                                    <div v-else class="text-center py-3">
+                                                        <i class="fas fa-folder-open text-secondary mb-2" style="font-size: 2rem;"></i>
+                                                        <p class="text-secondary mb-0">No se encontraron documentos.</p>
                                                     </div>
-                                                </div>
-
-                                                <!-- Selfie -->
-                                                <div class="col-md-4">
-                                                    <div class="document-card">
-                                                        <h6 class="text-muted mb-2">Selfie con Cédula</h6>
-                                                        <div class="document-preview" @click="openIdImage(client.selfieUrl)">
-                                                            <div v-if="client.selfieUrl" class="preview-container">
-                                                                <img :src="client.selfieUrl" alt="Selfie" class="img-fluid">
-                                                                <div class="preview-overlay">
-                                                                    <i class="fas fa-search-plus"></i>
-                                                                </div>
-                                                            </div>
-                                                            <div v-else class="no-document">
-                                                                <i class="fas fa-file-image text-muted"></i>
-                                                                <span>No disponible</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                </template>
                                             </div>
                                         </div>
                                     </div>
@@ -1298,7 +1296,10 @@ export default {
                             <i class="fas fa-times me-2"></i>Cancelar
                         </button>
                         <button type="button" class="btn btn-sm btn-theme" @click="createClient()">
-                            <i class="fas fa-save me-2"></i>Guardar
+                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span v-else>
+                                <i class="fas fa-save me-2"></i>Guardar
+                            </span>
                         </button>
                     </div>
                 </div>
@@ -1633,6 +1634,33 @@ export default {
     .document-card {
         margin-bottom: 1rem;
     }
+
+    .search-section {
+    padding: 1rem;
+  }
+  
+  .row.align-items-center {
+    row-gap: 0.5rem;
+  }
+  
+  .d-flex.justify-content-between.align-items-center.mb-4 {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 1rem;
+  }
+  
+  .d-flex.justify-content-between.align-items-center.mb-4 .btn-group {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .badge.fs-6 {
+    font-size: 0.75rem !important;
+    display: inline-block;
+    width: auto;
+    text-align: center;
+    margin-bottom: 0.5rem;
+  }
 }
 
 /* Modal Styles */
@@ -1678,5 +1706,46 @@ export default {
 .btn-outline-light:hover {
     background-color: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.2);
+}
+
+.id-file-card {
+    background-color: #2a2a2a;
+    border-radius: 8px;
+    overflow: hidden;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.id-file-preview {
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    padding-top: 60%; /* 3:5 aspect ratio */
+}
+
+.id-file-preview img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.id-file-preview:hover img {
+    transform: scale(1.05);
+}
+
+.id-file-info {
+    padding: 0.75rem;
+    background-color: #333;
+}
+
+.id-file-type {
+    font-size: 0.875rem;
+    color: #ddd;
+    font-weight: 500;
 }
 </style>

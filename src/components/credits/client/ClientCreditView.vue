@@ -6,6 +6,21 @@
       </div>
     </div>
     <div v-else>
+      <!-- Expired Cuotas Warning Alert -->
+      <div v-if="hasExpiredCuotas" class="alert alert-warning mb-4 d-flex align-items-start">
+        <div class="alert-icon me-3">
+          <i class="fas fa-exclamation-triangle fa-2x text-warning"></i>
+        </div>
+        <div class="alert-content">
+          <h5 class="alert-heading mb-1">¡Atención! Tienes cuotas vencidas</h5>
+          <p class="mb-1">Tienes {{ expiredCuotasCount }} cuota{{ expiredCuotasCount > 1 ? 's' : '' }} sin pagar que {{ expiredCuotasCount > 1 ? 'han' : 'ha' }} vencido.</p>
+          <p class="mb-0">No podrás realizar nuevas compras a crédito hasta que regularices tus pagos pendientes.</p>
+          <!-- <button class="btn btn-sm btn-warning mt-2" @click="showExpiredCuotas">
+            <i class="fas fa-eye me-1"></i> Ver cuotas vencidas
+          </button> -->
+        </div>
+      </div>
+
       <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h4 class="mb-0 fw-500 text-theme">
@@ -146,7 +161,9 @@ export default {
         status: 'Todos',
         date: 'Todos'
       },
-      activeSort: 'date-desc'
+      activeSort: 'date-desc',
+      expiredCuotasCount: 0,
+      expiredPurchases: []
     }
   },
   computed: {
@@ -209,6 +226,9 @@ export default {
       const start = (this.currentPage - 1) * this.itemsPerPage;
       const end = start + this.itemsPerPage;
       return this.filteredPurchases.slice(start, end);
+    },
+    hasExpiredCuotas() {
+      return this.expiredCuotasCount > 0;
     }
   },
   methods: {
@@ -293,12 +313,48 @@ export default {
         startDate: '',
         endDate: today.toISOString().split('T')[0]
       };
+    },
+    checkForExpiredCuotas() {
+      if (!this.currentClient?.credit?.mainPurchases) return;
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      this.expiredPurchases = [];
+      let expiredCount = 0;
+      
+      // Check each purchase for expired unpaid cuotas
+      this.currentClient.credit.mainPurchases.forEach(purchase => {
+        if (purchase.cuotas) {
+          const expiredCuotas = purchase.cuotas.filter(cuota => {
+            const cuotaDate = new Date(cuota.date);
+            return !cuota.paid && cuotaDate < today;
+          });
+          
+          if (expiredCuotas.length > 0) {
+            this.expiredPurchases.push({
+              ...purchase,
+              expiredCuotas
+            });
+            expiredCount += expiredCuotas.length;
+          }
+        }
+      });
+      
+      this.expiredCuotasCount = expiredCount;
+    },
+    showExpiredCuotas() {
+      if (this.expiredPurchases.length > 0) {
+        // Show the first purchase with expired cuotas
+        this.showQuotas(this.expiredPurchases[0]);
+      }
     }
   },
   async mounted() {
     await this.$nextTick();
     this.loading = false;
     this.setDefaultDateFilter();
+    this.checkForExpiredCuotas();
   },
   watch: {
     currentClient: {
@@ -308,6 +364,9 @@ export default {
           newValue.credit.mainPurchases.sort((a, b) => 
             new Date(b.date) - new Date(a.date)
           );
+          this.$nextTick(() => {
+            this.checkForExpiredCuotas();
+          });
         }
       }
     }
@@ -328,5 +387,35 @@ h4 {
 
 .text-theme {
   color: #6f42c1;
+}
+
+.alert-icon {
+  flex-shrink: 0;
+}
+
+.alert-content {
+  flex-grow: 1;
+}
+
+.alert-warning {
+  background-color: rgba(255, 193, 7, 0.15);
+  border-color: rgba(255, 193, 7, 0.3);
+  color: #f8f9fa;
+}
+
+.alert-heading {
+  color: #ffc107;
+  font-size: 1.1rem;
+}
+
+.btn-warning {
+  background-color: #ffc107;
+  border-color: #ffc107;
+  color: #212529;
+}
+
+.btn-warning:hover {
+  background-color: #e0a800;
+  border-color: #d39e00;
 }
 </style> 

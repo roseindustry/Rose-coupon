@@ -77,6 +77,23 @@
                       </div>
                     </div>
                   </div>
+
+                  <!-- Add this right after the selected client info section -->
+                  <div v-if="selectedClient && selectedClient.hasUnpaidCuotas" class="alert alert-danger mt-3">
+                    <div class="d-flex align-items-start">
+                      <i class="fas fa-exclamation-circle fa-2x me-2 text-danger"></i>
+                      <div>
+                        <h5 class="mb-1">Cliente con pagos pendientes</h5>
+                        <p class="mb-1">Este cliente tiene {{ selectedClient.unpaidCuotasCount }} cuota{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} vencida{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} sin pagar.</p>
+                        <p v-if="selectedClient.unpaidCuotasCount > 2" class="mb-0 fw-bold">
+                          No se puede proceder con la compra hasta que el cliente regularice sus pagos.
+                        </p>
+                        <p v-else class="mb-0">
+                          El cliente puede proceder con la compra, pero se recomienda regularizar los pagos pendientes.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- Step 2: Purchase Details -->
@@ -176,9 +193,8 @@
                           <div class="col-md-4">
                             <label class="text-secondary">Préstamo</label>
                             <h5 class="text-light">${{ loanAmount.toLocaleString() }}</h5>
-                            <small class="text-secondary" v-if="selectedClient?.subscription">
-                              Incluye cargo por suscripción {{ selectedClient.subscription.name.charAt(0).toUpperCase() + selectedClient.subscription.name.slice(1) }}: 
-                              ${{ getTierFee(selectedClient.subscription.order) }}
+                            <small class="text-secondary" v-if="includeFee">
+                              Incluye cargo de $1 por gestión
                             </small>
                           </div>
                           <div class="col-md-2">
@@ -258,42 +274,38 @@
                         </template>
                     </div>
 
-                    <!-- Add reset button for admins/testing -->
-                    <button 
+                    <!-- Form Buttons -->
+                    <div class="d-flex justify-content-between">
+                        <button v-if="!verificationRequested" 
                         type="button" 
-                        class="btn btn-sm btn-outline-secondary mt-2" 
-                        title="Reiniciar intentos de verificación"
-                        @click="resetClientAttempts">
-                        <i class="fas fa-redo-alt me-1"></i>
-                        Reset Intentos
-                    </button>
-
-                    <div class="btn-group gap-2" role="group" aria-label="Basic example">
-                        <button type="button" class="btn btn-danger btn-sm" @click="cancelPurchase">
-                            <i class="fas fa-times me-2"></i>Cancelar
-                        </button>
-                        <button type="button" class="btn btn-warning btn-sm" 
+                                class="btn btn-outline-secondary" 
                             @click="sendDummyCode(selectedClient)"
-                            :disabled="waiting || !isFormValid || 
-                                (selectedClient && clientVerifications[this.selectedClient.id]?.cooldownEnds > Date.now())">
-                            <span v-if="waiting" class="spinner-border spinner-border-sm me-2"></span>
-                            <i v-else class="fas fa-envelope me-2"></i>
-                            Enviar Mensaje de Mantenimiento
+                                :disabled="!selectedClient || hasExceededAttempts || clientHasTooManyUnpaidCuotas">
+                            <i class="fas fa-wrench me-2"></i>
+                            Mantenimiento
                         </button>
-                        <button type="button" class="btn btn-theme btn-sm" 
-                            @click="askForCode(selectedClient)"
-                            :disabled="waiting || !isFormValid || 
-                                (selectedClient && clientVerifications[this.selectedClient.id]?.cooldownEnds > Date.now())">
-                            <span v-if="waiting" class="spinner-border spinner-border-sm me-2"></span>
-                            <i v-else class="fas fa-sms me-2"></i>
-                            Solicitar Código
-                        </button>
-                        <button v-if="verificationRequested" type="submit" 
-                            class="btn btn-success btn-sm" :disabled="!verificationCode || loading">
-                            <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
-                            <i v-else class="fas fa-check me-2"></i>
-                            Confirmar Venta
-                        </button>
+                        <div>
+                            <button type="button" 
+                                    class="btn btn-outline-light me-2" 
+                                    @click="cancelPurchase">
+                                Cancelar
+                            </button>
+                            <button v-if="calc && !verificationRequested" 
+                                    type="button" 
+                                    class="btn btn-theme" 
+                                    @click="requestVerification"
+                                    :disabled="!canRequestVerification">
+                                <i class="fas fa-key me-2"></i>
+                                Solicitar Código
+                            </button>
+                            <button v-if="verificationRequested" 
+                                    type="submit" 
+                                    class="btn btn-theme"
+                                    :disabled="!verificationCode || clientHasTooManyUnpaidCuotas">
+                                <i class="fas fa-check me-2"></i>
+                                Confirmar Compra
+                            </button>
+                        </div>
                     </div>
                 </div>
               </form>
@@ -741,6 +753,16 @@ export default {
       // If we have either, show messages
       return hasCooldown || hasRateLimitData;
     },
+    clientHasTooManyUnpaidCuotas() {
+      return this.selectedClient && 
+             this.selectedClient.hasUnpaidCuotas && 
+             this.selectedClient.unpaidCuotasCount > 2;
+    },
+    canRequestVerification() {
+      return this.calculationsPerformed && 
+             !this.clientHasTooManyUnpaidCuotas && 
+             !this.hasExceededAttempts;
+    },
   },
   watch: {
     frequency(newVal) {
@@ -796,6 +818,14 @@ export default {
 
         if (!client.email) {
           throw new Error('El cliente no tiene email registrado. Por favor actualice los datos del cliente.');
+        }
+
+        // Check for unpaid cuotas
+        await this.checkClientUnpaidCuotas(client);
+
+        if (client.hasUnpaidCuotas) {
+          toast.error('No se puede proceder con la compra. El cliente debe regularizar sus pagos pendientes.');
+          return;
         }
 
         // Make the cloud function request with type=purchase
@@ -891,56 +921,72 @@ export default {
       }, 1000);
     },
     async selectClient(client) {
-      this.selectedClient = client;
-      this.searchClient = '';
-      
-      // Save current verification state
-      const wasVerificationRequested = this.verificationRequested;
-      const currentVerificationCode = this.verificationCode;
-      
-      // Fetch current rate limit information from the database
       try {
-        const rateLimitRef = dbRef(db, `rateLimits/verificationCodes/${client.id}/purchase`);
-        const snapshot = await get(rateLimitRef);
+        this.selectedClient = client;
+        this.searchClient = '';
+        this.searchClientResults = [];
+        
+        // Check for unpaid cuotas
+        await this.checkClientUnpaidCuotas(client);
+        
+        // Reset other fields
+        this.newPurchase.productName = '';
+        this.newPurchase.productPrice = '';
+        this.calc = false;
+        this.verificationRequested = false;
+        this.verificationCode = '';
+      } catch (error) {
+        console.error("Error selecting client:", error);
+      }
+    },
+    async checkClientUnpaidCuotas(client) {
+      try {
+        // Get client purchases from database
+        const clientRef = dbRef(db, `Users/${client.id}/credit/main/purchases`);
+        const snapshot = await get(clientRef);
         
         if (snapshot.exists()) {
-          const rateLimitData = snapshot.val();
-          const now = Date.now();
-          const attempts = rateLimitData.attempts || 0;
-          const remainingAttempts = 5 - attempts;
-          const cooldownEnds = rateLimitData.lastAttempt ? rateLimitData.lastAttempt + (2 * 60 * 1000) : 0;
-          const resetTime = rateLimitData.firstAttempt + (24 * 60 * 60 * 1000);
+          const purchases = snapshot.val();
+          let unpaidCuotasCount = 0;
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
           
-          if (cooldownEnds > now) {
-            const secondsLeft = Math.ceil((cooldownEnds - now) / 1000);
-            console.log('Tiempo de espera restante:', secondsLeft, 'segundos');
-          } else {            
-            console.log('No hay tiempo de espera activo');
-          }
+          // Check each purchase for unpaid expired cuotas
+          Object.values(purchases).forEach(purchase => {
+            if (purchase.cuotas) {
+              Object.values(purchase.cuotas).forEach(cuota => {
+                const cuotaDate = new Date(cuota.date);
+                if (!cuota.paid && cuotaDate < today) {
+                  unpaidCuotasCount++;
+                }
+              });
+            }
+          });
           
-          // Store minimal information in clientVerifications for UI purposes only
-          this.clientVerifications[client.id] = {
-            cooldownEnds: cooldownEnds
+          // Update client object with unpaid cuotas info
+          this.selectedClient = {
+            ...this.selectedClient,
+            hasUnpaidCuotas: unpaidCuotasCount > 0,
+            unpaidCuotasCount: unpaidCuotasCount
           };
-        } else {
           
-          // Initialize with empty data
-          this.clientVerifications[client.id] = {
-            cooldownEnds: 0
+          console.log(`Client ${client.firstName} ${client.lastName} has ${unpaidCuotasCount} unpaid expired cuotas`);
+        } else {
+          // No purchases found
+          this.selectedClient = {
+            ...this.selectedClient,
+            hasUnpaidCuotas: false,
+            unpaidCuotasCount: 0
           };
         }
       } catch (error) {
-        console.error('Error fetching rate limit data:', error);
-      }
-      
-      // Restore verification state instead of resetting it
-      this.verificationRequested = wasVerificationRequested;
-      this.verificationCode = currentVerificationCode;
-      
-      // Clear any existing countdown when changing clients
-      if (this.countdownTimer) {
-        clearInterval(this.countdownTimer);
-        this.countdownTimer = null;
+        console.error("Error checking unpaid cuotas:", error);
+        // Default to allowing purchase if there's an error checking
+        this.selectedClient = {
+          ...this.selectedClient,
+          hasUnpaidCuotas: false,
+          unpaidCuotasCount: 0
+        };
       }
     },
     formatDate(date) {
@@ -1059,17 +1105,34 @@ export default {
     calculateDates(startDate, terms, frequency) {
       try {
         const dates = [];
+        // Create a new Date object from the purchase date
         let currentDate = new Date(startDate);
         
         if (isNaN(currentDate.getTime())) {
           throw new Error('Fecha de compra inválida');
         }
         
+        // Set the first payment date based on frequency
+        // First, advance the date by the frequency period
+        if (frequency === 2) {
+          // Bi-weekly: Add 14 days for the first payment
+          currentDate.setDate(currentDate.getDate() + 14);
+        } else {
+          // Monthly: Add 1 month for the first payment
+          currentDate.setMonth(currentDate.getMonth() + 1);
+        }
+        
+        // Now generate all payment dates
         for(let i = 0; i < terms; i++) {
+          // Add the date to our array
           dates.push(currentDate.toISOString().split('T')[0]);
+          
+          // Move to the next payment date
           if (frequency === 2) {
+            // Bi-weekly: Add 14 days for each subsequent payment
             currentDate.setDate(currentDate.getDate() + 14);
           } else {
+            // Monthly: Add 1 month for each subsequent payment
             currentDate.setMonth(currentDate.getMonth() + 1);
           }
         }
@@ -1169,7 +1232,6 @@ export default {
           cuotas: this.cuotaDates.map((date, index) => ({
             amount: this.quotesAmount[index],
             date: date,
-            status: 'pending',
             paymentDate: null
           }))
         };
@@ -1422,6 +1484,24 @@ export default {
         toast.error('Error al reiniciar intentos');
       }
     },
+    async requestVerification() {
+      try {
+        if (!this.validateInputs()) return;
+        
+        // Check if client has too many unpaid cuotas
+        if (this.selectedClient.hasUnpaidCuotas && this.selectedClient.unpaidCuotasCount > 2) {
+          toast.error('No se puede proceder con la compra. El cliente debe regularizar sus pagos pendientes.');
+          return;
+        }
+        
+        // Rest of the verification request logic...
+        this.verificationRequested = true;
+        // ... existing code
+      } catch (error) {
+        console.error('Error requesting verification:', error);
+        toast.error('Error al solicitar verificación');
+      }
+    },
   },
   async mounted() {
     await this.$nextTick();
@@ -1476,5 +1556,17 @@ export default {
   .gap-3 {
     gap: 0.75rem !important;
   }
+}
+
+.alert-danger {
+  background-color: rgba(220, 53, 69, 0.15);
+  border-color: rgba(220, 53, 69, 0.3);
+  color: #f8f9fa;
+}
+
+.alert-warning {
+  background-color: rgba(255, 193, 7, 0.15);
+  border-color: rgba(255, 193, 7, 0.3);
+  color: #f8f9fa;
 }
 </style> 

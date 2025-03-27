@@ -1,152 +1,24 @@
 <template>
     <div class="container">
-        <!-- Search and Filters Row -->
-        <div class="row mb-3">
-            <!-- Search Bar -->
-            <div class="col-md-6 mb-2">
-                <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary">
-                        <i class="fas fa-search text-light"></i>
-                    </span>
-                    <input 
-                        type="text" 
-                        class="form-control bg-dark text-light border-secondary" 
-                        v-model="searchQuery"
-                        placeholder="Buscar comercios..."
-                    >
-                </div>
-            </div>
-            
-            <!-- Filters -->
-            <div class="col-md-6">
-                <div class="d-flex justify-content-end flex-wrap">
-                    <div v-if="!filterAffiliates" 
-                         class="btn btn-theme me-2 mb-2" 
-                         @click.prevent="$emit('habilitate-filters')">
-                        <i class="fa-solid fa-filter"></i>
-                        Filtrar comercios
-                    </div>
-                    <div v-if="filterAffiliates" 
-                         class="btn btn-theme me-2 mb-2" 
-                         @click.prevent="$emit('habilitate-filters')">
-                        <i class="fa-solid fa-filter"></i>
-                        Limpiar filtros
-                    </div>
-
-                    <!-- State Filter -->
-                    <div v-if="filterAffiliates" class="dropdown mb-2 me-2">
-                        <button class="btn btn-theme dropdown-toggle me-2 w-100 w-md-auto" 
-                                type="button"
-                                id="filterDropdown" 
-                                data-bs-toggle="dropdown" 
-                                aria-expanded="false">
-                            <i class="fa-solid fa-filter"></i>
-                            {{ selectedState ? selectedState : 'Filtrar por Estado' }}
-                        </button>
-                        <ul class="dropdown-menu" 
-                            aria-labelledby="filterDropdown"
-                            style="max-height: 200px; overflow-y: auto;">
-                            <li v-for="state in venezuelanStates" :key="state">
-                                <a class="dropdown-item" 
-                                   href="#"
-                                   @click.prevent="handleStateSelect(state)">
-                                    {{ state }}
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" 
-                                   href="#" 
-                                   @click.prevent="$emit('clear-filter')">Ver todos</a>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <!-- Municipio Filter -->
-                    <div v-if="showMunicipios" class="dropdown mb-2 me-2">
-                        <button class="btn btn-theme dropdown-toggle me-2 w-100 w-md-auto" 
-                                type="button"
-                                id="filterMunicipios" 
-                                data-bs-toggle="dropdown" 
-                                aria-expanded="false">
-                            <i class="fa-solid fa-filter"></i>
-                            {{ selectedMunicipio ? selectedMunicipio : 'Filtrar por Municipio' }}
-                        </button>
-                        <ul class="dropdown-menu" 
-                            aria-labelledby="filterDropdown"
-                            style="max-height: 200px; overflow-y: auto;">
-                            <li v-for="municipio in municipios" :key="municipio">
-                                <a class="dropdown-item" 
-                                   href="#"
-                                   @click.prevent="handleMunicipioSelect(municipio)">
-                                    {{ municipio }}
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <!-- Parroquia Filter -->
-                    <div v-if="showParroquias" class="dropdown mb-2 me-2">
-                        <button class="btn btn-theme dropdown-toggle me-2 w-100 w-md-auto" 
-                                type="button"
-                                id="filterParroquias" 
-                                data-bs-toggle="dropdown" 
-                                aria-expanded="false">
-                            <i class="fa-solid fa-filter"></i>
-                            {{ selectedParroquia ? selectedParroquia : 'Filtrar por Parroquia' }}
-                        </button>
-                        <ul class="dropdown-menu" 
-                            aria-labelledby="filterDropdown"
-                            style="max-height: 200px; overflow-y: auto;">
-                            <li v-for="parroquia in parroquias" :key="parroquia">
-                                <a class="dropdown-item" 
-                                   href="#"
-                                   @click.prevent="handleParroquiaSelect(parroquia)">
-                                    {{ parroquia }}
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <!-- Category Filter -->
-                    <div v-if="showCategories" class="dropdown mb-2 me-2">
-                        <button class="btn btn-theme dropdown-toggle me-2 w-100 w-md-auto" 
-                                type="button"
-                                id="filterDropdown" 
-                                data-bs-toggle="dropdown" 
-                                aria-expanded="false">
-                            <i class="fa-solid fa-filter"></i>
-                            {{ selectedCategory ? selectedCategory.name : 'Filtrar por Categoria' }}
-                        </button>
-                        <ul class="dropdown-menu" 
-                            aria-labelledby="filterDropdown"
-                            style="max-height: 200px; overflow-y: auto;">
-                            <li v-for="category in categories" :key="category">
-                                <a class="dropdown-item" 
-                                   href="#"
-                                   @click.prevent="handleCategorySelect(category)">
-                                    {{ category.name }}
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" 
-                                   href="#" 
-                                   @click.prevent="$emit('clear-filter')">Ver todos</a>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Affiliates List -->
         <div class="affiliates-list-wrapper">
             <!-- Empty State -->
-            <div v-if="displayedAffiliates.length === 0" class="d-flex justify-content-center align-items-center min-vh-50">
+            <div v-if="!hasResults" class="d-flex justify-content-center align-items-center min-vh-50">
                 <div class="text-center">
                     <div class="mb-3">
                         <i class="fa fa-building text-secondary opacity-25" style="font-size: 5em"></i>
                     </div>
-                    <h5 class="text-secondary">No hay Comercios Afiliados registrados.</h5>
+                    <h5 class="text-secondary">{{ noResultsMessage }}</h5>
+                    
+                    <!-- Show a button to clear filters if we're filtering -->
+                    <button 
+                        v-if="noResultsMessage !== 'No hay Comercios Afiliados registrados.'" 
+                        class="btn btn-theme btn-sm mt-3"
+                        @click="$emit('clear-filters')"
+                    >
+                        <i class="fas fa-times-circle me-2"></i>
+                        Limpiar filtros
+                    </button>
                 </div>
             </div>
 
@@ -274,87 +146,27 @@
 export default {
     name: 'AffiliatesList',
     props: {
-        affiliates: {
+        displayedAffiliates: {
             type: Array,
-            required: true
+            default: () => []
         },
-        isAdmin: {
+        role: {
+            type: String,
+            default: ''
+        },
+        hasResults: {
             type: Boolean,
-            default: false
+            default: true
         },
-        filteredAffiliates: {
-            type: Array,
-            default: () => []
-        },
-        venezuelanStates: {
-            type: Array,
-            required: true
-        },
-        municipios: {
-            type: Array,
-            default: () => []
-        },
-        parroquias: {
-            type: Array,
-            default: () => []
-        },
-        categories: {
-            type: Array,
-            default: () => []
-        },
-        showMunicipios: Boolean,
-        showParroquias: Boolean,
-        showCategories: Boolean,
-        selectedState: String,
-        selectedMunicipio: String,
-        selectedParroquia: String,
-        selectedCategory: Object,
-        filterAffiliates: Boolean
-    },
-    data() {
-        return {
-            searchQuery: ''
+        noResultsMessage: {
+            type: String,
+            default: 'No hay Comercios Afiliados registrados.'
         }
     },
+    emits: ['edit-affiliate', 'delete-affiliate', 'edit-image', 'preview-image', 'update-image', 'cancel-image-edit', 'clear-filters'],
     computed: {
-        displayedAffiliates() {
-                if (!this.searchQuery) {
-                    return this.filteredAffiliates.length ? this.filteredAffiliates : this.affiliates;
-                }
-                
-                const query = this.searchQuery.toLowerCase();
-                const affiliates = this.filteredAffiliates.length ? this.filteredAffiliates : this.affiliates;
-                
-                return affiliates.filter(affiliate => 
-                    affiliate.companyName?.toLowerCase().includes(query) ||
-                    affiliate.state?.toLowerCase().includes(query) ||
-                    affiliate.municipio?.toLowerCase().includes(query) ||
-                    affiliate.parroquia?.toLowerCase().includes(query)
-                );
-            return this.affiliates;
-        }
-    },
-    methods: {
-        handleSearch() {
-            this.$emit('search', this.searchQuery);
-        },
-        handleStateSelect(state) {
-            this.$emit('filter-by-state', state);
-            this.$emit('display-municipios', state);
-            this.$emit('set-selected-state', state);
-        },
-        handleMunicipioSelect(municipio) {
-            this.$emit('filter-by-municipio', municipio);
-            this.$emit('display-parroquias', municipio);
-            this.$emit('set-selected-municipio', municipio);
-        },
-        handleParroquiaSelect(parroquia) {
-            this.$emit('filter-by-parroquia', parroquia);
-            this.$emit('set-selected-parroquia', parroquia);
-        },
-        handleCategorySelect(category) {
-            this.$emit('filter-by-category', category);
-            this.$emit('set-selected-category', category);
+        isAdmin() {
+            return this.role === 'admin';
         }
     }
 }

@@ -49,13 +49,28 @@
               <div v-for="entity in selectedEntities" :key="entity.id" 
                    class="list-group-item d-flex justify-content-between align-items-center">
                 <div>
-                  {{ creditType === 'client' ? 
-                    `${entity.firstName} ${entity.lastName}` : 
-                    entity.companyName }}
+                  <div class="d-flex flex-column">
+                    <span class="entity-name">
+                      {{ creditType === 'client' ? 
+                        `${entity.firstName} ${entity.lastName}` : 
+                        entity.companyName }}
+                    </span>
+                    <small v-if="entity.subscription" class="text-muted subscription-info">
+                      <i class="fas fa-tag me-1"></i>{{ entity.subscription.name.toUpperCase() || 'Plan básico' }}
+                    </small>
+                    <small v-else class="text-muted subscription-info">
+                      <i class="fas fa-exclamation-circle me-1"></i>Sin plan asignado
+                    </small>
+                  </div>
                 </div>
-                <button class="btn btn-sm btn-danger" @click="$emit('deselect', entity)">
-                  <i class="fa-solid fa-times"></i>
-                </button>
+                <div class="d-flex align-items-center">
+                  <span v-if="entity.creditLimit" class="badge bg-info me-2">
+                    Límite: ${{ entity.creditLimit }}
+                  </span>
+                  <button class="btn btn-sm btn-danger" @click="$emit('deselect', entity)">
+                    <i class="fa-solid fa-times"></i>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -207,5 +222,18 @@ export default {
 .btn-sm {
   padding: 0.25rem 0.5rem;
   font-size: 0.875rem;
+}
+
+.entity-name {
+  font-weight: 500;
+}
+
+.subscription-info {
+  font-size: 0.8rem;
+}
+
+.badge {
+  font-weight: normal;
+  font-size: 0.75rem;
 }
 </style> 

@@ -3,11 +3,11 @@
     <!-- Main Credit -->
     <div class="col-12 col-md-6">
       <CreditManagement 
-        title="Crédito Principal"
-        :amount="mainCredit || 0">
+        title="Crédito Principal Disponible"
+        :amount="availableCredit || 0">
         <div class="mt-2">
-          <small class="text-light">Disponible:</small>
-          <h5 class="mb-0">${{ availableCredit || 0 }}</h5>
+          <small class="text-light">Aprobado:</small>
+          <h5 class="mb-0">${{ mainCredit || 0 }}</h5>
         </div>
       </CreditManagement>
     </div>
@@ -15,11 +15,11 @@
     <!-- Plus Credit -->
     <div class="col-12 col-md-6">
       <CreditManagement 
-        title="Crédito Plus"
-        :amount="plusCredit || 0">
+        title="Crédito Plus Disponible"
+        :amount="availablePlusCredit || 0">
         <div class="mt-2">
-          <small class="text-light">Disponible:</small>
-          <h5 class="mb-0">${{ availablePlusCredit || 0 }}</h5>
+          <small class="text-light">Aprobado:</small>
+          <h5 class="mb-0">${{ plusCredit || 0 }}</h5>
         </div>
       </CreditManagement>
     </div>

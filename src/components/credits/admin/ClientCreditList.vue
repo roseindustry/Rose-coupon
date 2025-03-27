@@ -40,12 +40,12 @@
         <div class="credit-summary">
           <div class="credit-block">
             <div class="credit-type">
-              <span class="label">Principal</span>
+              <span class="label">Disponible</span>
               <div class="amount" :class="{'text-success': client.credit.mainCredit}">
-                ${{ client.credit.mainCredit?.toFixed(2) || '0.00' }}
+                ${{ client.credit.availableMainCredit?.toFixed(2) || '0.00' }}
               </div>
               <div class="available-amount">
-                Disponible: ${{ client.credit.availableMainCredit?.toFixed(2) || '0.00' }}
+                Aprobado: ${{ client.credit.mainCredit?.toFixed(2) || '0.00' }}
               </div>
             </div>
             <div class="credit-actions" v-if="client.credit.mainCredit">
@@ -60,12 +60,12 @@
 
           <div class="credit-block">
             <div class="credit-type">
-              <span class="label">Plus</span>
+              <span class="label">Disponible</span>
               <div class="amount" :class="{'text-success': client.credit.plusCredit}">
-                ${{ client.credit.plusCredit?.toFixed(2) || '0.00' }}
+                ${{ client.credit.availablePlusCredit?.toFixed(2) || '0.00' }}
               </div>
               <div class="available-amount">
-                Disponible: ${{ client.credit.availablePlusCredit?.toFixed(2) || '0.00' }}
+                Aprobado: ${{ client.credit.plusCredit?.toFixed(2) || '0.00' }}
               </div>
             </div>
             <div class="credit-actions" v-if="client.credit.plusCredit">

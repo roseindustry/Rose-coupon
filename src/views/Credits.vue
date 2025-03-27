@@ -232,13 +232,14 @@ export default {
             if (!query) return data;
 
             return data.filter(item => {
+                const identification = item.identification?.toString() || item.rif?.toString();
                 if (type === 'client') {
                     return item.firstName?.toLowerCase().includes(query) ||
                            item.lastName?.toLowerCase().includes(query) ||
-                           item.identification?.toLowerCase().includes(query);
+                           identification.toLowerCase().includes(query);
                 } else if (type === 'affiliate') {
                     return item.companyName?.toLowerCase().includes(query) ||
-                           item.rif?.toLowerCase().includes(query);
+                           identification.toLowerCase().includes(query);
                 }
             });
         },
@@ -777,7 +778,6 @@ export default {
                 console.error("Error selecting client:", error);
             }
         },
-
         searchEntities(query) {
             // Clear results if the search query is empty or invalid
             if (!query || typeof query !== 'string') {
@@ -1438,6 +1438,9 @@ export default {
 
                 // Perform all updates atomically
                 await update(dbRef(db), updates);
+
+                // success toast
+                toast.success('Venta registrada!');
                 
                 // Return success
                 return true;
@@ -1687,6 +1690,32 @@ export default {
             :purchases="selectedUser?.credit?.mainPurchases || []"
             :sales="selectedUser?.credit?.sales || {}"
         />
+
+        <!-- Add this section to the client selection area -->
+        <div v-if="selectedClient && selectedClient.hasUnpaidCuotas" class="alert alert-danger mt-3">
+            <div class="d-flex align-items-start">
+                <i class="fas fa-exclamation-circle fa-2x me-2 text-danger"></i>
+                <div>
+                    <h5 class="mb-1">Cliente con pagos pendientes</h5>
+                    <p class="mb-1">Este cliente tiene {{ selectedClient.unpaidCuotasCount }} cuota{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} vencida{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} sin pagar.</p>
+                    <p v-if="selectedClient.unpaidCuotasCount > 2" class="mb-0 fw-bold">
+                        No se puede proceder con la compra hasta que el cliente regularice sus pagos.
+                    </p>
+                    <p v-else class="mb-0">
+                        El cliente puede proceder con la compra, pero se recomienda regularizar los pagos pendientes.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Update the verification code section -->
+        <div v-if="selectedClient && (!selectedClient.hasUnpaidCuotas || selectedClient.unpaidCuotasCount <= 2)" class="mb-3">
+            <!-- Existing verification code section -->
+        </div>
+        <div v-else-if="selectedClient && selectedClient.hasUnpaidCuotas && selectedClient.unpaidCuotasCount > 2" class="alert alert-warning">
+            <i class="fas fa-lock me-2"></i>
+            Verificación bloqueada: El cliente debe regularizar sus pagos pendientes antes de realizar nuevas compras.
+        </div>
     </div>
 </template>
 
@@ -1743,5 +1772,17 @@ h4 {
 .h6, h6 {
     font-size: 0.9rem;
     color: #fff;
+}
+
+.alert-danger {
+    background-color: rgba(220, 53, 69, 0.15);
+    border-color: rgba(220, 53, 69, 0.3);
+    color: #f8f9fa;
+}
+
+.alert-warning {
+    background-color: rgba(255, 193, 7, 0.15);
+    border-color: rgba(255, 193, 7, 0.3);
+    color: #f8f9fa;
 }
 </style>

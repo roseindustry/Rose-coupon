@@ -4,7 +4,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title text-light">
-            <i class="fas fa-money-bill-wave me-2"></i>Pagar Cuota
+            Pagar Cuota
           </h5>
           <button
             type="button"
@@ -23,9 +23,9 @@
           
           <!-- Purchase Details -->
           <div class="purchase-details mb-4">
-            <div class="purchase-header d-flex justify-content-center align-items-center">
+            <div class="purchase-header d-flex justify-content-center align-items-center mb-3">
               <i class="purchase-icon fas fa-shopping-cart me-2"></i>
-              <h3 class="text-light">Detalles de la Compra</h3>
+              <h5 class="text-light">Detalles de la Compra</h5>
             </div>
             <div class="details">
               <div class="detail-item">
@@ -59,9 +59,9 @@
 
           <!-- Amount to Pay Section -->
           <div class="amount-to-pay mb-4">
-            <h4 class="text-center mb-3">
+            <h5 class="text-center mb-3">
               <i class="purchase-icon fas fa-money-bill-wave me-2"></i>
-              Monto a Pagar en Bs.</h4>
+              Monto a Pagar en Bs.</h5>
             <div class="input-group">
               <span class="input-group-text text-light border-secondary">Bs.</span>
               <input 
@@ -81,54 +81,106 @@
 
           <!-- Payment Methods Section -->
           <div class="payment-methods mb-4">
-            <h4 class="text-center mb-3">
+            <h5 class="text-center mb-3">
               <i class="purchase-icon fas fa-money-bill-transfer me-2"></i>
-              Métodos de Pago</h4>
-            <div v-if="affiliatePaymentDetails" class="payment-method-item">
-              <h5 class="method-type text-light text-center mb-3">{{ affiliateName }}</h5>
-              <h6 class="method-type">
-                <i class="fas fa-mobile-alt me-2"></i>Pago Móvil
-              </h6>
-              <div class="method-details">
-                <div class="detail-item">
-                  <span class="label">Banco:</span>
-                  <span class="value">{{ affiliatePaymentDetails.bank }}</span>
+              {{ isLatePayment ? 'Métodos de Pago de Rose App' : 'Métodos de Pago del Comercio' }}
+            </h5>
+            
+            <!-- Regular payment methods (from affiliate) -->
+            <div v-if="!isLatePayment && affiliate && affiliate.paymentMethods && affiliate.paymentMethods.length > 0">
+              <div v-for="(method, index) in affiliate.paymentMethods" :key="index" class="method-details">
+                <div class="d-flex align-items-center">
+                  <i :class="method.type === 'bank' ? 'fas fa-university' : 'fas fa-mobile-alt'" class="me-2 text-purple"></i>
+                  <strong>{{ method.type === 'bank' ? 'Transferencia Bancaria' : 'Pago Móvil' }}</strong>
                 </div>
-                <div class="detail-item">
-                  <span class="label">Número de Cuenta:</span>
-                  <span class="value">{{ affiliatePaymentDetails.bankAccount }}</span>
-                  <button class="btn btn-sm btn-outline-light ms-2" @click="handleCopy(affiliatePaymentDetails.bankAccount)">
-                    <i class="fas fa-copy"></i>
-                  </button>
-                </div>
-                <div class="detail-item">
-                  <span class="label">Teléfono:</span>
-                  <span class="value">{{ affiliatePaymentDetails.phoneNumber }}</span>
-                  <button class="btn btn-sm btn-outline-light ms-2" @click="handleCopy(affiliatePaymentDetails.phoneNumber)">
-                    <i class="fas fa-copy"></i>
-                  </button>
-                </div>
-                <div class="detail-item">
-                  <span class="label">Cédula / RIF:</span>
-                  <span class="value">{{ affiliatePaymentDetails.identification }}</span>
-                  <button class="btn btn-sm btn-outline-light ms-2" @click="handleCopy(affiliatePaymentDetails.identification)">
-                    <i class="fas fa-copy"></i>
-                  </button>
+                <div class="ms-4">
+                  <div v-if="method.type === 'bank'">
+                    <div class="d-flex align-items-center">
+                      <div>Titular: <span class="text-light">{{ method.holder }}</span></div>
+                      
+                    </div>
+                    <div class="d-flex align-items-center">
+                      <div>Banco: <span class="text-light">{{ method.bank }}</span></div>
+                      
+                    </div>
+                    <div class="d-flex align-items-center">
+                      <div>Cuenta: <span class="text-light">{{ method.account }}</span></div>
+                      <button class="btn btn-copy" @click="handleCopy(method.account)" title="Copiar">
+                        <i class="fas fa-copy"></i>
+                      </button>
+                    </div>                    
+                    <div v-if="method.identification" class="d-flex align-items-center">
+                      <div>Identificación: <span class="text-light">{{ method.identification }}</span></div>
+                      <button class="btn btn-copy" @click="handleCopy(method.identification)" title="Copiar">
+                        <i class="fas fa-copy"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <div v-else-if="method.type === 'mobile'">
+                    <div class="d-flex align-items-center">
+                      <div>Titular: <span class="text-light">{{ method.holder }}</span></div>
+                      
+                    </div>
+                    <div class="d-flex align-items-center">
+                      <div>Número: <span class="text-light">{{ method.phoneNumber }}</span></div>
+                      <button class="btn btn-copy" @click="handleCopy(method.phoneNumber)" title="Copiar">
+                        <i class="fas fa-copy"></i>
+                      </button>
+                    </div>
+                    
+                  </div>
                 </div>
               </div>
             </div>
-
-            <div v-else-if="!loading" class="text-warning">
-              <small>
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                No se encontraron los datos de pago del afiliado
-              </small>
+            
+            <!-- Alternative payment methods for late payments -->
+            <div v-if="isLatePayment" class="alternative-methods">
+              
+              <!-- Mobile Payment -->
+              <div class="method-details">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-mobile-alt me-2 text-purple"></i>
+                  <strong>Pago Móvil</strong>
+                </div>
+                <div class="ms-4">
+                  <div class="d-flex align-items-center">
+                    <div><span class="fw-bold">Titular:</span> Rose Industry C.A.</div>
+                    
+                  </div>
+                  <div class="d-flex align-items-center">
+                    <div><span class="fw-bold">Banco:</span> Banco Provincial</div>
+                    
+                  </div>
+                  <div class="d-flex align-items-center">
+                    <div><span class="fw-bold">Teléfono:</span> 0424-6003370</div>
+                    <button class="btn btn-copy" @click="handleCopy('0424-6003370')" title="Copiar">
+                      <i class="fas fa-copy"></i>
+                    </button>
+                  </div>
+                  <div class="d-flex align-items-center">
+                    <div><span class="fw-bold">RIF:</span> J-506221772</div>
+                    <button class="btn btn-copy" @click="handleCopy('J-506221772')" title="Copiar">
+                      <i class="fas fa-copy"></i>
+                    </button>
+                  </div>
+                  
+                </div>
+              </div>
+            </div>
+            
+            <!-- No payment methods message -->
+            <div v-if="!isLatePayment && (!affiliate || !affiliate.paymentMethods || affiliate.paymentMethods.length === 0)" class="text-center text-muted py-3">
+              <i class="fas fa-exclamation-circle me-2"></i>
+              El comercio no ha configurado métodos de pago.
             </div>
           </div>
 
           <!-- Payment Proof Section -->
-          <div class="payment-proof mb-3">
-            <h4 class="text-center mb-3">Comprobante de Pago</h4>
+          <div class="payment-proof mb-4">
+            <h5 class="text-center mb-3">
+              <i class="purchase-icon fas fa-file-invoice-dollar me-2"></i>
+              Comprobante de Pago
+            </h5>
             <input 
               type="file" 
               class="form-control text-light border-secondary"
@@ -202,6 +254,7 @@ export default {
       affiliateName: '',
       modal: null,
       lateFee: 4, // $4 USD late fee
+      affiliate: null,
     }
   },
   computed: {
@@ -287,6 +340,20 @@ export default {
       if (!this.currentCuota) return 0;
       const baseAmount = Number(this.currentCuota.amount) || 0;
       return this.isLatePayment ? baseAmount + this.lateFee : baseAmount;
+    },
+    getPaymentIcon(type) {
+      const icons = {
+        'bank': 'fas fa-university',
+        'mobile': 'fas fa-mobile-alt'
+      };
+      return icons[type] || 'fas fa-credit-card';
+    },
+    getPaymentMethodName(type) {
+      const names = {
+        'bank': 'Transferencia Bancaria',
+        'mobile': 'Pago Móvil'
+      };
+      return names[type] || 'Método de Pago';
     }
   },
   watch: {
@@ -347,29 +414,49 @@ export default {
     async fetchAffiliateDetails() {
       try {
         if (!this.purchase || !this.purchase.affiliate_id) {
-          this.errorMessage = 'No se encontró información del afiliado';
+          console.warn('No affiliate ID found in purchase data');
           return;
         }
-
-        const affiliateRef = dbRef(db, `Users/${this.purchase.affiliate_id}`);
-        const snapshot = await get(affiliateRef);
         
-        if (snapshot.exists()) {
-          const affiliateData = snapshot.val();
-          this.affiliateName = affiliateData.companyName || `${affiliateData.firstName || ''} ${affiliateData.lastName || ''}`;
+        const affiliateRef = dbRef(db, `Users/${this.purchase.affiliate_id}`);
+        const affiliateSnapshot = await get(affiliateRef);
+        
+        if (affiliateSnapshot.exists()) {
+          const affiliateData = affiliateSnapshot.val();
           
-          // Get payment details
+          // Set basic affiliate data
+          this.affiliate = {
+            id: this.purchase.affiliate_id,
+            companyName: affiliateData.companyName || 'Comercio',
+            paymentMethods: []
+          };
+          
+          // Check if paymentDetails exists
           if (affiliateData.paymentDetails) {
-            this.affiliatePaymentDetails = affiliateData.paymentDetails;
-          } else {
-            this.errorMessage = 'El afiliado no ha configurado sus datos de pago';
+            // Create payment methods from the paymentDetails object
+            if (affiliateData.paymentDetails.bank) {
+              this.affiliate.paymentMethods.push({
+                type: 'bank',
+                bank: affiliateData.paymentDetails.bank || '',
+                account: affiliateData.paymentDetails.bankAccount || '',
+                holder: affiliateData.companyName || 'Comercio',
+                identification: affiliateData.paymentDetails.identification || ''
+              });
+            }
+            
+            if (affiliateData.paymentDetails.phoneNumber) {
+              this.affiliate.paymentMethods.push({
+                type: 'mobile',
+                phoneNumber: affiliateData.paymentDetails.phoneNumber || '',
+                holder: affiliateData.companyName || 'Comercio'
+              });
+            }
           }
         } else {
-          this.errorMessage = 'No se encontró información del afiliado';
+          console.warn('No affiliate data found');
         }
       } catch (error) {
         console.error('Error fetching affiliate details:', error);
-        this.errorMessage = 'Error al obtener los datos del afiliado';
       }
     },
     handleFileUpload(event) {
@@ -500,6 +587,11 @@ export default {
       this.fetchAffiliateDetails(),
       this.fetchExchangeRate()
     ]);
+    
+    // Set current cuota based on selected or next unpaid
+    if (this.selectedCuota) {
+      this.currentCuota = this.selectedCuota;
+    }
   },
   unmounted() {
     if (this.modal) {
@@ -585,9 +677,10 @@ export default {
   font-weight: 600;
 }
 .method-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  background-color: #333;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 .payment-proof {
@@ -654,5 +747,79 @@ export default {
   padding: 0.375rem 0.75rem;
   margin-right: 0.75rem;
   border-radius: 0.25rem;
+}
+
+.alternative-methods {
+  border-left: 3px solid #6f42c1;
+  padding-left: 1rem;
+}
+
+.text-purple {
+  color: #6f42c1;
+}
+
+.method-details {
+  background-color: #333;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.btn-copy {
+  background-color: transparent;
+  border: none;
+  color: #6f42c1;
+  padding: 0;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  transition: all 0.2s ease;
+  margin-left: 0.5rem;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-copy:hover {
+  opacity: 1;
+  background-color: rgba(111, 66, 193, 0.1);
+  color: #8a5cf7;
+  border-radius: 50%;
+}
+
+.btn-copy:active {
+  transform: scale(0.95);
+}
+
+/* Make the alignment more compact */
+.d-flex.align-items-center {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.2rem;
+}
+
+.d-flex.align-items-center > div {
+  flex-grow: 1;
+  font-size: 0.9rem;
+}
+
+.d-flex.align-items-center > button {
+  flex-shrink: 0;
+}
+
+/* Add this to make the payment method headers more compact */
+.method-details > div:first-child {
+  margin-bottom: 0.5rem;
+}
+
+.method-details .ms-4 {
+  margin-left: 1rem !important;
+}
+
+/* Make the text in payment methods slightly smaller */
+.method-details .text-light,
+.method-details .fw-bold {
+  font-size: 0.9rem;
 }
 </style> 

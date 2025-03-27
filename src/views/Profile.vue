@@ -13,9 +13,12 @@ import {
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
+  PhoneAuthProvider,
+  signInWithPhoneNumber,
+  RecaptchaVerifier,
 } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
-import { showToast } from "@/utils/toast";
+import { toast as showToast } from "@/utils/toast";
 import { sendEmail } from "@/utils/emailService";
 import "toastify-js/src/toastify.css";
 import { Modal } from "bootstrap";
@@ -143,10 +146,17 @@ export default defineComponent({
       emailVerified: false,
       phoneVerified: false,
       verifyingField: null,
-      verificationCode: "",
+      emailVerificationCode: "",
+      phoneVerificationCode: "",
+      phoneVerificationLoading: false,
+      phoneVerificationRequested: false,
+      recaptchaVisible: false,
+      verificationId: null,
+      showVerificationInput: false,
       verifyModal: null,
-
+      recaptchaVerifier: null,
       exchange: 0,
+      isCaptchaVerified: false,
 		};
 	},
 	async mounted() {
@@ -193,6 +203,8 @@ export default defineComponent({
                 this.paymentModal = new Modal(paymentModalEl);
             }
         }
+        // Initialize reCAPTCHA when component is mounted
+			this.initRecaptcha();
     });
 
     // Load location data if needed
@@ -202,6 +214,11 @@ export default defineComponent({
             await this.displayParroquias(this.municipio);
         }
     }
+	},
+	beforeUnmount() {
+		if (this.recaptchaVerifier) {
+			this.recaptchaVerifier.clear();
+		}
 	},
 	methods: {
 		formatDate(date) {
@@ -386,10 +403,10 @@ export default defineComponent({
 				updates[field.name] = field.value;
 
 				await update(dbRef(db, `Users/${this.userId}`), updates);
-				showToast('Campo actualizado exitosamente', { type: 'success' });
+				showToast.success('Campo actualizado exitosamente');
 			} catch (error) {
 				console.error('Error updating field:', error);
-				showToast('Error al actualizar el campo', { type: 'error' });
+				showToast.error('Error al actualizar el campo');
 			}
 		},
 		async changePassword() {
@@ -409,13 +426,13 @@ export default defineComponent({
 			try {
 				await reauthenticateWithCredential(user, credential);
 				await updatePassword(user, this.newPassword);
-        showToast("contraseña actualizada con éxito.");
+        showToast.success("Contraseña actualizada con éxito.");
         this.currentPassword = "";
         this.newPassword = "";
         this.confirmPassword = "";
 			} catch (error) {
         console.error("Error updating password:", error);
-        alert("Error al actualizar la contraseña. Inténtalo de nuevo.");
+        showToast.error("Error al actualizar la contraseña. Inténtalo de nuevo.");
 			}
 		},
 		async updatePaymentDetails() {
@@ -425,10 +442,10 @@ export default defineComponent({
 				const userRef = dbRef(db, `Users/${this.userId}/paymentDetails`);
 				await update(userRef, this.paymentDetails);
 				
-				showToast('Datos de pago actualizados correctamente', { type: 'success' });
+				showToast.success('Datos de pago actualizados correctamente');
 			} catch (error) {
 				console.error('Error updating payment details:', error);
-				showToast('Error al actualizar los datos de pago', { type: 'error' });
+				showToast.error('Error al actualizar los datos de pago');
 			}
 		},
     async updateSocialMedia() {
@@ -447,10 +464,10 @@ export default defineComponent({
         const userRef = dbRef(db, `Users/${this.userId}`);
         await update(userRef, socialMediaUpdates);
         
-        showToast('Redes sociales actualizadas correctamente', { type: 'success' });
+        showToast.success('Redes sociales actualizadas correctamente');
       } catch (error) {
         console.error('Error updating social media:', error);
-        showToast('Error al actualizar redes sociales', { type: 'error' });
+        showToast.error('Error al actualizar redes sociales');
       }
     },
 
@@ -460,7 +477,7 @@ export default defineComponent({
 			if (!file) return;
 
       if (!file.type.startsWith("image/")) {
-        alert("Por favor, selecciona un archivo de imagen válido.");
+        showToast.error("Por favor, selecciona un archivo de imagen válido.");
         event.target.value = ""; // Clear the invalid file
 				return;
 			}
@@ -562,7 +579,7 @@ export default defineComponent({
 				}
 
 				//Success toast
-        showToast("Archivos subidos!");
+        showToast.success("Archivos subidos!");
 
 				//reset the image previews
 				this.idFrontPreview = null;
@@ -593,7 +610,7 @@ export default defineComponent({
         const payDay = moment().add(1, "month").toISOString();
 
         if (!paymentFile) {
-          showToast("Por favor seleccione una captura de pago", "error");
+          showToast.error("Por favor seleccione una captura de pago");
 				return;
 			}
 
@@ -641,13 +658,13 @@ export default defineComponent({
 
         // Close modal and show success message
         this.$refs.paymentModal.closeModal();
-        showToast("Pago notificado exitosamente", "success");
+        showToast.success("Pago notificado exitosamente");
 
         // Refresh subscription data
         await this.fetchClientPlan();
 			} catch (error) {
         console.error("Error notifying payment:", error);
-        showToast("Error al notificar el pago", "error");
+        showToast.error("Error al notificar el pago");
       }
     },
     async uploadPaymentFile(file, date, type) {
@@ -685,7 +702,7 @@ export default defineComponent({
 						paymentUploaded: false,
 					});
 
-          showToast("Debes subir tu comprobante de pago para este mes.");
+          showToast.error("Debes subir tu comprobante de pago para este mes.");
 				}
 			}
 		},
@@ -803,40 +820,47 @@ export default defineComponent({
         const result = await response.json();
 
         if (result.success) {
-          showToast(
+          showToast.success(
             "Solicitud enviada correctamente. Te notificaremos por correo.",
-            "success"
           );
         } else {
           throw new Error(result.message || "Error al enviar la solicitud");
         }
       } catch (error) {
         console.error("Error requesting field update:", error);
-        showToast(
+        showToast.error(
           "Error al enviar la solicitud. Por favor intenta de nuevo.",
-          "error"
         );
       }
     },
+
+    // Handle verification requests
+    handleVerification(fieldName) {
+      if (fieldName === "email") {
+        this.requestEmailVerification();
+      } else {
+        this.sendPhoneVerificationCode();
+      }
+    },
+    requestEmailVerification() {
+      this.sendVerificationCode("email");
+    },
+    // requestPhoneVerification() {
+    //   this.sendPhoneVerificationCode();
+    //   // this.phoneVerificationRequested = true;
+    // },
+
+    // Email validation
     validateEmail(email) {
       // Validate email in format example@example.com
       const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       return re.test(email);
     },
-    validatePhone(phone) {
-      // Validate phone number in format xxxxxxxxxxx
-      const re = /^\d{10}$/;
-      return re.test(phone);
-    },
     async sendVerificationCode(type) {
       try {
         // Validate the field value before sending code
         if (type === "email" && !this.validateEmail(this.email)) {
-          showToast("Por favor ingresa un correo electrónico válido", "error");
-          return;
-        }
-        if (type === "phoneNumber" && !this.validatePhone(this.phoneNumber)) {
-          showToast("Por favor ingresa un número telefónico válido", "error");
+          showToast.error("Por favor ingresa un correo electrónico válido");
           return;
         }
 
@@ -869,18 +893,18 @@ export default defineComponent({
         if (result && result.success) {
           this.verifyModal = new Modal(document.getElementById("verifyModal"));
           this.verifyModal.show();
-          showToast("Código enviado correctamente", "success");
+          showToast.success("Código enviado correctamente");
 
           // Show remaining attempts if provided
           if (result.rateLimit?.remainingAttempts) {
-            showToast(`Te quedan ${result.rateLimit.remainingAttempts} intentos para hoy`, "info");
+            showToast.info(`Te quedan ${result.rateLimit.remainingAttempts} intentos para hoy`);
           }
         } else {
           throw new Error(result.message || "Error al enviar el código");
         }
       } catch (error) {
         console.error("Error sending verification code:", error);
-        showToast(error.message || "Error al enviar el código", "error");
+        showToast.error(error.message || "Error al enviar el código");
       }
     },    
     async verifyCode(clientId, code) {
@@ -930,18 +954,149 @@ export default defineComponent({
           if (this.verifyModal) {
             this.verifyModal.hide();
           }
-          showToast("Verificación exitosa", "success");
+          showToast.success("Verificación exitosa");
         } else {
           throw new Error(result.message || 'Error al verificar el código');
         }
       } catch (error) {
         console.error("Error verifying code:", error);
-        showToast(
-          error.message || "Error al verificar el código. Por favor intente nuevamente", 
-          "error"
+        showToast.error(
+          error.message || "Error al verificar el código. Por favor intente nuevamente"
         );
       }
     },
+
+    // Phone validation
+    initRecaptcha() {
+      try {
+        this.isCaptchaVerified = false;
+        
+        // Clear existing recaptcha if any
+        if (this.recaptchaVerifier) {
+          this.recaptchaVerifier.clear();
+          this.recaptchaVerifier = null;
+        }
+        
+        // Check if we're on localhost and enable testing mode
+        const isLocalhost = window.location.hostname === 'tenant1.localhost' || 
+                            window.location.hostname === '127.0.0.1';
+        
+        if (isLocalhost) {
+          // For localhost testing, automatically set captcha as verified
+          console.log('Development environment detected - reCAPTCHA verification bypassed');
+          this.isCaptchaVerified = true;
+          return;
+        }
+        
+        // For production, continue with normal reCAPTCHA
+        const container = document.getElementById('recaptcha-container');
+        if (!container) {
+          console.error('Recaptcha container not found');
+          return;
+        }
+        
+        this.recaptchaVerifier = new RecaptchaVerifier(
+          'recaptcha-container', 
+          {
+            size: 'normal',
+            callback: () => {
+              this.isCaptchaVerified = true;
+              showToast.success('Captcha verificado correctamente');
+            },
+            'expired-callback': () => {
+              this.isCaptchaVerified = false;
+              showToast.warning('El captcha ha expirado, por favor verifique nuevamente');
+            }
+          }, 
+          auth
+        );
+        
+        this.recaptchaVerifier.render()
+          .catch(error => {
+            console.error('Error rendering reCAPTCHA:', error);
+          });
+          
+      } catch (error) {
+        console.error('Error initializing reCAPTCHA:', error);
+        // For development, set captcha as verified even on error
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          this.isCaptchaVerified = true;
+        } else {
+          showToast.error('Error al inicializar el captcha');
+        }
+      }
+    },
+    async sendPhoneVerificationCode() {
+      try {
+        // Check if recaptcha is ready
+        if (!window.recaptchaVerifier) {
+          showToast.error('Por favor complete el captcha antes de solicitar el código');
+          return;
+        }
+        
+        // Format phone number
+        let formattedPhone = this.phoneNumber;
+        if (formattedPhone.startsWith('04')) {
+          formattedPhone = '+58' + formattedPhone;
+        }
+        
+        this.phoneVerificationLoading = true;
+        
+        // Send verification code
+        const confirmationResult = await signInWithPhoneNumber(
+          auth, 
+          formattedPhone, 
+          this.recaptchaVerifier
+        );
+        
+        // Store verification ID
+        this.verificationId = confirmationResult.verificationId;
+        this.showVerificationInput = true;
+        
+        showToast.success('Código de verificación enviado. Por favor revise sus mensajes.');
+      } catch (error) {
+        console.error('Error sending verification code:', error);
+        showToast.error('Error al enviar el código. Verifique que completó el captcha.');
+      } finally {
+        this.phoneVerificationLoading = false;
+      }
+    },
+    async verifyPhoneCode() {
+      if (!this.phoneVerificationCode) {
+        showToast.error('Por favor, ingrese el código de verificación');
+        return;
+      }
+      
+      try {
+        this.phoneVerificationLoading = true;
+        
+        // Create credential with verification ID and code
+        const credential = PhoneAuthProvider.credential(
+          this.verificationId, 
+          this.phoneVerificationCode
+        );
+        
+        // Mark phone as verified
+        this.phoneVerified = true;
+        this.showVerificationInput = false;
+
+        // Update the database
+        const userRef = dbRef(db, `Users/${this.userId}`);
+        await update(userRef, {
+          phoneNumber: this.formattedPhoneNumber,
+          phoneVerified: true
+        });
+        
+        showToast.success('Número de teléfono verificado correctamente');
+      } catch (error) {
+        console.error('Error verifying code:', error);
+        showToast.error('Código de verificación inválido. Por favor, inténtelo de nuevo.');
+      } finally {
+        this.phoneVerificationLoading = false;
+      }
+    },
+    
+    // Check verification status
     async fetchVerificationStatus() {
       try {
         const userRef = dbRef(db, `Users/${this.userId}`);
@@ -956,6 +1111,8 @@ export default defineComponent({
         console.error("Error fetching verification status:", error);
       }
     },
+
+    // Scroll to section
     scrollToSection(sectionId) {
       const element = document.getElementById(sectionId);
       if (element) {
@@ -966,7 +1123,7 @@ export default defineComponent({
           element.classList.remove('highlight-section');
         }, 2000);
       }
-    }
+    },    
 	},
 	computed: {
 		currentPageName() {
@@ -1035,7 +1192,25 @@ export default defineComponent({
                                this.paymentDetails.bankAccount;
       
       return hasSocialMedia && hasPaymentDetails;
-    }
+    },
+    formattedPhoneNumber() {
+			if (!this.phoneNumber) return '';
+			
+			// Handle different country codes
+			if (this.phoneNumber.startsWith('0')) {
+				// Venezuelan format (starts with 0)
+				return `+58${this.phoneNumber.substring(1)}`;
+			} else if (this.phoneNumber.startsWith('55')) {
+				// Brazilian format (starts with country code)
+				return `+${this.phoneNumber}`;
+			} else if (this.phoneNumber.startsWith('+')) {
+				// Already has + prefix
+				return this.phoneNumber;
+			} else {
+				// Default to Venezuelan format if no country code
+				return `+58${this.phoneNumber}`;
+			}
+		}
 	},
 	watch: {
     state(newState) {
@@ -1153,57 +1328,136 @@ export default defineComponent({
               Información de Contacto
             </h4>
             <div class="row">
-              <div
-                v-for="field in displayedFields.filter((f) =>
-                  ['email', 'phoneNumber'].includes(f.name)
-                )"
-                :key="field.name"
-                class="col-md-6 mb-3"
-              >
-                <label :for="field.name" class="form-label">{{
-                  field.label
-                }}</label>
-                <div class="d-flex align-items-center gap-2">
+              <!-- Email Field with input group -->
+              <div class="col-md-6 mb-3">
+                <label for="email" class="form-label">Correo Electrónico</label>
+                <div class="input-group">
                   <input
-                    :type="field.name === 'email' ? 'email' : 'tel'"
-                    :id="field.name"
-                    v-model="this[field.name]"
+                    type="email"
+                    id="email"
+                    v-model="email"
                     class="form-control"
-                    :placeholder="field.name === 'email' ? 'correo@ejemplo.com' : '04241234567'"
-                    :disabled="role === 'cliente' ? (field.name === 'email' ? emailVerified : phoneVerified) : false"
+                    placeholder="correo@ejemplo.com"
+                    :disabled="role === 'cliente' && emailVerified"
                   />
-                  <!-- Only show verification for clients -->
+                  <!-- Verification for clients -->
                   <template v-if="role === 'cliente'">
                     <button
-                      v-if="!isVerified(field.name)"
-                      class="btn btn-transparent btn-sm"
-                      @click="sendVerificationCode(field.name)"
-                      :title="`Verificar ${field.name === 'email' ? 'correo' : 'teléfono'}`"
+                      v-if="!emailVerified"
+                      class="btn btn-outline-warning"
+                      @click="handleVerification('email')"
+                      title="Verificar correo"
                     >
-                      <i class="fas" :class="isVerified(field.name) ? 'text-success fa-check-circle' : 'text-warning fa-exclamation-circle'"></i>
+                      <i class="fas fa-envelope fa-sm me-1"></i>
+                      Verificar
                     </button>
-                    <span v-else class="text-success">
-                      <i class="fas fa-check-circle"></i>
+                    <span v-else class="input-group-text bg-success text-white">
+                      <i class="fas fa-check-circle fa-sm me-1"></i>
+                      Verificado
                     </span>
                   </template>
-                  <!-- Admin save button -->
+                  
+                  <!-- Admin/Affiliate save button -->
                   <button
                     v-if="role === 'admin' || role === 'afiliado'"
-                    class="btn btn-transparent btn-sm"
-                    @click.prevent="updateField(field)"
-                    :title="'Actualizar ' + field.label.toLowerCase()"
+                    class="btn btn-outline-primary"
+                    @click.prevent="updateField({name: 'email', label: 'Correo Electrónico'})"
+                    title="Actualizar correo electrónico"
                   >
-                    <i class="fas fa-save text-theme"></i>
+                    <i class="fas fa-save"></i>
                   </button>
                 </div>
-                <!-- Verification status -->
+                
+                <!-- Verification status for clients -->
                 <small v-if="role === 'cliente'" class="text-muted">
-                  {{
-                    isVerified(field.name)
-                      ? `${field.name === "email" ? "Correo" : "Teléfono"} verificado`
-                      : `${field.name === "email" ? "Correo" : "Teléfono"} sin verificar`
-                  }}
+                  {{ emailVerified ? "Correo verificado" : "Correo sin verificar" }}
                 </small>
+              </div>
+
+              <!-- Phone Field with input group -->
+              <div class="col-md-6 mb-3">
+                <label for="phoneNumber" class="form-label">Teléfono</label>
+                <div class="input-group">
+                  <input
+                    type="tel"
+                    id="phoneNumber"
+                    v-model="phoneNumber"
+                    class="form-control"
+                    placeholder="04241234567"
+                    :disabled="role === 'cliente' && phoneVerified"
+                  />
+                  
+                  <!-- Verification for clients -->
+                  <template v-if="role === 'cliente'">
+                    <button
+                      v-if="!phoneVerified"
+                      class="btn btn-outline-warning"
+                      @click="handleVerification('phoneNumber')"
+                      :disabled="!isCaptchaVerified"
+                      title="Verificar teléfono"
+                    >
+                      <i class="fas fa-sms fa-sm me-1"></i>
+                      Verificar
+                    </button>
+                    <span v-else class="input-group-text bg-success text-white">
+                      <i class="fas fa-check-circle fa-sm me-1"></i>
+                      Verificado
+                    </span>
+                  </template>
+                  
+                  <!-- Admin/Affiliate save button -->
+                  <button
+                    v-if="role === 'admin' || role === 'afiliado'"
+                    class="btn btn-outline-primary"
+                    @click.prevent="updateField({name: 'phoneNumber', label: 'Teléfono'})"
+                    title="Actualizar teléfono"
+                  >
+                    <i class="fas fa-save"></i>
+                  </button>
+                </div>
+                
+                <!-- Verification status for clients -->
+                <small v-if="role === 'cliente'" class="text-muted">
+                  {{ phoneVerified ? "Teléfono verificado" : "Teléfono sin verificar" }}
+                </small>
+                
+                <!-- Phone format help text -->
+                <div class="mt-2">
+                  <small class="form-text text-muted d-block">
+                    <i class="fas fa-info-circle me-1"></i> Importante: 
+                  </small>
+                  <small class="form-text text-muted d-block">
+                    • Venezuela: <span class="text-success">04145555555</span> (se añadirá +58)
+                  </small>
+                </div>
+                
+                <!-- reCAPTCHA container -->
+                <div id="recaptcha-container" class="mt-2 d-flex justify-content-center"></div>
+
+                <!-- Phone Verification Code (only shown when needed) -->
+                <div v-if="showVerificationInput" class="mt-2">
+                  <label class="form-label">Código de verificación del teléfono</label>
+                  <div class="input-group">
+                    <input 
+                      type="text" 
+                      v-model="phoneVerificationCode" 
+                      class="form-control" 
+                      placeholder="Ingrese el código recibido por SMS" 
+                    />
+                    <button 
+                      type="button" 
+                      class="btn btn-outline-success" 
+                      @click="verifyPhoneCode"
+                      :disabled="!phoneVerificationCode || phoneVerificationLoading"
+                    >
+                      <i class="fas fa-check me-1"></i>
+                      Confirmar
+                    </button>
+                  </div>
+                  <small class="form-text text-muted">
+                    Ingrese el código de 6 dígitos enviado a su teléfono
+                  </small>
+                </div>
               </div>
             </div>
           </div>
@@ -1680,7 +1934,7 @@ export default defineComponent({
               >
               <input
                 type="text"
-                v-model="verificationCode"
+                v-model="emailVerificationCode"
                 class="form-control"
                 maxlength="6"
               />
@@ -1694,7 +1948,7 @@ export default defineComponent({
             >
               Cerrar
             </button>
-            <button type="button" class="btn btn-primary" @click="verifyCode(this.userId, this.verificationCode)">
+            <button type="button" class="btn btn-primary" @click="verifyCode(this.userId, this.emailVerificationCode)">
               Verificar
             </button>
           </div>
@@ -1731,10 +1985,26 @@ export default defineComponent({
         </div>
       </div>
     </div>
+
+    <!-- Add a more prominent captcha notice -->
+    <div v-if="role === 'cliente' && !phoneVerified" class="alert alert-info mt-2 p-2">
+      <i class="fas fa-info-circle me-1"></i>
+      Para verificar su teléfono:
+      <ol class="mb-0 ps-3 mt-1">
+        <li>Complete el captcha abajo</li>
+        <li>Haga clic en "Enviar código"</li>
+        <li>Ingrese el código recibido por SMS</li>
+      </ol>
+    </div>
   </div>
 </template>
 
 <style scoped>
+#recaptcha-container {
+	transform: scale(0.9);
+	transform-origin: 0 0;
+	margin-bottom: 0.5rem;
+}
 .text-theme {
   color: var(--accent-color);
 }

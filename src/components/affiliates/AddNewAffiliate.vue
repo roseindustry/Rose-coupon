@@ -35,13 +35,14 @@
                             </div>
                             <!-- Affiliate Order Number -->
                             <div class="col-6 mb-3">
-                                <label for="affiliateOrder" class="form-label">Orden
-                                    <!-- <span class="text-muted">
-                                            Este número determinará la posición en que aparezca listado el Comercio
-                                        </span> -->
-                                </label>
+                                <label for="affiliateOrder" class="form-label">
+                                    Orden                                    
+                                </label>                                
                                 <input type="number" class="form-control" id="affiliateOrder"
-                                    v-model="affiliate.order" />
+                                    v-model="this.order" />
+                                    <small class="text-muted">
+                                    Este número determinará la posición en que aparezca listado el Comercio
+                                    </small>
                             </div>
                             <div class="col-6 mb-3">
                                 <label for="affiliateName" class="form-label">Nombre <span
@@ -52,8 +53,7 @@
                             <div class="col-6 mb-3">
                                 <label for="affiliateRif" class="form-label">RIF <span
                                         class="text-danger">*</span></label>
-                                <input class="form-control" id="affiliateRif" v-model="affiliate.rif"
-                                    @input="applyRifMask" required />
+                                <input class="form-control" type="number" id="affiliateRif" v-model="affiliate.rif" required />
                             </div>
                             <div class="col-6 mb-3">
                                 <label for="affiliateEmail" class="form-label">Email <span
@@ -222,13 +222,10 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
                         @click="onClose">Cerrar</button>
                     <button type="button" class="btn btn-theme" @click="onSave"
-                        :disabled="isSubmitting">Guardar</button>
-                    <!-- Loader Spinner -->
-                    <div v-if="isSubmitting" class="d-flex justify-content-center my-3">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Cargando...</span>
-                        </div>
-                    </div>
+                        :disabled="isSubmitting || !isFormValid">
+                        <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <span v-else>Guardar</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -236,62 +233,208 @@
 </template>
 
 <script>
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "@/firebase/init";
+import venezuela from "venezuela";
+import { toast } from "@/utils/toast";
+import { Modal } from "bootstrap";
 
 export default {
     props: {
-        affiliate: {
-            type: Object,
-            required: true,
-        },
-        paymentDetails: {
-            type: Object,
-            required: true,
-        },
         categories: {
             type: Array,
             required: true,
         },
-        isSubmitting: {
-            type: Boolean,
-            default: false,
+        venezuelanStates: {
+            type: Array,
+            required: true,
         },
-        venezuelanStates: Array,
-        municipios: Array,
-        parroquias: Array,
+        order: {
+            type: Number,
+            required: false,
+        },
     },
     data() {
         return {
-            selectedState: this.affiliate.state || '',
-            selectedMunicipio: this.affiliate.municipio || '',
-            selectedParroquia: this.affiliate.parroquia || '',
+            affiliate: {
+                name: '',
+                rif: '',
+                status: false,
+                email: '',
+                phoneNumber: '',
+                state: '',
+                municipio: '',
+                parroquia: '',
+                address: '',
+                order: 0,
+                category: null,
+                // socials
+                twitter: '',
+                instagram: '',
+                facebook: '',
+                tiktok: '',
+            },
+            paymentDetails: {
+                bank: '',
+                identification: '',
+                phoneNumber: '',
+                bankAccount: '',
+            },
+            selectedState: '',
+            selectedMunicipio: '',
+            selectedParroquia: '',
+            municipios: [],
+            parroquias: [],
             imageFile: null,
             uploadImage: false,
             imagePreview: null,
-            updatedImagePreview: null,
+            isSubmitting: false
         };
     },
-    emits: ["close", "save", "select-category"],
+    emits: ["add-affiliate"],
     methods: {
-        onClose() {
-            this.$emit("close");
+        resetForm() {
+            this.affiliate = {
+                name: '',
+                rif: '',
+                status: false,
+                email: '',
+                phoneNumber: '',
+                state: '',
+                municipio: '',
+                parroquia: '',
+                address: '',
+                order: this.order + 1,
+                category: null,
+                twitter: '',
+                instagram: '',
+                facebook: '',
+                tiktok: '',
+            };
+            this.paymentDetails = {
+                bank: '',
+                identification: '',
+                phoneNumber: '',
+                bankAccount: '',
+            };
+            this.selectedState = '';
+            this.selectedMunicipio = '';
+            this.selectedParroquia = '';
+            this.municipios = [];
+            this.parroquias = [];
+            this.imageFile = null;
+            this.uploadImage = false;
+            this.imagePreview = null;
         },
-        onSave() {
-            this.$emit("save");
+        onClose() {
+            this.resetForm();
+        },
+        async onSave() {
+            try {
+                // Validate required fields
+                if (!this.affiliate.name || !this.affiliate.rif || !this.affiliate.email) {
+                    toast.error('Por favor complete los campos obligatorios');
+                    return;
+                }
+
+                if (!this.selectedState || !this.selectedMunicipio || !this.selectedParroquia) {
+                    toast.error('Por favor seleccione estado, municipio y parroquia');
+                    return;
+                }
+
+                if (
+                    !this.paymentDetails.bank ||
+                    !this.paymentDetails.identification ||
+                    !this.paymentDetails.phoneNumber ||
+                    !this.paymentDetails.bankAccount
+                ) {
+                    alert("Por favor, ingrese todos los Datos de Pago del Afiliado.");
+                    return;
+                }
+
+                this.isSubmitting = true;
+
+                // Set location data from selections
+                this.affiliate.state = this.selectedState;
+                this.affiliate.municipio = this.selectedMunicipio;
+                this.affiliate.parroquia = this.selectedParroquia;
+
+                // Prepare data for submission
+                const affiliateData = { ...this.affiliate };
+                
+                // Handle category
+                if (affiliateData.category) {
+                    affiliateData.category = affiliateData.category.id;
+                }
+
+                // Add payment details
+                affiliateData.paymentDetails = this.paymentDetails;
+                
+                // Add order number
+                affiliateData.order = this.order;
+                
+                // Pass the image file directly if uploading is needed
+                if (this.uploadImage && this.imageFile) {
+                    affiliateData.imageFile = this.imageFile;
+                }
+
+                // Emit event with new affiliate data
+                this.$emit('add-affiliate', affiliateData);
+                
+                // Reset form and close modal
+                this.resetForm();
+                
+                // Close the modal
+                const modal = document.getElementById('addAffiliateModal');
+                if (modal) {
+                    const bsModal = Modal.getInstance(modal);
+                    if (bsModal) {
+                        bsModal.hide();
+                    }
+                }
+            } catch (error) {
+                console.error('Error preparing affiliate data:', error);
+                toast.error('Error al preparar los datos del comercio afiliado');
+            } finally {
+                this.isSubmitting = false;
+            }
         },
         onCategorySelect(category) {
-            this.$emit("select-category", category);
+            this.affiliate.category = category;
         },
         onStateChange() {
-            this.$emit("state-changed", this.selectedState);
+            this.selectedMunicipio = '';
+            this.selectedParroquia = '';
+            this.municipios = [];
+            this.parroquias = [];
+            
+            try {
+                const stateData = venezuela.estado(this.selectedState, { municipios: true });
+                if (stateData && stateData.municipios) {
+                    this.municipios = stateData.municipios;
+                }
+            } catch (error) {
+                console.error('Error loading municipios:', error);
+                this.municipios = [];
+            }
         },
         onMunicipioChange() {
-            this.$emit("municipality-changed", this.selectedMunicipio);
+            this.selectedParroquia = '';
+            this.parroquias = [];
+            
+            try {
+                const municipioData = venezuela.municipio(this.selectedMunicipio, { parroquias: true });
+                if (municipioData && municipioData.parroquias) {
+                    this.parroquias = municipioData.parroquias;
+                }
+            } catch (error) {
+                console.error('Error loading parroquias:', error);
+                this.parroquias = [];
+            }
         },
         onParroquiaChange() {
-            this.$emit("parish-changed", this.selectedParroquia);
+            // Just update the selected parroquia
         },
-
-        // Handle image upload
         previewImage(event) {
             const file = event.target.files[0];
             if (file) {
@@ -299,7 +442,23 @@ export default {
                 this.imagePreview = URL.createObjectURL(file);
             }
         },
-        
+        isValidEmail(email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(email);
+        }
     },
+    computed: {
+        isFormValid() {
+            return (
+                this.affiliate.name &&
+                this.affiliate.rif &&
+                this.affiliate.email &&
+                this.selectedState &&
+                this.selectedMunicipio &&
+                this.selectedParroquia &&
+                this.isValidEmail(this.affiliate.email)
+            );
+        }
+    }
 };
 </script>

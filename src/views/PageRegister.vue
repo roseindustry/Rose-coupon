@@ -3,13 +3,14 @@ import { defineComponent } from 'vue';
 import { useAppOptionStore } from '@/stores/app-option';
 import { RouterLink } from 'vue-router';
 import { auth, db, functions } from '@/firebase/init';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, PhoneAuthProvider, signInWithPhoneNumber, signInWithCredential } from 'firebase/auth';
 import { ref as dbRef, set, get, query, orderByChild, equalTo } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 import { showToast } from '@/utils/toast';
 import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import venezuela from 'venezuela';
+import { RecaptchaVerifier } from 'firebase/auth';
 
 export default defineComponent({
 	name: 'PageRegister',
@@ -30,8 +31,9 @@ export default defineComponent({
 			parroquia: '',
 			businessName: '',
 			rif: '',
-			//acceptTerms: false,
 			loading: false,
+			showPassword: false,
+			showReferralField: false,
 			formErrors: {
 				emailUsed: false,
 				rifUsed: false,
@@ -50,6 +52,14 @@ export default defineComponent({
 			parroquias: [],
 			showMunicipios: false,
 			showParroquias: false,
+			phoneVerified: false,
+			verificationId: '',
+			verificationCode: '',
+			showVerificationInput: false,
+			phoneVerificationLoading: false,
+			recaptchaVerifier: null,
+			recaptchaWidgetId: null,
+			isDevelopmentMode: process.env.NODE_ENV === 'development',
 		};
 	},
 	beforeUnmount() {
@@ -57,36 +67,220 @@ export default defineComponent({
 		appOption.appSidebarHide = false;
 		appOption.appHeaderHide = false;
 		appOption.appContentClass = '';
+		if (this.recaptchaVerifier) {
+			this.recaptchaVerifier.clear();
+		}
 	},
 	computed: {
-		formattedReferralCode: {
-			get() {
-				// Add 'REF-' if it doesn't already start with it
-				if (!this.referralCode.startsWith('REF-')) {
-					return `REF-${this.referralCode.toUpperCase()}`;
-				}
-				return this.referralCode.toUpperCase();
-			},
-			set(value) {
-				// Always ensure 'REF-' is present, regardless of the user's input
-				this.referralCode = value.replace(/^REF-/i, '').toUpperCase();
+		formattedReferralCode() {
+			return this.referralCode ? `REF-${this.referralCode.toUpperCase()}` : '';
+		},
+		isFormValid() {
+			// Common required fields for all roles
+			const commonFieldsValid = 
+				this.email.trim() !== '' && 
+				this.password.trim() !== '' && 
+				this.confirmPassword.trim() !== '' &&
+				this.password.length >= 6 &&
+				this.password === this.confirmPassword &&
+				this.phoneNumber.trim() !== '' &&
+				(this.phoneVerified || process.env.NODE_ENV === 'development');
+			
+			// Role-specific validation
+			if (this.role === 'afiliado') {
+				return commonFieldsValid && 
+					this.businessName.trim() !== '' && 
+					this.rif.trim() !== '';
+			} else {
+				return commonFieldsValid && 
+					this.firstName.trim() !== '' && 
+					this.lastName.trim() !== '' && 
+					// Check identification as a string or number
+					(typeof this.identification === 'string' ? 
+						this.identification.trim() !== '' : 
+						this.identification !== '' && this.identification !== null && this.identification !== undefined);
+			}
+		},
+		formattedPhoneNumber() {
+			if (!this.phoneNumber) return '';
+			
+			// Handle different country codes
+			if (this.phoneNumber.startsWith('0')) {
+				// Venezuelan format (starts with 0)
+				return `+58${this.phoneNumber.substring(1)}`;
+			} else if (this.phoneNumber.startsWith('55')) {
+				// Brazilian format (starts with country code)
+				return `+${this.phoneNumber}`;
+			} else if (this.phoneNumber.startsWith('+')) {
+				// Already has + prefix
+				return this.phoneNumber;
+			} else {
+				// Default to Venezuelan format if no country code
+				return `+58${this.phoneNumber}`;
 			}
 		}
 	},
 	methods: {
-		enforcePrefix(event) {
-			// Check if the input value starts with 'REF-'
-			if (!event.target.value.startsWith('REF-')) {
-				event.target.value = `REF-${event.target.value.replace(/^REF-/i, '').toUpperCase()}`;
-				this.referralCode = event.target.value.substring(4).toUpperCase();
+		changeRole(newRole) {
+			// Only reset if the role is actually changing
+			if (this.role !== newRole) {
+				// Reset all form fields
+				this.resetForm();
+				// Set the new role
+				this.role = newRole;
 			}
 		},
-
+		
+		resetForm() {
+			// Reset common fields
+			this.email = '';
+			this.password = '';
+			this.confirmPassword = '';
+			this.phoneNumber = '';
+			
+			// Reset role-specific fields
+			this.firstName = '';
+			this.lastName = '';
+			this.identification = '';
+			this.businessName = '';
+			this.rif = '';
+			
+			// Reset referral code fields
+			this.referralCode = '';
+			this.showReferralField = false;
+			
+			// Reset form errors
+			Object.keys(this.formErrors).forEach(key => {
+				this.formErrors[key] = false;
+			});
+		},
+		
+		initRecaptcha() {
+			if (this.recaptchaVerifier) {
+				this.recaptchaVerifier.clear();
+				this.recaptchaVerifier = null;
+			}
+			
+			try {
+				this.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+					'size': 'normal',
+					'callback': () => {
+						console.log('reCAPTCHA verified');
+					},
+					'expired-callback': () => {
+						this.recaptchaVerifier = null;
+						showToast('El captcha ha expirado. Por favor, inténtelo de nuevo.', 'error');
+					},
+					'error-callback': (error) => {
+						console.error('reCAPTCHA error:', error);
+						showToast('Error en la verificación de reCAPTCHA. Por favor, recargue la página.', 'error');
+						this.recaptchaVerifier = null;
+					}
+				});
+				
+				// Render the reCAPTCHA widget
+				this.recaptchaVerifier.render().then((widgetId) => {
+					this.recaptchaWidgetId = widgetId;
+				}).catch(error => {
+					console.error('Error rendering reCAPTCHA:', error);
+					showToast('Error al cargar el captcha. Por favor, recargue la página.', 'error');
+				});
+			} catch (error) {
+				console.error('Error initializing reCAPTCHA:', error);
+				showToast('Error al inicializar reCAPTCHA. Por favor, recargue la página.', 'error');
+			}
+		},
+		
+		async sendVerificationCode() {
+			if (!this.phoneNumber) {
+				showToast('Por favor, ingrese un número de teléfono válido', 'error');
+				return;
+			}
+			
+			try {
+				this.phoneVerificationLoading = true;
+				
+				// Initialize reCAPTCHA if not already done
+				if (!this.recaptchaVerifier) {
+					this.initRecaptcha();
+				}
+				
+				// Send verification code
+				const confirmationResult = await signInWithPhoneNumber(
+					auth, 
+					this.formattedPhoneNumber, 
+					this.recaptchaVerifier
+				);
+				
+				// Store verification ID
+				this.verificationId = confirmationResult.verificationId;
+				this.showVerificationInput = true;
+				
+				showToast('Código de verificación enviado. Por favor revise sus mensajes.', 'success');
+			} catch (error) {
+				console.error('Error sending verification code:', error);
+				
+				// Handle specific error codes
+				if (error.code === 'auth/operation-not-allowed') {
+					showToast('La verificación por SMS no está habilitada en este momento. Por favor, contacte al administrador.', 'error');
+				} else if (error.code === 'auth/invalid-phone-number') {
+					showToast('El número de teléfono no es válido. Asegúrese de usar el formato correcto.', 'error');
+				} else if (error.code === 'auth/quota-exceeded') {
+					showToast('Se ha excedido el límite de verificaciones. Por favor, intente más tarde.', 'error');
+				} else if (error.code === 'auth/captcha-check-failed') {
+					showToast('Verificación de reCAPTCHA fallida. Por favor, intente de nuevo.', 'error');
+				} else {
+					showToast(`Error al enviar el código: ${error.message}`, 'error');
+				}
+				
+				// Reset reCAPTCHA on error
+				if (this.recaptchaVerifier) {
+					this.recaptchaVerifier.clear();
+					this.recaptchaVerifier = null;
+				}
+			} finally {
+				this.phoneVerificationLoading = false;
+			}
+		},
+		
+		async verifyCode() {
+			if (!this.verificationCode) {
+				showToast('Por favor, ingrese el código de verificación', 'error');
+				return;
+			}
+			
+			try {
+				this.phoneVerificationLoading = true;
+				
+				// Create credential with verification ID and code
+				const credential = PhoneAuthProvider.credential(
+					this.verificationId, 
+					this.verificationCode
+				);
+				
+				// Mark phone as verified
+				this.phoneVerified = true;
+				this.showVerificationInput = false;
+				
+				showToast('Número de teléfono verificado correctamente', 'success');
+			} catch (error) {
+				console.error('Error verifying code:', error);
+				showToast('Código de verificación inválido. Por favor, inténtelo de nuevo.', 'error');
+			} finally {
+				this.phoneVerificationLoading = false;
+			}
+		},
+		
 		async submitForm() {
 			// Trim fields to avoid unnecessary spaces
 			this.email = this.email.trim();
 			this.password = this.password.trim();
 			this.confirmPassword = this.confirmPassword.trim();
+
+			// Reset form errors
+			Object.keys(this.formErrors).forEach(key => {
+				this.formErrors[key] = false;
+			});
 
 			// Password length validation
 			if (this.password.length < 6) {
@@ -96,14 +290,17 @@ export default defineComponent({
 
 			// Password mismatch Validation
 			if (this.password !== this.confirmPassword) {
-				this.passwordMismatch = true;
+				this.formErrors.passwordMismatch = true;
 				return;
 			}
-			this.formErrors.passwordMismatch = false;
-			this.formErrors.passwordTooShort = false;
+
+			// Check if phone is verified
+			if (!this.phoneVerified && this.phoneNumber) {
+				showToast('Por favor, verifique su número de teléfono', 'error');
+				return;
+			}
 
 			try {
-
 				this.loading = true; // Show loader
 
 				// Query Users to check if email or identification is already used
@@ -127,7 +324,7 @@ export default defineComponent({
 
 				// Referral code validation: Fetch users with role 'mesero' or 'promotora'
 				let referredByEmployee = null;
-				if (this.formattedReferralCode && this.formattedReferralCode !== "REF-") {
+				if (this.showReferralField && this.formattedReferralCode) {
 					const employees = ['mesero', 'promotora'];
 
 					// Query for 'mesero' role users
@@ -147,7 +344,6 @@ export default defineComponent({
 					// Check if referral code matches any employee
 					for (const empUid in employeeResults) {
 						if (employeeResults[empUid].codigoReferido === this.formattedReferralCode) {
-							console.log(employeeResults[empUid].codigoReferido)
 							referredByEmployee = empUid;
 							break;
 						}
@@ -155,18 +351,11 @@ export default defineComponent({
 
 					if (!referredByEmployee) {
 						// Invalid referral code
-						showToast("Código de referido inválido.", {
-							style: {
-								background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
-							},
-						});
+						showToast("Código de referido inválido.");
 						this.loading = false;
 						return;
 					}
-
 				}
-
-
 
 				// Create the user
 				const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
@@ -179,7 +368,7 @@ export default defineComponent({
 					...(this.role === 'afiliado'
 						? {
 							companyName: this.businessName,
-							rif: this.identification
+							rif: this.rif
 						}
 						: {
 							firstName: this.firstName,
@@ -187,13 +376,9 @@ export default defineComponent({
 							identification: this.identification
 						}),
 					phoneNumber: this.phoneNumber,
-					// state: this.state,
-					// municipio: this.municipio,
-					// parroquia: this.parroquia,
+					phoneVerified: true,
 					role: this.role,
 				});
-
-				console.log('User created:', user.uid);
 
 				// If the user was referred, update the referred employee's 'referidos' list
 				if (referredByEmployee) {
@@ -201,10 +386,9 @@ export default defineComponent({
 					await set(referidosRef, {
 						referredAt: new Date().toISOString(),
 					});
-					console.log(`User referred by employee: ${referredByEmployee}`);
 				}
 
-				// Send an email notification to the admin through Firebase Cloud Functions
+				// Send an email notification to the admin
 				const emailPayload = {
 					to: 'roseindustry11@gmail.com',
 					message: {
@@ -212,17 +396,11 @@ export default defineComponent({
 						text: `Hola administrador, el ${this.role.charAt(0).toUpperCase() + this.role.slice(1)} ${this.firstName} ${this.lastName} se ha registrado en Roseapp.`,
 					},
 				};
-				// Send email via the utility function
-                const result = await sendEmail(emailPayload);
-
-                if (result.success) {
-                    console.log("Email sent successfully:", result.message);
-                } else {
-                    console.error("Failed to send email:", result.error);
-                }
+				
+				const result = await sendEmail(emailPayload);
 
 				// Toastify success message
-				showToast('Bienvenido a bordo!');
+				showToast('¡Bienvenido a bordo!');
 
 				// After successful signup and data storage, redirect based on role
 				if (this.role === 'cliente') {
@@ -234,56 +412,33 @@ export default defineComponent({
 				}
 
 			} catch (error) {
-				console.error('Error signing up');
-				console.error(error);
-
-				// Check for other errors
-				showToast("Error al registrarse. Inténtalo de nuevo.", {
-					style: {
-						background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
-					},
-				});
+				console.error('Error signing up', error);
+				showToast("Error al registrarse. Inténtalo de nuevo.");
+			} finally {
+				this.loading = false;
 			}
-
-			// // Validation of Terms and conditions
-			// if (this.acceptTerms === true) {
-
-			// } else {
-			// 	alert('Debes aceptar nuestros terminos para proceder.');
-			// 	return;
-			// }
 		},
-		resetForm() {
-			this.firstName = '';
-			this.lastName = '';
-			this.identification = '';
-			this.email = '';
-			this.phoneNumber = '';
-			// this.sector = '';
-			// this.address = '';
-			this.password = '';
-			this.confirmPassword = '';
-			this.role = 'cliente';
-			this.passwordMismatch = false;
+		bypassPhoneVerification() {
+			if (process.env.NODE_ENV === 'development') {
+				this.phoneVerified = true;
+				showToast('Verificación omitida (modo desarrollo)', 'info');
+			}
 		},
-
-		// venezuelanStatesInfo(state) {
-		// 	const z = venezuela.estado(state, { municipios: true });
-		// 	const munis = z.municipios;
-		// 	if (munis) {
-		// 		this.municipios = munis;
-		// 		this.showMunicipios = true;
-		// 	}
-		// },
-		// displayParroquias(municipio) {
-		// 	const y = venezuela.municipio(municipio, { parroquias: true });
-		// 	this.parroquias = y.parroquias;
-		// 	if (this.parroquias) {
-		// 		this.showParroquias = true;
-		// 	}
-		// },
+	},
+	watch: {
+		// Alternative approach using a watcher if you prefer
+		role(newRole, oldRole) {
+			if (newRole !== oldRole) {
+				this.resetForm();
+			}
+		}
+	},
+	mounted() {
+		// Initialize reCAPTCHA when component is mounted
+		this.$nextTick(() => {
+			this.initRecaptcha();
+		});
 	}
-
 });
 </script>
 <template>
@@ -291,121 +446,292 @@ export default defineComponent({
 	<div class="register">
 		<!-- BEGIN register-content -->
 		<div class="register-content">
-			<form @submit.prevent="submitForm">
-				<h1 class="text-center mb-4">Registro</h1>
+			<form @submit.prevent="submitForm" class="register-form">
+				<div class="text-center mb-4">
+					<h1 class="fw-bold">Registro</h1>
+					<p class="text-muted">Crea tu cuenta en Rose App</p>
+				</div>
+
+				<!-- Role Selection -->
+				<div class="mb-4">
+					<div class="role-selector d-flex">
+						<div 
+							class="role-option flex-fill text-center p-3" 
+							:class="{'active': role === 'cliente'}"
+							@click="changeRole('cliente')"
+						>
+							<i class="fas fa-user mb-2"></i>
+							<div>Cliente</div>
+						</div>
+						<div 
+							class="role-option flex-fill text-center p-3" 
+							:class="{'active': role === 'afiliado'}"
+							@click="changeRole('afiliado')"
+						>
+							<i class="fas fa-store mb-2"></i>
+							<div>Afiliado</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Referral Code Toggle -->
+				<div v-if="role === 'cliente'" class="form-check mb-3">
+					<input class="form-check-input" type="checkbox" id="showReferralCode" v-model="showReferralField">
+					<label class="form-check-label" for="showReferralCode">
+						Tengo un código de referido
+					</label>
+				</div>
+
+				<!-- Referral Code Field (conditionally shown) -->
+				<div v-if="role === 'cliente' && showReferralField" class="mb-3">
+					<label class="form-label">Código de referido</label>
+					<div class="input-group">
+						<span class="input-group-text bg-dark">REF-</span>
+						<input 
+							v-model="referralCode" 
+							class="form-control form-control-lg" 
+							placeholder="Ingrese su código"
+							@input="referralCode = referralCode.toUpperCase()"
+						/>
+					</div>
+					<small class="form-text text-muted">Si fue referido por un mesero o promotora, ingrese su código aquí.</small>
+				</div>
 
 				<!-- Conditional fields based on the selected role -->
-				<div v-if="role === 'afiliado'">
-					<div class="mb-3">
-						<label class="form-label">Nombre del Comercio <span class="text-danger">*</span></label>
-						<input v-model="businessName" type="text" class="form-control form-control-lg fs-15px"
-							placeholder="e.g. Mi Comercio" required />
+				<div v-if="role === 'afiliado'" class="card border-0 shadow-sm mb-4">
+					<div class="card-header bg-dark">
+						<h5 class="mb-0">Información del Comercio</h5>
 					</div>
-					<div class="mb-3">
-						<label class="form-label">RIF <span class="text-danger">*</span></label>
-						<input v-model="rif" type="text" class="form-control form-control-lg fs-15px"
-							placeholder="e.g. J-12345678-9" required />
-						<small v-if="formErrors.rifUsed" class="text-danger">El RIF ya está en uso.</small>
-					</div>
-				</div>
-
-				<div v-else>
-					<div class="mb-3">
-						<label class="form-label">Código de referido </label>
-						<input v-model="formattedReferralCode" @input="enforcePrefix"
-							class="form-control form-control-lg fs-15px" value="" />
-					</div>
-					<div class="mb-3">
-						<label class="form-label">Nombre <span class="text-danger">*</span></label>
-						<input v-model="firstName" type="text" class="form-control form-control-lg fs-15px"
-							placeholder="e.g John" value="" required />
-					</div>
-					<div class="mb-3">
-						<label class="form-label">Apellido <span class="text-danger">*</span></label>
-						<input v-model="lastName" type="text" class="form-control form-control-lg fs-15px"
-							placeholder="e.g Smith" value="" required />
-					</div>
-					<div class="mb-3">
-						<label class="form-label">Cedula / Identificacion <span class="text-danger">*</span></label>
-						<input v-model="identification" type="number" class="form-control form-control-lg fs-15px"
-							placeholder="e.g 20555444" value="" required />
-						<small v-if="formErrors.identificationUsed" class="text-danger">La identificación ya está en
-							uso.</small>
+					<div class="card-body">
+						<div class="mb-3">
+							<label class="form-label">Nombre del Comercio <span class="text-danger">*</span></label>
+							<input 
+								v-model="businessName" 
+								type="text" 
+								class="form-control form-control-lg" 
+								placeholder="Ej: Mi Comercio" 
+								required 
+							/>
+						</div>
+						<div class="mb-3">
+							<label class="form-label">RIF <span class="text-danger">*</span></label>
+							<input 
+								v-model="rif" 
+								type="text" 
+								class="form-control form-control-lg" 
+								placeholder="Ej: J-12345678-9" 
+								required 
+							/>
+							<small v-if="formErrors.rifUsed" class="text-danger">El RIF ya está en uso.</small>
+						</div>
 					</div>
 				</div>
 
-				<div class="mb-3">
-					<label class="form-label">Correo electronico <span class="text-danger">*</span></label>
-					<input v-model="email" type="text" class="form-control form-control-lg fs-15px"
-						placeholder="e.g username@address.com" value="" required />
-					<small v-if="formErrors.emailUsed" class="text-danger">El correo electrónico ya está en uso.</small>
-				</div>
-				<div class="mb-3">
-					<label class="form-label">Telefono <span class="text-secondary">(Opcional)</span></label>
-					<input type="tel" v-model="phoneNumber" class="form-control form-control-lg fs-15px"
-						placeholder="e.g 04145555555" value="" pattern="[0-9]{4}[0-9]{7}" />
-				</div>
-				<!-- <div class="mb-3">
-					<label class="form-label">Estado</label>
-					<select v-model="state" @change="venezuelanStatesInfo(state)"
-						class="form-control form-control-lg fs-15px" placeholder="Seleccione un Estado">
-						<option value="" disabled selected>Selecciona un estado</option>
-						<option v-for="state in venezuelanStates" :key="state" :value="state">
-							{{ state }}
-						</option>
-					</select>
-				</div>
-				<div v-if="showMunicipios" class="mb-3">
-					<label class="form-label">Municipio</label>
-					<select v-model="municipio" @change="displayParroquias(municipio)"
-						class="form-control form-control-lg fs-15px" placeholder="Seleccione un Estado">
-						<option value="" disabled selected>Selecciona un municipio</option>
-						<option v-for="municipio in municipios" :key="municipio" :value="municipio">
-							{{ municipio }}
-						</option>
-					</select>
-				</div>
-				<div v-if="showParroquias" class="mb-3">
-					<label class="form-label">Parroquia</label>
-					<select v-model="parroquia" class="form-control form-control-lg fs-15px"
-						placeholder="Seleccione un Estado">
-						<option value="" disabled selected>Selecciona una parroquia</option>
-						<option v-for="parroquia in parroquias" :key="parroquia" :value="parroquia">
-							{{ parroquia }}
-						</option>
-					</select>
-				</div> -->
-				<div class="mb-3">
-					<label class="form-label">Contraseña <span class="text-danger">*</span></label>
-					<input v-model="password" type="password" class="form-control form-control-lg fs-15px" value=""
-						required />
-					<small v-if="formErrors.passwordTooShort" class="text-danger">
-						La contraseña debe tener al menos 6 caracteres.
-					</small>
+				<!-- Client Information -->
+				<div v-else class="card border-0 shadow-sm mb-4">
+					<div class="card-header bg-dark">
+						<h5 class="mb-0">Información Personal</h5>
+					</div>
+					<div class="card-body">
+						<div class="row">
+							<div class="col-md-6 mb-3">
+								<label class="form-label">Nombre <span class="text-danger">*</span></label>
+								<input 
+									v-model="firstName" 
+									type="text" 
+									class="form-control form-control-lg" 
+									placeholder="Ej: Juan" 
+									required 
+								/>
+							</div>
+							<div class="col-md-6 mb-3">
+								<label class="form-label">Apellido <span class="text-danger">*</span></label>
+								<input 
+									v-model="lastName" 
+									type="text" 
+									class="form-control form-control-lg" 
+									placeholder="Ej: Pérez" 
+									required 
+								/>
+							</div>
+						</div>
+						<div class="mb-3">
+							<label class="form-label">Cédula / Identificación <span class="text-danger">*</span></label>
+							<div class="input-group">
+								<span class="input-group-text bg-dark">V</span>
+								<input 
+									v-model="identification" 
+									type="text" 
+									class="form-control form-control-lg" 
+									placeholder="Ej: 20555444" 
+									required 
+								/>
+							</div>
+							<small v-if="formErrors.identificationUsed" class="text-danger">La identificación ya está en uso.</small>
+						</div>
+					</div>
 				</div>
 
-				<div class="mb-3">
-					<label class="form-label">Confirmar Contraseña <span class="text-danger">*</span></label>
-					<input v-model="confirmPassword" type="password" class="form-control form-control-lg fs-15px"
-						value="" required />
-					<small v-if="formErrors.passwordMismatch" class="text-danger">Las contraseñas no coinciden.</small>
+				<!-- Contact Information -->
+				<div class="card border-0 shadow-sm mb-4">
+					<div class="card-header bg-dark">
+						<h5 class="mb-0">Información de Contacto</h5>
+					</div>
+					<div class="card-body">
+						<div class="mb-3">
+							<label class="form-label">Correo electrónico <span class="text-danger">*</span></label>
+							<div class="input-group">
+								<span class="input-group-text bg-dark"><i class="fas fa-envelope"></i></span>
+								<input 
+									v-model="email" 
+									type="email" 
+									class="form-control form-control-lg" 
+									placeholder="Ej: usuario@correo.com" 
+									required 
+								/>
+							</div>
+							<small v-if="formErrors.emailUsed" class="text-danger">El correo electrónico ya está en uso.</small>
+						</div>
+						<div class="mb-3">
+							<label class="form-label">Teléfono <span class="text-danger">*</span></label>
+							<div class="input-group">
+								<span class="input-group-text bg-dark"><i class="fas fa-phone"></i></span>
+								<input 
+									type="tel" 
+									v-model="phoneNumber" 
+									class="form-control form-control-lg" 
+									placeholder="Ej: 04145555555" 
+									:disabled="phoneVerified || showVerificationInput"
+									required 
+								/>
+								<button 
+									type="button" 
+									class="btn btn-outline-primary" 
+									@click="sendVerificationCode"
+									:disabled="!phoneNumber || phoneVerified || phoneVerificationLoading || showVerificationInput"
+								>
+									<i class="fas fa-sms me-1"></i>
+									{{ phoneVerified ? 'Verificado' : 'Verificar' }}
+								</button>
+							</div>
+							<div class="mt-2">
+								<small class="form-text text-muted d-block">
+									<i class="fas fa-info-circle me-1"></i> Formatos de teléfono aceptados: 
+								</small>
+								<small class="form-text text-muted d-block">
+									• Venezuela: <span class="text-success">04145555555</span> (se añadirá +58)
+								</small>
+								<!-- <small class="form-text text-muted d-block">
+									• Brasil: <span class="text-success">5511987654321</span> (incluya el código de país 55)
+								</small> -->
+							</div>
+							
+							<!-- Phone number preview -->
+							<div v-if="phoneNumber && !phoneVerified" class="mt-2 alert alert-info py-2">
+								<small>
+									<i class="fas fa-check me-1"></i> El código se enviará a: <strong>{{ formattedPhoneNumber }}</strong>
+								</small>
+							</div>
+							
+							<!-- reCAPTCHA container -->
+							<div id="recaptcha-container" class="mt-2 d-flex justify-content-center"></div>
+							
+							<!-- Verification code input (shown after sending code) -->
+							<div v-if="showVerificationInput" class="mt-3">
+								<label class="form-label">Código de verificación</label>
+								<div class="input-group">
+									<input 
+										type="text" 
+										v-model="verificationCode" 
+										class="form-control form-control-lg" 
+										placeholder="Ingrese el código recibido por SMS" 
+									/>
+									<button 
+										type="button" 
+										class="btn btn-outline-success" 
+										@click="verifyCode"
+										:disabled="!verificationCode || phoneVerificationLoading"
+									>
+										<i class="fas fa-check me-1"></i>
+										Confirmar
+									</button>
+								</div>
+								<small class="form-text text-muted">
+									Ingrese el código de 6 dígitos enviado a su teléfono
+								</small>
+							</div>
+							
+							<!-- Verification status -->
+							<div v-if="phoneVerified" class="mt-2 text-success">
+								<i class="fas fa-check-circle me-1"></i>
+								Número verificado correctamente: <strong>{{ formattedPhoneNumber }}</strong>
+							</div>
+						</div>
+					</div>
 				</div>
-				<p class="text-muted">(<span class="text-danger">*</span>) Campos obligatorios.</p>
 
-				<!-- <div class="form-check mt-4 mb-3">
-					<input type="checkbox" class="form-check-input" id="terms" v-model="acceptTerms" />
-					<label class="form-check-label" for="terms">Acepto <a href="#" data-bs-toggle="modal"
-							data-bs-target="#termsModal">Terminos y Condiciones</a>.</label>
-				</div> -->
-				<button type="submit" :disabled="loading" class="btn btn-theme btn-lg fs-15px fw-500 d-block w-100">
-					<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
-						aria-hidden="true"></span>
-					<span v-else>Registrar</span>
+				<!-- Security -->
+				<div class="card border-0 shadow-sm mb-4">
+					<div class="card-header bg-dark">
+						<h5 class="mb-0">Seguridad</h5>
+					</div>
+					<div class="card-body">
+						<div class="mb-3">
+							<label class="form-label">Contraseña <span class="text-danger">*</span></label>
+							<div class="input-group">
+								<span class="input-group-text bg-dark"><i class="fas fa-lock"></i></span>
+								<input 
+									v-model="password" 
+									:type="showPassword ? 'text' : 'password'" 
+									class="form-control form-control-lg" 
+									required 
+								/>
+								<button 
+									type="button" 
+									class="btn btn-outline-secondary" 
+									@click="showPassword = !showPassword"
+								>
+									<i :class="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+								</button>
+							</div>
+							<small v-if="formErrors.passwordTooShort" class="text-danger">
+								La contraseña debe tener al menos 6 caracteres.
+							</small>
+						</div>
+
+						<div class="mb-3">
+							<label class="form-label">Confirmar Contraseña <span class="text-danger">*</span></label>
+							<div class="input-group">
+								<span class="input-group-text bg-dark"><i class="fas fa-lock"></i></span>
+								<input 
+									v-model="confirmPassword" 
+									:type="showPassword ? 'text' : 'password'" 
+									class="form-control form-control-lg" 
+									required 
+								/>
+							</div>
+							<small v-if="formErrors.passwordMismatch" class="text-danger">Las contraseñas no coinciden.</small>
+							<small v-else-if="password && confirmPassword && password !== confirmPassword" class="text-danger">
+								Las contraseñas no coinciden.
+							</small>
+						</div>
+					</div>
+				</div>
+
+				<p class="text-muted mb-4">(<span class="text-danger">*</span>) Campos obligatorios.</p>
+
+				<button 
+					type="submit" 
+					:disabled="loading || !isFormValid" 
+					class="btn btn-theme btn-lg d-block w-100 mb-3"
+				>
+					<span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+					<span v-else><i class="fas fa-user-plus me-2"></i></span>
+					{{ loading ? "Procesando..." : "Crear Cuenta" }}
 				</button>
 
-				<div class="text-muted text-center mt-2">
-					¿Ya estas registrado? <router-link style="color: purple;" to="/page/login">Iniciar
-						sesion</router-link>
+				<div class="text-center mt-4">
+					¿Ya estás registrado? <router-link style="color: purple;" to="/page/login">Iniciar sesión</router-link>
 				</div>
 			</form>
 		</div>
@@ -425,11 +751,158 @@ export default defineComponent({
 			</div>
 		</div>
 
+		<!-- Development bypass button -->
+		<!-- <div v-if="isDevelopmentMode && !phoneVerified" class="mt-2 alert alert-warning">
+			<small>
+				<i class="fas fa-code me-1"></i> Modo desarrollo: 
+				<button 
+					type="button" 
+					class="btn btn-sm btn-warning ms-2" 
+					@click="bypassPhoneVerification"
+				>
+					Omitir verificación (solo desarrollo)
+				</button>
+			</small>
+		</div> -->
+
 	</div>
 </template>
 <style>
+/* Base theme colors */
 .btn-theme {
 	background-color: purple;
 	border-color: purple;
+	transition: all 0.2s ease;
+}
+
+.btn-theme:hover:not(:disabled) {
+	background-color: #8a2be2;
+	border-color: #8a2be2;
+}
+
+/* Compact form styling */
+.register {
+	padding: 1rem 0;
+}
+
+.register-content {
+	max-width: 650px;
+	margin: 0 auto;
+}
+
+.register-form {
+	font-size: 0.9rem;
+}
+
+/* Card styling */
+.card {
+	margin-bottom: 1rem !important;
+	box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
+}
+
+.card-header {
+	padding: 0.5rem 1rem !important;
+}
+
+.card-header h5 {
+	font-size: 1rem !important;
+	margin-bottom: 0 !important;
+}
+
+.card-body {
+	padding: 1rem !important;
+}
+
+/* Form controls */
+.form-label {
+	font-size: 0.85rem;
+	margin-bottom: 0.25rem;
+}
+
+.form-control-lg {
+	font-size: 0.9rem !important;
+	padding: 0.375rem 0.75rem !important;
+	height: auto !important;
+	min-height: 38px !important;
+}
+
+.input-group-text {
+	padding: 0.375rem 0.75rem !important;
+	font-size: 0.9rem !important;
+}
+
+.form-text, small {
+	font-size: 0.75rem !important;
+}
+
+/* Spacing adjustments */
+.mb-3 {
+	margin-bottom: 0.75rem !important;
+}
+
+.mb-4 {
+	margin-bottom: 1rem !important;
+}
+
+/* Role selector */
+.role-selector {
+	margin-bottom: 1rem !important;
+}
+
+.role-option {
+	padding: 0.5rem !important;
+	font-size: 0.9rem;
+}
+
+.role-option i {
+	font-size: 1.2rem;
+	margin-bottom: 0.25rem;
+}
+
+/* Alert boxes */
+.alert {
+	padding: 0.5rem 0.75rem !important;
+	font-size: 0.8rem !important;
+}
+
+/* Button adjustments */
+.btn {
+	font-size: 0.9rem !important;
+	padding: 0.375rem 0.75rem !important;
+}
+
+.btn-lg {
+	padding: 0.5rem 1rem !important;
+}
+
+/* reCAPTCHA container */
+#recaptcha-container {
+	transform: scale(0.9);
+	transform-origin: 0 0;
+	margin-bottom: 0.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+	.register-form {
+		font-size: 0.85rem;
+	}
+	
+	.card-body {
+		padding: 0.75rem !important;
+	}
+	
+	.form-control-lg, .input-group-text, .btn {
+		font-size: 0.85rem !important;
+	}
+}
+
+/* Page title */
+h1.fw-bold {
+	font-size: 1.75rem !important;
+}
+
+p.text-muted {
+	font-size: 0.9rem !important;
 }
 </style>
