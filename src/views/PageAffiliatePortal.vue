@@ -95,59 +95,62 @@ export default defineComponent({
 });
 </script>
 <template>
-    <div class="container py-5 h-100">
-
-        <!-- Badges -->
-        <div class="subscription-badge-container position-absolute text-muted text-center top-0 end-0 m-3">
-            <div class="align-items-center">
-
-                <!-- Subscription Plan Badge (Left) -->
-                <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
-                    class="d-flex align-items-center ms-3">
-                    <a href="#" @click.prevent="redirectToSubs(subscriptionPlan)" id="subscription-button" class="btn">
-                        <span
-                            class="badge bg-light border border-success text-success d-flex align-items-center px-3 py-2 shadow-sm rounded-pill"
-                            style="width: auto;">
-                            <i :class="subscriptionPlan.icon" class="me-2" style="font-size: 1.2rem;"></i>
-                            {{ subscriptionPlan.name.toUpperCase() }}
-                        </span>
-                    </a>
-                    <small class="text-muted d-block ms-2">Haz clic para cambiar tu suscripción</small>
+    <div class="container">
+        <!-- Header Section -->
+        <div class="portal-header mb-4">
+            <div class="row align-items-center">
+                <div class="col-md-7">
+                    <h2 class="fw-bold mb-0">Portal de Afiliados</h2>
+                    <p class="text-muted small mb-0">Herramientas para gestionar tu negocio</p>
                 </div>
-                <div v-else class="d-flex align-items-center">
-                    <RouterLink to="/suscripciones" class="btn">
-                        <span
-                            class="badge bg-light border border-danger text-danger d-flex align-items-center px-3 py-2 shadow-sm rounded-pill"
-                            style="width: auto;">
-                            <i class="me-2 fa-solid fa-exclamation-circle" style="font-size: 1.2rem;"></i>
-                            Click para suscribirte
-                        </span>
-                    </RouterLink>
+                <div class="col-md-5">
+                    <!-- Subscription Badge (Improved) -->
+                    <div class="subscription-container">
+                        <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
+                            class="subscription-card" @click="redirectToSubs(subscriptionPlan)">
+                            <div class="subscription-icon">
+                                <i :class="subscriptionPlan.icon"></i>
+                            </div>
+                            <div class="subscription-info">
+                                <div class="subscription-name">{{ subscriptionPlan.name.toUpperCase() }}</div>
+                                <small class="subscription-hint">Haz clic para cambiar</small>
+                            </div>
+                        </div>
+                        <div v-else class="subscription-card subscription-card-alert" @click="$router.push('/suscripciones')">
+                            <div class="subscription-icon">
+                                <i class="fa-solid fa-exclamation-circle"></i>
+                            </div>
+                            <div class="subscription-info">
+                                <div class="subscription-name">SIN SUSCRIPCIÓN</div>
+                                <small class="subscription-hint">Haz clic para suscribirte</small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="row justify-content-center align-items-center h-100">
-            <div class="col-12">
-                <div class="pb-5 pt-5 pt-md-5 pt-lg-5">
-                    <h2 class="mb-4 text-center">Portal de Afiliados</h2>
-
-                    <div class="row row-cols-1 row-cols-md-2 g-4">
-                        <div class="col" v-for="item in portalItems" :key="item.title">
-                            <div class="card h-100 position-relative">
-                                <div class="card-body">
-                                    <h5 class="card-title">{{ item.title }}</h5>
-                                    <div v-if="item.notReady === true" class="ribbon">
-                                        <span>Proximamente</span>
-                                    </div>
-                                    <p class="card-text">{{ item.description }}</p>
-                                    <router-link :to="item.link" class="btn btn-theme"
-                                        :class="{ 'disabled': item.notReady === true }">
-                                        {{ item.actionText }}
-                                    </router-link>
-                                    <i :class="[item.icon, 'icon-circle']"></i>
-                                </div>
+        <!-- Main Content -->
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            <div class="col" v-for="item in portalItems" :key="item.title">
+                <div class="card h-100 portal-card position-relative">
+                    <div v-if="item.notReady === true" class="ribbon">
+                        <span>Proximamente</span>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-circle me-3">
+                                <i :class="item.icon"></i>
                             </div>
+                            <h5 class="card-title mb-0">{{ item.title }}</h5>
+                        </div>
+                        <p class="card-text flex-grow-1">{{ item.description }}</p>
+                        <div class="mt-3">
+                            <router-link :to="item.link" class="btn btn-theme w-100"
+                                :class="{ 'disabled': item.notReady === true }">
+                                <i :class="item.icon" class="me-2"></i>
+                                {{ item.actionText }}
+                            </router-link>
                         </div>
                     </div>
                 </div>
@@ -155,48 +158,154 @@ export default defineComponent({
         </div>
     </div>
 </template>
-<style>
+<style scoped>
+/* Keep existing button styles */
 .btn-theme {
     background-color: purple;
     border-color: purple;
+    transition: all 0.2s ease;
 }
 
+.btn-theme:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Improved icon circle */
 .icon-circle {
-    position: absolute;
-    right: 0;
-
-    margin: 15px;
-    top: calc(50% - 20px);
-
-    font-size: 25px;
-
     background-color: white;
     color: #000;
-
-    width: 40px;
-
-    height: 40px;
-
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 1.25rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
 }
 
-.card {
+/* Card styling improvements */
+.portal-card {
     overflow: hidden;
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
+.portal-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* Improved ribbon */
 .ribbon {
     position: absolute;
-    top: 25px;
-    right: -20px;
+    top: 15px;
+    right: -30px;
     background: #8c042c;
     color: #fff;
-    padding: 5px 15px;
-    font-size: 0.875rem;
+    padding: 5px 30px;
+    font-size: 0.75rem;
     font-weight: bold;
     transform: rotate(45deg);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+}
+
+/* Compact header styles */
+.portal-header {
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+
+/* Compact subscription styles */
+.subscription-container {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.subscription-card {
+    display: flex;
+    align-items: center;
+    background: white;
+    border-radius: 8px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 4px solid #198754;
+    max-width: 250px;
+}
+
+.subscription-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.subscription-card-alert {
+    border-left: 4px solid #dc3545;
+}
+
+.subscription-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(25, 135, 84, 0.1);
+    color: #198754;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.subscription-card-alert .subscription-icon {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+.subscription-info {
+    flex: 1;
+}
+
+.subscription-name {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: #333;
+}
+
+.subscription-hint {
+    display: block;
+    color: #6c757d;
+    font-size: 0.7rem;
+    margin-top: 1px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .portal-header {
+        text-align: center;
+    }
+    
+    .subscription-container {
+        justify-content: center;
+        margin-top: 1rem;
+    }
+    
+    .subscription-card {
+        width: 100%;
+        max-width: 250px;
+    }
+}
+
+@media (max-width: 576px) {
+    .row-cols-1 {
+        margin: 0 0.5rem;
+    }
 }
 </style>

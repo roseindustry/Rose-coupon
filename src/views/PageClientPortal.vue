@@ -256,126 +256,119 @@ export default defineComponent({
 </script>
 <template>
     <div class="container">
+        <!-- Header Section -->
+        <div class="portal-header mb-4">
+            <div class="row align-items-center">
+                <div class="col-md-7">
+                    <h2 class="fw-bold mb-0">Portal de Clientes</h2>
+                    <p class="text-muted small mb-0">Accede a todos los servicios disponibles</p>
+                </div>
+                <div class="col-md-5">
+                    <!-- User Status Badges -->
+                    <div class="badges-container">
+                        <!-- Subscription Badge -->
+                        <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
+                            class="status-card subscription-card" @click="redirectToSubs(subscriptionPlan)">
+                            <div class="status-icon subscription-icon">
+                                <i :class="subscriptionPlan.icon"></i>
+                            </div>
+                            <div class="status-info">
+                                <div class="status-name">{{ subscriptionPlan.name.toUpperCase() }}</div>
+                                <small class="status-hint">
+                                    {{ subscriptionPlan.isPaid ? 'Suscripción activa' : 'Pago pendiente' }}
+                                </small>
+                            </div>
+                        </div>
+                        <div v-else class="status-card subscription-card-alert" @click="$router.push('/suscripciones')">
+                            <div class="status-icon">
+                                <i class="fa-solid fa-exclamation-circle"></i>
+                            </div>
+                            <div class="status-info">
+                                <div class="status-name">SIN SUSCRIPCIÓN</div>
+                                <small class="status-hint">Haz clic para suscribirte</small>
+                            </div>
+                        </div>
 
-        <!-- Badges -->
-        <div class="subscription-badge-container position-absolute text-muted text-center top-0 end-0 m-2 w-100">
-            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap w-100">
-
-                <!-- Subscription Plan Badge (Left) -->
-                <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
-                    class="d-flex flex-column align-items-start ms-3">
-                    <a href="#" @click.prevent="redirectToSubs(subscriptionPlan)" id="subscription-button"
-                        class="btn p-1">
-                        <span
-                            class="badge bg-light border border-success text-success d-flex align-items-center px-2 py-1 shadow-sm rounded-pill">
-                            <i :class="subscriptionPlan.icon" class="me-1" style="font-size: 1rem;"></i>
-                            {{ subscriptionPlan.name.toUpperCase() }}
-                        </span>
-                    </a>
-                    <div class="mt-1">
-                        <small class="text-muted d-block">Haz clic para cambiar tu suscripción</small>
-                        <small v-if="!subscriptionPlan.isPaid" class="text-danger">Debes realizar el pago de tu
-                            suscripción.</small>
+                        <!-- Verification Badge -->
+                        <div v-if="!userVerified" class="status-card verification-card-alert mt-2" 
+                            data-bs-toggle="modal" data-bs-target="#verificationModal">
+                            <div class="status-icon">
+                                <i class="fa-solid fa-user-xmark"></i>
+                            </div>
+                            <div class="status-info">
+                                <div class="status-name">CUENTA SIN VERIFICAR</div>
+                                <small class="status-hint">Haz clic para verificar tu cuenta</small>
+                            </div>
+                        </div>
+                        <div v-else class="status-card verification-card mt-2">
+                            <div class="status-icon">
+                                <i class="fa-solid fa-user-check"></i>
+                            </div>
+                            <div class="status-info">
+                                <div class="status-name">CUENTA VERIFICADA</div>
+                                <small class="status-hint">Tu cuenta está verificada</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
-
-                <div v-else class="d-flex align-items-center">
-                    <RouterLink to="/suscripciones" class="btn p-1">
-                        <span
-                            class="badge bg-light border border-danger text-danger d-flex align-items-center px-2 py-1 shadow-sm rounded-pill">
-                            <i class="me-1 fa-solid fa-exclamation-circle" style="font-size: 1rem;"></i>
-                            Click para suscribirte
-                        </span>
-                    </RouterLink>
-                </div>
-
-                <!-- User Verification Badge (Right) -->
-                <div class="d-flex flex-column align-items-end ms-2">
-                    <a id="verify-identity" v-if="!userVerified" href="#" data-bs-toggle="modal"
-                        data-bs-target="#verificationModal">
-                        <span
-                            class="badge bg-light border border-danger text-danger d-flex align-items-center px-3 py-2 shadow-sm rounded-pill">
-                            <i class="fa-solid fa-user-xmark me-2" style="font-size: 1rem;"></i>
-                        </span>
-                    </a>
-
-                    <span v-else
-                        class="badge bg-light border border-success text-success d-flex align-items-center px-3 py-2 shadow-sm rounded-pill">
-                        <i class="fa-solid fa-user-check me-2" style="font-size: 1.2rem;"></i>
-                        Verificado
-                    </span>
-
-                    <small class="text-muted mt-2 text-center" v-if="!userVerified">Haz clic para verificar tu
-                        cuenta</small>
-                    <small class="text-success mt-2 text-center" v-else>Tu cuenta está verificada</small>
-                </div>
-
             </div>
         </div>
 
-
-        <div class="row justify-content-center align-items-center h-100 mt-5">
-            <div class="col-12">
-                <div class="pb-5 pt-5 pt-md-5 pt-lg-5">
-                    <h2 class="mb-4 text-center">Portal de Clientes</h2>
-
-                    <div class="row row-cols-1 row-cols-md-2 g-4">
-                        <div class="col" v-for="item in portalItems" :key="item.title">
-                            <div class="card h-100 text-dark bg-light position-relative" :style="{
-                                backgroundImage: `url(${item.bgImage})`,
-                                backgroundSize: 'cover',
-                                backgroundPosition: 'center',
-                            }">
-                                <div class="card-body d-flex flex-column justify-content-between"
-                                    style="padding: 1.5rem;">
-                                    <div>
-                                        <h5 class="card-title">{{ item.title }}</h5>
-                                        <div v-if="item.notReady === true" class="ribbon">
-                                            <span>Proximamente</span>
-                                        </div>
-                                        <p class="card-text w-50">{{ item.description }}</p>
-                                    </div>
-                                    <div>
-                                        <router-link :to="item.link" class="btn btn-theme mt-3"
-                                            :class="{ 'disabled': (item.title === 'Crédito' && !userVerified) || (item.title === 'Solicitar cupón' && subscriptionPlan.price === 0) || item.notReady === true }"
-                                            :aria-disabled="item.title === 'Crédito' && !userVerified"
-                                            :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
-                                            {{ item.actionText }}
-                                        </router-link>
-                                        <!-- Tooltip or message when 'Crédito' button is disabled -->
-                                        <div v-if="item.title === 'Crédito' && !userVerified" class="w-50 mt-2">
-                                            <small class="text-danger">
-                                                <span v-if="verificationStatus === 'unverified'">
-                                                    Verifique su cuenta para habilitar la opción de crédito.
-                                                    <a href="#" class="text-white" data-bs-toggle="modal"
-                                                        data-bs-target="#verificationModal">
-                                                        <br>
-                                                        Solicitar verificación.</a>
-                                                </span>
-                                                <span v-else-if="verificationStatus === 'pending'">
-                                                    Verificación pendiente por Aprobación.
-                                                </span>
-                                            </small>
-                                        </div>
-                                        <!-- check to see the User's subscription -->
-                                        <div class="w-50 mt-2"
-                                            v-if="item.title === 'Solicitar cupón' && subscriptionPlan.price === 0">
-                                            <small class="text-danger">
-                                                <span>Debes contar con suscripción Bronce en adelante para gozar de este
-                                                    beneficio.</span>
-                                            </small>
-                                        </div>
-                                    </div>
+        <!-- Main Content -->
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            <div class="col" v-for="item in portalItems" :key="item.title">
+                <div class="card h-100 portal-card position-relative">
+                    <div v-if="item.notReady === true" class="ribbon">
+                        <span>Proximamente</span>
+                    </div>
+                    <div class="card-body d-flex flex-column" 
+                        :style="{
+                            backgroundImage: `url(${item.bgImage})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                        }">
+                        <div class="card-content">
+                            <h5 class="card-title mb-3">{{ item.title }}</h5>
+                            <p class="card-text">{{ item.description }}</p>
+                            
+                            <div class="mt-auto pt-3">
+                                <router-link :to="item.link" class="btn btn-theme w-100"
+                                    :class="{ 
+                                        'disabled': (item.title === 'Crédito' && !userVerified) || 
+                                                  (item.title === 'Solicitar cupón' && subscriptionPlan.price === 0) || 
+                                                  item.notReady === true 
+                                    }"
+                                    :aria-disabled="item.title === 'Crédito' && !userVerified"
+                                    :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
+                                    {{ item.actionText }}
+                                </router-link>
+                                
+                                <!-- Warning messages -->
+                                <div v-if="item.title === 'Crédito' && !userVerified" class="warning-message mt-2">
+                                    <small class="text-danger">
+                                        <span v-if="verificationStatus === 'unverified'">
+                                            Verifique su cuenta para habilitar la opción de crédito.
+                                        </span>
+                                        <span v-else-if="verificationStatus === 'pending'">
+                                            Verificación pendiente por Aprobación.
+                                        </span>
+                                    </small>
+                                </div>
+                                
+                                <div class="warning-message mt-2"
+                                    v-if="item.title === 'Solicitar cupón' && subscriptionPlan.price === 0">
+                                    <small class="text-danger">
+                                        <span>Debes contar con suscripción Bronce en adelante para este beneficio.</span>
+                                    </small>
                                 </div>
                             </div>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
 
-        <!-- Modal for ID upload -->
+        <!-- Verification Modal (Keep existing) -->
         <div class="modal fade" id="verificationModal" tabindex="-1" aria-labelledby="verificationModalLabel"
             aria-hidden="true">
             <div class="modal-dialog">
@@ -430,63 +423,193 @@ export default defineComponent({
     </div>
 </template>
 <style scoped>
+/* Keep existing button color */
 .btn-theme {
     background-color: purple;
     border-color: purple;
+    transition: all 0.2s ease;
 }
 
-/* Subscription Badge Styles */
-.subscription-badge {
-    z-index: 2;
+.btn-theme:hover {  
+    opacity: 0.9;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.card {
+/* Card styling improvements */
+.portal-card {
     overflow: hidden;
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    height: 100%;
 }
 
-@media (max-width: 768px) {
-    .subscription-badge-container {
-        margin: 0.5rem;
-    }
-
-    .subscription-badge-container .badge {
-        font-size: 0.8rem;
-        /* Smaller font for badges */
-        padding: 0.3rem 0.6rem;
-    }
-
-    .subscription-badge-container i {
-        font-size: 0.9rem;
-        /* Smaller icons */
-    }
-
-    .subscription-badge-container small {
-        font-size: 0.7rem;
-        /* Smaller text for better fit */
-    }
-
-    .subscription-badge-container .btn {
-        padding: 0.2rem 0.5rem;
-        /* Smaller buttons */
-    }
+.portal-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
 }
 
+.card-body {
+    position: relative;
+    height: 100%;
+}
+
+.card-content {
+    background-color:transparent;
+    border-radius: 8px;
+    padding: 0.5rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Improved ribbon */
 .ribbon {
     position: absolute;
-    top: 25px;
-    right: -20px;
+    top: 15px;
+    right: -30px;
     background: #8c042c;
     color: #fff;
-    padding: 5px 15px;
-    font-size: 0.875rem;
+    padding: 5px 30px;
+    font-size: 0.75rem;
     font-weight: bold;
     transform: rotate(45deg);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    z-index: 10;
 }
 
-.badge:hover {
-    background-color: rgba(0, 123, 255, 0.1);
-    /* Light hover effect */
-    transition: background-color 0.3s ease;
+/* Compact header styles */
+.portal-header {
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+
+/* Status badges container */
+.badges-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+/* Status card styles (for both subscription and verification) */
+.status-card {
+    display: flex;
+    align-items: center;
+    background: white;
+    border-radius: 8px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    max-width: 250px;
+    width: 100%;
+}
+
+.status-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* Subscription specific styles */
+.subscription-card {
+    border-left: 4px solid #198754;
+}
+
+.subscription-card-alert {
+    border-left: 4px solid #dc3545;
+}
+
+.subscription-icon {
+    background: rgba(25, 135, 84, 0.1);
+    color: #198754;
+}
+
+.subscription-card-alert .status-icon {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+/* Verification specific styles */
+.verification-card {
+    border-left: 4px solid #198754;
+}
+
+.verification-card-alert {
+    border-left: 4px solid #dc3545;
+}
+
+.verification-card .status-icon {
+    background: rgba(25, 135, 84, 0.1);
+    color: #198754;
+}
+
+.verification-card-alert .status-icon {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+/* Common status icon styles */
+.status-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.status-info {
+    flex: 1;
+}
+
+.status-name {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: #333;
+}
+
+.status-hint {
+    display: block;
+    color: #6c757d;
+    font-size: 0.7rem;
+    margin-top: 1px;
+}
+
+/* Warning message styles */
+.warning-message {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 4px;
+    padding: 0.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .portal-header {
+        text-align: center;
+    }
+    
+    .badges-container {
+        align-items: center;
+        margin-top: 1rem;
+    }
+    
+    .status-card {
+        max-width: 250px;
+    }
+}
+
+@media (max-width: 576px) {
+    .row-cols-1 {
+        margin: 0 0.5rem;
+    }
+    
+    .card-content {
+        padding: 1rem;
+    }
 }
 </style>
