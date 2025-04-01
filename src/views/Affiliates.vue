@@ -1870,9 +1870,34 @@ export default {
 .filters-wrapper {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
+.btn-outline-theme, .btn-theme {
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.btn-outline-theme {
+    border-color: purple;
+    color: purple;
+}
+
+.btn-outline-theme:hover {
+    background-color: purple;
+    color: white;
+    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+}
+
 .btn-theme {
     background-color: purple;
     border-color: purple;
+    color: white;
+}
+
+.btn-theme:hover {
+    background-color: #8a2be2;
+    border-color: #8a2be2;
+    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
 }
 
 .img {

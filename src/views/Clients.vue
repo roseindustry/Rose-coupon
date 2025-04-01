@@ -1474,6 +1474,24 @@ export default {
     margin-top: 0.5rem;
 }
 
+.btn-outline-theme, .btn-theme {
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.btn-outline-theme {
+    border-color: purple;
+    color: purple;
+}
+
+.btn-outline-theme:hover {
+    background-color: purple;
+    color: white;
+    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+}
+
 .btn-theme {
     background-color: purple;
     border-color: purple;
@@ -1481,9 +1499,9 @@ export default {
 }
 
 .btn-theme:hover {
-    background-color: #660066;
-    border-color: #660066;
-    color: white;
+    background-color: #8a2be2;
+    border-color: #8a2be2;
+    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
 }
 
 /* Mobile Styles */
@@ -1500,6 +1518,10 @@ export default {
 
     .verification-status {
         margin-bottom: 0.5rem;
+    }
+    .btn-theme.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
     }
 }
 

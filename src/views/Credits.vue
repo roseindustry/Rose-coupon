@@ -770,7 +770,8 @@ export default {
             try {
                 this.selectedClient = client;
                 this.fetchCredit(client.id);
-                console.log('Selected client:', client.identification);
+                // console.log('Selected client:', client.identification);
+                // console.log('Selected client:', client.id);
                 this.showSubscription = true;
                 this.searchClient = '';
                 this.searchClientResults = [];
@@ -1566,7 +1567,7 @@ export default {
 
 </script>
 <template>
-    <div class="container py-4">
+    <div class="container">
         <!-- Admin View -->
         <template v-if="role === 'admin'">
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -1574,7 +1575,7 @@ export default {
                     <i class="fas fa-credit-card me-2"></i>
                     Administración de Créditos</h4>
                 <a href="#" 
-                    class="btn btn-sm btn-theme" @click="openLevelsModal">
+                    class="btn btn-sm btn-theme w-auto" @click="openLevelsModal">
                     <i class="fa-solid fa-layer-group me-1"></i>
                     Administrar Niveles
                 </a>
@@ -1729,20 +1730,43 @@ h4 {
     color: #fff;
 }
 
+/* Button Styles */
+.btn-outline-theme, .btn-theme {
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.btn-outline-danger, .btn-outline-success { 
+  border-radius: 20px;
+}
+
+.btn-outline-theme {
+    border-color: purple;
+    color: purple;
+}
+
+.btn-outline-theme:hover {
+    background-color: purple;
+    color: white;
+    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+}
+
 .btn-theme {
-    background-color: #6f42c1;
-    border-color: #6f42c1;
+    background-color: purple;
+    border-color: purple;
     color: white;
 }
 
 .btn-theme:hover {
-    background-color: #5a32a3;
-    border-color: #5a32a3;
-    color: white;
+    background-color: #8a2be2;
+    border-color: #8a2be2;
+    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
 }
 
 .text-theme {
-    color: #6f42c1;
+    color: purple;
 }
 
 /* Add some spacing between sections */

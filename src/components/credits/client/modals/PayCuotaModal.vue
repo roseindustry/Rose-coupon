@@ -459,6 +459,16 @@ export default {
         console.error('Error fetching affiliate details:', error);
       }
     },
+    async getClientName(clientId) {
+      const clientRef = dbRef(db, `Users/${clientId}`);
+      const clientSnapshot = await get(clientRef);
+      let clientName = '';
+      if (clientSnapshot.exists()) {
+        const clientData = clientSnapshot.val();
+        clientName = clientData.firstName + ' ' + clientData.lastName;
+      } 
+      return clientName;
+    },
     handleFileUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -495,7 +505,7 @@ export default {
         const formattedDate = new Date().toISOString();        
 
         // Upload payment proof
-        const fileName = `cuota-payments/${this.purchase.client_id}-${this.purchase.clientName}/${formattedDate.split('T')[0]}`;
+        const fileName = `cuota-payments/${this.purchase.client_id}-${this.purchase.clientName ? this.purchase.clientName  : getClientName(this.purchase.client_id)}/${formattedDate.split('T')[0]}`;
         const fileRef = storageRef(storage, fileName);
         await uploadBytes(fileRef, this.paymentFile);
         const downloadURL = await getDownloadURL(fileRef);        

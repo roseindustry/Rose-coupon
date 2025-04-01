@@ -3,7 +3,7 @@
     <!-- Header Section -->
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h4 class="mb-0 text-white">Estado de crédito por Cliente</h4>
-      <button class="btn btn-outline-primary" @click="$emit('assign-credit')">
+      <button class="btn btn-theme" @click="$emit('assign-credit')">
         <i class="fas fa-plus-circle me-2"></i>
         Asignar Crédito
       </button>
@@ -80,7 +80,7 @@
         </div>
 
         <div class="client-actions">
-          <button class="btn btn-outline-primary" @click="$emit('view-details', client)">
+          <button class="btn btn-theme" @click="$emit('view-details', client)">
             <i class="fas fa-eye me-2"></i>Ver Detalles
           </button>
         </div>
@@ -289,6 +289,40 @@ export default {
   background: #e9ecef;
   color: #2d2d2d;
 }
+/* Button Styles */
+.btn-outline-theme, .btn-theme {
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.btn-outline-danger, .btn-outline-success { 
+  border-radius: 20px;
+}
+
+.btn-outline-theme {
+    border-color: purple;
+    color: purple;
+}
+
+.btn-outline-theme:hover {
+    background-color: purple;
+    color: white;
+    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+}
+
+.btn-theme {
+    background-color: purple;
+    border-color: purple;
+    color: white;
+}
+
+.btn-theme:hover {
+    background-color: #8a2be2;
+    border-color: #8a2be2;
+    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
+}
 
 .client-actions {
   display: flex;
@@ -349,18 +383,6 @@ export default {
 .custom-pagination .page-item.active .page-link {
   background-color: #6f42c1;
   border-color: #6f42c1;
-}
-
-.btn-theme {
-  background-color: #6f42c1;
-  border-color: #6f42c1;
-  color: white;
-}
-
-.btn-theme:hover {
-  background-color: #5a32a3;
-  border-color: #5a32a3;
-  color: white;
 }
 
 .btn-outline-info,

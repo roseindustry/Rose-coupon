@@ -49,7 +49,9 @@ export default {
 
 <style scoped>
 .position-relative {
-    position: relative;
+    padding: 0rem;
+    background-color: transparent;
+    border-color: transparent;
 }
 
 .dropdown-menu.show {

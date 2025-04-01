@@ -609,15 +609,38 @@ export default {
   box-shadow: 0 0 0 0.25rem rgba(111, 66, 193, 0.25);
 }
 
+/* Button Styles */
+.btn-outline-theme, .btn-theme {
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.btn-outline-theme {
+    border-color: purple;
+    color: purple;
+}
+
+.btn-outline-theme:hover {
+    background-color: purple;
+    color: white;
+    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+}
+
 .btn-theme {
-  background-color: #6f42c1;
-  border-color: #6f42c1;
-  color: white;
+    background-color: purple;
+    border-color: purple;
+    color: white;
 }
 
 .btn-theme:hover {
-  background-color: #5a32a3;
-  border-color: #5a32a3;
+    background-color: #8a2be2;
+    border-color: #8a2be2;
+    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
+}
+.btn-outline-light {
+  border-radius: 20px;
 }
 
 .card {
@@ -710,7 +733,7 @@ export default {
   position: absolute;
   top: 0.25rem;
   left: 0.25rem;
-  background: #6f42c1;
+  background: purple;
   color: white;
   padding: 0.15rem 0.35rem;
   border-radius: 0.75rem;

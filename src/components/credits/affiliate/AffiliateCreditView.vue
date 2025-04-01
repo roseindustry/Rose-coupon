@@ -78,7 +78,19 @@
                     </div>
                   </div>
 
-                  <!-- Add this right after the selected client info section -->
+                  <!-- Warning for unverified user -->
+                  <div v-if="selectedClient && (!selectedClient.emailVerified || !selectedClient.phoneVerified)" class="alert alert-danger mt-3">
+                    <div class="d-flex align-items-start">
+                      <i class="fas fa-exclamation-circle fa-2x me-2 text-danger"></i>
+                      <div>
+                        <h5 class="mb-1">Cliente no verificado</h5>
+                        <p class="mb-0">El cliente no ha verificado su correo electrónico o número de teléfono.</p>
+                        <p class="mb-0">No se puede proceder con la compra hasta que el cliente verifique su cuenta.</p>                        
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Warning for unpaid cuotas -->
                   <div v-if="selectedClient && selectedClient.hasUnpaidCuotas" class="alert alert-danger mt-3">
                     <div class="d-flex align-items-start">
                       <i class="fas fa-exclamation-circle fa-2x me-2 text-danger"></i>
@@ -175,9 +187,12 @@
                           </div>
                         </div>
                         <div v-if="initialPercentage === 'custom'" class="mt-3">
-                          <input type="number" class="form-control bg-dark text-light border-secondary"
-                            placeholder="Ingrese el porcentaje" min="1" max="99"
-                            v-model="customInitial" @input="updateInitial(selectedClient)" />
+                          <div class="input-group percentage-input">
+                            <input type="number" class="form-control bg-dark text-light border-secondary"
+                              placeholder="Ingrese el porcentaje" min="1" max="99"
+                              v-model="customInitial" @input="updateInitial(selectedClient)" />
+                            <span class="input-group-text bg-dark text-light border-secondary">%</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -565,7 +580,7 @@ export default {
       salesData: [],
       subscriptions: [],
       includeFee: true, // Default to true to include the fee
-      rateLimitData: reactive({}),
+      rateLimitData: reactive({})
     }
   },
   computed: {
@@ -590,12 +605,10 @@ export default {
       return hasBasicInfo && hasPaymentPlan && isNotInCooldown;
     },
     canCalculate() {
-      return this.selectedClient && 
-            this.newPurchase.productName &&
-             this.newPurchase.productPrice > 0 &&
-             this.selectedClient.credit?.availableMainCredit >= 
-               (this.newPurchase.productPrice * 0.75) && // Maximum loan amount
-               !this.calculationsPerformed; // Disable after calculations are performed
+        return (
+            this.selectedClient && 
+            this.newPurchase.productPrice > 0
+        );
     },
     salesArray() {
       const sales = this.currentAffiliate?.credit?.sales;
@@ -693,17 +706,19 @@ export default {
       };
     },
     priceWarning() {
-      if (!this.selectedClient || !this.newPurchase.productPrice) return '';
-      
-      const availableCredit = this.selectedClient.credit?.availableMainCredit || 0;
-      const maxPurchaseAmount = availableCredit * 2; // Client can finance up to 50%
-      
-      if (this.newPurchase.productPrice > maxPurchaseAmount) {
-        const maxAmount = maxPurchaseAmount.toLocaleString();
-        return `El precio excede el monto máximo permitido ($${maxAmount}). El cliente puede financiar hasta el 50% del precio total.`;
-      }
-      
-      return '';
+        if (!this.selectedClient || !this.newPurchase.productPrice) return '';
+
+        const totalPrice = this.newPurchase.productPrice;
+        const availableCredit = this.selectedClient.credit?.availableMainCredit || 0;
+        const loanAmount = totalPrice - ((totalPrice * (this.initialPercentage === 'custom' ? this.customInitial : Number(this.initialPercentage))) / 100);
+
+        if (loanAmount > availableCredit) {
+            const requiredInitial = totalPrice - availableCredit;
+            const requiredPercentage = ((requiredInitial / totalPrice) * 100).toFixed(1);
+            return `Basado en el crédito disponible ($${availableCredit}), se requiere un pago inicial de $${requiredInitial.toFixed(2)} (${requiredPercentage}%)`;
+        }
+
+        return '';
     },
     hasExceededAttempts() {
       if (!this.selectedClient) return false;
@@ -922,19 +937,25 @@ export default {
     },
     async selectClient(client) {
       try {
-      this.selectedClient = client;
-      this.searchClient = '';
-        this.searchClientResults = [];
-        
-        // Check for unpaid cuotas
-        await this.checkClientUnpaidCuotas(client);
-        
-        // Reset other fields
-        this.newPurchase.productName = '';
-        this.newPurchase.productPrice = '';
-        this.calc = false;
-      this.verificationRequested = false;
-      this.verificationCode = '';
+        if (!client.emailVerified || !client.phoneVerified) {
+          toast.error('El cliente no ha verificado su correo electrónico o número de teléfono.');
+          return;
+        } else {
+        // console.log('Selecting client:', client.id);
+          this.selectedClient = client;
+          this.searchClient = '';
+          this.searchClientResults = [];
+          
+          // Check for unpaid cuotas
+          await this.checkClientUnpaidCuotas(client);
+          
+          // Reset other fields
+          this.newPurchase.productName = '';
+          this.newPurchase.productPrice = '';
+          this.calc = false;
+        this.verificationRequested = false;
+        this.verificationCode = '';
+      }
       } catch (error) {
         console.error("Error selecting client:", error);
       }
@@ -970,7 +991,7 @@ export default {
             unpaidCuotasCount: unpaidCuotasCount
           };
           
-          console.log(`Client ${client.firstName} ${client.lastName} has ${unpaidCuotasCount} unpaid expired cuotas`);
+          // console.log(`Client ${client.firstName} ${client.lastName} has ${unpaidCuotasCount} unpaid expired cuotas`);
         } else {
           // No purchases found
           this.selectedClient = {
@@ -995,27 +1016,67 @@ export default {
       return dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },    
 
-    calcs(client) {
+    async calcs(client) {
       try {
-        if (!client || !this.newPurchase.productPrice) return;
+        if (!client || !this.newPurchase.productPrice) {
+          toast.error('Por favor complete los datos del cliente y el producto');
+          return;
+        }
 
-        this.calc = true;
-        const productPrice = parseFloat(this.newPurchase.productPrice);
+        const totalPrice = this.newPurchase.productPrice;
+        const availableCredit = client.credit?.availableMainCredit || 0;
 
-        // Calculate initial payment based on percentage
-        const initialPercentage = this.initialPercentage === 'custom' 
-            ? parseFloat(this.customInitial) 
-            : parseFloat(this.initialPercentage);
-        
-        const initialPayment = (productPrice * initialPercentage) / 100;
+        // Get the initial percentage (either from radio buttons or custom input)
+        let percentage = this.initialPercentage === 'custom' 
+            ? this.customInitial 
+            : Number(this.initialPercentage);
+
+        if (percentage <= 0 || percentage >= 100) {
+            toast.error('El porcentaje inicial debe estar entre 0 y 100');
+            return;
+        }
+
+        // Calculate initial amounts
+        let initialPayment = (totalPrice * percentage) / 100;
+        let loanAmount = totalPrice - initialPayment;
+
+        // If loan amount exceeds available credit, adjust the amounts
+        if (loanAmount > availableCredit) {
+            loanAmount = availableCredit;
+            initialPayment = totalPrice - loanAmount;
+            
+            // Calculate and update the actual initial percentage
+            const actualPercentage = ((initialPayment / totalPrice) * 100).toFixed(1);
+            
+            // Show info to user about the adjusted amounts
+            // toast.info(
+            //     `Basado en el crédito disponible ($${availableCredit}), ` +
+            //     `se requiere un pago inicial de $${initialPayment.toFixed(2)} (${actualPercentage}%)`,
+            //     { duration: 5000 }
+            // );
+
+            // Update the UI to show the new percentage
+            if (this.initialPercentage !== 'custom') {
+                this.initialPercentage = 'custom';
+            }
+            this.customInitial = Number(actualPercentage);
+        }
+
+        // Update the amounts
         this.purchaseAmount = initialPayment;
-        
-        // Calculate loan amount with or without fee
-        let loanAmount = productPrice - initialPayment;
-        this.loanAmount = this.includeFee ? loanAmount + 1 : loanAmount;
-        
-        this.remainingAmount = this.loanAmount;
-        
+        this.loanAmount = loanAmount;
+        this.remainingAmount = loanAmount;
+
+        // Add fee if applicable
+        if (client.subscription?.id) {
+            const subscriptionDetails = await this.getSubscriptionDetails(client.subscription.id);
+            if (subscriptionDetails && this.includeFee) {
+                const additionalAmount = this.getTierFee(subscriptionDetails.order);
+                this.loanAmount += additionalAmount;
+                this.remainingAmount = this.loanAmount;
+            }
+        }
+
         // Calculate dates and quotes
         this.cuotaDates = this.calculateDates(
             this.purchaseDate,
@@ -1028,12 +1089,14 @@ export default {
         this.quotesAmount = Array(this.newPurchase.terms).fill(quoteAmount);
         
         this.calculationsPerformed = true;
-      } catch (error) {
+        this.calc = true;
+
+    } catch (error) {
         console.error('Error en cálculos:', error);
         toast.error('Error al realizar los cálculos');
         this.cancelCalcs();
-      }
-    },
+    }
+},
     async updateInitial(client) {
       if (!client) return;
       
@@ -1354,22 +1417,7 @@ export default {
         };
       }
     }, 
-    calculatePreview() {
-      if (!this.loanAmount || !this.selectedPlan) return;
-
-      const amount = parseFloat(this.loanAmount);
-      const finalAmount = this.includeFee ? amount + 1 : amount;
-
-      // Update preview calculations with finalAmount
-      this.previewData = {
-        originalAmount: amount,
-        finalAmount: finalAmount,
-        feeAmount: this.includeFee ? 1 : 0,
-        monthlyPayment: (finalAmount / this.selectedPlan.months).toFixed(2),
-        totalPayments: this.selectedPlan.months,
-        // ... other preview data
-      };
-    },
+    
     async sendDummyCode(client) {
         try {
             if (!client || !client.email) {
@@ -1568,5 +1616,40 @@ input[type="date"] {
   background-color: rgba(255, 193, 7, 0.15);
   border-color: rgba(255, 193, 7, 0.3);
   color: #f8f9fa;
+}
+
+/* Add these styles */
+.percentage-input {
+    max-width: 150px;
+    margin: 0 auto;
+}
+
+.percentage-input .form-control {
+    text-align: center;
+    padding-right: 0;
+}
+
+.percentage-input .input-group-text {
+    min-width: 35px;
+    justify-content: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+    .percentage-input {
+        max-width: 120px;
+    }
+    
+    .payment-options {
+        padding: 1rem;
+    }
+    
+    .payment-options .d-flex {
+        gap: 0.5rem;
+    }
+    
+    .form-check-label {
+        font-size: 0.875rem;
+    }
 }
 </style> 

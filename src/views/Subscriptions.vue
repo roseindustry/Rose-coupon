@@ -755,7 +755,7 @@ export default {
           isPaid: false, // Set the default as unpaid
           paymentUploaded: true,
           lastPaymentDate: formattedDate,
-        };        
+        };
 
         if (this.role === "cliente") {
           userType = "cliente";
@@ -863,8 +863,8 @@ export default {
     handleFileUpload(file) {
       if (!file) return;
 
-      this.paymentFile = file;
-      this.paymentPreview = URL.createObjectURL(file);
+        this.paymentFile = file;
+        this.paymentPreview = URL.createObjectURL(file);
     },
     clearDateFilter() {
       this.filterDate = null;
@@ -981,33 +981,33 @@ export default {
 };
 </script>
 <template>
-  <!-- Page Header -->
+    <!-- Page Header -->
   <header class="page-header responsive-margin">
-    <div class="container">
+      <div class="container">
       <div class="header-content">
         <div class="header-title">
           <h4 class="mb-0 fw-bold text-theme">
             <i class="fa-solid fa-handshake me-2"></i>
-            Suscripciones
+              Suscripciones
           </h4>
-        </div>
-        <!-- Exchange Rate Button - Only for Admin -->
+          </div>
+          <!-- Exchange Rate Button - Only for Admin -->
         <div v-if="role === 'admin'" class="header-actions">
-          <button
+            <button
             class="btn btn-glass"
-            data-bs-toggle="modal"
-            data-bs-target="#setExchange"
-          >
+              data-bs-toggle="modal"
+              data-bs-target="#setExchange"
+            >
             <i class="fa-solid fa-money-bill-transfer me-2"></i>
-            Tasa de cambio
+              Tasa de cambio
             <span class="exchange-badge" v-if="exchange">
               {{ exchange }}$
             </span>
-          </button>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  </header>
+    </header>
 
   <div class="subscriptions-view">
       <!-- Admin View -->
@@ -1057,7 +1057,7 @@ export default {
         @file-uploaded="handleFileUpload"
       />
     
-  </div>
+                    </div>
 </template>
 
 <style scoped>
@@ -1164,27 +1164,73 @@ export default {
 }
 
 /* Button Styles */
+.btn-outline-theme, .btn-theme {
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.btn-outline-theme {
+    border-color: purple;
+    color: purple;
+}
+
+.btn-outline-theme:hover {
+    background-color: purple;
+    color: white;
+    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+}
+
 .btn-theme {
-  background-color: #6f42c1;
-  border-color: #6f42c1;
-  color: white;
-  padding: 0.5rem 1rem;
-  font-weight: 500;
-  transition: all 0.3s ease;
+    background-color: purple;
+    border-color: purple;
+    color: white;
 }
 
 .btn-theme:hover {
-  background-color: #5a32a3;
-  border-color: #5a32a3;
-  transform: translateY(-1px);
+    background-color: #8a2be2;
+    border-color: #8a2be2;
+    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
 }
 
 .btn-group .btn {
         flex: 1;
         font-size: 0.875rem;
         padding: 0.375rem 0.5rem;
-    }
+}
+/* Filter dropdown styling */
+.dropdown-menu {
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border: 1px solid #e9ecef;
+    padding: 8px 0;
+}
 
+.dropdown-header {
+    color: #6c757d;
+    font-weight: 600;
+    padding: 8px 16px;
+}
+
+.dropdown-item {
+    padding: 8px 16px;
+    color: #495057;
+    transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background-color: #f8f0ff;
+}
+
+.dropdown-item:active {
+    background-color: purple;
+    color: white;
+}
+
+.dropdown-divider {
+    margin: 4px 0;
+}
 /* Card Styles */
 .card {
   background-color: #2d2d2d;

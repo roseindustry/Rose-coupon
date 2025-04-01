@@ -1,121 +1,196 @@
 <template>
-    <div class="mt-3">
-        <hr />
+    <div class="mt-4">
+        <div class="coupon-form-container">
+            <!-- Header Section -->
+            <h5 class="text-primary mb-4">Cupones aplicados</h5>
 
-        <!-- Filters Section -->
-        <div class="row text-center">
-            <label class="mb-2" for="filters"><strong>Filtros</strong></label>
-        </div>
-
-        <div class="justify-content-center mb-3">
-            <div class="row g-3 justify-content-center">
-                <div class="col-12 col-sm-6 col-md-4 d-flex justify-content-center">
-                    <div class="mb-3 form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="filterByDate" v-model="filterByDate" />
-                        <label class="form-check-label" for="filterByDate">Filtrar por fecha</label>
-                    </div>
-                </div>
-                <div class="col-12 col-sm-6 col-md-4 d-flex justify-content-center">
-                    <div class="mb-3 form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="filterByAffiliate"
-                            v-model="filterByAffiliate" />
-                        <label class="form-check-label" for="filterByAffiliate">Filtrar por Afiliado</label>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Filter by Affiliates -->
-        <div v-if="filterByAffiliate" class="mt-3 row g-3">
-            <div class="col-12">
-                <h6 class="text-uppercase text-center">Comercios</h6>
-            </div>
-            <div class="col-12">
-                <div class="nav-container">
-                    <div class="overflow-auto px-3 py-2" style="max-height: 200px; overflow-x: auto;">
-                        <div v-if="affiliates.length === 0" class="d-flex justify-content-center m-3">
-                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <!-- Search and Filters Section -->
+            <div class="form-section">
+                <div class="filters-container">
+                    <!-- Left side: Search Bar -->
+                    <div class="search-side">
+                        <div class="search-container">
+                            <label class="form-label">Buscar cupón</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fa fa-search"></i>
+                                </span>
+                                <input type="text" 
+                                    class="form-control" 
+                                    v-model="searchQuery"
+                                    placeholder="Buscar por nombre o código..." 
+                                />
+                            </div>
                         </div>
-
-                        <ul v-else class="nav nav-pills custom-nav-pills d-flex flex-nowrap">
-                            <li class="nav-item" v-for="(affiliate, index) in affiliates" :key="affiliate.id">
-                                <a class="nav-link px-3 py-2 mx-1"
-                                    :class="{ 'active': affiliate.active, 'custom-active': affiliate.active }" href="#"
-                                    @click.prevent="setActiveAffiliate(index)">
-                                    {{ affiliate.companyName }}
-                                </a>
-                            </li>
-
-                        </ul>
                     </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Filter by Date -->
-        <div v-if="filterByDate" class="row g-3">
-            <h6 class="text-uppercase text-center">Rango de fechas</h6>
-            <div>
-                <div class="row g-3">
-                    <div class="col-12 col-sm-6 d-flex justify-content-center">
-                        <input type="date" v-model="startDate" class="form-control" style="width: auto;" />
-                    </div>
-                    <div class="col-12 col-sm-6 d-flex justify-content-center">
-                        <input type="date" v-model="endDate" class="form-control" style="width: auto;" />
-                    </div>
-                </div>
-                <div class="d-flex justify-content-center mt-3">
-                    <button type="button" class="btn btn-theme me-2" style="width: 150px;" @click="filterCouponsByDate">
-                        Filtrar
-                    </button>
-                    <button type="button" class="btn btn-theme" style="width: 150px;" @click="clearDateFilter">
-                        Limpiar filtro
-                    </button>
-                </div>
-            </div>
-        </div>
+                    <!-- Right side: Filters -->
+                    <div class="filters-side">
+                        <div class="filters-group">
+                            <!-- Affiliate Filter -->
+                            <div class="filter-item">
+                                <label class="form-label">Por comercio</label>
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-theme dropdown-toggle" type="button" 
+                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fa fa-store me-2"></i>
+                                        {{ activeAffiliate ? activeAffiliate.companyName : 'Todos los comercios' }}
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <a class="dropdown-item" href="#" 
+                                                @click.prevent="clearAffiliateFilter"
+                                                :class="{ active: !activeAffiliate }">
+                                                Todos los comercios
+                                            </a>
+                                        </li>
+                                        <li v-for="affiliate in affiliates" :key="affiliate.id">
+                                            <a class="dropdown-item" href="#" 
+                                                @click.prevent="setActiveAffiliate(affiliate)"
+                                                :class="{ active: activeAffiliate?.id === affiliate.id }">
+                                                {{ affiliate.companyName }}
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
 
-        <hr />
-
-        <!-- Coupon Cards -->
-        <div v-if="filteredAppliedCoupons.length > 0" class="mt-3 mb-3">Mostrando {{ filteredAppliedCoupons.length }} {{
-            filteredAppliedCoupons.length === 1 ? 'resultado' : 'resultados' }}</div>
-
-        <div class="text-center" v-if="loading">
-            <p>Cargando cupones, espere...</p>
-            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-        </div>
-
-        <div v-if="filteredAppliedCoupons.length === 0 && !loading" class="d-flex justify-content-center">
-            <button class="btn btn-theme" @click="fetchAllAppliedCoupons()">
-                Mostrar todos
-            </button>
-        </div>
-        <div v-else class="row">
-            <div class="col-12 col-md-6 col-lg-4 mb-3" v-for="coupon in filteredAppliedCoupons" :key="coupon.id">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col">
-                                <div class="img-container mb-3">
-                                    <div class="img"
-                                        :style="{ backgroundImage: 'url(' + coupon.image + ')', backgroundSize: 'cover', backgroundPosition: 'center', height: '200px' }">
+                            <!-- Date Filter Toggle -->
+                            <div class="filter-item">
+                                <label class="form-label">Por fecha</label>
+                                <div class="dropdown">
+                                    <div class="date-filter-toggle">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" 
+                                                id="filterByDate" v-model="filterByDate">
+                                        </div>
                                     </div>
                                 </div>
-                                <p class="card-text"><strong>Nombre:</strong> {{ coupon.name ? coupon.name : `Cupon
-                                    borrado` }}</p>
-                                <p class="card-text"><strong>Código:</strong> {{ coupon.couponCode ? coupon.couponCode
-                                    : `Cupon borrado`
-                                    }}</p>
-                                <p class="card-text"><strong>{{ coupon.type ? coupon.type.charAt(0).toUpperCase() + coupon.type.slice(1) : `Balance` }}:</strong> {{ coupon.balance ? `$${coupon.balance}` : `$0` }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                                </p>
-                                <p class="card-text"><strong>Aplicado el dia:</strong> {{ formatDate(coupon.appliedDate)
-                                    }}</p>
-                                <p class="card-text"><strong>Para el cliente:</strong> {{ coupon.clientName || `Aplicado
-                                    sin
-                                    cliente` }}
-                                </p>
+                <!-- Date Range Picker -->
+                <div v-if="filterByDate" class="date-range-section mt-3">
+                    <div class="date-range-container">
+                        <div class="date-input">
+                            <label class="form-label">Fecha inicial</label>
+                            <input type="date" v-model="startDate" class="form-control" />
+                        </div>
+                        <div class="date-input">
+                            <label class="form-label">Fecha final</label>
+                            <input type="date" v-model="endDate" class="form-control" />
+                        </div>
+                        <button type="button" class="btn btn-outline-theme" @click="clearDateFilter">
+                            <i class="fa fa-times-circle me-2"></i>Limpiar filtro
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sort Section -->
+            <div class="sort-section mt-3">
+                <div class="btn-group">
+                    <button class="btn btn-outline-theme" 
+                        :class="{ active: sortBy === 'date' }"
+                        @click="toggleSort('date')">
+                        <i class="fa" :class="sortBy === 'date' ? 
+                            (sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 
+                            'fa-sort'">
+                        </i>
+                        Fecha
+                    </button>
+                    <button class="btn btn-outline-theme"
+                        :class="{ active: sortBy === 'name' }"
+                        @click="toggleSort('name')">
+                        <i class="fa" :class="sortBy === 'name' ? 
+                            (sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 
+                            'fa-sort'">
+                        </i>
+                        Nombre
+                    </button>
+                    <button class="btn btn-outline-theme"
+                        :class="{ active: sortBy === 'code' }"
+                        @click="toggleSort('code')">
+                        <i class="fa" :class="sortBy === 'code' ? 
+                            (sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 
+                            'fa-sort'">
+                        </i>
+                        Código
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div class="d-flex justify-content-center align-items-center min-vh-50 mt-4" v-if="loading">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else-if="filteredAndSortedCoupons.length === 0" class="d-flex justify-content-center align-items-center min-vh-50">
+                <div class="text-center">
+                    <div class="mb-3">
+                        <i class="fa fa-ticket-alt text-secondary opacity-25" style="font-size: 5em"></i>
+                    </div>
+                    <h5 class="text-secondary">No hay cupones aplicados</h5>
+                    <div class="d-flex justify-content-center">
+                        <button class="btn btn-theme mt-3" @click="fetchAllAppliedCoupons">
+                        <i class="fa fa-sync-alt me-2"></i>Mostrar todos
+                        </button>
+                    </div>                    
+                </div>
+            </div>
+
+            <!-- Results Count -->
+            <div v-else class="results-count mt-4 mb-3">
+                Mostrando {{ filteredAndSortedCoupons.length }} 
+                {{ filteredAndSortedCoupons.length === 1 ? 'resultado' : 'resultados' }}
+            </div>
+
+            <!-- Update the error state -->
+            <div v-if="fetchError" class="alert alert-danger mt-3">
+                {{ fetchError }}
+                <button class="btn btn-link" @click="fetchAllAppliedCoupons">
+                    Reintentar
+                </button>
+            </div>
+
+            <!-- Coupons Grid -->
+            <div class="coupon-cards-container">
+                <div v-for="coupon in filteredAndSortedCoupons" 
+                    :key="`${coupon.couponId}-${coupon.clientId}`" 
+                    class="coupon-payment-card"
+                >
+                    <div class="card-header">
+                        <h6 class="mb-0 text-black">{{ coupon.name?.toUpperCase() || 'Cupón borrado' }}</h6>
+                        <div class="badge rounded-pill bg-info text-black">
+                            <i class="fa fa-calendar me-1"></i>
+                            {{ formatDate(coupon.appliedDate) }}
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="coupon-image">
+                            <img :src="coupon.image" :alt="coupon.name" />
+                        </div>
+
+                        <div class="coupon-details text-black">
+                            <div class="detail-item">
+                                <span class="detail-label fw-bold me-1">Código:</span>
+                                <span class="detail-value">{{ coupon.couponCode || 'N/A' }}</span>
+                            </div>
+
+                            <div class="detail-item">
+                                <span class="detail-label fw-bold me-1">
+                                    {{ coupon.type ? coupon.type.charAt(0).toUpperCase() + coupon.type.slice(1) : 'Balance' }}:
+                                </span>
+                                <span class="detail-value">${{ coupon.balance || '0' }}</span>
+                            </div>
+
+                            <div class="detail-item">
+                                <span class="detail-label fw-bold me-1">Cliente:</span>
+                                <span class="detail-value">{{ coupon.clientName || 'Aplicado sin cliente' }}</span>
                             </div>
                         </div>
                     </div>
@@ -128,243 +203,516 @@
 <script>
 import { db } from '@/firebase/init';
 import { ref as dbRef, get } from 'firebase/database';
-import { isWithinInterval, parseISO, isSameDay } from 'date-fns';
+import { isWithinInterval, parseISO, isSameDay, isAfter, isBefore } from 'date-fns';
 
 export default {
     props: {
-        affiliates: Array,
+        affiliates: {
+            type: Array,
+            required: true
+        }
     },
+    
     data() {
         return {
             filterByDate: false,
-            filterByAffiliate: false,
             startDate: null,
             endDate: null,
             loading: false,
-            displayedCoupons: [],
-            allAppliedCoupons: [],
+            appliedCoupons: [],
+            activeAffiliate: null,
+            searchQuery: '',
+            sortBy: 'date', // 'date', 'name', 'code'
+            sortOrder: 'desc', // 'asc', 'desc'
+            fetchError: null,
+            clientsCache: new Map(), // Cache for client names
         };
     },
-    watch: {
-        filterByDate(newValue) {
-            if (!newValue) {
-                this.clearDateFilter();
-            }
-        },
-        filterByAffiliate(newValue) {
-            if (!newValue) {
-                this.clearAffiliateFilter();
-            }
-        },
-    },
+
     computed: {
-        filteredAppliedCoupons() {
-            return this.displayedCoupons;
-        }
-    },
-    methods: {
-        async fetchAllAppliedCoupons() {
-            const affiliates = this.affiliates;
+        filteredAndSortedCoupons() {
+            let filtered = [...this.appliedCoupons];
 
             try {
-                this.loading = true;
-                let allAppliedCoupons = [];
-
-                // Loop through each affiliate and collect their applied coupons
-                for (const affiliate of affiliates) {
-
-                    if (affiliate.appliedCoupons && typeof affiliate.appliedCoupons === 'object') {
-
-                        // Process each couponId in appliedCoupons
-                        const couponPromises = Object.keys(affiliate.appliedCoupons).map(async (couponId) => {
-                            const redemptions = affiliate.appliedCoupons[couponId];
-
-                            // Process each redemption (that is a client id) under the couponId
-                            const redemptionPromises = Object.keys(redemptions).map(async (clientId) => {
-                                const couponDetails = redemptions[clientId];
-                                const clientName = await this.fetchClientName(clientId); // Fetch client's name
-
-                                // Fetch additional coupon details from the Coupons table
-                                const couponRef = dbRef(db, `Coupons/${couponId}`);
-                                const couponSnapshot = await get(couponRef);
-
-                                let fullCouponData = {};
-                                if (couponSnapshot.exists()) {
-                                    fullCouponData = couponSnapshot.val();
-                                }
-
-                                // Return the coupon data for this redemption
-                                return {
-                                    couponId,
-                                    clientId: clientId,
-                                    clientName,
-                                    appliedDate: couponDetails.appliedDate,
-                                    ...fullCouponData, // Merge full coupon data from Coupons table
-                                    name: fullCouponData.name || couponDetails.name,
-                                    couponCode: fullCouponData.couponCode || couponDetails.couponCode,
-                                    balance: fullCouponData.balance || couponDetails.balance,
-                                    type: fullCouponData.type || couponDetails.type,
-                                    image: fullCouponData.qrFileUrl || couponDetails.image,
-                                };
-                            });
-
-                            // Wait for all redemptions for the current coupon to complete
-                            const couponRedemptions = await Promise.all(redemptionPromises);
-                            allAppliedCoupons.push(...couponRedemptions);
-                        });
-
-                        // Wait for all coupons for the current affiliate to complete
-                        await Promise.all(couponPromises);
-                    }
+                // Apply affiliate filter
+                if (this.activeAffiliate) {
+                    filtered = filtered.filter(coupon => 
+                        coupon.affiliateId === this.activeAffiliate.id
+                    );
                 }
 
-                // Set the applied coupons to the result
-                this.allAppliedCoupons = allAppliedCoupons || [];
-                this.displayedCoupons = allAppliedCoupons; // Store all coupons first
-                // console.log(allAppliedCoupons);
+                // Apply search filter
+                if (this.searchQuery.trim()) {
+                    const query = this.searchQuery.toLowerCase();
+                    filtered = filtered.filter(coupon => 
+                        (coupon.name?.toLowerCase().includes(query)) ||
+                        (coupon.couponCode?.toLowerCase().includes(query)) ||
+                        (coupon.clientName?.toLowerCase().includes(query))
+                    );
+                }
+
+                // Apply date filter
+                if (this.filterByDate && this.startDate && this.endDate) {
+                    const start = parseISO(this.startDate);
+                    const end = parseISO(this.endDate);
+
+                    filtered = filtered.filter(coupon => {
+                        const appliedDate = parseISO(coupon.appliedDate);
+                        return (
+                            isSameDay(appliedDate, start) ||
+                            isSameDay(appliedDate, end) ||
+                            isWithinInterval(appliedDate, { start, end })
+                        );
+                    });
+                }
+
+                // Apply sorting
+                filtered.sort((a, b) => {
+                    switch (this.sortBy) {
+                        case 'date':
+                            const dateA = new Date(a.appliedDate);
+                            const dateB = new Date(b.appliedDate);
+                            return this.sortOrder === 'asc' 
+                                ? dateA - dateB 
+                                : dateB - dateA;
+                        
+                        case 'name':
+                            const nameA = (a.name || '').toLowerCase();
+                            const nameB = (b.name || '').toLowerCase();
+                            return this.sortOrder === 'asc'
+                                ? nameA.localeCompare(nameB)
+                                : nameB.localeCompare(nameA);
+                        
+                        case 'code':
+                            const codeA = (a.couponCode || '').toLowerCase();
+                            const codeB = (b.couponCode || '').toLowerCase();
+                            return this.sortOrder === 'asc'
+                                ? codeA.localeCompare(codeB)
+                                : codeB.localeCompare(codeA);
+                            
+                        default:
+                            return 0;
+                    }
+                });
+
+                return filtered;
+
             } catch (error) {
-                console.error("Error fetching applied coupons:", error);
+                console.error('Error in filteredAndSortedCoupons:', error);
+                return [];
+            }
+        },
+
+        hasFiltersApplied() {
+            return this.activeAffiliate || 
+                   this.searchQuery.trim() || 
+                   (this.filterByDate && this.startDate && this.endDate);
+        },
+
+        sortLabel() {
+            const labels = {
+                date: 'Fecha',
+                name: 'Nombre',
+                code: 'Código'
+            };
+            return labels[this.sortBy] || 'Ordenar por';
+        }
+    },
+
+    methods: {
+        async fetchAllAppliedCoupons() {
+            this.loading = true;
+            this.fetchError = null;
+            
+            try {
+                // Reset filters
+                this.resetFilters();
+                
+                let appliedCoupons = [];
+
+                // Process each affiliate
+                for (const affiliate of this.affiliates) {
+                    if (!affiliate.appliedCoupons) continue;
+
+                    await this.processAffiliateCoupons(affiliate, appliedCoupons);
+                }
+
+                this.appliedCoupons = appliedCoupons;
+
+            } catch (error) {
+                console.error('Error fetching applied coupons:', error);
+                this.fetchError = 'Error al cargar los cupones. Por favor, intente de nuevo.';
+                this.appliedCoupons = [];
             } finally {
                 this.loading = false;
             }
         },
-        async fetchClientName(clientId) {
+
+        async processAffiliateCoupons(affiliate, appliedCoupons) {
+            for (const [couponId, redemptions] of Object.entries(affiliate.appliedCoupons)) {
+                if (typeof redemptions !== 'object') continue;
+
+                for (const [clientId, couponDetails] of Object.entries(redemptions)) {
+                    try {
+                        const clientName = await this.getClientName(clientId);
+                        const couponData = await this.getCouponData(couponId);
+
+                        appliedCoupons.push({
+                            ...couponData,
+                            couponId,
+                            clientId,
+                            clientName,
+                            affiliateId: affiliate.id,
+                            affiliateName: affiliate.companyName,
+                            appliedDate: couponDetails.appliedDate,
+                            image: couponData.qrFileUrl,
+                        });
+                    } catch (error) {
+                        console.error(`Error processing coupon ${couponId}:`, error);
+                    }
+                }
+            }
+        },
+
+        async getClientName(clientId) {
+            if (this.clientsCache.has(clientId)) {
+                return this.clientsCache.get(clientId);
+            }
+
             try {
                 const clientRef = dbRef(db, `Users/${clientId}`);
                 const clientSnapshot = await get(clientRef);
 
                 if (clientSnapshot.exists()) {
                     const clientData = clientSnapshot.val();
-                    return `${clientData.firstName} ${clientData.lastName}`;
-                } else {
-                    return 'Unknown Client';
+                    const name = `${clientData.firstName} ${clientData.lastName}`;
+                    this.clientsCache.set(clientId, name);
+                    return name;
                 }
+                
+                return 'Cliente no encontrado';
             } catch (error) {
                 console.error('Error fetching client name:', error);
-                return 'Unknown Client';
+                return 'Error al cargar cliente';
             }
         },
 
-        // Applied Coupons
-        setActiveAffiliate(index) {
-            // Set all affiliates to inactive
-            this.affiliates.forEach(affiliate => {
-                affiliate.active = false;
-            });
-            // Set the clicked category to active
-            this.affiliates[index].active = true;
-
-            // Filter the items based on the active category
-            this.filterCouponsByAffiliates(this.affiliates[index].id);
-        },
-        async filterCouponsByAffiliates(affiliateId) {
+        async getCouponData(couponId) {
             try {
-                this.loading = true;
-                const affiliates = this.affiliates;
-
-                // Reference to the applied coupons for the specific affiliate
-                const affiliate = affiliates.find(a => a.id === affiliateId);
-
-                if (affiliate && affiliate.appliedCoupons && typeof affiliate.appliedCoupons === 'object') {
-                    let appliedCoupons = [];
-
-                    // Process each couponId in appliedCoupons
-                    const couponPromises = Object.keys(affiliate.appliedCoupons).map(async (couponId) => {
-                        const redemptions = affiliate.appliedCoupons[couponId];
-
-                        // Process each redemption (that is a client id) under the couponId
-                        const redemptionPromises = Object.keys(redemptions).map(async (clientId) => {
-                            const couponDetails = redemptions[clientId];
-                            const clientName = await this.fetchClientName(clientId); // Fetch client's name
-
-                            // Fetch additional coupon details from the Coupons table
-                            const couponRef = dbRef(db, `Coupons/${couponId}`);
-                            const couponSnapshot = await get(couponRef);
-
-                            let fullCouponData = {};
-                            if (couponSnapshot.exists()) {
-                                fullCouponData = couponSnapshot.val();
-                            }
-
-                            // Return the coupon data for this redemption
-                            return {
-                                couponId,
-                                clientId,
-                                clientName,
-                                appliedDate: couponDetails.appliedDate,
-                                ...fullCouponData // Merge full coupon data from Coupons table
-                            };
-                        });
-
-                        // Wait for all redemptions for the current coupon to complete
-                        const couponRedemptions = await Promise.all(redemptionPromises);
-                        appliedCoupons.push(...couponRedemptions);
-                    });
-
-                    // Wait for all coupons for the affiliate to complete
-                    await Promise.all(couponPromises);
-
-                    // Update data properties
-                    this.displayedCoupons = appliedCoupons;
-                } else {
-                    console.log('No applied coupons found for the affiliate');
-                    this.displayedCoupons = [];
-                }
+                const couponRef = dbRef(db, `Coupons/${couponId}`);
+                const couponSnapshot = await get(couponRef);
+                return couponSnapshot.exists() ? couponSnapshot.val() : {};
             } catch (error) {
-                console.error('Error fetching applied coupons:', error);
-                this.displayedCoupons = [];
-            } finally {
-                this.loading = false;
+                console.error('Error fetching coupon data:', error);
+                return {};
             }
         },
-        filterCouponsByDate() {
+
+        resetFilters() {
+            this.activeAffiliate = null;
+            this.searchQuery = '';
+            this.filterByDate = false;
+            this.startDate = null;
+            this.endDate = null;
+            this.sortBy = 'date';
+            this.sortOrder = 'desc';
+        },
+
+        toggleSort(field) {
+            if (this.sortBy === field) {
+                this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortBy = field;
+                this.sortOrder = 'asc';
+            }
+        },
+
+        formatDate(date) {
+            if (!date) return '';
             try {
-                this.loading = true;
-
-                // If either date is missing, return all coupons
-                if (!this.startDate || !this.endDate) {
-                    this.displayedCoupons = this.allAppliedCoupons;
-                    return;
-                }
-
-                const start = parseISO(this.startDate);
-                const end = parseISO(this.endDate);
-
-                this.displayedCoupons = this.allAppliedCoupons.filter((coupon) => {
-                    const appliedDate = parseISO(coupon.appliedDate);
-
-                    // Check if the appliedDate falls on or between the selected days
-                    return (
-                        isSameDay(appliedDate, start) ||
-                        isSameDay(appliedDate, end) ||
-                        isWithinInterval(appliedDate, { start, end })
-                    );
+                const d = new Date(date);
+                return d.toLocaleDateString('es-ES', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
                 });
             } catch (error) {
-                console.error('Error filtering coupons', error);
-            } finally {
-                this.loading = false;
+                console.error('Error formatting date:', error);
+                return '';
             }
         },
+
         clearDateFilter() {
             this.startDate = null;
             this.endDate = null;
-            this.displayedCoupons = [...this.allAppliedCoupons];
+            this.filterByDate = false;
         },
+
         clearAffiliateFilter() {
-            this.affiliates.forEach((affiliate) => {
-                affiliate.active = false;
-            });
-            this.displayedCoupons = [...this.allAppliedCoupons];
+            this.activeAffiliate = null;
         },
-        formatDate(date) {
-            if (!date) return ''; // Handle invalid dates or null values
-            const d = new Date(date);
-            const day = String(d.getDate()).padStart(2, '0'); // Ensure two-digit day
-            const month = String(d.getMonth() + 1).padStart(2, '0'); // Ensure two-digit month (months are zero-indexed)
-            const year = d.getFullYear();
-            return `${day}/${month}/${year}`;
+
+        setActiveAffiliate(affiliate) {
+            this.activeAffiliate = affiliate;
         },
-    },
+    }
 };
 </script>
+
+<style scoped>
+/* Base styles */
+.expiration-badge {
+    position: absolute;
+    top: -5px;
+    right: 0;
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background-color: #e9ecef;
+    color: #495057;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+}
+.filters-container {
+    display: flex;
+    gap: 20px;
+    align-items: start;
+}
+
+.search-side {
+    flex: 0 0 50%;
+    max-width: 50%;
+}
+
+.filters-side {
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.filters-group {
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+    justify-content: flex-end;
+}
+
+.filter-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 200px;
+}
+
+/* Sort section styles */
+.sort-section {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.btn-group {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-group .btn {
+    border-radius: 6px !important;
+    padding: 8px 16px;
+}
+
+.btn-group .btn.active {
+    background-color: var(--bs-purple);
+    color: white;
+}
+
+/* Large screens (≥992px) */
+@media (min-width: 992px) {
+    .filter-item {
+        flex: 0 0 auto;
+    }
+    
+    .btn-outline-theme {
+        min-width: 180px;
+    }
+}
+
+/* Medium screens (768px - 991px) */
+@media (max-width: 991px) {
+    .filters-container {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .search-side {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
+    .filters-side {
+        width: 100%;
+    }
+    
+    .filters-group {
+        justify-content: center;
+        gap: 15px;
+    }
+    
+    .filter-item {
+        flex: 0 0 auto;
+        min-width: 220px;
+    }
+    
+    .sort-section {
+        justify-content: center;
+        margin-top: 25px;
+    }
+    
+    .btn-group {
+        gap: 10px;
+    }
+    
+    .btn-outline-theme {
+        min-width: 160px;
+    }
+}
+
+/* Small screens (576px - 767px) */
+@media (max-width: 767px) {
+    .coupon-payment-card {
+        overflow-x: auto;
+    }
+
+    .filters-group {
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        gap: 20px;
+    }
+    
+    .filter-item {
+        width: 100%;
+        max-width: 300px;
+    }
+    
+    .btn-group {
+        width: 100%;
+        max-width: 300px;
+    }
+    
+    .btn-group .btn {
+        flex: 1;
+        padding: 8px;
+        font-size: 0.9rem;
+    }
+    
+    .btn-outline-theme {
+        width: 100%;
+    }
+}
+
+/* Extra small screens (<576px) */
+@media (max-width: 575px) {
+    
+    .filters-container {
+        gap: 15px;
+    }
+    
+    .filters-group {
+        gap: 15px;
+    }
+    
+    .filter-item {
+        max-width: 100%;
+    }
+    
+    .btn-group {
+        max-width: 100%;
+        flex-direction: column;
+    }
+    
+    .btn-group .btn {
+        width: 100%;
+        margin: 0;
+        padding: 10px;
+    }
+    
+    .dropdown-menu {
+        width: 100%;
+        max-width: none;
+    }
+    
+    .date-range-container {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .date-range-container > * {
+        width: 100%;
+    }
+}
+
+/* Utility classes */
+.min-vh-50 {
+    min-height: 50vh;
+}
+
+.results-count {
+    color: var(--bs-gray-600);
+    font-size: 0.9rem;
+    text-align: center;
+    margin: 20px 0;
+}
+
+/* Common elements */
+.dropdown-menu {
+    padding: 8px;
+    min-width: 200px;
+    max-height: 300px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.dropdown-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.dropdown-menu::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 3px;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 3px;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.dropdown-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dropdown-item.active {
+    background-color: var(--bs-purple);
+    color: white;
+}
+
+.dropdown-item:hover:not(.active) {
+    background-color: rgba(111, 66, 193, 0.1);
+}
+
+.btn-outline-theme {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+</style>

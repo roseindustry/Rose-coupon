@@ -51,6 +51,8 @@ export default defineComponent({
 
             subscriptionPlan: {},
             userVerified: false,
+            emailVerified: false,
+            phoneVerified: false,
             verificationStatus: 'unverified', // Possible values: 'unverified', 'pending', 'verified'
 
             idFrontFile: null,
@@ -77,6 +79,8 @@ export default defineComponent({
                     const user = snapshot.val();
 
                     this.userVerified = user.isVerified || false;
+                    this.emailVerified = user.emailVerified || false;
+                    this.phoneVerified = user.phoneVerified || false;
 
                     // Check if the user has a subscription plan and it's an object
                     if (user.subscription && typeof user.subscription === 'object') {

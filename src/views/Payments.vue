@@ -1075,14 +1075,18 @@ export default {
               Pendientes por Aprobación
             </h5>
             <div class="d-flex gap-3">
-              <select
-                class="form-select form-select-sm"
-                v-model="sortOrder"
-                style="width: auto"
-              >
-                <option value="newest">Más recientes</option>
-                <option value="oldest">Más antiguos</option>
-              </select>
+              <div class="filter-select-container">
+                <div class="select-wrapper">
+                    <i class="fas fa-filter filter-icon"></i>
+                    <select
+                        class="form-select form-select-sm"
+                        v-model="sortOrder"
+                    >
+                        <option value="newest">Más recientes</option>
+                        <option value="oldest">Más antiguos</option>
+                    </select>
+                </div>
+            </div>
               <div class="btn-group">
                 <button
                   class="btn btn-sm btn-outline-theme"
@@ -1389,15 +1393,19 @@ export default {
               <i class="fas fa-credit-card me-2"></i>
               Pendientes por Aprobación
             </h5>
-            <select
-              class="form-select form-select-sm"
-              v-model="sortOrder"
-              style="width: auto"
-            >
-              <option value="newest">Más recientes</option>
-              <option value="oldest">Más antiguos</option>
-            </select>
-                                    </div>
+            <div class="filter-select-container">
+    <div class="select-wrapper">
+        <i class="fas fa-filter filter-icon"></i>
+        <select
+            class="form-select form-select-sm"
+            v-model="sortOrder"
+        >
+            <option value="newest">Más recientes</option>
+            <option value="oldest">Más antiguos</option>
+        </select>
+    </div>
+</div>
+          </div>
 
           <!-- Payment Cards Grid -->
           <div v-if="isLoading" class="row g-4">
@@ -1951,23 +1959,47 @@ export default {
 }
 
 .text-theme {
-  color: #6f42c1;
+  color: purple;
 }
 
 .bg-theme {
-  background-color: #6f42c1;
+  background-color: purple;
   color: white;
+}
+
+/* Button Styles */
+.btn-outline-theme, .btn-theme {
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.btn-outline-danger, .btn-outline-success { 
+  border-radius: 20px;
 }
 
 .btn-outline-theme {
-  color: #6f42c1;
-  border-color: #6f42c1;
+    border-color: purple;
+    color: purple;
 }
 
-.btn-outline-theme:hover,
-.btn-outline-theme.active {
-  background-color: #6f42c1;
-  color: white;
+.btn-outline-theme:hover {
+    background-color: purple;
+    color: white;
+    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+}
+
+.btn-theme {
+    background-color: purple;
+    border-color: purple;
+    color: white;
+}
+
+.btn-theme:hover {
+    background-color: #8a2be2;
+    border-color: #8a2be2;
+    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
 }
 
 .card.custom-card {
@@ -2131,6 +2163,17 @@ export default {
   }
 }
 
+.form-select {
+    border-radius: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border: 1px solid purple;
+    padding: 8px;
+    color: purple;
+}
+
+.form-select option {
+  color: white;
+}
 // Responsive styles
 @media (max-width: 768px) {
   .payment-section {
@@ -2320,5 +2363,63 @@ export default {
       flex: 0 0 auto; /* Prevent flex growth/shrink */
     }
   }
+}
+
+/* Add these styles */
+.filter-select-container {
+    position: relative;
+    display: inline-block;
+}
+
+.select-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.filter-icon {
+    position: absolute;
+    left: 12px;
+    color: purple;
+    font-size: 0.875rem;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.form-select {
+    border-radius: 20px;
+    padding: 6px 36px;
+    font-size: 0.875rem;
+    border: 1px solid purple;
+    color: purple;
+    background-color: transparent;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='purple'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+}
+
+.form-select:focus {
+    box-shadow: 0 0 0 2px rgba(128, 0, 128, 0.2);
+    border-color: purple;
+    outline: none;
+}
+
+.form-select option {
+    background-color: #1a1a1a;
+    color: white;
+    padding: 8px;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .form-select {
+        width: 100%;
+        min-width: 160px;
+    }
 }
 </style>

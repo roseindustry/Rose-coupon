@@ -71,7 +71,7 @@
 
       <!-- Plans Button -->
       <button
-        class="btn btn-theme btn-sm w-sm-auto"
+        class="btn btn-outline-theme btn-sm w-sm-auto"
         data-bs-toggle="modal"
         data-bs-target="#assignModal"
       >
@@ -707,20 +707,35 @@ export default {
   font-size: 0.7rem;
 }
 
-.btn-theme:hover {
-  background-color: #5a32a3;
-  border-color: #5a32a3;
+/* Button Styles */
+.btn-outline-theme, .btn-theme {
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.2s ease;
 }
 
 .btn-outline-theme {
-  color: #6f42c1;
-  border-color: #6f42c1;
+    border-color: purple;
+    color: purple;
 }
 
-.btn-outline-theme:hover,
-.btn-outline-theme.active {
-  background-color: #6f42c1;
-  color: white;
+.btn-outline-theme:hover {
+    background-color: purple;
+    color: white;
+    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+}
+
+.btn-theme {
+    background-color: purple;
+    border-color: purple;
+    color: white;
+}
+
+.btn-theme:hover {
+    background-color: #8a2be2;
+    border-color: #8a2be2;
+    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
 }
 
 .toggle-card,

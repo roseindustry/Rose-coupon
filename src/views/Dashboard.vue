@@ -9,6 +9,7 @@ import { showToast } from '@/utils/toast';
 import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import moment from 'moment';
+import { useRouter } from 'vue-router';
 
 export default {
 	data() {
@@ -43,28 +44,63 @@ export default {
 			filterDate: this.getVenezuelanDate(),
 			loading: false,
 			searchQuery: '',
-			cachedAuthUsers: null
+			cachedAuthUsers: null,
+			selectedCouponRequest: null,
+			selectedCouponClient: null,
+			selectedCouponRequestId: null
 		}
 	},
 	computed: {
 		filteredClients() {
-			let filtered = this.clientsModalData;
+			// If no data is provided, return empty array
+			if (!this.clientsModalData) return [];
 
+			// Create a copy of the data to filter
+			let filtered = Array.isArray(this.clientsModalData) 
+				? [...this.clientsModalData] 
+				: [];
+
+			// Apply search filter if query exists
 			if (this.searchQuery) {
 				const query = this.searchQuery.toLowerCase();
 				filtered = filtered.filter(client => {
-					const fullName = (client.firstName + ' ' + client.lastName).toLowerCase();
-					const identification = String(client.identification).toLowerCase();  // Ensure it's a string
-					const subscriptionName = client.subscriptionName ? client.subscriptionName.toLowerCase() : '';
+					// Get all searchable fields
+					const fullName = `${client.firstName} ${client.lastName}`.toLowerCase();
+					const identification = String(client.identification || '').toLowerCase();
+					const subscriptionName = client.subscriptionName 
+						? client.subscriptionName.toLowerCase() 
+						: '';
+					const email = (client.email || '').toLowerCase();
 
+					// Return true if any field matches the search query
 					return fullName.includes(query) ||
 						identification.includes(query) ||
-						subscriptionName.includes(query);
+						subscriptionName.includes(query) ||
+						email.includes(query);
 				});
 			}
 
 			return filtered;
 		},
+
+		// Add a new computed property specifically for the requests modal
+		filteredRequestsData() {
+			if (!this.requestsModalData) return [];
+
+			let filtered = [...this.requestsModalData];
+
+			if (this.searchQuery) {
+				const query = this.searchQuery.toLowerCase();
+				filtered = filtered.filter(client => {
+					const fullName = `${client.firstName} ${client.lastName}`.toLowerCase();
+					const identification = String(client.identification || '').toLowerCase();
+					
+					return fullName.includes(query) || identification.includes(query);
+				});
+			}
+
+			return filtered;
+		}
 	},
 	methods: {
 		getVenezuelanDate() {
@@ -103,13 +139,13 @@ export default {
 			const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
 
 			try {
-				this.loading = true;
+			this.loading = true;
 
 				// Fetch clients from Firebase
 				const snapshot = await get(clientRef);
 				if (snapshot.exists()) {
 					const users = snapshot.val();
-
+					
 					// Check if we have cached auth users
 					const cachedAuthUsers = localStorage.getItem('authUsers');
 					let authUsers = [];
@@ -145,7 +181,7 @@ export default {
 							createdAt: authUser ? authUser.creationTime : null,
 						};
 					});
-
+					
 					// Filter the clients based on different conditions
 					this.verifiedClients = this.clients.filter(client => client.isVerified === true);
 					this.clientsWithRequests = this.clients.filter(client => client.coupon_requests);
@@ -285,8 +321,8 @@ export default {
 			this.fetchIdFiles(client).then(() => {
 				// Show the image Modal after fetching files
 				const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
-				modal.show();
-			});
+					modal.show();
+				});
 			this.clientImgModal = client;
 		},
 		async fetchIdFiles(client) {
@@ -310,135 +346,113 @@ export default {
 				console.error('Error fetching ID files:', error.message || error);
 			}
 		},
-		async approveID(client) {
-			const userName = client.firstName + ' ' + client.lastName;
+		async approveVerification(client) {
 			try {
 				// Show the loader
 				this.isSubmitting = true;
+				this.selectedClientId = client.uid;
 
 				const userRef = dbRef(db, `Users/${client.uid}`);
-				await update(userRef, { isVerified: true });
+				await update(userRef, { 
+					isVerified: true,
+					requestedVerification: null 
+				});
 
-				// Send an email notification to the client through Firebase Cloud Functions
+				// Send an email notification to the client
 				const emailPayload = {
 					to: client.email,
 					message: {
 						subject: "Verificación Aprobada en Rose App",
-						text: `Hola ${userName}, tu solicitud de verificación ha sido aprobada.`,
+						text: `Hola ${client.firstName}, tu solicitud de verificación ha sido aprobada.`,
 					},
 				};
-				// Send email via the utility function
-                const result = await sendEmail(emailPayload);
+				await this.sendNotificationEmail(emailPayload);
 
-                if (result.success) {
-                    console.log("Email sent successfully:", result.message);
-                } else {
-                    console.error("Failed to send email:", result.error);
-                }
-
-				// Hide the image Modal after approving
-				const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
-				modal.hide();
+				// Hide the modal after approving
+				const modal = Modal.getOrCreateInstance(document.getElementById('clientImgModal'));
+				if (modal._isShown) {
+					modal.hide();
+				}
 
 				showToast('Usuario verificado con éxito.');
-				this.fetchIdFiles(client);
+				
+				// Refresh the verification requests list
+				await this.fetchClients();
+				this.clientsVerifyRequests = this.clients.filter(client => client.requestedVerification === true);
+				
+				// Update the modal data if it's open
+				if (this.requestsModalTitle === 'Solicitudes de Verificación') {
+					this.requestsModalData = this.clientsVerifyRequests;
+				}
 			} catch (error) {
-				console.error("Error approving ID:", error);
+				console.error("Error approving verification:", error);
+				showToast('Error al aprobar la verificación', {
+					style: {
+						background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
+					},
+				});
 			} finally {
 				// Hide the loader
 				this.isSubmitting = false;
+				this.selectedClientId = null;
 			}
 		},
-		async dissapproveID(client) {
-			// Confirmation dialog
-			if (confirm("¿Desea borrar este cliente?")) {
-				// User clicked "OK"
-				try {
-					this.isSubmitting = true;
+		async rejectVerification(client) {
+			try {
+				this.isSubmitting = true;
+				this.selectedClientId = client.uid;
 
-					// Fetch the user's verification files from the Database
-					const userRef = dbRef(db, `Users/${client.uid}`);
-					const snapshot = await get(dbRef(db, `Users/${client.uid}/verificationFiles`));
+				// Update verification status in the database
+				const userRef = dbRef(db, `Users/${client.uid}`);
+				await update(userRef, {
+					requestedVerification: null,
+					// Don't change isVerified status if it was already verified
+				});
 
-					if (!snapshot.exists()) {
-						console.warn(`No verification files found for ${client.uid}, skipping deletion.`);
-						return;
-					}
+				// Send an email notification to the client
+				const emailPayload = {
+					to: client.email,
+					message: {
+						subject: "Verificación Denegada",
+						text: `Hola ${client.firstName}, tu solicitud de verificación ha sido denegada. Por favor, intenta nuevamente con documentos más claros.`,
+					},
+				};
+				await this.sendNotificationEmail(emailPayload);
 
-					const verificationFiles = snapshot.val();
-					const filePaths = [
-						verificationFiles['Front-ID'] || null,
-						verificationFiles['Back-ID'] || null,
-						verificationFiles['Selfie'] || null
-					].filter(Boolean); // Filter out null values
-
-					// Function to delete files from Firebase Storage
-					const deleteFile = async (fileUrl) => {
-						try {
-							const fileRef = storageRef(storage, fileUrl);
-							await deleteObject(fileRef);
-							console.log(`${fileUrl} deleted successfully.`);
-						} catch (error) {
-							if (error.code === 'storage/object-not-found') {
-								console.warn(`${fileUrl} not found, skipping deletion.`);
-							} else {
-								console.error(`Error deleting ${fileUrl}:`, error);
-							}
-						}
-					};
-
-					// Delete the files
-					for (const filePath of filePaths) {
-						await deleteFile(filePath);
-					}
-
-					// Clear verification status and files from the user's database entry
-					await update(userRef, {
-						isVerified: null,
-						requestedVerification: null,
-						verificationFiles: null, // Clear verification files in the database
-					});
-
-					// Send an email notification to the client via Firebase Cloud Functions
-					const emailPayload = {
-						to: client.email,
-						message: {
-							subject: "Verificación Denegada",
-							text: `Hola ${client.firstName}, tu solicitud de verificación ha sido denegada. Por favor, sube nuevamente tus archivos de verificación.`,
-						},
-					};
-					// Send email via the utility function
-					const result = await sendEmail(emailPayload);
-
-if (result.success) {
-	console.log("Email sent successfully:", result.message);
-} else {
-	console.error("Failed to send email:", result.error);
-}
-
-					// Show a success toast and refresh client list
-					showToast('Verificación denegada y archivos eliminados.');
-					this.fetchClients();
-
-				} catch (error) {
-					console.error("Error disapproving verification:", error);
-					showToast('Error al denegar la verificación. Por favor, inténtelo nuevamente.', {
-						style: {
-							background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
-						},
-					});
-				} finally {
-					// Hide the loader
-					this.isSubmitting = false;
+				// Hide the modal if it's open
+				const modal = Modal.getOrCreateInstance(document.getElementById('clientImgModal'));
+				if (modal._isShown) {
+					modal.hide();
 				}
+
+				showToast('Verificación denegada.');
+				
+				// Refresh the verification requests list
+				await this.fetchClients();
+				this.clientsVerifyRequests = this.clients.filter(client => client.requestedVerification === true);
+				
+				// Update the modal data if it's open
+				if (this.requestsModalTitle === 'Solicitudes de Verificación') {
+					this.requestsModalData = this.clientsVerifyRequests;
+				}
+			} catch (error) {
+				console.error("Error rejecting verification:", error);
+				showToast('Error al denegar la verificación', {
+					style: {
+						background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
+					},
+				});
+			} finally {
+				this.isSubmitting = false;
+				this.selectedClientId = null;
 			}
 		},
+		
 		showCouponRequest(client) {
 			if (!client.coupon_requests) {
 				console.error("No coupon requests found for this client");
 				return;
 			}
-			console.log(client);
 			// Convert coupon_requests object into an array with the keys
 			const requests = Object.keys(client.coupon_requests).map(key => ({
 				id: key,
@@ -446,22 +460,9 @@ if (result.success) {
 			}));
 
 			this.selectedRequestsClient = { ...client, coupon_requests: requests };
-			console.log(this.selectedRequestsClient);
 
 			const modal = Modal.getOrCreateInstance(document.getElementById('couponRequestModal'));
 			modal.show();
-		},
-		getAffiliateNameById(affiliateId) {
-			this.fetchAffiliates();
-			const affiliate = this.affiliates.find(affiliate => affiliate.id === affiliateId);
-			// If the affiliate is found, return the companyName, otherwise return 'Unknown Affiliate'
-			return affiliate ? affiliate.companyName : 'Unknown Affiliate';
-		},
-		getCategoryNameById(categoryId) {
-			this.fetchCategories();
-			const category = this.categories.find(category => category.id === categoryId);
-			// If the category is found, return the name, otherwise return 'Unknown Category'
-			return category ? category.name : 'Unknown Category';
 		},
 		assignCoupon(client) {
 			// Hide the modal 
@@ -475,6 +476,19 @@ if (result.success) {
 				query: { clientId: client.uid } // Pass the client's ID
 			});
 
+		},
+
+		getAffiliateNameById(affiliateId) {
+			this.fetchAffiliates();
+			const affiliate = this.affiliates.find(affiliate => affiliate.id === affiliateId);
+			// If the affiliate is found, return the companyName, otherwise return 'Unknown Affiliate'
+			return affiliate ? affiliate.companyName : 'Unknown Affiliate';
+		},
+		getCategoryNameById(categoryId) {
+			this.fetchCategories();
+			const category = this.categories.find(category => category.id === categoryId);
+			// If the category is found, return the name, otherwise return 'Unknown Category'
+			return category ? category.name : 'Unknown Category';
 		},
 
 		// Employee's
@@ -727,7 +741,7 @@ if (result.success) {
 		resetModal() {
 			this.assigningSubscription = false;
 			this.fetchCurrentUserData();
-		}
+		},
 	},
 	async mounted() {
 		const userStore = useUserStore();
@@ -753,206 +767,435 @@ if (result.success) {
 }
 </script>
 <template>
-	<div v-if="this.role === 'admin'">
-		<div class="container py-2">
-			<div class="card mb-3 shadow-sm">
-				<div class="card-body">
-					<div class="row align-items-center">
-						<div class="col-md-8">
-							<h1 class="h4 mb-2">Hola, {{ userName }} 🎉</h1>
-							<h5 class="text-muted">Aquí está un resumen de tu App</h5>
-						</div>
+	<div class="container">
+		<!-- Admin Dashboard -->
+		<div v-if="this.role === 'admin'">
+			<!-- Header Section -->
+			<div class="dashboard-header mb-4">
+				<div class="row align-items-center">
+					<div class="col-md-8">
+						<h2 class="fw-bold mb-0">Hola, {{ userName }} 🎉</h2>
+						<p class="text-muted small mb-0">Aquí está un resumen de tu App</p>
 					</div>
 				</div>
 			</div>
 
+			<!-- Stats Cards -->
 			<div class="row g-3">
-				<!-- Clientes registrados -->
-				<div class="col-sm-6 col-lg-4">
-					<div class="card custom-card h-100 text-center">
-						<div class="card-body d-flex flex-column justify-content-center align-items-center">
-							<div class="icon-circle bg-primary mb-3">
-								<i class="fa fa-user fa-lg text-white"></i>
-							</div>
-							<h5 class="mb-1">Total de Clientes Registrados</h5>
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
-								aria-hidden="true"></span>
-							<div v-if="clients && !loading">
-								<h3>{{ clients.length || 0 }}</h3>
-							</div>
+				<!-- Total Clients Card -->
+				<div class="col-12 col-sm-6 col-lg-4">
+					<div class="dashboard-card">
+						<div class="icon-container">
+							<i class="fa fa-user"></i>
+						</div>
+						<h6 class="card-title text-white mb-2">Total de Clientes</h6>
+						<div class="mt-1">
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
+							<h4 v-else class="fw-bold mb-2">{{ clients.length || 0 }}</h4>
+						</div>
+						<div class="mt-2">
+							<router-link to="/clientes" class="btn btn-theme btn-sm">
+								Ir a clientes
+							</router-link>
 						</div>
 					</div>
 				</div>
+				
 				<!-- Clientes registrados el dia... -->
-				<div class="col-sm-6 col-lg-4">
-					<div class="card custom-card h-100 text-center">
-						<div class="card-body d-flex flex-column justify-content-center align-items-center">
-							<div class="icon-circle bg-primary mb-3">
-								<i class="fa fa-user fa-lg text-white"></i>
-							</div>
-							<h5 class="mb-1">Clientes Registrados El Día</h5>
-
-							<div class="d-flex justify-content-center align-items-center m-3">
-								<input type="date" v-model="filterDate" class="form-control me-2" style="width: auto;"
-									@change="fetchDayClients" />
-							</div>
-
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
-								aria-hidden="true"></span>
-							<div v-if="clientsRegisteredDay && !loading">
-								<h3>{{ clientsRegisteredDay.length || 0 }}</h3>
-							</div>
+				<div class="col-12 col-sm-6 col-lg-4">
+					<div class="dashboard-card">
+						<div class="icon-container">
+							<i class="fa fa-user"></i>
+						</div>
+						<h6 class="card-title text-white mb-2">Clientes Registrados El Día</h6>
+						<div class="date-filter mb-3">
+							<input type="date" v-model="filterDate" class="form-control" @change="fetchDayClients" />
+						</div>
+						<div class="mt-1">
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
+							<h4 v-else class="fw-bold mb-2">{{ clientsRegisteredDay.length || 0 }}</h4>
 						</div>
 					</div>
 				</div>
+				
 				<!-- Clientes verificados -->
-				<div class="col-sm-6 col-lg-4">
-					<div class="card custom-card h-100 text-center">
-						<div class="card-body d-flex flex-column justify-content-center align-items-center">
-							<div class="icon-circle bg-success mb-3">
-								<i class="fa fa-user-check fa-lg text-white"></i>
-							</div>
-							<h5 class="mb-1">Clientes Verificados</h5>
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
-								aria-hidden="true"></span>
-							<div v-if="verifiedClients && !loading">
-								<h3>{{ verifiedClients.length || 0 }}</h3>
-							</div>
+				<div class="col-12 col-sm-6 col-lg-4">
+					<div class="dashboard-card">
+						<div class="icon-container">
+							<i class="fa fa-check-circle"></i>
+						</div>
+						<h6 class="card-title text-white mb-2">Clientes Verificados</h6>
+						<div class="mt-1">
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
+							<h4 v-else class="fw-bold mb-2">{{ verifiedClients.length || 0 }}</h4>
+						</div>
+						<div class="mt-2">
+							<router-link to="/clientes" class="btn btn-theme btn-sm">
+								Ir a clientes
+							</router-link>
 						</div>
 					</div>
 				</div>
-				<!-- Comercios afiliados -->
-				<div class="col-sm-6 col-lg-4">
-					<div class="card custom-card h-100 text-center">
-						<div class="card-body d-flex flex-column justify-content-center align-items-center">
-							<div class="icon-circle bg-success mb-3">
-								<i class="fa fa-building fa-lg text-white"></i>
-							</div>
-							<h5 class="mb-1">Comercios Afiliados</h5>
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
-								aria-hidden="true"></span>
-							<div v-if="affiliates && !loading">
-								<h3>{{ affiliates.length || 0 }}</h3>
-							</div>
+				
+				<!-- Afiliados -->
+				<div class="col-12 col-sm-6 col-lg-4">
+					<div class="dashboard-card">
+						<div class="icon-container">
+							<i class="fa fa-store"></i>
+						</div>
+						<h6 class="card-title text-white mb-2">Comercios Afiliados</h6>
+						<div class="mt-1">
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
+							<h4 v-else class="fw-bold mb-2">{{ affiliates.length || 0 }}</h4>
+						</div>
+						<div class="mt-2">
+							<router-link to="/comercios-afiliados" class="btn btn-theme btn-sm">
+								Ir a comercios
+							</router-link>
 						</div>
 					</div>
 				</div>
+				
 				<!-- Cupones aplicados -->
-				<div class="col-sm-6 col-lg-4">
-					<div class="card custom-card h-100 text-center">
-						<div class="card-body d-flex flex-column justify-content-center align-items-center">
-							<div class="icon-circle bg-primary mb-3">
-								<i class="fa fa-ticket fa-lg text-white"></i>
-							</div>
-							<h5 class="mb-1">Cupones Usados</h5>
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
-								aria-hidden="true"></span>
-							<div v-if="appliedCoupons && !loading">
-								<h3>{{ appliedCoupons || 0 }}</h3>
-							</div>
+				<div class="col-12 col-sm-6 col-lg-4">
+					<div class="dashboard-card">
+						<div class="icon-container">
+							<i class="fa fa-ticket-alt"></i>
+						</div>
+						<h6 class="card-title text-white mb-2">Cupones Aplicados</h6>
+						<div class="mt-1">
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
+							<h4 v-else class="fw-bold mb-2">{{ appliedCoupons || 0 }}</h4>
 						</div>
 					</div>
 				</div>
-				<!-- Solicitudes de cupones por Clientes -->
-				<div class="col-sm-6 col-lg-4">
-					<div class="card custom-card h-100 text-center">
-						<div class="card-body d-flex flex-column justify-content-center align-items-center">
-							<div class="icon-circle bg-primary mb-3">
-								<i class="fa-solid fa-bell-concierge fa-lg text-white"></i>
-							</div>
-							<h5 class="mb-1">Solicitudes de Cupones</h5>
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
-								aria-hidden="true"></span>
-							<div v-if="clientsWithRequests && !loading">
-								<h3>{{ clientsWithRequests.length || 0 }}</h3>
-								<a v-if="clientsWithRequests.length" href="#"
-									@click.prevent="openRequestsModal('couponRequests')">Ver</a>
-							</div>
+				
+				<!-- Solicitudes de cupones -->
+				<div class="col-12 col-sm-6 col-lg-4">
+					<div class="dashboard-card">
+						<div class="icon-container">
+							<i class="fa fa-bell"></i>
+						</div>
+						<h6 class="card-title text-white mb-2">Solicitudes de Cupones</h6>
+						<div class="mt-1">
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
+							<h4 v-else class="fw-bold mb-2">{{ clientsWithRequests.length || 0 }}</h4>
+						</div>
+						<div class="mt-2">
+							<a href="#" class="btn btn-theme btn-sm" @click.prevent="openRequestsModal('couponRequests')">
+								Ver solicitudes
+							</a>
 						</div>
 					</div>
 				</div>
-				<!-- Solicitudes de verificacion por Clientes -->
-				<div class="col-sm-6 col-lg-4">
-					<div class="card custom-card h-100 text-center">
-						<div class="card-body d-flex flex-column justify-content-center align-items-center">
-							<div class="icon-circle bg-primary mb-3">
-								<i class="fa-solid fa-bell-concierge fa-lg text-white"></i>
-							</div>
-							<h5 class="mb-1">Solicitudes de Verificacion</h5>
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
-								aria-hidden="true"></span>
-							<div v-if="clientsVerifyRequests && !loading">
-								<h3>{{ clientsVerifyRequests.length || 0 }}</h3>
-								<a v-if="clientsVerifyRequests.length" href="#"
-									@click.prevent="openRequestsModal('verificationRequests')">Ver</a>
-							</div>
+
+				<!-- Verification Requests Card -->
+				<div class="col-12 col-sm-6 col-lg-4">
+					<div class="dashboard-card">
+						<div class="icon-container">
+							<i class="fa fa-id-card"></i>
+						</div>
+						<h6 class="card-title text-white mb-2">Solicitudes de Verificación</h6>
+						<div class="mt-1">
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
+							<h4 v-else class="fw-bold mb-2">{{ clientsVerifyRequests.length || 0 }}</h4>
+						</div>
+						<div class="mt-2">
+							<a href="#" class="btn btn-theme btn-sm" @click.prevent="openRequestsModal('verificationRequests')">
+								Ver solicitudes
+							</a>
 						</div>
 					</div>
 				</div>
 			</div>
 		</div>
 
-		<!-- Modal for requests -->
-		<div class="modal fade" id="requestsModal" tabindex="-1" aria-labelledby="verifyClientsModalLabel"
+		<!-- Mesero/Promotora Dashboard -->
+		<div v-if="this.role === 'mesero' || this.role === 'promotora'">
+			<!-- Header Section -->
+			<div class="dashboard-header mb-4">
+				<div class="row align-items-center">
+					<div class="col-md-8">
+						<h2 class="fw-bold mb-0">Hola, {{ userName }} 🎉</h2>
+						<p class="text-muted small mb-0">Aquí está un resumen de tu actividad</p>
+					</div>
+				</div>
+			</div>
+
+			<!-- Stats Cards -->
+			<div class="row g-3">
+				<!-- Código de Referido -->
+				<div class="col-12 col-sm-6 col-lg-3">
+					<div class="dashboard-card">
+						<div class="icon-container">
+							<i class="fa fa-qrcode"></i>
+						</div>
+						<h6 class="card-title text-white mb-2">Tu código de Referido</h6>
+						<div class="mt-1">
+							<h4 class="fw-bold mb-2">{{ this.userDetails?.codigoReferido || 'N/A' }}</h4>
+						</div>
+						<div class="mt-2">
+							<h6 class="text-muted">Rol</h6>
+							<span class="badge bg-info px-3 py-2">
+								{{ this.role.charAt(0).toUpperCase() + this.role.slice(1) }}
+							</span>
+						</div>
+					</div>
+				</div>
+				
+				<!-- Clientes Referidos -->
+				<div class="col-12 col-sm-6 col-lg-3">
+					<div class="dashboard-card">
+						<div class="icon-container">
+							<i class="fa fa-users"></i>
+						</div>
+						<h6 class="card-title text-white mb-2">Clientes Referidos</h6>
+						<div class="mt-1">
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
+							<h4 v-else class="fw-bold mb-2">{{ this.referralClients.length || 0 }}</h4>
+						</div>
+						<div class="mt-2">
+							<a href="#" class="btn btn-theme btn-sm" @click.prevent="openClientsModal('referralClients')">
+								Ver lista
+							</a>
+						</div>
+					</div>
+				</div>
+				
+				<!-- Clientes Referidos el día -->
+				<div class="col-12 col-sm-6 col-lg-3">
+					<div class="dashboard-card">
+						<div class="icon-container">
+							<i class="fa fa-calendar-day"></i>
+						</div>
+						<h6 class="card-title text-white mb-2">Clientes Referidos el día</h6>
+						<div class="date-filter mb-3">
+							<input type="date" v-model="filterDate" class="form-control" @change="fetchDayReferrals" />
+						</div>
+						<div class="mt-1">
+							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
+							<h4 v-else class="fw-bold mb-2">{{ this.dayReferrals.length || 0 }}</h4>
+						</div>
+						<div class="mt-2">
+							<a href="#" class="btn btn-theme btn-sm" @click.prevent="openClientsModal('dayReferrals')">
+								Ver lista
+							</a>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Clients Modal -->
+		<div class="modal fade" id="clientsModal" tabindex="-1" aria-labelledby="clientsModalLabel"
 			aria-hidden="true">
-			<div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+			<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
 				<div class="modal-content">
 					<div class="modal-header">
-						<h5 class="modal-title" id="verifyClientsModalLabel">{{ requestsModalTitle }}</h5>
+						<h5 class="modal-title" id="clientsModalLabel">Clientes referidos</h5>
 						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 					</div>
-					<div class="modal-body text-center">
+					<div class="modal-body">
 						<div class="container">
+							<input v-model="searchQuery" placeholder="Filtrar cliente por nombre o cédula..."
+								class="form-control mb-3" />
+
+							<p>Mostrando {{ filteredClients.length }} resultados</p>
+
 							<table class="table text-center table-responsive">
 								<thead>
 									<tr>
-										<th scope="col">Cliente</th>
-										<th scope="col">Cédula</th>
-										<template v-if="requestsModalTitle === 'Solicitudes de Verificación'">
-											<th scope="col">Acciones</th>
-										</template>
-										<template v-else-if="requestsModalTitle === 'Solicitudes de Cupones'">
-											<th scope="col">Solicitus</th>
-											<th scope="col">Acciones</th>
-										</template>
+										<th scope="col" @click="sortClients('firstName')">Cliente
+											<i class="fa-solid fa-sort"></i>
+										</th>
+										<th scope="col" @click="sortClients('identification')">Cédula
+											<i class="fa-solid fa-sort"></i>
+										</th>
+										<th scope="col">Suscripción</th>
+										<th scope="col">Acciones</th>
 									</tr>
 								</thead>
 								<tbody>
-									<tr v-for="client in requestsModalData" :key="client.uid">
+									<tr v-for="client in filteredClients" :key="client.id">
 										<td>{{ client.firstName + ' ' + client.lastName }}</td>
-										<td>V-{{ client.identification }}</td>
-										<td>
-											<template v-if="requestsModalTitle === 'Solicitudes de Verificación'">
-												<button class="btn btn-outline-info me-2"
-													@click.prevent="showIDfiles(client)">
-													<i class="fa-solid fa-id-card"></i>
-												</button>
-											</template>
-											<template v-else-if="requestsModalTitle === 'Solicitudes de Cupones'">
-												<button class="btn btn-sm btn-info me-1" data-bs-toggle="tooltip"
-													data-bs-placement="top" title="Seleccionar cliente"
-													@click.prevent="showCouponRequest(client)">
-													<i class="fa-solid fa-search me-2"></i>Ver solicitud
-												</button>
-											</template>
+										<td>{{ client.identification }}</td>
+										<td v-if="!this.assigningSubscription || selectedClientId !== client.id">
+											{{ client.subscription ? client.subscription.name.toUpperCase() : `Sin suscripcion` }}
 										</td>
-										<td>
-											<template v-if="requestsModalTitle === 'Solicitudes de Cupones'">
-												<button class="btn btn-sm btn-success me-1" data-bs-toggle="tooltip"
-													data-bs-placement="top" title="Seleccionar cliente"
-													@click.prevent="assignCoupon(client)">
-													<i class="fa-solid fa-check me-2"></i>Asignar
-												</button>
-											</template>
+										<td v-else-if="selectedClientId === client.id">
+											<select v-model="subToAssign" class="form-control mb-2">
+												<option value="" disabled selected>Suscripciones</option>
+												<option v-for="sub in subscriptions" :key="sub.id" :value="sub">
+													{{ sub.name.toUpperCase() }}
+												</option>
+											</select>
+										</td>
+										<td v-if="!this.assigningSubscription">
+											<button v-if="!client.subscription" class="btn btn-outline-theme btn-sm"
+												@click.prevent="loadSubscriptions(client)">
+												Asignar suscripción
+											</button>
+										</td>
+										<td v-if="this.assigningSubscription && selectedClientId === client.id">
+											<button :disabled="isSubmitting" class="btn btn-outline-theme btn-sm"
+												@click.prevent="assignSubscription(client)">
+												<span v-if="isSubmitting" class="spinner-border spinner-border-sm"
+													role="status" aria-hidden="true"></span>
+												<span v-else>Asignar</span>
+											</button>
 										</td>
 									</tr>
 								</tbody>
 							</table>
 						</div>
 					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-secondary" data-bs-dismiss="modal" aria-label="Close"
+							@click.prevent="resetModal()">Cerrar</button>
+					</div>
 				</div>
 			</div>
 		</div>
+
+		<!-- Requests Modal -->
+		<div class="modal fade" id="requestsModal" tabindex="-1" aria-labelledby="requestsModalLabel" aria-hidden="true">
+			<div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="requestsModalLabel">
+							<i class="fas" :class="requestsModalTitle.includes('Cupones') ? 'fa-ticket-alt' : 'fa-id-card'"></i>
+							{{ requestsModalTitle }}
+						</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+					</div>
+					<div class="modal-body">
+						<!-- Search Bar -->
+						<div class="search-bar mb-4">
+							<div class="input-group">
+								<span class="input-group-text">
+									<i class="fas fa-search"></i>
+								</span>
+								<input type="text" 
+									class="form-control" 
+									v-model="searchQuery"
+									placeholder="Buscar por nombre o cédula..." 
+								/>
+							</div>
+						</div>
+
+						<!-- Requests Table/Cards -->
+						<div class="requests-container">
+							<!-- Desktop Table View -->
+							<div class="table-responsive d-none d-md-block">
+								<table class="table align-middle">
+									<thead>
+										<tr>
+											<th>Cliente</th>
+											<th>Cédula</th>
+											<th>Acciones</th>
+										</tr>
+									</thead>
+									<tbody>
+										<template v-if="filteredRequestsData.length">
+											<tr v-for="client in filteredRequestsData" :key="client.uid">
+												<td>{{ client.firstName + ' ' + client.lastName }}</td>
+												<td>V-{{ client.identification }}</td>
+												<td>
+													<div class="d-flex gap-2">
+														<!-- Verification Actions -->
+														<template v-if="requestsModalTitle === 'Solicitudes de Verificación'">
+															<button class="btn btn-outline-info btn-sm"
+																@click.prevent="showIDfiles(client)">
+																<i class="fas fa-id-card me-1"></i>
+																Ver documentos
+															</button>
+														</template>
+														
+														<!-- Coupon Actions -->
+														<template v-else-if="requestsModalTitle === 'Solicitudes de Cupones'">
+															<button class="btn btn-outline-info btn-sm"
+																@click.prevent="showCouponRequest(client)">
+																<i class="fas fa-search me-1"></i>
+																Ver solicitud
+															</button>
+															<button class="btn btn-outline-success btn-sm"
+																@click.prevent="assignCoupon(client)">
+																<i class="fas fa-check me-1"></i>
+																Asignar
+															</button>
+														</template>
+													</div>
+												</td>
+											</tr>
+										</template>
+										<tr v-else>
+											<td colspan="3" class="text-center py-4">
+												<div class="empty-state">
+													<i class="fas fa-inbox mb-3"></i>
+													<h6 class="mb-1">No hay solicitudes</h6>
+													<p class="text-muted mb-0">
+														{{ searchQuery ? 'No se encontraron resultados' : 'No hay solicitudes pendientes' }}
+													</p>
+												</div>
+											</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+
+							<!-- Mobile Card View -->
+							<div class="d-md-none">
+								<template v-if="filteredRequestsData.length">
+									<div class="request-card" v-for="client in filteredRequestsData" :key="client.uid">
+										<div class="card mb-3">
+											<div class="card-body">
+												<h6 class="card-title">
+													{{ client.firstName + ' ' + client.lastName }}
+												</h6>
+												<p class="card-subtitle mb-3">V-{{ client.identification }}</p>
+												
+												<div class="d-flex gap-2 justify-content-center">
+													<!-- Verification Actions -->
+													<template v-if="requestsModalTitle === 'Solicitudes de Verificación'">
+														<button class="btn btn-outline-info btn-sm"
+															@click.prevent="showIDfiles(client)">
+															<i class="fas fa-id-card"></i>
+															Ver
+														</button>
+													</template>
+													
+													<!-- Coupon Actions -->
+													<template v-else-if="requestsModalTitle === 'Solicitudes de Cupones'">
+														<button class="btn btn-outline-info btn-sm"
+															@click.prevent="showCouponRequest(client)">
+															<i class="fas fa-search"></i>
+															Ver
+														</button>
+														<button class="btn btn-outline-success btn-sm"
+															@click.prevent="assignCoupon(client)">
+															<i class="fas fa-check"></i>
+															Asignar
+														</button>
+													</template>
+												</div>
+											</div>
+										</div>
+									</div>
+								</template>
+								<div v-else class="empty-state-mobile text-center py-4">
+									<i class="fas fa-inbox mb-3"></i>
+									<h6 class="mb-1">No hay solicitudes</h6>
+									<p class="text-muted mb-0">
+										{{ searchQuery ? 'No se encontraron resultados' : 'No hay solicitudes pendientes' }}
+									</p>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
 		<!-- Modal for opening image -->
 		<div v-if="clientImgModal" class="modal fade" id="idImgModal" tabindex="-1" aria-labelledby="qrModalLabel"
 			aria-hidden="true">
@@ -967,14 +1210,14 @@ if (result.success) {
 					<div class="modal-body">
 						<div class="d-flex justify-content-center gap-3">
 							<button class="btn btn-outline-success d-flex align-items-center gap-1"
-								@click="approveID(clientImgModal)" :disabled="isSubmitting">
+								@click="approveVerification(clientImgModal)" :disabled="isSubmitting">
 								<i class="fa-solid fa-check"></i>
 								<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
 									aria-hidden="true"></span>
 								<span v-else>Aprobar</span>
 							</button>
 							<button class="btn btn-outline-danger d-flex align-items-center gap-1"
-								@click="dissapproveID(clientImgModal)" :disabled="isSubmitting">
+								@click="rejectVerification(clientImgModal)" :disabled="isSubmitting">
 								<i class="fa-solid fa-times"></i>
 								<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
 									aria-hidden="true"></span>
@@ -1011,6 +1254,7 @@ if (result.success) {
 				</div>
 			</div>
 		</div>
+
 		<!-- Coupon Request Modal -->
 		<div class="modal fade" id="couponRequestModal" tabindex="-1" aria-labelledby="couponRequestModalLabel"
 			aria-hidden="true">
@@ -1063,139 +1307,6 @@ if (result.success) {
 									</ul>
 								</div>
 							</div>
-							<!-- <div class="card-footer text-end">
-                                <button class="btn btn-outline-success">
-                                    <i class="fa-solid fa-check"></i> Asignar cupon
-                                </button>
-                            </div> -->
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-	<div v-if="this.role === 'mesero' || this.role === 'promotora'">
-		<div class="container py-4">
-			<div class="row justify-content-center g-4 mb-4">
-				<div class="col-12 col-md-6">
-					<div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
-						<div class="card-body text-center py-5">
-							<h5 class="card-title mb-3">Tu código de Referido</h5>
-							<h3><strong>{{ this.userDetails.codigoReferido }}</strong></h3>
-							<h5 class="card-title mt-3 mb-3">Rol</h5>
-							<h3><strong>{{ this.role.charAt(0).toUpperCase() + this.role.slice(1) }}</strong></h3>
-						</div>
-					</div>
-				</div>
-				<div class="col-12 col-md-6">
-					<div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
-						<div class="card-body text-center py-5">
-							<h5 class="card-title mb-3">Clientes Referidos</h5>
-
-							<div>
-								<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
-									aria-hidden="true"></span>
-								<div v-if="referralClients && !loading">
-									<h3><strong>{{ this.referralClients.length || 0 }}</strong></h3>
-								</div>
-							</div>
-
-							<a href="#" class="btn btn-theme btn-lg px-4 mt-3 shadow-sm"
-								@click.prevent="openClientsModal('referralClients')">Ver lista</a>
-						</div>
-					</div>
-				</div>
-				<div class="col-12 col-md-6">
-					<div class="card custom-card h-100 shadow-lg border-0 rounded-lg">
-						<div class="card-body text-center py-5">
-							<h5 class="card-title mb-3">Clientes Referidos el día</h5>
-
-							<div class="d-flex justify-content-center align-items-center m-3">
-								<input type="date" v-model="filterDate" class="form-control me-2" style="width: auto;"
-									@change="fetchDayReferrals" />
-							</div>
-
-							<div>
-								<span v-if="loading" class="spinner-border spinner-border-sm" role="status"
-									aria-hidden="true"></span>
-								<div v-if="dayReferrals && !loading">
-									<h3><strong>{{ this.dayReferrals.length || 0 }}</strong></h3>
-								</div>
-							</div>
-
-							<a href="#" class="btn btn-theme btn-lg px-4 mt-3 shadow-sm"
-								@click.prevent="openClientsModal('dayReferrals')">Ver lista</a>
-						</div>
-					</div>
-				</div>
-			</div>
-
-			<!-- Clients Modal -->
-			<div class="modal fade" id="clientsModal" tabindex="-1" aria-labelledby="clientsRequestsModalLabel"
-				aria-hidden="true">
-				<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-					<div class="modal-content">
-						<div class="modal-header">
-							<h5 class="modal-title" id="clientsRequestsModalLabel">Clientes referidos</h5>
-							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-						</div>
-						<div class="modal-body">
-							<div class="container">
-
-								<input v-model="searchQuery" placeholder="Filtrar cliente por nombre o cédula..."
-									class="form-control mb-3" />
-
-								<p>Mostrando {{ filteredClients.length }} resultados</p>
-
-								<table class="table text-center table-responsive">
-									<thead>
-										<tr>
-											<th scope="col" @click="sortClients('firstName')">Cliente
-												<i class="fa-solid fa-sort"></i>
-											</th>
-											<th scope="col" @click="sortClients('identification')">Cédula
-												<i class="fa-solid fa-sort"></i>
-											</th>
-											<th scope="col">Suscripción</th>
-											<th scope="col">Acciones</th>
-										</tr>
-									</thead>
-									<tbody>
-										<tr v-for="client in filteredClients" :key="client.id">
-											<td>{{ client.firstName + ' ' + client.lastName }}</td>
-											<td>{{ client.identification }}</td>
-											<td v-if="!this.assigningSubscription || selectedClientId !== client.id">
-												{{ client.subscription ? client.subscription.name.toUpperCase() : `Sin
-												suscripcion` }}</td>
-											<td v-else-if="selectedClientId === client.id">
-												<select v-model="subToAssign" class="form-control mb-2">
-													<option value="" disabled selected>Suscripciones</option>
-													<option v-for="sub in subscriptions" :key="sub.id" :value="sub">
-														{{ sub.name.toUpperCase() }}</option>
-												</select>
-											</td>
-											<td v-if="!this.assigningSubscription">
-												<button v-if="!client.subscription" class="btn btn-theme btn-sm"
-													@click.prevent="loadSubscriptions(client)">
-													Asignar suscripción
-												</button>
-											</td>
-											<td v-if="this.assigningSubscription && selectedClientId === client.id">
-												<button :disabled="isSubmitting" class="btn btn-theme btn-sm"
-													@click.prevent="assignSubscription(client)">
-													<span v-if="isSubmitting" class="spinner-border spinner-border-sm"
-														role="status" aria-hidden="true"></span>
-													<span v-else>Asignar</span>
-												</button>
-											</td>
-										</tr>
-									</tbody>
-								</table>
-							</div>
-						</div>
-						<div class="modal-footer">
-							<button type="button" class="btn" data-bs-dismiss="modal" aria-label="Close"
-								@click.prevent="resetModal()">Cerrar</button>
 						</div>
 					</div>
 				</div>
@@ -1204,60 +1315,324 @@ if (result.success) {
 	</div>
 </template>
 <style scoped>
-.btn-theme {
-	background-color: purple;
-	border-color: purple;
+/* Keep existing button color */
+.btn-outline-theme, .btn-theme {
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.2s ease;
 }
 
+.btn-outline-theme {
+    border-color: purple;
+    color: purple;
+}
+
+.btn-outline-theme:hover {
+    background-color: purple;
+    color: white;
+    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+}
+
+.btn-theme {
+    background-color: purple;
+    border-color: purple;
+    color: white;
+}
+
+.btn-theme:hover {
+    background-color: #8a2be2;
+    border-color: #8a2be2;
+    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
+}
+
+/* Improved icon circle */
 .icon-circle {
-	width: 50px;
-	height: 50px;
+	width: 64px;
+	height: 64px;
 	border-radius: 50%;
 	display: flex;
 	justify-content: center;
 	align-items: center;
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+	transition: all 0.3s ease;
 }
 
-.text-muted {
+.icon-circle:hover {
+	transform: scale(1.05);
+}
+
+/* Dashboard header styles */
+.dashboard-header {
+	padding-bottom: 1rem;
+	margin-bottom: 1.5rem;
+	border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+
+/* Card styling improvements */
+.dashboard-card {
+	background-color: #2d2d2d;
+	border-radius: 12px;
+	padding: 1.25rem;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	transition: transform 0.2s ease;
+}
+
+.dashboard-card:hover {
+	transform: translateY(-2px);
+}
+
+.dashboard-card .icon-container {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	background-color: rgba(128, 0, 128, 0.1);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 0.75rem;
+}
+
+.dashboard-card .icon-container i {
+	font-size: 1rem;
+	color: purple;
+}
+
+.dashboard-card h6 {
+	font-size: 0.875rem;
+	margin-bottom: 0.5rem;
+}
+
+.dashboard-card h4 {
+	font-size: 1.5rem;
+	margin-bottom: 0.75rem;
+}
+
+.dashboard-card .btn-sm {
+	padding: 0.25rem 0.75rem;
+	font-size: 0.75rem;
+}
+
+/* Date filter styling */
+.date-filter {
+	width: 100%;
+	max-width: 200px;
+}
+
+.date-filter .form-control {
+	border-radius: 8px;
+	border: 1px solid rgba(0,0,0,0.1);
+	box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+/* Modal styling */
+.modal-content {
+	border: none;
+	border-radius: 12px;
+	background-color: #1a1a1a;
+}
+
+.modal-header {
+	border-bottom: 1px solid #333;
+	padding: 1rem 1.5rem;
+}
+
+.modal-header .modal-title {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	color: #fff;
+}
+
+.modal-body {
+	padding: 1.5rem;
+}
+
+/* Search Bar */
+.search-bar .input-group {
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.search-bar .input-group-text {
+	background-color: #333;
+	border: none;
+	color: #fff;
+}
+
+.search-bar .form-control {
+	background-color: #333;
+	border: none;
+	color: #fff;
+}
+
+.search-bar .form-control:focus {
+	box-shadow: none;
+	background-color: #444;
+}
+
+/* Table Styles */
+.table {
+	color: #fff;
+}
+
+.table > :not(caption) > * > * {
+	background-color: transparent;
+	border-bottom-color: #333;
+}
+
+.table thead th {
+	background-color: #333;
+	border: none;
+	padding: 1rem;
+}
+
+/* Button Styles */
+.btn-sm {
+	padding: 0.4rem 0.8rem;
+	font-size: 0.875rem;
+	border-radius: 6px;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+/* Card Styles for Mobile */
+.request-card .card {
+	background-color: #333;
+	border: none;
+	border-radius: 8px;
+}
+
+.request-card .card-body {
+	padding: 1rem;
+}
+
+.request-card .card-title {
+	color: #fff;
+	margin-bottom: 0.5rem;
+}
+
+.request-card .card-subtitle {
+	color: #aaa;
 	font-size: 0.9rem;
 }
 
-.custom-card {
-	transition: transform .3s ease-in-out, box-shadow .3s ease-in-out;
+/* Responsive Adjustments */
+@media (max-width: 992px) {
+	.dashboard-card {
+		padding: 1rem;
+	}
+	
+	.dashboard-card .icon-container {
+		width: 36px;
+		height: 36px;
+	}
+	
+	.dashboard-card .icon-container i {
+		font-size: 0.875rem;
+	}
+	
+	.dashboard-card h4 {
+		font-size: 1.25rem;
+	}
 }
 
-.custom-card:hover {
-	transform: translateY(-5px);
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+@media (max-width: 576px) {
+	.dashboard-card {
+		padding: 0.875rem;
+	}
+	
+	.dashboard-card .icon-container {
+		width: 32px;
+		height: 32px;
+	}
+	
+	.dashboard-card h6 {
+		font-size: 0.8125rem;
+	}
 }
 
-.bg-gradient-custom-orange {
-	background-image: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+/* Scrollbar Styles */
+.modal-dialog-scrollable .modal-content {
+	max-height: 85vh;
 }
 
-.custom-progress-bar {
-	background-color: #fff;
+.modal-body::-webkit-scrollbar {
+	width: 6px;
 }
 
-.icon-large {
-	font-size: 2rem;
+.modal-body::-webkit-scrollbar-track {
+	background: #1a1a1a;
 }
 
-.text-shadow {
-	text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+.modal-body::-webkit-scrollbar-thumb {
+	background: #444;
+	border-radius: 3px;
 }
 
-.card-img-overlay-enhanced {
-	background-size: cover;
-	background-position: center;
+.modal-body::-webkit-scrollbar-thumb:hover {
+	background: #555;
 }
 
-.custom-overlay-icon {
-	max-height: 70px;
-	transition: transform .3s ease-in-out;
+/* Empty state styles */
+.empty-state, .empty-state-mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
 }
 
-.custom-overlay-icon:hover {
-	transform: scale(1.1);
+.empty-state i, .empty-state-mobile i {
+    font-size: 2rem;
+    color: #666;
+    margin-bottom: 1rem;
+}
+
+.empty-state h6, .empty-state-mobile h6 {
+    color: #fff;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state p, .empty-state-mobile p {
+    color: #888;
+    font-size: 0.875rem;
+}
+
+/* Mobile specific styles */
+.empty-state-mobile {
+    background-color: #2d2d2d;
+    border-radius: 8px;
+    margin: 0.5rem;
+}
+
+/* Table empty state specific */
+.table td.text-center .empty-state {
+    padding: 1.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .empty-state-mobile {
+        padding: 1.5rem 1rem;
+    }
+    
+    .empty-state-mobile i {
+        font-size: 1.75rem;
+    }
+    
+    .empty-state-mobile h6 {
+        font-size: 0.9375rem;
+    }
+    
+    .empty-state-mobile p {
+        font-size: 0.8125rem;
+    }
 }
 </style>
