@@ -13,10 +13,14 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Rose Coupon',
-        short_name: 'RoseApp',
-        //start_url: '/client-portal',
+        name: 'Rose Coupon - Ahorra y Compra con Facilidad',
+        short_name: 'Rose Coupon',
+        description: 'Rose Coupon es una aplicación que te permite ahorrar dinero y comprar con facilidad. Encuentra las mejores ofertas y promociones en tu área.',
+        start_url: '/',
+        lang: 'es',
+        scope: '/',
         display: 'standalone',
+        orientation: 'portrait',
         background_color: '#ffffff',
         theme_color: '#42b883',
         icons: [

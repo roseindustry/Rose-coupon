@@ -270,7 +270,7 @@ export default defineComponent({
 				this.phoneVerificationLoading = false;
 			}
 		},
-		
+
 		async submitForm() {
 			// Trim fields to avoid unnecessary spaces
 			this.email = this.email.trim();
@@ -397,7 +397,7 @@ export default defineComponent({
 					},
 				};
 				
-				const result = await sendEmail(emailPayload);
+                const result = await sendEmail(emailPayload);
 
 				// Toastify success message
 				showToast('¡Bienvenido a bordo!');
@@ -503,8 +503,8 @@ export default defineComponent({
 						<h5 class="mb-0">Información del Comercio</h5>
 					</div>
 					<div class="card-body">
-						<div class="mb-3">
-							<label class="form-label">Nombre del Comercio <span class="text-danger">*</span></label>
+					<div class="mb-3">
+						<label class="form-label">Nombre del Comercio <span class="text-danger">*</span></label>
 							<input 
 								v-model="businessName" 
 								type="text" 
@@ -512,9 +512,9 @@ export default defineComponent({
 								placeholder="Ej: Mi Comercio" 
 								required 
 							/>
-						</div>
-						<div class="mb-3">
-							<label class="form-label">RIF <span class="text-danger">*</span></label>
+					</div>
+					<div class="mb-3">
+						<label class="form-label">RIF <span class="text-danger">*</span></label>
 							<input 
 								v-model="rif" 
 								type="text" 
@@ -522,7 +522,7 @@ export default defineComponent({
 								placeholder="Ej: J-12345678-9" 
 								required 
 							/>
-							<small v-if="formErrors.rifUsed" class="text-danger">El RIF ya está en uso.</small>
+						<small v-if="formErrors.rifUsed" class="text-danger">El RIF ya está en uso.</small>
 						</div>
 					</div>
 				</div>
@@ -535,7 +535,7 @@ export default defineComponent({
 					<div class="card-body">
 						<div class="row">
 							<div class="col-md-6 mb-3">
-								<label class="form-label">Nombre <span class="text-danger">*</span></label>
+						<label class="form-label">Nombre <span class="text-danger">*</span></label>
 								<input 
 									v-model="firstName" 
 									type="text" 
@@ -543,9 +543,9 @@ export default defineComponent({
 									placeholder="Ej: Juan" 
 									required 
 								/>
-							</div>
+					</div>
 							<div class="col-md-6 mb-3">
-								<label class="form-label">Apellido <span class="text-danger">*</span></label>
+						<label class="form-label">Apellido <span class="text-danger">*</span></label>
 								<input 
 									v-model="lastName" 
 									type="text" 
@@ -554,8 +554,8 @@ export default defineComponent({
 									required 
 								/>
 							</div>
-						</div>
-						<div class="mb-3">
+					</div>
+					<div class="mb-3">
 							<label class="form-label">Cédula / Identificación <span class="text-danger">*</span></label>
 							<div class="input-group">
 								<span class="input-group-text bg-dark">V</span>
@@ -578,7 +578,7 @@ export default defineComponent({
 						<h5 class="mb-0">Información de Contacto</h5>
 					</div>
 					<div class="card-body">
-						<div class="mb-3">
+				<div class="mb-3">
 							<label class="form-label">Correo electrónico <span class="text-danger">*</span></label>
 							<div class="input-group">
 								<span class="input-group-text bg-dark"><i class="fas fa-envelope"></i></span>
@@ -590,9 +590,9 @@ export default defineComponent({
 									required 
 								/>
 							</div>
-							<small v-if="formErrors.emailUsed" class="text-danger">El correo electrónico ya está en uso.</small>
-						</div>
-						<div class="mb-3">
+					<small v-if="formErrors.emailUsed" class="text-danger">El correo electrónico ya está en uso.</small>
+				</div>
+				<div class="mb-3">
 							<label class="form-label">Teléfono <span class="text-danger">*</span></label>
 							<div class="input-group">
 								<span class="input-group-text bg-dark"><i class="fas fa-phone"></i></span>
@@ -615,6 +615,9 @@ export default defineComponent({
 								</button>
 							</div>
 							<div class="mt-2">
+								<small class="form-text text-muted d-block">
+									<i class="fas fa-info-circle me-1"></i> Verifique el captcha de seguridad antes de solicitar el código de verificación.
+								</small>
 								<small class="form-text text-muted d-block">
 									<i class="fas fa-info-circle me-1"></i> Formatos de teléfono aceptados: 
 								</small>
@@ -667,17 +670,17 @@ export default defineComponent({
 								Número verificado correctamente: <strong>{{ formattedPhoneNumber }}</strong>
 							</div>
 						</div>
-					</div>
+				</div>
 				</div>
 
 				<!-- Security -->
 				<div class="card border-0 shadow-sm mb-4">
 					<div class="card-header bg-dark">
 						<h5 class="mb-0">Seguridad</h5>
-					</div>
+				</div>
 					<div class="card-body">
-						<div class="mb-3">
-							<label class="form-label">Contraseña <span class="text-danger">*</span></label>
+				<div class="mb-3">
+					<label class="form-label">Contraseña <span class="text-danger">*</span></label>
 							<div class="input-group">
 								<span class="input-group-text bg-dark"><i class="fas fa-lock"></i></span>
 								<input 
@@ -694,13 +697,13 @@ export default defineComponent({
 									<i :class="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
 								</button>
 							</div>
-							<small v-if="formErrors.passwordTooShort" class="text-danger">
-								La contraseña debe tener al menos 6 caracteres.
-							</small>
-						</div>
+					<small v-if="formErrors.passwordTooShort" class="text-danger">
+						La contraseña debe tener al menos 6 caracteres.
+					</small>
+				</div>
 
-						<div class="mb-3">
-							<label class="form-label">Confirmar Contraseña <span class="text-danger">*</span></label>
+				<div class="mb-3">
+					<label class="form-label">Confirmar Contraseña <span class="text-danger">*</span></label>
 							<div class="input-group">
 								<span class="input-group-text bg-dark"><i class="fas fa-lock"></i></span>
 								<input 
@@ -710,7 +713,7 @@ export default defineComponent({
 									required 
 								/>
 							</div>
-							<small v-if="formErrors.passwordMismatch" class="text-danger">Las contraseñas no coinciden.</small>
+					<small v-if="formErrors.passwordMismatch" class="text-danger">Las contraseñas no coinciden.</small>
 							<small v-else-if="password && confirmPassword && password !== confirmPassword" class="text-danger">
 								Las contraseñas no coinciden.
 							</small>

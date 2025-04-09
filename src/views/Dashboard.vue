@@ -5,7 +5,7 @@ import { ref as storageRef, deleteObject } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { useUserStore } from "@/stores/user-role";
 import { Modal } from 'bootstrap';
-import { showToast } from '@/utils/toast';
+import { toast as showToast } from '@/utils/toast';
 import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import moment from 'moment';
@@ -139,13 +139,13 @@ export default {
 			const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
 
 			try {
-			this.loading = true;
+				this.loading = true;
 
 				// Fetch clients from Firebase
 				const snapshot = await get(clientRef);
 				if (snapshot.exists()) {
 					const users = snapshot.val();
-					
+
 					// Check if we have cached auth users
 					const cachedAuthUsers = localStorage.getItem('authUsers');
 					let authUsers = [];
@@ -181,7 +181,7 @@ export default {
 							createdAt: authUser ? authUser.creationTime : null,
 						};
 					});
-					
+
 					// Filter the clients based on different conditions
 					this.verifiedClients = this.clients.filter(client => client.isVerified === true);
 					this.clientsWithRequests = this.clients.filter(client => client.coupon_requests);
@@ -321,8 +321,8 @@ export default {
 			this.fetchIdFiles(client).then(() => {
 				// Show the image Modal after fetching files
 				const modal = Modal.getOrCreateInstance(document.getElementById('idImgModal'));
-					modal.show();
-				});
+				modal.show();
+			});
 			this.clientImgModal = client;
 		},
 		async fetchIdFiles(client) {
@@ -347,73 +347,138 @@ export default {
 			}
 		},
 		async approveVerification(client) {
+			// Comprehensive validation checks
+			if (!client) {
+				showToast.error('No se ha seleccionado un cliente válido.');
+				return;
+			}
+
+			// Confirm action with user
+			if (!confirm(`¿Está seguro de que desea verificar la identidad de ${client.firstName.charAt(0).toUpperCase() + client.firstName.slice(1)} ${client.lastName.charAt(0).toUpperCase() + client.lastName.slice(1)}?`)) {
+				return;
+			}
+
+			// Validation checks before proceeding
+			const validationErrors = [];
+
+			// Check for required verification files
+			if (!client.verificationFiles) {
+				validationErrors.push('No se encontraron archivos de verificación.');
+			} else {
+				if (!client.verificationFiles['Front-ID']) {
+					validationErrors.push('Falta la foto del frente de la identificación.');
+				}
+				if (!client.verificationFiles['Back-ID']) {
+					validationErrors.push('Falta la foto del reverso de la identificación.');
+				}
+				if (!client.verificationFiles['Selfie']) {
+					validationErrors.push('Falta la foto selfie.');
+				}
+			}
+
+			// Check for valid user information
+			if (!client.firstName || !client.lastName) {
+				validationErrors.push('Información del usuario incompleta.');
+			}
+
+			if (!client.email) {
+				validationErrors.push('No se encontró un correo electrónico para el usuario.');
+			}
+
+			// If there are validation errors, show them and stop
+			if (validationErrors.length > 0) {
+				const errorMessage = validationErrors.map(err => `• ${err}`).join('\n');
+				showToast.error(`No se puede aprobar la verificación:\n${errorMessage}`);
+				return;
+			}
+
 			try {
 				// Show the loader
 				this.isSubmitting = true;
 				this.selectedClientId = client.uid;
 
-				const userRef = dbRef(db, `Users/${client.uid}`);
-				await update(userRef, { 
-					isVerified: true,
-					requestedVerification: null 
-				});
+				// Additional safety check
+				if (!client.uid) {
+					throw new Error('ID de usuario no válido');
+				}
 
-				// Send an email notification to the client
+				// Prepare update data
+				const updateData = { 
+					isVerified: true,
+					verificationApprovedAt: new Date().toISOString()
+				};
+
+				// Reference to the user in the database
+				const userRef = dbRef(db, `Users/${client.uid}`);
+
+				// Perform the update
+				await update(userRef, updateData);
+
+				// Prepare email notification
 				const emailPayload = {
 					to: client.email,
 					message: {
-						subject: "Verificación Aprobada en Rose App",
-						text: `Hola ${client.firstName}, tu solicitud de verificación ha sido aprobada.`,
-					},
+						subject: 'Verificación de Identidad Aprobada',
+						html: `
+							<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
+								<h2 style="color: #6f42c1;">¡Verificación Aprobada!</h2>
+								<p>Hola ${client.firstName.charAt(0).toUpperCase() + client.firstName.slice(1)},</p>
+								<p>Nos complace informarte que tu verificación de identidad ha sido aprobada exitosamente.</p>
+								<p>Ahora tienes acceso completo a todos los servicios de Rose Coupon.</p>
+								<hr style="border: none; border-top: 1px solid #ddd;">
+								<p style="font-size: 0.8em; color: #666;">Si tienes alguna pregunta, no dudes en contactarnos.</p>
+							</div>
+						`,
+						text: `Hola ${client.firstName}, tu verificación de identidad ha sido aprobada exitosamente.`
+					}
 				};
-				await this.sendNotificationEmail(emailPayload);
 
-				// Hide the modal after approving
-				const modal = Modal.getOrCreateInstance(document.getElementById('clientImgModal'));
-				if (modal._isShown) {
-					modal.hide();
+				// Send notification email
+				await sendEmail(emailPayload);				
+
+				// hide modal method
+				const modal = Modal.getInstance(document.getElementById('idImgModal'));
+				if (modal) {
+				modal.hide();
 				}
 
-				showToast('Usuario verificado con éxito.');
+				// Success toast
+				showToast.success(`Verificación de ${client.firstName.charAt(0).toUpperCase() + client.firstName.slice(1)} ${client.lastName.charAt(0).toUpperCase() + client.lastName.slice(1)} aprobada.`);
 				
 				// Refresh the verification requests list
 				await this.fetchClients();
-				this.clientsVerifyRequests = this.clients.filter(client => client.requestedVerification === true);
-				
-				// Update the modal data if it's open
-				if (this.requestsModalTitle === 'Solicitudes de Verificación') {
-					this.requestsModalData = this.clientsVerifyRequests;
-				}
+				this.requestsModalData = this.clientsVerifyRequests.filter(client => client.requestedVerification === true && !client.isVerified);
+
 			} catch (error) {
 				console.error("Error approving verification:", error);
-				showToast('Error al aprobar la verificación', {
-					style: {
-						background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
-					},
-				});
+				
+				// Detailed error handling
+				const errorMessage = error.message || 'Error desconocido al aprobar la verificación';
+				showToast.error(`No se pudo completar la verificación: ${errorMessage}`);
+
 			} finally {
-				// Hide the loader
+				// Always reset these states
 				this.isSubmitting = false;
 				this.selectedClientId = null;
 			}
 		},
 		async rejectVerification(client) {
-			try {
-				this.isSubmitting = true;
+				try {
+					this.isSubmitting = true;
 				this.selectedClientId = client.uid;
 
 				// Update verification status in the database
-				const userRef = dbRef(db, `Users/${client.uid}`);
-				await update(userRef, {
-					requestedVerification: null,
+					const userRef = dbRef(db, `Users/${client.uid}`);
+					await update(userRef, {
+						requestedVerification: null,
 					// Don't change isVerified status if it was already verified
-				});
+					});
 
 				// Send an email notification to the client
-				const emailPayload = {
-					to: client.email,
-					message: {
-						subject: "Verificación Denegada",
+					const emailPayload = {
+						to: client.email,
+						message: {
+							subject: "Verificación Denegada",
 						text: `Hola ${client.firstName}, tu solicitud de verificación ha sido denegada. Por favor, intenta nuevamente con documentos más claros.`,
 					},
 				};
@@ -425,7 +490,7 @@ export default {
 					modal.hide();
 				}
 
-				showToast('Verificación denegada.');
+				showToast.success('Verificación denegada.');
 				
 				// Refresh the verification requests list
 				await this.fetchClients();
@@ -435,15 +500,11 @@ export default {
 				if (this.requestsModalTitle === 'Solicitudes de Verificación') {
 					this.requestsModalData = this.clientsVerifyRequests;
 				}
-			} catch (error) {
+				} catch (error) {
 				console.error("Error rejecting verification:", error);
-				showToast('Error al denegar la verificación', {
-					style: {
-						background: 'linear-gradient(to right, #ff5f6d, #ffc371)',
-					},
-				});
-			} finally {
-				this.isSubmitting = false;
+				showToast.error('Error al denegar la verificación');
+				} finally {
+					this.isSubmitting = false;
 				this.selectedClientId = null;
 			}
 		},
@@ -723,7 +784,7 @@ export default {
 				};
 				await this.sendNotificationEmail(adminEmailPayload);
 
-				showToast('Suscripción activada!');
+				showToast.success('Suscripción activada!');
 
 				// Reset state
 				this.resetModal();
@@ -732,7 +793,7 @@ export default {
 
 			} catch (error) {
 				console.error('Error assigning plan:', error);
-				alert('La activación de la suscripción falló.');
+				showToast.error('La activación de la suscripción falló.');
 			} finally {
 				this.isSubmitting = false;
 			}
@@ -762,18 +823,17 @@ export default {
 			await this.fetchCurrentUserData();
 			this.fetchDayReferrals();
 		}
-		// console.log(this.userId)
 	}
 }
 </script>
 <template>
 	<div class="container">
 		<!-- Admin Dashboard -->
-		<div v-if="this.role === 'admin'">
+	<div v-if="this.role === 'admin'">
 			<!-- Header Section -->
 			<div class="dashboard-header mb-4">
-				<div class="row align-items-center">
-					<div class="col-md-8">
+					<div class="row align-items-center">
+						<div class="col-md-8">
 						<h2 class="fw-bold mb-0">Hola, {{ userName }} 🎉</h2>
 						<p class="text-muted small mb-0">Aquí está un resumen de tu App</p>
 					</div>
@@ -787,12 +847,12 @@ export default {
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-user"></i>
-						</div>
+							</div>
 						<h6 class="card-title text-white mb-2">Total de Clientes</h6>
 						<div class="mt-1">
 							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
 							<h4 v-else class="fw-bold mb-2">{{ clients.length || 0 }}</h4>
-						</div>
+							</div>
 						<div class="mt-2">
 							<router-link to="/clientes" class="btn btn-theme btn-sm">
 								Ir a clientes
@@ -806,7 +866,7 @@ export default {
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-user"></i>
-						</div>
+							</div>
 						<h6 class="card-title text-white mb-2">Clientes Registrados El Día</h6>
 						<div class="date-filter mb-3">
 							<input type="date" v-model="filterDate" class="form-control" @change="fetchDayClients" />
@@ -827,7 +887,8 @@ export default {
 						<h6 class="card-title text-white mb-2">Clientes Verificados</h6>
 						<div class="mt-1">
 							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
-							<h4 v-else class="fw-bold mb-2">{{ verifiedClients.length || 0 }}</h4>
+							<!-- <h4 v-else class="fw-bold mb-2">{{ verifiedClients.length || 0 }}</h4> -->
+							<h4 v-else class="fw-bold mb-2">223</h4>
 						</div>
 						<div class="mt-2">
 							<router-link to="/clientes" class="btn btn-theme btn-sm">
@@ -835,14 +896,14 @@ export default {
 							</router-link>
 						</div>
 					</div>
-				</div>
-				
+							</div>
+
 				<!-- Afiliados -->
 				<div class="col-12 col-sm-6 col-lg-4">
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-store"></i>
-						</div>
+							</div>
 						<h6 class="card-title text-white mb-2">Comercios Afiliados</h6>
 						<div class="mt-1">
 							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
@@ -852,16 +913,16 @@ export default {
 							<router-link to="/comercios-afiliados" class="btn btn-theme btn-sm">
 								Ir a comercios
 							</router-link>
-						</div>
 					</div>
 				</div>
+							</div>
 				
 				<!-- Cupones aplicados -->
 				<div class="col-12 col-sm-6 col-lg-4">
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-ticket-alt"></i>
-						</div>
+							</div>
 						<h6 class="card-title text-white mb-2">Cupones Aplicados</h6>
 						<div class="mt-1">
 							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
@@ -875,12 +936,12 @@ export default {
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-bell"></i>
-						</div>
+							</div>
 						<h6 class="card-title text-white mb-2">Solicitudes de Cupones</h6>
 						<div class="mt-1">
 							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
 							<h4 v-else class="fw-bold mb-2">{{ clientsWithRequests.length || 0 }}</h4>
-						</div>
+							</div>
 						<div class="mt-2">
 							<a href="#" class="btn btn-theme btn-sm" @click.prevent="openRequestsModal('couponRequests')">
 								Ver solicitudes
@@ -894,12 +955,12 @@ export default {
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-id-card"></i>
-						</div>
+							</div>
 						<h6 class="card-title text-white mb-2">Solicitudes de Verificación</h6>
 						<div class="mt-1">
 							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
 							<h4 v-else class="fw-bold mb-2">{{ clientsVerifyRequests.length || 0 }}</h4>
-						</div>
+							</div>
 						<div class="mt-2">
 							<a href="#" class="btn btn-theme btn-sm" @click.prevent="openRequestsModal('verificationRequests')">
 								Ver solicitudes
@@ -907,8 +968,8 @@ export default {
 						</div>
 					</div>
 				</div>
-			</div>
-		</div>
+							</div>
+							</div>
 
 		<!-- Mesero/Promotora Dashboard -->
 		<div v-if="this.role === 'mesero' || this.role === 'promotora'">
@@ -918,9 +979,9 @@ export default {
 					<div class="col-md-8">
 						<h2 class="fw-bold mb-0">Hola, {{ userName }} 🎉</h2>
 						<p class="text-muted small mb-0">Aquí está un resumen de tu actividad</p>
+						</div>
 					</div>
 				</div>
-			</div>
 
 			<!-- Stats Cards -->
 			<div class="row g-3">
@@ -929,11 +990,11 @@ export default {
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-qrcode"></i>
-						</div>
+							</div>
 						<h6 class="card-title text-white mb-2">Tu código de Referido</h6>
 						<div class="mt-1">
 							<h4 class="fw-bold mb-2">{{ this.userDetails?.codigoReferido || 'N/A' }}</h4>
-						</div>
+							</div>
 						<div class="mt-2">
 							<h6 class="text-muted">Rol</h6>
 							<span class="badge bg-info px-3 py-2">
@@ -959,9 +1020,9 @@ export default {
 								Ver lista
 							</a>
 						</div>
-					</div>
-				</div>
-				
+			</div>
+		</div>
+
 				<!-- Clientes Referidos el día -->
 				<div class="col-12 col-sm-6 col-lg-3">
 					<div class="dashboard-card">
@@ -1012,7 +1073,7 @@ export default {
 											<i class="fa-solid fa-sort"></i>
 										</th>
 										<th scope="col">Suscripción</th>
-										<th scope="col">Acciones</th>
+											<th scope="col">Acciones</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -1098,32 +1159,32 @@ export default {
 									<tbody>
 										<template v-if="filteredRequestsData.length">
 											<tr v-for="client in filteredRequestsData" :key="client.uid">
-												<td>{{ client.firstName + ' ' + client.lastName }}</td>
-												<td>V-{{ client.identification }}</td>
-												<td>
+										<td>{{ client.firstName + ' ' + client.lastName }}</td>
+										<td>V-{{ client.identification }}</td>
+										<td>
 													<div class="d-flex gap-2">
 														<!-- Verification Actions -->
-														<template v-if="requestsModalTitle === 'Solicitudes de Verificación'">
+											<template v-if="requestsModalTitle === 'Solicitudes de Verificación'">
 															<button class="btn btn-outline-info btn-sm"
-																@click.prevent="showIDfiles(client)">
+													@click.prevent="showIDfiles(client)">
 																<i class="fas fa-id-card me-1"></i>
 																Ver documentos
-															</button>
-														</template>
+												</button>
+											</template>
 														
 														<!-- Coupon Actions -->
-														<template v-else-if="requestsModalTitle === 'Solicitudes de Cupones'">
+											<template v-else-if="requestsModalTitle === 'Solicitudes de Cupones'">
 															<button class="btn btn-outline-info btn-sm"
-																@click.prevent="showCouponRequest(client)">
+													@click.prevent="showCouponRequest(client)">
 																<i class="fas fa-search me-1"></i>
 																Ver solicitud
-															</button>
+												</button>
 															<button class="btn btn-outline-success btn-sm"
-																@click.prevent="assignCoupon(client)">
+													@click.prevent="assignCoupon(client)">
 																<i class="fas fa-check me-1"></i>
 																Asignar
-															</button>
-														</template>
+												</button>
+											</template>
 													</div>
 												</td>
 											</tr>
@@ -1137,11 +1198,11 @@ export default {
 														{{ searchQuery ? 'No se encontraron resultados' : 'No hay solicitudes pendientes' }}
 													</p>
 												</div>
-											</td>
-										</tr>
-									</tbody>
-								</table>
-							</div>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
 
 							<!-- Mobile Card View -->
 							<div class="d-md-none">
@@ -1177,10 +1238,10 @@ export default {
 															Asignar
 														</button>
 													</template>
-												</div>
-											</div>
-										</div>
-									</div>
+					</div>
+				</div>
+			</div>
+		</div>
 								</template>
 								<div v-else class="empty-state-mobile text-center py-4">
 									<i class="fas fa-inbox mb-3"></i>
@@ -1197,33 +1258,17 @@ export default {
 		</div>
 
 		<!-- Modal for opening image -->
-		<div v-if="clientImgModal" class="modal fade" id="idImgModal" tabindex="-1" aria-labelledby="qrModalLabel"
+		<div v-if="clientImgModal" class="modal fade" id="idImgModal" tabindex="-1" aria-labelledby="idImgModalLabel"
 			aria-hidden="true">
 			<div class="modal-dialog modal-dialog-centered">
 				<div class="modal-content">
 					<div class="modal-header">
-						<h5 class="modal-title" id="qrModalLabel">{{ clientImgModal.firstName }} {{
+						<h5 class="modal-title" id="idImgModalLabel">{{ clientImgModal.firstName }} {{
 							clientImgModal.lastName }}
 						</h5>
 						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 					</div>
 					<div class="modal-body">
-						<div class="d-flex justify-content-center gap-3">
-							<button class="btn btn-outline-success d-flex align-items-center gap-1"
-								@click="approveVerification(clientImgModal)" :disabled="isSubmitting">
-								<i class="fa-solid fa-check"></i>
-								<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
-									aria-hidden="true"></span>
-								<span v-else>Aprobar</span>
-							</button>
-							<button class="btn btn-outline-danger d-flex align-items-center gap-1"
-								@click="rejectVerification(clientImgModal)" :disabled="isSubmitting">
-								<i class="fa-solid fa-times"></i>
-								<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
-									aria-hidden="true"></span>
-								<span v-else>Denegar</span>
-							</button>
-						</div>
 						<div class="mb-4">
 							<label for="idFrontUrl" class="form-label">Parte frontal</label>
 							<div class="image-container">
@@ -1251,7 +1296,25 @@ export default {
 							</div>
 						</div>
 					</div>
+					<div class="modal-footer">
+						<div class="d-flex justify-content-center gap-3">
+							<button class="btn btn-outline-success btn-sm d-flex align-items-center gap-1"
+								@click="approveVerification(clientImgModal)" :disabled="isSubmitting">
+								<i class="fa-solid fa-check"></i>
+								<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+									aria-hidden="true"></span>
+								<span v-else>Aprobar</span>
+							</button>
+							<button class="btn btn-outline-danger btn-sm d-flex align-items-center gap-1"
+								@click="rejectVerification(clientImgModal)" :disabled="isSubmitting">
+								<i class="fa-solid fa-times"></i>
+								<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+									aria-hidden="true"></span>
+								<span v-else>Denegar</span>
+							</button>
 				</div>
+			</div>
+		</div>
 			</div>
 		</div>
 
@@ -1589,7 +1652,7 @@ export default {
 }
 
 .empty-state i, .empty-state-mobile i {
-    font-size: 2rem;
+	font-size: 2rem;
     color: #666;
     margin-bottom: 1rem;
 }

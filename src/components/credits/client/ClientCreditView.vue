@@ -325,7 +325,7 @@ export default {
       
       // Check each purchase for expired unpaid cuotas
       this.currentClient.credit.mainPurchases.forEach(purchase => {
-        if (purchase.cuotas) {
+        if (!purchase.deleted && purchase.cuotas) {
           const expiredCuotas = purchase.cuotas.filter(cuota => {
             const cuotaDate = new Date(cuota.date);
             return !cuota.paid && cuotaDate < today;

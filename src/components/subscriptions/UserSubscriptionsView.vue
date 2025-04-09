@@ -115,8 +115,7 @@ export default {
     },
     exchange: {
       type: Number,
-      required: false,
-      default: 0
+      required: true
     }
   },
   data() {

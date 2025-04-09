@@ -177,11 +177,13 @@ export default defineComponent({
 		const isVerified = userStore.isVerified;
 		this.userVerified = isVerified;
 
+    // console.log('userId: ', userId);
+
     // Fetch user data first
     await this.fetchUserData(userId);
 
     // Only set up verification for clients
-    if (role === 'cliente') {
+		if (role === 'cliente') {
         if (isVerified) {
             console.log("Usuario verificado");
         } else {
@@ -614,72 +616,84 @@ export default defineComponent({
 				this.isSubmitting = false;
 			}
 		},
-    async notifyPayment(paymentData) {
-      try {
-        const { amountPaid, paymentFile } = paymentData;
-        const today = new Date();
-        const paymentDate = today.toISOString();
-        const formattedDate = paymentDate.split("T")[0];
+    async notifyPayment(paymentData) {      
+      // Correct the timezone issue
+      const originalDate = new Date(paymentData.paymentDate);
+      
+      // Adjust the date to local timezone and set to start of the day
+      const correctedDate = new Date(
+        originalDate.getFullYear(), 
+        originalDate.getMonth(), 
+        originalDate.getDate()
+      );
+      
+      // Convert to ISO string
+      const paymentDate = correctedDate.toISOString();
+      const formattedDate = paymentDate.split("T")[0];
 
-        // Calculate payDay (one month from today)
-        const payDay = moment().add(1, "month").toISOString();
+      if (confirm("¿Seguro que desea subir el pago?")) {
+        try {
+          const { amountPaid, paymentFile, planId, planName, exchange } = paymentData;
 
-        if (!paymentFile) {
-          showToast.error("Por favor seleccione una captura de pago");
-				return;
-			}
+          // Calculate payDay (one month from today)
+          const payDay = moment().add(1, "month").toISOString();
 
-		// Upload payment file
-        const paymentUrl = await this.uploadPaymentFile(
-          paymentFile,
-          formattedDate,
-          this.role
-        );
-        console.log("File uploaded successfully:", paymentUrl);
+          if (!paymentFile) {
+            showToast.error("Por favor seleccione una captura de pago");
+            return;
+          }
 
-		// Update subscription info
-        const subscriptionData = {
-          lastPaymentDate: paymentDate,
-          paymentUploaded: true,
-          paymentVerified: false,
-          paymentUrl: paymentUrl,
-          amountPaid: amountPaid,
-          payDay: payDay,
-        };
-        
-        const userSubscriptionRef = dbRef(
-          db,
-          `Users/${this.userId}/subscription`
-        );
-        await update(userSubscriptionRef, subscriptionData);
+          // Upload payment file
+          const paymentUrl = await this.uploadPaymentFile(
+            paymentFile,
+            formattedDate,
+            this.role
+          );
+          console.log("File uploaded successfully:", paymentUrl);
 
+          // Update subscription info
+          const subscriptionData = {
+            lastPaymentDate: paymentDate,
+						paymentUploaded: true,
+            paymentVerified: false,
+            paymentUrl: paymentUrl,
+            amountPaid: amountPaid,
+            payDay: payDay,
+          };
+          
+          const userSubscriptionRef = dbRef(
+            db,
+            `Users/${this.userId}/subscription`
+          );
+          await update(userSubscriptionRef, subscriptionData);
 
 				// Save the payment to the payments collection
-		const paymentDetails = {
+          const paymentDetails = {
 					subscription_id: this.userSubscriptionId,
 					client_id: this.userId,
-			amount: amountPaid,
-			date: paymentDate,
+            amount: amountPaid,
+            date: paymentDate,
 					approved: false,
-			paymentUrl: paymentUrl,			
-			type: "subscription",
-		}
+            paymentUrl: paymentUrl,			
+            type: "subscription",
+          }
 
-        const paymentRef = dbRef(
-          db,
-          `Payments/${this.userId}-${formattedDate}`
-        );
-        await set(paymentRef, paymentDetails);		
+          const paymentRef = dbRef(
+            db,
+            `Payments/${this.userId}-${formattedDate}`
+          );
+          await set(paymentRef, paymentDetails);		
 
-        // Close modal and show success message
-        this.$refs.paymentModal.closeModal();
-        showToast.success("Pago notificado exitosamente");
+          // Close modal and show success message
+          this.$refs.paymentModal.closeModal();
+          showToast.success("Pago notificado exitosamente");
 
-        // Refresh subscription data
-        await this.fetchClientPlan();
+          // Refresh subscription data
+          await this.fetchClientPlan();
 			} catch (error) {
-        console.error("Error notifying payment:", error);
-        showToast.error("Error al notificar el pago");
+          console.error("Error notifying payment:", error);
+          showToast.error("Error al notificar el pago");
+        }
       }
     },
     async uploadPaymentFile(file, date, type) {
@@ -724,6 +738,7 @@ export default defineComponent({
 
 		// User payment
 		openPaymentModal() {
+      this.fetchCurrentExchange();
       if (this.$refs.paymentModal) {
         this.$refs.paymentModal.openModal();
       }
@@ -1204,6 +1219,32 @@ export default defineComponent({
         
         await update(userRef, updateData);
         
+        // If updating email, also update in Auth
+        if (fieldName === 'email' && this.email !== this.originalData.email) {
+          try {
+            // Call the cloud function to update email in Auth
+            const authUpdateResponse = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/updateUserEmail', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                uid: this.userId,
+                newEmail: this.email
+              })
+            });
+            
+            const authUpdateResult = await authUpdateResponse.json();
+            
+            if (authUpdateResult.message) {
+              console.log("Auth email update:", authUpdateResult.message);
+            }
+          } catch (authError) {
+            console.error("Error updating auth email:", authError);
+            // Continue with the flow even if auth update fails
+          }
+        }
+        
         // Update original data
         this.originalData[fieldName] = this[fieldName];
         
@@ -1238,8 +1279,8 @@ export default defineComponent({
       } else if (field === 'phone') {
         this.phoneNumber = this.originalData.phoneNumber;
         this.editingPhone = false;
-      }
-    },
+			}
+		},
 	},
 	computed: {
 		currentPageName() {
@@ -1285,7 +1326,7 @@ export default defineComponent({
 			}
 		},
 		isProfileComplete() {
-        if (this.role === 'afiliado') {
+			if (this.role === 'afiliado') {
             // Check basic profile info
             const hasBasicInfo = this.state && this.municipio && this.parroquia && this.address;
             
@@ -1298,7 +1339,7 @@ export default defineComponent({
                                     this.paymentDetails.bankAccount;
             
             return hasBasicInfo && hasSocialMedia && hasPaymentDetails;
-        } else {
+			} else {
             // For regular clients, just check basic info
             return this.state && this.municipio && this.parroquia;
         }
@@ -1356,14 +1397,14 @@ export default defineComponent({
         <div v-if="role === 'afiliado' && !isProfileComplete" class="alert alert-warning mb-4" role="alert">
           <div class="d-flex align-items-center">
             <i class="fas fa-exclamation-triangle me-3 fs-4"></i>
-            <div>
+			<div>
                 <h5 class="alert-heading mb-1">¡Completa tu perfil!</h5>
                 <p class="mb-0">
                   Para brindar una mejor experiencia a tus clientes, por favor completa tus datos de redes sociales y detalles de pago.
                   Esto ayudará a generar más confianza y facilitar las transacciones.
                 </p>
-            </div>
-		      </div>
+			</div>
+		</div>
           <div v-if="!isProfileComplete" class="mt-3">
             <button class="btn btn-sm btn-warning" @click="scrollToSection('social-media')">
               <i class="fas fa-share-alt me-1"></i> Completar Redes Sociales
@@ -1371,14 +1412,14 @@ export default defineComponent({
             <button class="btn btn-sm btn-warning ms-2" @click="scrollToSection('payment-details')">
               <i class="fas fa-money-check-alt me-1"></i> Completar Datos de Pago
 				    </button>
-			    </div>
-		    </div>
+				</div>
+			</div>
 
         <!-- Verification Warning for Clients -->
         <div v-if="role === 'cliente' && (!emailVerified || !phoneVerified)" class="alert alert-warning mb-4" role="alert">
             <div class="d-flex align-items-center">
               <i class="fas fa-exclamation-circle me-3 fs-4"></i>
-              <div>
+			<div>
                 <h5 class="alert-heading mb-1">¡Verifica tu cuenta!</h5>
                 <p class="mb-0">
                   Para poder realizar compras y acceder a todas las funcionalidades, necesitas verificar:
@@ -1398,12 +1439,12 @@ export default defineComponent({
             <div class="mt-3">
               <button v-if="!emailVerified" class="btn btn-sm btn-warning" @click="scrollToSection('contact-info')">
                 <i class="fas fa-envelope me-1"></i> Verificar Correo
-              </button>
+				</button>
               <button v-if="!phoneVerified" class="btn btn-sm btn-warning ms-2" @click="scrollToSection('contact-info')">
                 <i class="fas fa-phone me-1"></i> Verificar Teléfono
-              </button>
-            </div>
-        </div>
+				</button>
+			</div>
+		</div>
 
         <!-- Personal Information Section -->
         <div class="card section-card mb-4">
@@ -1537,7 +1578,7 @@ export default defineComponent({
                     </button>
                   </template>
                 </div>
-              </div>
+										</div>
 
               <!-- Phone Field -->
               <div class="col-md-6 mb-3">
@@ -1663,9 +1704,9 @@ export default defineComponent({
                       :key="state"
                       :value="state"
                     >
-                      {{ state }}
-                    </option>
-                  </select>
+													{{ state }}
+												</option>
+											</select>
                   <select
                     v-else-if="field.name === 'municipio'"
                     class="form-control"
@@ -1676,8 +1717,8 @@ export default defineComponent({
                     <option value="">Seleccionar Municipio</option>
                     <option v-for="mun in municipios" :key="mun" :value="mun">
                       {{ mun }}
-                    </option>
-                  </select>
+												</option>
+											</select>
                   <select
                     v-else-if="field.name === 'parroquia'"
                     class="form-control"
@@ -1691,8 +1732,8 @@ export default defineComponent({
                       :value="parr"
                     >
                       {{ parr }}
-                    </option>
-                  </select>
+												</option>
+											</select>
                   <div class="btn-group" role="group">
                     <button
                       v-if="!editStates[field.name]"
@@ -1702,26 +1743,26 @@ export default defineComponent({
                         handleEditClick(field.name);
                       "
                     >
-                      <i class="fa-solid fa-pencil text-primary"></i>
-                    </button>
+											<i class="fa-solid fa-pencil text-primary"></i>
+										</button>
                     <template v-else>
                       <button
                         class="btn btn-transparent btn-sm"
                         @click.prevent="updateField(field)"
                       >
-                        <i class="fa-solid fa-save text-success"></i>
-                      </button>
+											<i class="fa-solid fa-save text-success"></i>
+										</button>
                       <button
                         class="btn btn-transparent btn-sm"
                         @click.prevent="toggleEdit(field.name)"
                       >
-                        <i class="fa-solid fa-times text-secondary"></i>
-                      </button>
+											<i class="fa-solid fa-times text-secondary"></i>
+										</button>
                     </template>
+									</div>
+								</div>
 							</div>
-							</div>
-							</div>
-							</div>
+						</div>
 					</div>
 				</div>
 
@@ -1744,8 +1785,8 @@ export default defineComponent({
                     id="currentPassword"
                     v-model="currentPassword"
                   />
-							</div>
-							</div>
+									</div>
+								</div>
               <div class="col-md-4">
 							<div class="mb-3">
                   <label for="newPassword" class="form-label"
@@ -1757,8 +1798,8 @@ export default defineComponent({
                     id="newPassword"
                     v-model="newPassword"
                   />
-							</div>
-						</div>
+									</div>
+								</div>
               <div class="col-md-4">
                 <div class="mb-3">
                   <label for="confirmPassword" class="form-label"
@@ -1770,24 +1811,24 @@ export default defineComponent({
                     id="confirmPassword"
                     v-model="confirmPassword"
                   />
-						</div>
-					</div>
+									</div>
+								</div>
               <div class="col-12">
                 <button type="submit" class="btn btn-theme-success">
                   Actualizar Contraseña
                 </button>
-				</div>
+									</div>
             </form>
-			</div>
-		</div>
+					</div>
+				</div>
 
         <!-- Subscription Section (if applicable) -->
         <div v-if="role === 'cliente' || role === 'afiliado'" class="card section-card mb-4">
-          <div class="card-body">
+						<div class="card-body">
             <h4 class="mb-3 card-title">
               <i class="fas fa-handshake me-2"></i>
               Suscripción
-            </h4>
+								</h4>
             <div v-if="subscriptionPlan" class="row">
               <div class="col-md-6">
                 <div class="d-flex align-items-center gap-2 mb-3">
@@ -1825,7 +1866,7 @@ export default defineComponent({
                           : "Pago Pendiente"
                     }}
                   </span>
-					</div>
+							</div>
                 <p><strong>Precio:</strong> ${{ subscriptionPlan.price }}</p>
                 <p>
                   <strong>Fecha de Corte:</strong>
@@ -1856,14 +1897,14 @@ export default defineComponent({
 							</div>
 							</div>
 							</div>
-								</div>
 							</div>
+						</div>
 					</div>
 				</div>
 
         <!-- Social Media Section -->
     <div v-if="role === 'afiliado'" id="social-media" class="card section-card mb-4">
-        <div class="card-body">
+						<div class="card-body">
             <h4 class="mb-3 card-title">
                 <i class="fas fa-share-alt me-2"></i>
                 Redes Sociales
@@ -1880,8 +1921,8 @@ export default defineComponent({
                                class="form-control bg-dark text-light border-secondary" 
                                v-model="instagram" 
                                placeholder="@usuario">
-                    </div>
-                </div>
+							</div>
+							</div>
 
                 <!-- Facebook -->
                 <div class="col-md-6 mb-3">
@@ -1895,7 +1936,7 @@ export default defineComponent({
                                v-model="facebook" 
                                placeholder="facebook.com/pagina">
                     </div>
-                </div>
+							</div>
 
                 <!-- Twitter -->
                 <div class="col-md-6 mb-3">
@@ -1908,8 +1949,8 @@ export default defineComponent({
                                class="form-control bg-dark text-light border-secondary" 
                                v-model="twitter" 
                                placeholder="@usuario">
-                    </div>
-                </div>
+						</div>
+						</div>
 
                 <!-- TikTok -->
                 <div class="col-md-6 mb-3">
@@ -1922,11 +1963,11 @@ export default defineComponent({
                                class="form-control bg-dark text-light border-secondary" 
                                v-model="tiktok" 
                                placeholder="@usuario">
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+					</div>
+				</div>
+			</div>
+			</div>
+		</div>
 
     <!-- Payment Details Section -->
     <div v-if="role === 'afiliado'" id="payment-details" class="card section-card mb-4">
@@ -1943,7 +1984,7 @@ export default defineComponent({
                            class="form-control bg-dark text-light border-secondary" 
                            v-model="paymentDetails.bank" 
                            placeholder="Nombre del banco">
-                </div>
+					</div>
 
                 <!-- Bank Account -->
                 <div class="col-md-6 mb-3">
@@ -1952,7 +1993,7 @@ export default defineComponent({
                            class="form-control bg-dark text-light border-secondary" 
                            v-model="paymentDetails.bankAccount" 
                            placeholder="0000-0000-0000-0000">
-                </div>
+							</div>
 
                 <!-- Phone Number for Payments -->
                 <div class="col-md-6 mb-3">
@@ -1961,7 +2002,7 @@ export default defineComponent({
                            class="form-control bg-dark text-light border-secondary" 
                            v-model="paymentDetails.phoneNumber" 
                            placeholder="04XX-XXX-XXXX">
-                </div>
+							</div>
 
                 <!-- Document ID -->
                 <div class="col-md-6 mb-3">
@@ -1970,23 +2011,23 @@ export default defineComponent({
                            class="form-control bg-dark text-light border-secondary" 
                            v-model="paymentDetails.documentId" 
                            placeholder="V-XXXXXXXX">
-                </div>
-            </div>
-        </div>
-    </div>
+								</div>
+							</div>
+					</div>
+				</div>
 
     <!-- Verification Modal -->
     <div class="modal fade" id="verifyModal" tabindex="-1" aria-labelledby="verifyModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<div class="modal-header">
             <h5 class="modal-title" id="verifyModalLabel">
               <i class="fas fa-shield-alt me-2"></i>
               Verificar {{ verifyingField === 'email' ? 'Correo Electrónico' : 'Teléfono' }}
             </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+					</div>
+					<div class="modal-body">
             <p class="text-center mb-3">
               Hemos enviado un código de verificación a tu {{ verifyingField === 'email' ? 'correo electrónico' : 'teléfono' }}.
               Por favor, ingrésalo a continuación:
@@ -2004,15 +2045,15 @@ export default defineComponent({
                 maxlength="6"
                 autocomplete="off"
               />
-            </div>
-            
+							</div>
+
             <div class="text-center mt-3">
               <small class="text-muted">
                 <i class="fas fa-info-circle me-1"></i>
                 Si no recibes el código, verifica tu {{ verifyingField === 'email' ? 'bandeja de spam' : 'teléfono' }} o solicita uno nuevo.
               </small>
-            </div>
-          </div>
+								</div>
+							</div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
               Cancelar
@@ -2025,11 +2066,11 @@ export default defineComponent({
                          (verifyingField === 'email' ? emailVerificationCode.length < 6 : phoneVerificationCode.length < 6)"
             >
               Verificar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+								</button>
+							</div>
+					</div>
+				</div>
+			</div>
 
     <!-- Payment Modal -->
     <NotifyPaymentModal

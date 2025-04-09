@@ -724,7 +724,8 @@ export default {
       paymentModal.show();
     },
     async notifyPayment(plan) {
-      if (!this.paymentFile) {
+      if (confirm("¿Seguro que desea subir el pago?")) {
+        if (!plan.paymentFile) {
         this.errorMessage = "El archivo es requerido.";
         return;
       }
@@ -743,18 +744,14 @@ export default {
         // Calculate payDay (one month from today)
         const payDay = moment().add(1, "month").toISOString();
 
-        // Get the current date to set the paymentDate
-        const uploadPaymentDate = new Date(this.paymentDate);
-        const formattedDate = uploadPaymentDate.toISOString();
-
         // Prepare subscription details
         const subscriptionData = {
-          subscription_id: plan.id,
+            subscription_id: plan.planId,
           status: false, // Set the default status as false 'Inactive' until payment approval
           payDay: payDay,
           isPaid: false, // Set the default as unpaid
           paymentUploaded: true,
-          lastPaymentDate: formattedDate,
+            lastPaymentDate: plan.paymentDate,
         };
 
         if (this.role === "cliente") {
@@ -767,26 +764,26 @@ export default {
 
         // Upload capture
         const paymentUrl = await this.uploadPaymentFile(
-          this.paymentFile,
-          this.paymentDate,
+            plan.paymentFile,
+            plan.paymentDate.split("T")[0],
           userType
         );
         console.log("File uploaded successfully:", paymentUrl);
 
-        const paymentDetails = {
-          subscription_id: plan.id,
-          client_id: userId,
-          amount: this.amountPaid,
-          date: formattedDate,
-          approved: false,
-          paymentUrl: paymentUrl,
-          type: "subscription",
-        };
+          const paymentDetails = {
+            subscription_id: plan.planId,
+            client_id: userId,
+            amount: plan.amountPaid,
+            date: plan.paymentDate,
+            approved: false,
+            paymentUrl: paymentUrl,
+            type: "subscription",
+          };
 
         // Save the payment to the payments collection
         const paymentRef = dbRef(
           db,
-          `Payments/${userId}-${formattedDate.split("T")[0]}`
+            `Payments/${userId}-${plan.paymentDate.split("T")[0]}`
         );
         await set(paymentRef, paymentDetails);
 
@@ -799,10 +796,10 @@ export default {
         const userEmailPayload = {
           to: user.email,
           message: {
-            subject: `Suscripción ${plan.name.toUpperCase()} activada`,
-            text: `Hola ${userName}, se le ha activado la Suscripción ${plan.name.toUpperCase()} in Roseapp.
+              subject: `Suscripción ${plan.planName.toUpperCase()} activada`,
+              text: `Hola ${userName}, se le ha activado la Suscripción ${plan.planName.toUpperCase()} in Roseapp.
                         Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}`,
-            html: `<p>Hola ${userName}, se le ha activado la Suscripción ${plan.name} in Roseapp.</p>
+              html: `<p>Hola ${userName}, se le ha activado la Suscripción ${plan.planName} in Roseapp.</p>
                         <p>Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}</p>`,
           },
         };
@@ -812,9 +809,9 @@ export default {
         const adminEmailPayload = {
           to: "roseindustry11@gmail.com",
           message: {
-            subject: `Usuario ${this.role.toUpperCase()} se ha suscrito al Plan ${plan.name.toUpperCase()}`,
-            text: `El ${this.role.toUpperCase()}, ${userName}, se ha suscrito al plan ${plan.name.toUpperCase()}.`,
-            html: `<p>El ${this.role.toUpperCase()}, ${userName}, se ha suscrito al plan ${plan.name.toUpperCase()}.</p>`,
+              subject: `Usuario ${this.role.toUpperCase()} se ha suscrito al Plan ${plan.planName.toUpperCase()}`,
+              text: `El ${this.role.toUpperCase()}, ${userName}, se ha suscrito al plan ${plan.planName.toUpperCase()}.`,
+              html: `<p>El ${this.role.toUpperCase()}, ${userName}, se ha suscrito al plan ${plan.planName.toUpperCase()}.</p>`,
           },
         };
         await this.sendNotificationEmail(adminEmailPayload);
@@ -844,6 +841,7 @@ export default {
       } finally {
         // Hide the loader
         this.isSubmitting = false;
+        }
       }
     },
     async uploadPaymentFile(file, date, type) {
@@ -940,12 +938,30 @@ export default {
     selectAffiliate(affiliate) {
       this.selectedAffiliate = affiliate;
     },
+    async fetchExchangeRate() {
+      try {
+        const exchangeRef = dbRef(db, `Exchange`);
+        const exchangeSnapshot = await get(exchangeRef);
+
+        if (exchangeSnapshot.exists()) {
+          const exchangeData = exchangeSnapshot.val();
+          this.exchange = parseFloat(exchangeData.value);
+        } else {
+          console.log('No exchange value found.');
+          this.exchange = 0;
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rate:', error);
+        this.exchange = 0;
+      }
+    },
   },
   async mounted() {
     const userStore = useUserStore();
     await userStore.fetchUser();
     this.role = userStore.role;
     this.userId = userStore.userId;
+    this.userName = userStore.userName;
 
     await this.fetchCurrentExchange();
 
@@ -977,6 +993,11 @@ export default {
       this.activeTab = "affiliates";
       await this.fetchAffiliatePlans();
     }
+
+    // Make sure this is included to properly initialize Bootstrap components
+    this.$nextTick(() => {
+      // Initialize Bootstrap components if needed
+    });
   },
 };
 </script>
@@ -1057,7 +1078,10 @@ export default {
         @file-uploaded="handleFileUpload"
       />
     
-                    </div>
+                </div>
+
+  <!-- Add this somewhere in your template -->
+  <ExchangeRateModal @exchange-updated="fetchExchangeRate" />
 </template>
 
 <style scoped>
@@ -1185,7 +1209,7 @@ export default {
 .btn-theme {
     background-color: purple;
     border-color: purple;
-    color: white;
+  color: white;
 }
 
 .btn-theme:hover {

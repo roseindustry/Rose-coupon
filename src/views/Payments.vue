@@ -61,13 +61,13 @@ export default {
     async mounted() {
         await this.fetchClients();
         await this.fetchAffiliates();
-    await this.fetchSubscriptions();
-    await this.fetchPayments(this.historyFilter);
+        await this.fetchSubscriptions();
+        await this.fetchPayments(this.historyFilter);
     },
     methods: {
         formatDate(date) {
-      const dateString = date.split("T")[0];
-      const [year, month, day] = dateString.split("-");
+          const dateString = date.split("T")[0];
+          const [year, month, day] = dateString.split("-");
             return `${day}/${month}/${year}`;
         },
 
@@ -448,19 +448,22 @@ export default {
       }
 
       new Modal(document.getElementById("idImgModal")).show();
-        },
+    },
 
-        async validateSubscriptionPayment(user) {
+    async validateSubscriptionPayment(userId) {
+            const user = this.clients.find((client) => client.id === userId);
+
             if (!confirm("¿Está seguro de que desea aprobar este pago?")) {
                 return;
             }
 
             let userName;
-      if (user.role === "cliente") {
+            if (user.role === "cliente") {
                 userName = `${user.firstName} ${user.lastName}`;
-      } else if (user.role === "afiliado") {
+            } else if (user.role === "afiliado") {
                 userName = `${user.companyName}`;
             }
+
             const paymentDate = this.formatDate(user.subscription.lastPaymentDate);
 
             try {
@@ -574,7 +577,7 @@ export default {
         // Update client's cuota status
         await update(cuotaRef, { 
           paid: true,
-          paymentDate: new Date().toISOString().split('T')[0]
+          paymentDate: payment.date.split('T')[0]
         });
 
         // Update affiliate's cuota status
@@ -584,21 +587,8 @@ export default {
         );
         await update(affiliateCuotaRef, { 
           paid: true,
-          paymentDate: new Date().toISOString().split('T')[0]
+          paymentDate: payment.date.split('T')[0]
         });
-
-        // Get client's subscription for AddOn calculation
-        const subRef = dbRef(db, `Suscriptions/${payment.subscription_id}`);
-        const subSnapshot = await get(subRef);
-        let loanAddOn = 0;
-
-        if (subSnapshot.exists()) {
-          const subscription = subSnapshot.val();
-          if (subscription.order == 1) loanAddOn = 0;
-          else if (subscription.order == 2) loanAddOn = 3;
-          else if (subscription.order == 3) loanAddOn = 1;
-          else if (subscription.order == 4) loanAddOn = 0;
-        }
 
         // Update client's available credit - using cuota amount in USD
         const clientCreditRef = dbRef(
@@ -609,10 +599,7 @@ export default {
 
         if (clientCreditSnap.exists()) {
           const currentCredit = clientCreditSnap.val().availableCredit || 0;
-          const newCredit =
-            currentCredit +
-            cuotaAmountUSD - // Use cuota amount in USD instead of payment amount in VES
-            loanAddOn / Number(purchaseData.terms);
+          const newCredit = (currentCredit + cuotaAmountUSD) / Number(purchaseData.terms);
           await update(clientCreditRef, { availableCredit: newCredit });
         }
 
@@ -625,10 +612,7 @@ export default {
 
         if (affiliateCreditSnap.exists()) {
           const currentCredit = affiliateCreditSnap.val().availableCredit || 0;
-          const newCredit =
-            currentCredit +
-            cuotaAmountUSD - // Use cuota amount in USD instead of payment amount in VES
-            loanAddOn / Number(purchaseData.terms);
+          const newCredit = (currentCredit + cuotaAmountUSD) / Number(purchaseData.terms);
           await update(affiliateCreditRef, { availableCredit: newCredit });
         }
 
@@ -658,7 +642,7 @@ export default {
                 <p>Detalles del pago:</p>
                 <ul>
                   <li>Monto pagado: ${payment.amount} VES</li>
-                  <li>Cuota: ${cuotaAmountUSD} USD</li>
+                  <li>Cuota: ${Number(cuotaAmountUSD).toFixed(2)} USD</li>
                   <li>Fecha de pago: ${payment.date.split("T")[0]}</li>
                 </ul>
                 <p>Gracias por usar Rose App.</p>
@@ -969,54 +953,54 @@ export default {
     hasDateFilter() {
       return this.dateRange.from || this.dateRange.to;
     },
-  },
+    },
 
-  watch: {
-    approvedClientPayments: {
-      handler() {
+    watch: {
+      approvedClientPayments: {
+        handler() {
+          this.filterPaymentsByDate();
+        },
+        immediate: true,
+      },
+      approvedAffiliatePayments: {
+        handler() {
+          this.filterPaymentsByDate();
+        },
+        immediate: true,
+      },
+      sortOrder() {
         this.filterPaymentsByDate();
       },
-      immediate: true,
-    },
-    approvedAffiliatePayments: {
-      handler() {
-        this.filterPaymentsByDate();
+      historyFilter(newVal) {
+        this.filterHistoryByType(newVal);
       },
-      immediate: true,
+      userType() {
+        this.filterHistoryByType(this.historyFilter);
+      },
     },
-    sortOrder() {
-      this.filterPaymentsByDate();
-    },
-    historyFilter(newVal) {
-      this.filterHistoryByType(newVal);
-    },
-    userType() {
-      this.filterHistoryByType(this.historyFilter);
-    },
-  },
 
-  computed: {
-    displayedPayments() {
-      // If viewing credit-cuota payments
-      if (this.historyFilter === "credit-cuota") {
-        return this.filteredClientPayments; // Only show client cuota payments
-      }
+    computed: {
+      displayedPayments() {
+        // If viewing credit-cuota payments
+        if (this.historyFilter === "credit-cuota") {
+          return this.filteredClientPayments; // Only show client cuota payments
+        }
 
-      // If viewing subscription payments
-      if (this.historyFilter === "subscriptions") {
-        // Show payments based on selected user type
-        return this.userType === "clients"
-          ? this.filteredClientPayments
-          : this.filteredAffiliatePayments;
-      }
+        // If viewing subscription payments
+        if (this.historyFilter === "subscriptions") {
+          // Show payments based on selected user type
+          return this.userType === "clients"
+            ? this.filteredClientPayments
+            : this.filteredAffiliatePayments;
+        }
 
-      // Default case
-      return [];
+        // Default case
+        return [];
+      },
+      hasActiveFilters() {
+        return this.dateRange.from || this.dateRange.to;
+      },
     },
-    hasActiveFilters() {
-      return this.dateRange.from || this.dateRange.to;
-    },
-  },
 };
 </script>
 <template>
@@ -1063,7 +1047,7 @@ export default {
           </button>
         </div>
       </div>
-        </div>
+                </div>
 
     <!-- Subscription Section -->
     <div v-show="activeFilter === 'subscriptions'" class="payment-section">
@@ -1085,7 +1069,7 @@ export default {
                         <option value="newest">Más recientes</option>
                         <option value="oldest">Más antiguos</option>
                     </select>
-                </div>
+                                        </div>
             </div>
               <div class="btn-group">
                 <button
@@ -1100,7 +1084,7 @@ export default {
                     class="badge bg-theme ms-1"
                   >
                     {{ pendingClientPayments.length || 0 }}
-                  </span>
+                                            </span>
                 </button>
                 <button
                   class="btn btn-sm btn-outline-theme"
@@ -1113,7 +1097,7 @@ export default {
                     {{ pendingAffiliatePayments.length || 0 }}
                   </span>
                 </button>
-              </div>
+                                        </div>
             </div>
                 </div>
 
@@ -1201,27 +1185,26 @@ export default {
                       </div>
 
                       <!-- Actions Section -->
-                      <div
-                        v-if="payment.paymentUrl"
-                        class="d-flex justify-content-center"
-                      >
-                        <button
-                          class="btn btn-sm btn-outline-success w-auto"
-                          @click="
-                            openImgModal(
-                              payment.client_id,
-                              payment.paymentUrl,
-                              'subscription',
-                              null,
-                              null,
-                              true
-                            )
-                          "
-                        >
-                          <i class="fas fa-receipt me-2"></i>
+                      <div v-if="payment.paymentUrl || payment.proofUrl"
+                        class="payment-actions mt-auto pt-3">
+                        <div class="d-flex justify-content-center">
+                          <button
+                            class="btn btn-sm btn-outline-success w-auto"
+                            @click="openImgModal(
+                                payment,
+                                payment.paymentUrl,
+                                payment.type,
+                                null,
+                                null,
+                                false)">
+                            <i class="fas fa-receipt me-2"></i>
                                             Ver Comprobante
                                         </button>
                                     </div>
+                        <small class="d-flex justify-content-center text-muted mt-2">
+                            Haga clic en "Ver Comprobante" para validar el pago.
+                          </small> 
+                                </div>
                       <div v-else class="payment-actions mt-auto pt-3">
                         <div class="d-flex justify-content-center gap-2">
                           <button
@@ -1242,14 +1225,12 @@ export default {
                             <i class="fas fa-times me-2"></i>
                             Cancelar
                           </button>
-                                </div>
-                        <small
-                          class="d-flex justify-content-center text-muted mt-2"
-                        >
+                            </div>
+                        <small class="d-flex justify-content-center text-muted mt-2">
                           Hubo un error al obtener la captura de pago.
                         </small>
-                            </div>
                         </div>
+                      </div>
                   </div>
                 </div>
               </div>
@@ -1342,7 +1323,7 @@ export default {
                               class="btn btn-outline-theme btn-sm w-auto"
                               @click="
                                 openImgModal(
-                                  payment.client_id,
+                                  payment,
                                   payment.paymentUrl,
                                   payment.type,
                                   null,
@@ -1403,7 +1384,7 @@ export default {
             <option value="newest">Más recientes</option>
             <option value="oldest">Más antiguos</option>
         </select>
-    </div>
+                                    </div>
 </div>
           </div>
 
@@ -1527,12 +1508,12 @@ export default {
                       <div class="payment-actions mt-auto pt-3">
                         <div class="d-flex flex-column gap-2">
                           <button
-                            v-if="payment.paymentUrl"
+                            v-if="payment.paymentUrl || payment.proofUrl"
                             class="btn btn-outline-theme btn-sm w-auto"
                             @click="
                               openImgModal(
                                 payment,
-                                payment.paymentUrl,
+                                payment.paymentUrl || payment.proofUrl,
                                 payment.type,
                                 null,
                                 null,
@@ -1903,15 +1884,10 @@ export default {
         <!-- Show footer only for pending payments -->
         <div class="modal-footer" v-if="!isFromHistory">
           <!-- Subscription payment buttons -->
-          <div
-            v-if="paymentType === 'subscription'"
-            class="d-flex gap-2 justify-content-end w-100"
-          >
-            <button
-              class="btn btn-outline-success btn-sm"
-              @click.prevent="validateSubscriptionPayment(paymentModalData)"
-              :disabled="isSubmitting"
-            >
+          <div v-if="paymentType === 'subscription'" class="d-flex gap-2 justify-content-end w-100">
+            <button class="btn btn-outline-success btn-sm"
+              @click.prevent="validateSubscriptionPayment(paymentModalData.client_id)"
+              :disabled="isSubmitting">
               <span v-if="isSubmitting">
                 <i class="fas fa-spinner fa-spin me-2"></i>
               </span>
@@ -1920,15 +1896,11 @@ export default {
                     </div>
 
           <!-- Credit cuota payment buttons -->
-          <div
-            v-if="paymentType === 'credit-cuota'"
-            class="d-flex gap-2 justify-content-end w-100"
-          >
+          <div v-if="paymentType === 'credit-cuota'" class="d-flex gap-2 justify-content-end w-100">
             <button
               class="btn btn-outline-success btn-sm"
               @click="validateCuotaPayment(paymentModalData)"
-              :disabled="isSubmitting"
-            >
+              :disabled="isSubmitting">
               <span v-if="isSubmitting">
                 <i class="fas fa-spinner fa-spin me-2"></i>
               </span>
@@ -1939,8 +1911,7 @@ export default {
             <button
               class="btn btn-outline-danger btn-sm"
               @click.prevent="disapproveCuotaPayment(paymentModalData)"
-              :disabled="isSubmitting"
-            >
+              :disabled="isSubmitting">
               <span v-if="isSubmitting">
                 <i class="fas fa-spinner fa-spin me-2"></i>
               </span>

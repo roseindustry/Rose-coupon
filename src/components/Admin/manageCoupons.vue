@@ -20,8 +20,8 @@
                                     v-model="searchQuery"
                                     placeholder="Buscar por nombre o código..." 
                                 />
-                            </div>
-                        </div>
+                    </div>
+                </div>
                     </div>
 
                     <!-- Right side: Filters -->
@@ -63,10 +63,10 @@
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" 
                                                 id="filterByDate" v-model="filterByDate">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                </div>
+            </div>
+        </div>
+            </div>
                         </div>
                     </div>
                 </div>
@@ -77,11 +77,11 @@
                         <div class="date-input">
                             <label class="form-label">Fecha inicial</label>
                             <input type="date" v-model="startDate" class="form-control" />
-                        </div>
+            </div>
                         <div class="date-input">
                             <label class="form-label">Fecha final</label>
                             <input type="date" v-model="endDate" class="form-control" />
-                        </div>
+        </div>
                         <button type="button" class="btn btn-outline-theme" @click="clearDateFilter">
                             <i class="fa fa-times-circle me-2"></i>Limpiar filtro
                         </button>
@@ -119,13 +119,13 @@
                         </i>
                         Código
                     </button>
-                </div>
             </div>
+        </div>
 
             <!-- Loading State -->
             <div class="d-flex justify-content-center align-items-center min-vh-50 mt-4" v-if="loading">
-                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            </div>
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        </div>
 
             <!-- Empty State -->
             <div v-else-if="filteredAndSortedCoupons.length === 0" class="d-flex justify-content-center align-items-center min-vh-50">
@@ -153,8 +153,8 @@
                 {{ fetchError }}
                 <button class="btn btn-link" @click="fetchAllAppliedCoupons">
                     Reintentar
-                </button>
-            </div>
+            </button>
+        </div>
 
             <!-- Coupons Grid -->
             <div class="coupon-cards-container">
@@ -179,14 +179,14 @@
                             <div class="detail-item">
                                 <span class="detail-label fw-bold me-1">Código:</span>
                                 <span class="detail-value">{{ coupon.couponCode || 'N/A' }}</span>
-                            </div>
+                                    </div>
 
                             <div class="detail-item">
                                 <span class="detail-label fw-bold me-1">
                                     {{ coupon.type ? coupon.type.charAt(0).toUpperCase() + coupon.type.slice(1) : 'Balance' }}:
                                 </span>
                                 <span class="detail-value">${{ coupon.balance || '0' }}</span>
-                            </div>
+                                </div>
 
                             <div class="detail-item">
                                 <span class="detail-label fw-bold me-1">Cliente:</span>
@@ -399,8 +399,8 @@ export default {
 
         async getCouponData(couponId) {
             try {
-                const couponRef = dbRef(db, `Coupons/${couponId}`);
-                const couponSnapshot = await get(couponRef);
+                            const couponRef = dbRef(db, `Coupons/${couponId}`);
+                            const couponSnapshot = await get(couponRef);
                 return couponSnapshot.exists() ? couponSnapshot.val() : {};
             } catch (error) {
                 console.error('Error fetching coupon data:', error);

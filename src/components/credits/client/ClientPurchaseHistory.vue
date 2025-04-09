@@ -81,7 +81,7 @@
 
     <div class="card-body">
       <div v-if="purchases && purchases.length" class="row g-4">
-        <div v-for="purchase in purchases" :key="purchase.id" class="col-12">
+        <div v-for="purchase in filteredPurchases" :key="purchase.id" class="col-12">
           <div class="card bg-dark">
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-start mb-3">
@@ -201,6 +201,11 @@ export default {
     dateFilter: {
       type: Object,
       required: true
+    }
+  },
+  computed: {
+    filteredPurchases() {
+      return this.purchases.filter(purchase => !purchase.deleted);
     }
   },
   emits: ['filter-change', 'sort-change', 'page-change', 'date-filter-change', 'view-quotas', 'clear-filters'],

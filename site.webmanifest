@@ -1,6 +1,10 @@
 {
-    "name": "",
-    "short_name": "",
+    "name": "Rose Coupon - Ahorra y Compra con Facilidad",
+    "short_name": "Rose Coupon",
+    "description": "Rose Coupon es una aplicación que te permite ahorrar dinero y comprar con facilidad. Encuentra las mejores ofertas y promociones en tu área.",
+    "start_url": "/",
+    "scope": "/",
+    "lang": "es",
     "icons": [
         {
             "src": "/android-chrome-192x192.png",
@@ -13,7 +17,7 @@
             "type": "image/png"
         }
     ],
-    "theme_color": "#ffffff",
+    "theme_color": "#42b883",
     "background_color": "#ffffff",
     "display": "standalone"
 }

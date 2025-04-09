@@ -888,64 +888,159 @@ export default {
                 }
             });
         },
-        async assignCredit(creditType) {
-            if (this.creditLine === 'plus') {
-                // this.calculatePlusCredits()
-                alert('Esta opción no está disponible por el momento.');
-                return;
-            }
-
-            if (!this.selectedEntities.length || this.creditAmount <= 0) {
-                const message = this.creditType === 'client'
-                    ? 'Por favor seleccione al menos un cliente y un monto a asignar.'
-                    : 'Por favor seleccione al menos un comercio y un monto a asignar.';
-                alert(message);
-                return;
-            }
-
-            // Check if there is available credit to assign in the app
-            if (this.creditAmount > this.mainAvailableToAssign) {
-                alert('No hay suficiente capital para asignar.');
-                return;
-            }
-
-            try {
-                this.loading = true;
-
-                if (!this.creditLine) {
-                    alert('Seleccione una línea de crédito para asignar');
+        async assignCredit(data) {
+            if (confirm("¿Desea asignar un crédito a estos clientes?")) {
+                if (data.creditLine === 'plus') {
+                    // this.calculatePlusCredits()
+                    alert('Esta opción no está disponible por el momento.');
                     return;
                 }
 
-                for (const entity of this.selectedEntities) {
+                if (!data.selectedEntities.length || data.amount <= 0) {
+                    const message = data.creditType === 'client'
+                        ? 'Por favor seleccione al menos un cliente y un monto a asignar.'
+                        : 'Por favor seleccione al menos un comercio y un monto a asignar.';
+                    alert(message);
+                    return;
+                }
 
-                    const entityCreditPath = `Users/${entity.id}/credit/${this.creditLine}`;
-                    const newEntityCredit = this.creditAmount;
+                // Check if there is available credit to assign in the app
+                if (data.creditAmount > this.mainAvailableToAssign) {
+                    alert('No hay suficiente capital para asignar.');
+                    return;
+                }
 
-                    await update(dbRef(db, entityCreditPath), {
-                        totalCredit: newEntityCredit,
-                        availableCredit: newEntityCredit,
-                    });
+                try {
+                    this.loading = true;
 
-                    toast.success(`Al ${this.creditType === 'client' ? 'cliente' : 'comercio'} ${entity.id} se le asignó un crédito de $${newEntityCredit}`);
+                    if (!data.creditLine) {
+                        alert('Seleccione una línea de crédito para asignar');
+                        return;
+                    }
 
+                    for (const entity of data.selectedEntities) {
+
+                        const entityCreditPath = `Users/${entity.id}/credit/${data.creditLine}`;
+                        const newEntityCredit = data.amount;
+
+                        await update(dbRef(db, entityCreditPath), {
+                            totalCredit: newEntityCredit,
+                            availableCredit: newEntityCredit,
+                        });
+
+                        toast.success(`Al ${data.creditType === 'client' ? 'cliente' : 'comercio'} ${entity.firstName} ${entity.lastName} se le asignó un crédito de $${newEntityCredit}`);
+
+                        let userName = '';
+
+                        if (data.creditType === 'client') {
+                            userName = `${entity.firstName} ${entity.lastName}`;
+                        } else if (data.creditType === 'affiliate') {
+                            userName = `${entity.companyName}`;
+                        }
+
+                        // Notify the user
+                        const clientEmailPayload = {
+                            to: entity.email,
+                            message: {
+                                subject: `Felicidades, se le ha asignado una línea de crédito`,
+                                text: `Hola ${userName}, se le ha asignado una línea de crédito de $${newEntityCredit} en Roseapp.                        
+                            Ingresa a la app.`,
+                                html: `<p>Hola ${userName}, se le ha asignado una línea de crédito de $${newEntityCredit} en Roseapp.</p>
+                            <p>Ingresa a la app.</p>`
+                            },
+                        };
+
+                        // Send email via the utility function
+                        const result = await sendEmail(clientEmailPayload);
+
+                        if (result.success) {
+                            console.log("Verification email sent successfully:", result.message);
+                        } else {
+                            console.error("Failed to send verification email:", result.error);
+                        }
+                    }
+
+                    // Update UI
+                    this.calculateMainCredits();
+                    this.calculateAffiliatesCredits();
+
+                    // Reset after assignment
+                    this.selectedEntities = [];
+                    this.creditAmount = 0;
+                    this.creditLine = '';
+
+                    await this.fetchClients();
+                    await this.fetchAffiliates();
+                } catch (error) {
+                    console.error('Error assigning credit:', error);
+                    alert('No se pudo asignar el crédito.');
+                } finally {
+                    this.loading = false;
+                }
+            }
+        },
+        // Update an affiliate or client's credit
+        editCredit(user, userType, creditLine) {
+            this.editUserData = user;
+            this.creditType = userType;
+            this.creditLine = creditLine;
+            const modal = new Modal(document.getElementById('edit-credit-modal'));
+            modal.show();
+        },
+        async updateCredit(user) {
+            if (confirm("¿Desea modificar el crédito de este cliente?")) {
+                try {
+                    this.loading = true;
                     let userName = '';
 
+                    const userId = user.userId;
+                    const creditType = user.creditType;
+                    const creditLine = user.creditLine;
+                    const newCreditAmount = user.amount;
+
                     if (creditType === 'client') {
-                        userName = `${entity.firstName} ${entity.lastName}`;
+                        userName = user.clientName;
                     } else if (creditType === 'affiliate') {
-                        userName = `${entity.companyName}`;
+                        userName = user.affiliateName;
                     }
+
+                    const userCreditRef = dbRef(db, `Users/${userId}/credit/${creditLine}`);
+
+                    // Fetch the current credit values
+                    const snapshot = await get(userCreditRef);
+                    if (!snapshot.exists()) {
+                        throw new Error('User credit record not found.');
+                    }
+
+                    const currentCredit = snapshot.val();
+                    const currentTotalCredit = currentCredit.totalCredit || 0;
+                    const currentAvailableCredit = currentCredit.availableCredit || 0;
+
+                    // Get the new total credit value from the input
+                    const newTotalCredit = newCreditAmount;
+
+                    // Calculate the difference between new and current total credit
+                    const creditDifference = newTotalCredit - currentTotalCredit;
+
+                    // Adjust availableCredit by the difference
+                    const newAvailableCredit = currentAvailableCredit + creditDifference;
+
+                    await update(userCreditRef, {
+                        totalCredit: newTotalCredit,
+                        availableCredit: newAvailableCredit,
+                    });
+
+                    toast.success('Crédito actualizado!');
 
                     // Notify the user
                     const clientEmailPayload = {
-                        to: entity.email,
+                        to: user.email,
                         message: {
-                            subject: `Felicidades, se le ha asignado una línea de crédito`,
-                            text: `Hola ${userName}, se le ha asignado una línea de crédito de $${newEntityCredit} en Roseapp.                        
-                        Ingresa a la app.`,
-                            html: `<p>Hola ${userName}, se le ha asignado una línea de crédito de $${newEntityCredit} en Roseapp.</p>
-                        <p>Ingresa a la app.</p>`
+                            subject: `Línea de crédito modificada`,
+                            text: `Hola ${userName}, su línea de crédito en Roseapp ha sido modificada.                        
+                            Ingresa a la app.`,
+                            html: `<p>Hola ${userName}, su línea de crédito en Roseapp ha sido modificada.</p>
+                            <p>Ingresa a la app.</p>`
                         },
                     };
 
@@ -957,104 +1052,21 @@ export default {
                     } else {
                         console.error("Failed to send verification email:", result.error);
                     }
+
+                    this.fetchClients();
+                    this.fetchAffiliates();
+                } catch (error) {
+                    console.error(`Error updating the user ${user.id} total credit assigned.`, error);
+                } finally {
+                    this.loading = false;
                 }
-
-                // Update UI
-                this.calculateMainCredits();
-                this.calculateAffiliatesCredits();
-
-                // Reset after assignment
-                this.selectedEntities = [];
-                this.creditAmount = 0;
-
-                await this.fetchClients();
-                await this.fetchAffiliates();
-            } catch (error) {
-                console.error('Error assigning credit:', error);
-                alert('No se pudo asignar el crédito.');
-            } finally {
-                this.loading = false;
-            }
-        },
-        // Update an affiliate or client's credit
-        editCredit(user, userType, creditLine) {
-            this.editUserData = user;
-            this.creditType = userType;
-            this.creditLine = creditLine;
-            const modal = new Modal(document.getElementById('edit-credit-modal'));
-            modal.show();
-        },
-        async updateCredit(user, creditType, creditLine) {
-            try {
-                this.loading = true;
-
-                let userName = '';
-
-                if (creditType === 'client') {
-                    userName = `${user.firstName} ${user.lastName}`;
-                } else if (creditType === 'affiliate') {
-                    userName = `${user.companyName}`;
-                }
-
-                const userCreditRef = dbRef(db, `Users/${user.id}/credit/${creditLine}`);
-
-                // Fetch the current credit values
-                const snapshot = await get(userCreditRef);
-                if (!snapshot.exists()) {
-                    throw new Error('User credit record not found.');
-                }
-
-                const currentCredit = snapshot.val();
-                const currentTotalCredit = currentCredit.totalCredit || 0;
-                const currentAvailableCredit = currentCredit.availableCredit || 0;
-
-                // Get the new total credit value from the input
-                const newTotalCredit = this.editUserData.credit.mainCredit;
-
-                // Calculate the difference between new and current total credit
-                const creditDifference = newTotalCredit - currentTotalCredit;
-
-                // Update totalCredit and adjust availableCredit by the difference
-                const newAvailableCredit = currentAvailableCredit + creditDifference;
-
-                await update(userCreditRef, {
-                    totalCredit: newTotalCredit,
-                    availableCredit: newAvailableCredit,
-                });
-
-                toast.success('Crédito actualizado!');
-
-                // Notify the user
-                const clientEmailPayload = {
-                    to: user.email,
-                    message: {
-                        subject: `Línea de crédito modificada`,
-                        text: `Hola ${userName}, su línea de crédito en Roseapp ha sido modificada.                        
-                        Ingresa a la app.`,
-                        html: `<p>Hola ${userName}, su línea de crédito en Roseapp ha sido modificada.</p>
-                        <p>Ingresa a la app.</p>`
-                    },
-                };
-
-                // Send email via the utility function
-                const result = await sendEmail(clientEmailPayload);
-
-                if (result.success) {
-                    console.log("Verification email sent successfully:", result.message);
-                } else {
-                    console.error("Failed to send verification email:", result.error);
-                }
-
-                this.fetchClients();
-                this.fetchAffiliates();
-            } catch (error) {
-                console.error(`Error updating the user ${user.id} total credit assigned.`, error);
-            } finally {
-                this.loading = false;
             }
         },
         // Remove a user's credit line
         async removeCreditLine(user, userType, creditLine) {
+            console.log('user: ', user);
+            console.log('userType: ', userType);
+            console.log('creditLine: ', creditLine);
             if (confirm("¿Desea cancelar el crédito de este cliente? Sus compras seguiran registradas.")) {
                 try {
                     this.loading = true;
@@ -1373,10 +1385,22 @@ export default {
             }
         },
 
-        async registerPurchase(purchaseData) {
-            try {   
-                this.loading = true;
-                
+        async registerPurchase(purchaseData, callback) {
+            try {
+                const success = await this.registerPurchaseAsync(purchaseData);
+                if (success) {
+                    callback(success);
+                }
+                else {
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error registering purchase:', error);
+                callback(false);
+            }
+        },
+        async registerPurchaseAsync(purchaseData) {
+            try {                
                 // First verify the purchase code
                 const verificationResult = await this.verifyCode(
                     purchaseData.clientId, 
@@ -1443,15 +1467,13 @@ export default {
                 // success toast
                 toast.success('Venta registrada!');
                 
-                // Return success
+                // Return true to indicate successful sale registration
                 return true;
                 
             } catch (error) {
                 console.error('Error registering purchase:', error);
                 toast.error(error.message || 'Error al registrar la venta');
-                throw error;
-            } finally {
-                this.loading = false;
+                return false;                
             }
         },
         async verifyCode(clientId, code) {
@@ -1494,6 +1516,17 @@ export default {
                 console.error('Error verifying code:', error);
                 throw error;
             }
+        },
+        async refreshAffiliateData() {
+            const creditData = await this.fetchAffiliateCreditData(this.userId);
+            this.currentAffiliate = {
+                companyName: this.userName,
+                credit: {
+                    mainCredit: creditData?.mainCredit || 0,
+                    availableMainCredit: creditData?.availableMainCredit || 0,
+                    sales: creditData?.sales || {}
+                }
+            };
         },
 
         handleClientPageChange(page) {
@@ -1610,14 +1643,14 @@ export default {
                 :total-pages="totalPages.clients"
                 :filter-clients="filterClients"
                 @update:filter-clients="handleFilterChange"
-                @assign-credit="openCreditModal('client')"
+                @assign-credit="(type) => openCreditModal('client')"
                 @edit-credit="editCredit"
                 @remove-credit="removeCreditLine"
                 @view-details="showUserDetails"
                 @page-change="handleClientPageChange"
             />
 
-            <AffiliateCreditList            
+            <AffiliateCreditList                            
                 :affiliates="paginatedAffiliates"
                 :current-page="currentPage.affiliates"
                 :total-pages="totalPages.affiliates"
@@ -1646,6 +1679,7 @@ export default {
             :current-affiliate="currentAffiliate || {}"
             :clients="clients"
             @register-purchase="registerPurchase"
+            @refresh-data="refreshAffiliateData"
             @view-details="showUserDetails"
         />
 
@@ -1685,6 +1719,7 @@ export default {
         />
 
         <CreditDetailsModal
+            :adminId="userId"
             :user-data="selectedUser"
             :is-client="!selectedUser?.firstName || !selectedUser?.lastName"
             :is-affiliate="!!selectedUser?.companyName"

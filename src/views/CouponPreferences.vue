@@ -18,7 +18,6 @@ export default {
         }
     },
     methods: {
-
         async fetchCategories() {
             const categoryRef = dbRef(db, 'Affiliate_categories');
             try {
@@ -175,8 +174,7 @@ export default {
         <div class="container-fluid">
             <div class="row">
                 <div class="col-12 justify-content-center text-center">
-                    <div class="alert alert-info d-inline-flex align-items-center mt-2" role="alert"
-                        style="width: 50%;">
+                    <div class="alert alert-info d-inline-flex align-items-center mt-2" role="alert">
                         <i class="fa-solid fa-info-circle me-2"></i>
                         <div>
                             Aca puedes indicarnos las categorias que te interesan para recibir cupones.

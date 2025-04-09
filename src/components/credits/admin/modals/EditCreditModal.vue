@@ -96,8 +96,12 @@ export default {
       if (!this.userData) return;
       
       this.$emit('update', {
+        clientName: this.userData.firstName + ' ' + this.userData.lastName,
+        affiliateName: this.userData.companyName,
+        email: this.userData.email,
         userId: this.userData.id,
         creditLine: this.creditLine,
+        creditType: this.userType,
         amount: this.newCreditAmount
       });
     }

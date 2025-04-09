@@ -122,6 +122,7 @@ export default defineComponent({
                 }
             }
         },
+
         //File uploads
         handleFileUpload(event, type) {
             const file = event.target.files[0];
@@ -145,7 +146,6 @@ export default defineComponent({
                 this.selfiePreview = URL.createObjectURL(file);
             }
         },
-
         async uploadFile(file, type) {
             // Define storage reference for front or back ID file
             const fileName = `${type === 'selfie' ? 'selfie' : `${type}-ID`}.${file.name.split('.').pop()}`;
@@ -164,6 +164,7 @@ export default defineComponent({
             });
         },
 
+        // ID Verification
         async submitVerification() {
             if (!this.idFrontFile || !this.idBackFile || !this.selfieFile) {
                 this.errorMessage = 'Ambos archivos de la identificación son requeridos.';
@@ -247,7 +248,7 @@ export default defineComponent({
         await userStore.fetchUser();
         //this.role = userStore.role;
         this.userId = userStore.userId;
-        console.log(this.userId)
+        // console.log(this.userId)
         this.userName = userStore.userName;
 
         this.verificationModal = new Modal(document.getElementById('verificationModal'));
@@ -261,7 +262,7 @@ export default defineComponent({
 <template>
     <div class="container">
         <!-- Header Section -->
-        <div class="portal-header mb-4">
+        <div class="portal-header">
             <div class="row align-items-center">
                 <div class="col-md-7">
                     <h2 class="fw-bold mb-0">Portal de Clientes</h2>
@@ -271,7 +272,7 @@ export default defineComponent({
                     <!-- User Status Badges -->
                     <div class="badges-container">
                         <!-- Subscription Badge -->
-                        <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
+                <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
                             class="status-card subscription-card" @click="redirectToSubs(subscriptionPlan)">
                             <div class="status-icon subscription-icon">
                                 <i :class="subscriptionPlan.icon"></i>
@@ -320,17 +321,17 @@ export default defineComponent({
 
         <!-- Main Content -->
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-            <div class="col" v-for="item in portalItems" :key="item.title">
+                        <div class="col" v-for="item in portalItems" :key="item.title">
                 <div class="card h-100 portal-card position-relative">
                     <div v-if="item.notReady === true" class="ribbon">
                         <span>Proximamente</span>
                     </div>
                     <div class="card-body d-flex flex-column" 
                         :style="{
-                            backgroundImage: `url(${item.bgImage})`,
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'center',
-                        }">
+                                backgroundImage: `url(${item.bgImage})`,
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                            }">
                         <div class="card-content">
                             <h5 class="card-title mb-3">{{ item.title }}</h5>
                             <p class="card-text">{{ item.description }}</p>
@@ -342,28 +343,28 @@ export default defineComponent({
                                                   (item.title === 'Solicitar cupón' && subscriptionPlan.price === 0) || 
                                                   item.notReady === true 
                                     }"
-                                    :aria-disabled="item.title === 'Crédito' && !userVerified"
-                                    :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
-                                    {{ item.actionText }}
-                                </router-link>
+                                            :aria-disabled="item.title === 'Crédito' && !userVerified"
+                                            :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
+                                            {{ item.actionText }}
+                                        </router-link>
                                 
                                 <!-- Warning messages -->
                                 <div v-if="item.title === 'Crédito' && !userVerified" class="warning-message mt-2">
-                                    <small class="text-danger">
-                                        <span v-if="verificationStatus === 'unverified'">
-                                            Verifique su cuenta para habilitar la opción de crédito.
-                                        </span>
-                                        <span v-else-if="verificationStatus === 'pending'">
-                                            Verificación pendiente por Aprobación.
-                                        </span>
-                                    </small>
-                                </div>
+                                            <small class="text-danger">
+                                                <span v-if="verificationStatus === 'unverified'">
+                                                    Verifique su cuenta para habilitar la opción de crédito.
+                                                </span>
+                                                <span v-else-if="verificationStatus === 'pending'">
+                                                    Verificación pendiente por Aprobación.
+                                                </span>
+                                            </small>
+                                        </div>
                                 
                                 <div class="warning-message mt-2"
-                                    v-if="item.title === 'Solicitar cupón' && subscriptionPlan.price === 0">
-                                    <small class="text-danger">
+                                            v-if="item.title === 'Solicitar cupón' && subscriptionPlan.price === 0">
+                                            <small class="text-danger">
                                         <span>Debes contar con suscripción Bronce en adelante para este beneficio.</span>
-                                    </small>
+                                            </small>
                                 </div>
                             </div>
                         </div>
@@ -372,53 +373,128 @@ export default defineComponent({
             </div>
         </div>
 
-        <!-- Verification Modal (Keep existing) -->
-        <div class="modal fade" id="verificationModal" tabindex="-1" aria-labelledby="verificationModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
+        <!-- Verification Modal -->
+        <div class="modal fade" id="verificationModal" tabindex="-1" aria-labelledby="verificationModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content verification-modal">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="verificationModalLabel">Subir Documento de Identificación</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <div class="modal-title-container">
+                            <h5 class="modal-title" id="verificationModalLabel">
+                                <i class="fas fa-id-card me-2"></i>Verificación de Identidad
+                            </h5>
+                            <p class="modal-subtitle">Sube tus documentos para completar tu verificación</p>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <form @submit.prevent="submitVerification">
-                            <div class="mb-3">
-                                <label for="idFront" class="form-label">Frontal de la Cédula/Identificación</label>
-                                <input type="file" class="form-control" id="idFront"
-                                accept="image/*" @change="handleFileUpload($event, 'front')" required>
-                                <img v-if="idFrontPreview" :src="idFrontPreview" alt="Front ID Preview"
-                                    class="img-fluid mt-2" />
+                        <form @submit.prevent="submitVerification" class="verification-form">
+                            <div class="document-upload-section">
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <div class="document-upload-card">
+                                            <div class="document-upload-icon">
+                                                <i class="fas fa-id-card"></i>
+                                            </div>
+                                            <label for="idFront" class="form-label">Frontal de Cédula</label>
+                                            <input 
+                                                type="file" 
+                                                class="form-control" 
+                                                id="idFront"
+                                                accept="image/*" 
+                                                @change="handleFileUpload($event, 'front')" 
+                                                required
+                                            >
+                                            <div class="preview-container">
+                                                <img 
+                                                    v-if="idFrontPreview" 
+                                                    :src="idFrontPreview" 
+                                                    alt="Front ID Preview" 
+                                                    class="img-preview" 
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-4">
+                                        <div class="document-upload-card">
+                                            <div class="document-upload-icon">
+                                                <i class="fas fa-id-card-alt"></i>
+                                            </div>
+                                            <label for="idBack" class="form-label">Reverso de Cédula</label>
+                                            <input 
+                                                type="file" 
+                                                class="form-control" 
+                                                id="idBack"
+                                                accept="image/*" 
+                                                @change="handleFileUpload($event, 'back')" 
+                                                required
+                                            >
+                                            <div class="preview-container">
+                                                <img 
+                                                    v-if="idBackPreview" 
+                                                    :src="idBackPreview" 
+                                                    alt="Back ID Preview" 
+                                                    class="img-preview" 
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-4">
+                                        <div class="document-upload-card">
+                                            <div class="document-upload-icon">
+                                                <i class="fas fa-selfie"></i>
+                                            </div>
+                                            <label for="selfie" class="form-label">Selfie con Cédula</label>
+                                            <input 
+                                                type="file" 
+                                                class="form-control" 
+                                                id="selfie"
+                                                accept="image/*" 
+                                                @change="handleFileUpload($event, 'selfie')" 
+                                                required
+                                            >
+                                            <div class="preview-container">
+                                                <img 
+                                                    v-if="selfiePreview" 
+                                                    :src="selfiePreview" 
+                                                    alt="Selfie Preview" 
+                                                    class="img-preview" 
+                                                />
+                                            </div>
+                                        </div>
                             </div>
-                            <div class="mb-3">
-                                <label for="idBack" class="form-label">Parte Trasera de la Cédula/Identificación</label>
-                                <input type="file" class="form-control" id="idBack"
-                                accept="image/*" @change="handleFileUpload($event, 'back')" required>
-                                <img v-if="idBackPreview" :src="idBackPreview" alt="Back ID Preview"
-                                    class="img-fluid mt-2" />
                             </div>
-                            <div class="mb-3">
-                                <label for="selfie" class="form-label">Foto Selfie con Cédula visible</label>
-                                <input type="file" class="form-control" id="selfie"
-                                accept="image/*" @change="handleFileUpload($event, 'selfie')" required>
-                                <img v-if="selfiePreview" :src="selfiePreview" alt="Selfie Preview"
-                                    class="img-fluid mt-2" />
                             </div>
 
                             <!-- Error Message -->
-                            <div v-if="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
-
-                            <!-- Loader Spinner -->
-                            <div v-if="isSubmitting" class="d-flex justify-content-center my-3">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Cargando...</span>
+                            <div v-if="errorMessage" class="alert alert-danger mt-3">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                {{ errorMessage }}
                                 </div>
+
+                            <div class="modal-footer">
+                                <button 
+                                    type="button" 
+                                    class="btn btn-secondary" 
+                                    data-bs-dismiss="modal"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    type="submit" 
+                                    class="btn btn-primary" 
+                                    :disabled="isSubmitting"
+                                >
+                                    <span v-if="!isSubmitting">
+                                        <i class="fas fa-upload me-2"></i>Subir Documentos
+                                    </span>
+                                    <span v-else>
+                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        Procesando...
+                                    </span>
+                                </button>
                             </div>
-                            <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cerrar</button>
-                            <!-- Submit Button is disabled during submission -->
-                            <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
-                                Subir y Solicitar Verificación
-                            </button>
                         </form>
                     </div>
                 </div>
@@ -486,7 +562,6 @@ export default defineComponent({
 /* Compact header styles */
 .portal-header {
     padding-bottom: 1rem;
-    margin-bottom: 1.5rem;
     border-bottom: 1px solid rgba(0,0,0,0.1);
 }
 
@@ -614,6 +689,127 @@ export default defineComponent({
     
     .card-content {
         padding: 1rem;
+    }
+}
+
+.verification-modal .modal-content {
+    background-color: #2d2d2d;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.modal-header {
+    background-color: #29122f;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1.5rem;
+}
+
+.modal-title-container {
+    flex-grow: 1;
+}
+
+.modal-title {
+    color: #ffffff;
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+}
+
+.modal-subtitle {
+    color: #aaa;
+    font-size: 0.9rem;
+    margin-bottom: 0;
+}
+
+.document-upload-section {
+    padding: 1.5rem;
+}
+
+.document-upload-card {
+    background-color: #1e1e1e;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.document-upload-card:hover {
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    transform: translateY(-5px);
+}
+
+.document-upload-icon {
+    font-size: 3rem;
+    color: #6f42c1;
+    margin-bottom: 1rem;
+}
+
+.form-label {
+    color: #aaa;
+    margin-bottom: 0.75rem;
+}
+
+.preview-container {
+    margin-top: 1rem;
+    max-height: 200px;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.img-preview {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+    border-radius: 8px;
+    transition: transform 0.3s ease;
+}
+
+.img-preview:hover {
+    transform: scale(1.05);
+}
+
+.modal-footer {
+    background-color: #1e1e1e;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1rem 1.5rem;
+}
+
+.btn-primary {
+    background-color: #6f42c1;
+    border-color: #6f42c1;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background-color: #5a32a3;
+    border-color: #5a32a3;
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background-color: #444;
+    border-color: #444;
+    color: #aaa;
+}
+
+@media (max-width: 768px) {
+    .modal-dialog {
+        margin: 1.75rem 0.5rem;
+    }
+
+    .document-upload-section {
+        padding: 1rem;
+    }
+
+    .document-upload-card {
+        margin-bottom: 1rem;
+    }
+
+    .document-upload-icon {
+        font-size: 2.5rem;
     }
 }
 </style>

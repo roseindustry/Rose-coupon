@@ -674,23 +674,76 @@ export default {
         },
 
         async approveID(client) {
+                const validationErrors = [];
+                    
+                if (!client) {
+                    showToast.error('No se ha seleccionado un cliente válido.');
+                    validationErrors.push('No se ha seleccionado un cliente válido.');
+                    return;
+			    }
+                // Fetch ID files if they haven't been loaded yet
+                if (!client.idFiles) {
+                    validationErrors.push('No se encontraron archivos de verificación.');
+                    await this.fetchIdFiles(client);
+                }
+
+                // Check for required verification files
+                if (!client.idFiles) {
+                    validationErrors.push('No se encontraron archivos de verificación.');
+                }
+
+                if (validationErrors.length > 0) {
+                    showToast.error('Error al aprobar la verificación: ' + validationErrors.join(', '));
+                    return;
+                }
+
             try {
+
+                if (!confirm('¿Estás seguro de que deseas aprobar la verificación?')) {
+                        return;
+                    }
+
+
+                this.isSubmitting = true;
+
+                // Prepare update data
+				const updateData = { 
+					isVerified: true,
+					verificationApprovedAt: new Date().toISOString()
+				};
+                
                 // Update the client's verification status in the database
                 const clientRef = dbRef(db, `Users/${client.uid}`);
-                await update(clientRef, {
-                    isVerified: true
-                });
+                await update(clientRef, updateData);
                 
                 // Update the local client object
                 client.isVerified = true;
+
+                // Prepare email notification
+                    const emailPayload = {
+                        to: client.email,
+                        message: {
+						subject: 'Verificación de Identidad Aprobada',
+						html: `
+							<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
+								<h2 style="color: #6f42c1;">¡Verificación Aprobada!</h2>
+								<p>Hola ${client.firstName.charAt(0).toUpperCase() + client.firstName.slice(1)},</p>
+								<p>Nos complace informarte que tu verificación de identidad ha sido aprobada exitosamente.</p>
+								<p>Ahora tienes acceso completo a todos los servicios de Rose Coupon.</p>
+								<hr style="border: none; border-top: 1px solid #ddd;">
+								<p style="font-size: 0.8em; color: #666;">Si tienes alguna pregunta, no dudes en contactarnos.</p>
+							</div>
+						`,
+						text: `Hola ${client.firstName}, tu verificación de identidad ha sido aprobada exitosamente.`
+					}
+				};
+
+				// Send notification email
+				await sendEmail(emailPayload);
                 
                 // Show success message
                 showToast.success('Verificación de identidad aprobada');
-                
-                // Fetch ID files if they haven't been loaded yet
-                if (!client.idFiles) {
-                    await this.fetchIdFiles(client);
-                }
+                    this.fetchClients();
             } catch (error) {
                 console.error('Error approving ID verification:', error);
                 showToast.error('Error al aprobar la verificación');
@@ -1141,17 +1194,23 @@ export default {
                                                 <i class="fas fa-clock text-info mb-2" style="font-size: 2rem;"></i>
                                                 <p class="text-secondary mb-0">Este cliente ha solicitado verificación pero aún no ha sido aprobada.</p>
                                                 <div class="mt-3">
-                                                    <button class="btn btn-sm btn-success me-2" @click="approveID(client)">
-                                                        <i class="fas fa-check me-1"></i>Aprobar
+                                                    <button class="btn btn-sm btn-success me-2" @click="approveID(client)" :disabled="isSubmitting">
+                                                        <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                        <span v-else>
+                                                            <i class="fas fa-check me-1"></i>Aprobar
+                                                        </span>
                                             </button>
-                                                    <button class="btn btn-sm btn-danger" @click="dissapproveID(client)">
-                                                        <i class="fas fa-times me-1"></i>Rechazar
+                                                    <button class="btn btn-sm btn-danger" @click="dissapproveID(client)" :disabled="isSubmitting">
+                                                        <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                        <span v-else>
+                                                            <i class="fas fa-times me-1"></i>Rechazar
+                                                        </span>
                                             </button>
                                         </div>
                                     </div>
                                             
                                             <!-- Show ID documents if client is verified -->
-                                            <div v-else-if="client.isVerified" class="row g-3">
+                                            <div v-if="client.isVerified || client.requestedVerification" class="row g-3">
                                                 <div v-if="loadingStates[client.uid + '_files']" class="text-center py-3">
                                                     <div class="spinner-border spinner-border-sm text-secondary" role="status">
                                                         <span class="visually-hidden">Cargando...</span>

@@ -180,7 +180,9 @@ export default {
     },
     handleAssign() {
       this.$emit('assign', { 
-        creditLine: this.creditLine, 
+        creditLine: this.creditLine,
+        selectedEntities: this.selectedEntities,
+        creditType: this.creditType,
         amount: this.creditAmount 
       });
       this.clearForm();

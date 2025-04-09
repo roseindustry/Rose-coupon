@@ -40,12 +40,12 @@
         <div class="credit-summary">
           <div class="credit-block">
             <div class="credit-type">
-              <span class="label">Principal</span>
-              <div class="amount" :class="{'text-success': affiliate.credit.mainCredit}">
-                ${{ affiliate.credit.mainCredit?.toFixed(2) || '0.00' }}
+              <span class="label">Disponible</span>
+              <div class="amount" :class="{'text-success': affiliate.credit.availableMainCredit}">
+                ${{ affiliate.credit.availableMainCredit?.toFixed(2) || '0.00' }}
               </div>
               <div class="available-amount">
-                Disponible: ${{ affiliate.credit.availableMainCredit?.toFixed(2) || '0.00' }}
+                Aprobado: ${{ affiliate.credit.mainCredit?.toFixed(2) || '0.00' }}
               </div>
               <div class="sales-info mt-2" v-if="affiliate.credit.sales?.length">
                 <small class="text-muted">

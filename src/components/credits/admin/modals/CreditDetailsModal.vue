@@ -50,21 +50,17 @@
                   </h6>
                 </div>
                 <div class="stat-body">
-                  <div class="stat-row">
-                    <p class="mb-1">
-                      <strong>Aprobado:</strong> ${{ userData.credit.mainCredit.toFixed(2) }}
-                    </p>
+                  <div class="stat-row approved">
+                    <span class="stat-label">Aprobado:</span>
+                    <span class="stat-value">${{ userData.credit.mainCredit.toFixed(2) }}</span>
                   </div>
-                  <div class="stat-row">
-                    <p class="mb-1">
-                      <strong>Disponible:</strong> ${{ userData.credit.availableMainCredit.toFixed(2) }}
-                    </p>
+                  <div class="stat-row available">
+                    <span class="stat-label">Disponible:</span>
+                    <span class="stat-value">${{ userData.credit.availableMainCredit.toFixed(2) }}</span>
                   </div>
-                  <div class="stat-row">
-                    <p class="mb-0">
-                      <strong>Usado:</strong> 
-                      ${{ (userData.credit.mainCredit - userData.credit.availableMainCredit).toFixed(2) }}
-                    </p>
+                  <div class="stat-row used">
+                    <span class="stat-label">Usado:</span>
+                    <span class="stat-value">${{ (userData.credit.mainCredit - userData.credit.availableMainCredit).toFixed(2) }}</span>
                   </div>
                 </div>
               </div>
@@ -75,27 +71,23 @@
                   <h6>Crédito Plus</h6>
                 </div>
                 <div class="stat-body">
-                  <div class="stat-row">
-                    <p class="mb-1">
-                      <strong>Aprobado:</strong> ${{ userData.credit.plusCredit.toFixed(2) }}
-                    </p>
+                  <div class="stat-row approved">
+                    <span class="stat-label">Aprobado:</span>
+                    <span class="stat-value">${{ userData.credit.plusCredit.toFixed(2) }}</span>
                   </div>
-                  <div class="stat-row">
-                    <p class="mb-1">
-                      <strong>Disponible:</strong> ${{ userData.credit.availablePlusCredit.toFixed(2) }}
-                    </p>
+                  <div class="stat-row available">
+                    <span class="stat-label">Disponible:</span>
+                    <span class="stat-value">${{ userData.credit.availablePlusCredit.toFixed(2) }}</span>
                   </div>
-                  <div class="stat-row">
-                    <p class="mb-0">
-                      <strong>Usado:</strong> 
-                      ${{ (userData.credit.plusCredit - userData.credit.availablePlusCredit).toFixed(2) }}
-                    </p>
+                  <div class="stat-row used">
+                    <span class="stat-label">Usado:</span>
+                    <span class="stat-value">${{ (userData.credit.plusCredit - userData.credit.availablePlusCredit).toFixed(2) }}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Purchase History -->
+            <!-- History -->
             <div class="purchase-history-section">
               <div class="section-header">
                 <div class="d-flex justify-content-between align-items-center">                  
@@ -127,15 +119,25 @@
                     <div v-for="sale in filteredSales" 
                          :key="sale.id" 
                          class="purchase-item">
-                      <div class="purchase-header" @click="togglePurchase(sale.id)">
-                        <div class="purchase-summary">
-                          <span class="product-name">{{ sale.productName }}</span>
-                          <span class="purchase-date">{{ formatDate(sale.purchaseDate) }}</span>
-                          <span class="purchase-amount">${{ sale.productPrice.toFixed(2) }}</span>
-                          <span class="purchase-status" :class="sale.paid ? 'text-success' : 'text-warning'">{{ sale.paid ? 'Completado' : 'En Proceso' }}</span>
+                      <div class="purchase-header">
+                        <div class="purchase-summary" @click="togglePurchase(sale.id)">
+                          <div class="product-info">
+                            <span class="product-name">{{ sale.productName }} - {{ sale.clientName }}</span>
+                          </div>
+                          <div class="purchase-details-right">
+                            <span class="purchase-date badge bg-primary">{{ formatDate(sale.purchaseDate) }}</span>
+                            <span class="purchase-amount">${{ sale.productPrice.toFixed(2) }}</span>
+                            <span class="purchase-status" :class="sale.paid ? 'text-success' : 'text-warning'">
+                              {{ sale.paid ? 'Completado' : 'En Proceso' }}
+                            </span>
+                          </div>
                         </div>
-                        <i class="fas" :class="selectedPurchase === sale.id ? 
-                           'fa-chevron-up' : 'fa-chevron-down'"></i>
+                        <div v-if="!sale.cuotas?.every(cuota => cuota.paid)" class="purchase-actions">
+                          <button class="btn btn-sm btn-outline-danger" @click.stop="openDeleteModal(sale, 'sale')" title="Eliminar venta">
+                            <i class="fas fa-trash-alt"></i>
+                          </button>
+                          <i class="fas" :class="selectedPurchase === sale.id ? 'fa-chevron-up' : 'fa-chevron-down'" @click.stop="togglePurchase(sale.id)"></i>
+                        </div>
                       </div>
                       <transition name="slide">
                         <div class="purchase-details" 
@@ -193,15 +195,23 @@
                     <div v-for="purchase in filteredPurchases" 
                          :key="purchase.id" 
                          class="purchase-item">
-                      <div class="purchase-header" @click="togglePurchase(purchase.id)">
-                        <div class="purchase-summary">
-                          <span class="product-name">{{ purchase.productName }}</span>
-                          <span class="purchase-date">{{ formatDate(purchase.purchaseDate) }}</span>
-                          <span class="purchase-amount">${{ purchase.productPrice.toFixed(2) }}</span>
-                          <span class="purchase-status" :class="purchase.paid ? 'text-success' : 'text-warning'">{{ purchase.paid ? 'Completado' : 'En Proceso' }}</span>
+                      <div class="purchase-header">
+                        <div class="purchase-summary" @click="togglePurchase(purchase.id)">
+                          <div class="product-info">
+                            <span class="product-name">{{ purchase.productName }}</span>
+                          </div>
+                          <div class="purchase-details-right">
+                            <span class="purchase-date">{{ formatDate(purchase.purchaseDate) }}</span>
+                            <span class="purchase-amount">${{ purchase.productPrice.toFixed(2) }}</span>
+                            <span class="purchase-status" :class="purchase.paid ? 'text-success' : 'text-warning'">{{ purchase.paid ? 'Completado' : 'En Proceso' }}</span>
+                          </div>
                         </div>
-                        <i class="fas" :class="selectedPurchase === purchase.id ? 
-                           'fa-chevron-up' : 'fa-chevron-down'"></i>
+                        <div v-if="!purchase.cuotas?.every(cuota => cuota.paid)" class="purchase-actions">
+                          <button class="btn btn-sm btn-outline-danger" @click.stop="openDeleteModal(purchase, 'purchase')" title="Eliminar compra">
+                            <i class="fas fa-trash-alt"></i>
+                          </button>
+                          <i class="fas" :class="selectedPurchase === purchase.id ? 'fa-chevron-up' : 'fa-chevron-down'" @click.stop="togglePurchase(purchase.id)"></i>
+                        </div>
                       </div>
                       <transition name="slide">
                         <div class="purchase-details" 
@@ -229,7 +239,8 @@
                               <thead>
                                 <tr>
                                   <th>N°</th>
-                                  <th>Fecha</th>
+                                  <th>Fecha de Vencimiento</th>
+                                  <th>Fecha de Pago</th>
                                   <th>Monto</th>
                                   <th>Estado</th>
                                 </tr>
@@ -238,6 +249,7 @@
                                 <tr v-for="(cuota, cuotaIndex) in purchase.cuotas" :key="cuotaIndex">
                                   <td>{{ cuotaIndex + 1 }}</td>
                                   <td>{{ formatDate(cuota.date) }}</td>
+                                  <td>{{ formatDate(cuota.paymentDate) || 'Sin pago' }}</td>
                                   <td>${{ cuota.amount.toFixed(2) }}</td>
                                   <td>
                                     <span :class="cuota.paid ? 'text-success' : 'text-danger'">
@@ -268,9 +280,58 @@
       </div>
     </div>
   </div>
+
+  <!-- Add this modal for delete confirmation -->
+  <div class="modal fade" id="delete-purchase-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Confirmar Eliminación</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Esta acción eliminará la transacción y reintegrará el crédito al cliente y al afiliado.
+          </div>
+          
+          <div class="purchase-details-summary mb-3">
+            <p><strong>Producto:</strong> {{ selectedPurchaseDetails?.productName }}</p>
+            <p><strong>Fecha:</strong> {{ formatDate(selectedPurchaseDetails?.purchaseDate) }}</p>
+            <p><strong>Monto:</strong> ${{ selectedPurchaseDetails?.productPrice?.toFixed(2) }}</p>
+            <p><strong>Préstamo:</strong> ${{ selectedPurchaseDetails?.loanAmount?.toFixed(2) }}</p>
+          </div>
+          
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" v-model="hasFee" id="hasFeeCheck">
+            <label class="form-check-label" for="hasFeeCheck">
+              Esta transacción incluye una comisión de $1 que no debe ser reintegrada
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-danger" @click="confirmDeletePurchase" :disabled="isDeleting">
+            <span v-if="isDeleting">
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              Procesando...
+            </span>
+            <span v-else>
+              <i class="fas fa-trash-alt me-2"></i>Eliminar
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
+import { Modal } from 'bootstrap';
+import { db } from '@/firebase/init';
+import { ref as dbRef, get, update } from 'firebase/database';
+import { toast as showToast } from '@/utils/toast';
+
 export default {
   name: 'CreditDetailsModal',
   props: {
@@ -296,6 +357,10 @@ export default {
     sales: {
       type: [Array, Object],
       default: () => ({})
+    },
+    adminId: {
+      type: String,
+      required: true
     }
   },
   data() {
@@ -305,7 +370,12 @@ export default {
         to: new Date().toISOString().split('T')[0]
       },
       selectedPurchase: null,
-      selectedSale: null
+      selectedSale: null,
+      selectedPurchaseDetails: null,
+      hasFee: false,
+      isDeleting: false,
+      deleteType: null,
+      deleteModal: null
     }
   },
   computed: {
@@ -343,9 +413,14 @@ export default {
         });
     },
     filteredSales() {
-      if (!this.salesArray.length) return [];
-
+      // Make sure salesArray exists and is an array
+      if (!this.salesArray || !Array.isArray(this.salesArray) || !this.salesArray.length) return [];
+      
       return this.salesArray.filter(sale => {
+        // Filter out deleted sales
+        if (sale.deleted) return false;
+        
+        // Apply date filters
         if (!this.dateRange.from && !this.dateRange.to) return true;
         const saleDate = new Date(sale.purchaseDate);
         const fromDate = this.dateRange.from ? new Date(this.dateRange.from) : null;
@@ -362,8 +437,14 @@ export default {
       }).sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate));
     },
     filteredPurchases() {
-      if (!this.purchasesArray.length) return [];
-        return this.purchasesArray.filter(purchase => {
+      // Make sure purchasesArray exists and is an array
+      if (!this.purchasesArray || !Array.isArray(this.purchasesArray) || !this.purchasesArray.length) return [];
+      
+      return this.purchasesArray.filter(purchase => {
+        // Filter out deleted purchases
+        if (purchase.deleted) return false;
+        
+        // Apply date filters
         if (!this.dateRange.from && !this.dateRange.to) return true;
         const purchaseDate = new Date(purchase.purchaseDate);
         const fromDate = this.dateRange.from ? new Date(this.dateRange.from) : null;
@@ -397,6 +478,95 @@ export default {
       if (!dateString) return '';
       const [year, month, day] = dateString.split('-');
       return `${day}/${month}/${year}`;
+    },
+    openDeleteModal(item, type) {
+      this.selectedPurchaseDetails = item;
+      this.deleteType = type;
+      this.hasFee = false;
+      
+      if (!this.deleteModal) {
+        const deleteModalEl = document.getElementById('delete-purchase-modal');
+        if (deleteModalEl) {
+          this.deleteModal = new Modal(deleteModalEl);
+        }
+      }
+      
+      if (this.deleteModal) {
+        this.deleteModal.show();
+      }
+    },
+    async confirmDeletePurchase() {
+      console.log('selectedPurchaseDetails', this.selectedPurchaseDetails);
+      if (confirm('¿Estás seguro de eliminar esta transacción?')) {
+        if (!this.selectedPurchaseDetails) return;
+        
+        this.isDeleting = true;
+        
+        try {
+          // Calculate amount to reintegrate (subtract $1 fee if checked)
+          const reintegrateAmount = this.hasFee 
+            ? this.selectedPurchaseDetails.loanAmount - 1 
+            : this.selectedPurchaseDetails.loanAmount;
+          
+          // Get references to the transaction and user records
+          // transactionRef
+          const saleRef = dbRef(db, `Users/${this.selectedPurchaseDetails.affiliate_id}/credit/sales/${this.selectedPurchaseDetails.id}`);
+          const purchaseRef = dbRef(db, `Users/${this.selectedPurchaseDetails.client_id}/credit/main/purchases/${this.selectedPurchaseDetails.id}`);
+          const clientRef = dbRef(db, `Users/${this.selectedPurchaseDetails.client_id}/credit/main`);
+          const affiliateRef = dbRef(db, `Users/${this.selectedPurchaseDetails.affiliate_id}/credit/main`);
+          
+          // Get current credit values
+          const clientSnapshot = await get(clientRef);
+          const affiliateSnapshot = await get(affiliateRef);
+          
+          if (clientSnapshot.exists() && affiliateSnapshot.exists()) {
+            const clientCredit = clientSnapshot.val();
+            const affiliateCredit = affiliateSnapshot.val();
+            
+            // Calculate new available credit values
+            const newClientAvailableCredit = clientCredit.availableCredit + reintegrateAmount;
+            const newAffiliateAvailableCredit = affiliateCredit.availableCredit + reintegrateAmount;                   
+            
+            // Update client's data
+            await update(clientRef, {
+              availableCredit: newClientAvailableCredit
+            });
+
+            await update(purchaseRef, {
+              deleted: true,
+              deletedAt: new Date().toISOString(),
+              deletedBy: this.adminId,
+              hasFee: this.hasFee
+            });
+            
+            // Update affiliate's data
+            await update(affiliateRef, {
+              availableCredit: newAffiliateAvailableCredit
+            });
+
+            await update(saleRef, {
+              deleted: true,
+              deletedAt: new Date().toISOString(),
+              deletedBy: this.adminId,
+              hasFee: this.hasFee
+            });  
+            
+            // Close modal and show success message
+            if (this.deleteModal) {
+              this.deleteModal.hide();
+            }
+            
+            showToast.success('Transacción eliminada y crédito reintegrado correctamente');
+          } else {
+            throw new Error('No se pudo obtener la información de crédito');
+          }
+        } catch (error) {
+          console.error('Error deleting purchase:', error);
+          showToast.error('Error al eliminar la transacción: ' + error.message);
+        } finally {
+          this.isDeleting = false;
+        }
+      }
     }
   }
 }
@@ -449,16 +619,49 @@ export default {
 }
 
 .stat-body {
-  padding: 1.5rem;
+  padding: 1rem;
+  background: #1a1a1a;
 }
 
 .stat-row {
-  padding: 0.75rem;
-  border-bottom: 1px solid #dee2e6;
+  padding: 1rem;
+  margin: 0.5rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: none;
 }
 
-.stat-row:last-child {
-  border-bottom: none;
+.stat-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  background: rgba(111, 66, 193, 0.1);
+}
+
+.stat-row.approved {
+  border-left: 4px solid #6f42c1;
+}
+
+.stat-row.available {
+  border-left: 4px solid #28a745;
+}
+
+.stat-row.used {
+  border-left: 4px solid #dc3545;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #fff;
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.stat-label {
+  color: #aaa;
+  font-size: 0.9rem;
 }
 
 .purchase-history-section {
@@ -468,7 +671,7 @@ export default {
 }
 
 .section-header {
-  background: #6f42c1;
+  background: #1a1a1a;
   color: white;
   padding: 1rem;
   padding-right: 1.5rem;
@@ -500,16 +703,46 @@ export default {
 }
 
 .purchase-summary {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
-  gap: 1rem;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
+  width: 100%;
+}
+
+.product-info {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 10px;
+}
+
+.purchase-details-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  white-space: nowrap;
+}
+
+.purchase-date {
+  min-width: 90px;
+  text-align: center;
+}
+
+.purchase-amount {
+  min-width: 80px;
+  text-align: right;
+}
+
+.purchase-status {
+  min-width: 100px;
+  text-align: center;
 }
 
 .purchase-details {
   padding: 1rem;
   border-top: 1px solid #dee2e6;
-  background: #6f42c1;
+  background: #1a1a1a;
 }
 
 .details-grid {
@@ -560,8 +793,19 @@ export default {
   }
   
   .purchase-summary {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 0.5rem;
+  }
+  
+  .product-info {
+    width: 100%;
+    margin-right: 0;
+  }
+  
+  .purchase-details-right {
+    width: 100%;
+    justify-content: space-between;
   }
   
   .date-filters {
@@ -610,5 +854,29 @@ export default {
 .slide-leave-to {
   opacity: 0;
   max-height: 0;
+}
+
+.purchase-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.purchase-actions .btn-outline-danger {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  border-radius: 4px;
+  background-color: transparent;
+  border-color: #dc3545;
+  color: #dc3545;
+}
+
+.purchase-actions .btn-outline-danger:hover {
+  background-color: #dc3545;
+  color: white;
+}
+
+.purchase-details-summary p {
+  margin-bottom: 0.5rem;
 }
 </style> 

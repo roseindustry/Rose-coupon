@@ -34,7 +34,7 @@
               </div>
               <div class="detail-item">
                 <span class="label">Cuota a pagar:</span>
-                <span class="value">${{ Number(currentCuota.amount).toFixed(2) }}</span>
+                <span class="value">${{ Number(currentCuota?.amount).toFixed(2) }}</span>
               </div>
               <div class="detail-item">
                 <span class="label">Fecha de pago:</span>
@@ -302,7 +302,7 @@ export default {
       return unpaidEntry ? { ...unpaidEntry[1], id: unpaidEntry[0] } : null;
     },
     formattedCuotaDate() {
-      const date = new Date(this.currentCuota.date);
+      const date = new Date(this.currentCuota?.date);
       date.setDate(date.getDate() + 1); // Adjust for timezone
       return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },
@@ -521,7 +521,7 @@ export default {
           approved: false,
           type: 'credit-cuota',
           cuota_id: this.selectedCuotaId || null,
-          isLatePayment: this.isLatePayment,
+          isLatePayment: this.isLatePayment || null,
           daysLate: this.isLatePayment ? this.daysLate : 0,
           lateFee: this.isLatePayment ? this.lateFee : 0,
           originalAmount: Number(this.currentCuota.amount) || 0,
@@ -537,9 +537,9 @@ export default {
           const cuotaRef = dbRef(db, `Users/${this.purchase.client_id}/credit/main/purchases/${this.purchase.id}/cuotas/${this.selectedCuotaId}`);
           await update(cuotaRef, {
             paymentUpload: true,
-            paidAt: formattedDate,
+            paymentDate: formattedDate,
             paymentUrl: downloadURL,
-            isLatePayment: this.isLatePayment,
+            isLatePayment: this.isLatePayment || null,
             lateFee: this.isLatePayment ? this.lateFee : 0,
             totalAmount: this.totalAmountWithLateFee
           });
@@ -561,7 +561,7 @@ export default {
           purchaseId: this.purchase.id,
           cuotaId: this.selectedCuotaId,
           paymentDate: formattedDate,
-          isLatePayment: this.isLatePayment,
+          isLatePayment: this.isLatePayment || null,
           lateFee: this.isLatePayment ? this.lateFee : 0,
           totalAmount: this.totalAmountWithLateFee
         });
@@ -598,10 +598,7 @@ export default {
       this.fetchExchangeRate()
     ]);
     
-    // Set current cuota based on selected or next unpaid
-    if (this.selectedCuota) {
-      this.currentCuota = this.selectedCuota;
-    }
+    this.currentCuota = this.selectedCuota;
   },
   unmounted() {
     if (this.modal) {

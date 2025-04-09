@@ -271,6 +271,10 @@ export default {
       this.isSubmitting = true;
       
       this.$emit("submit-payment", {
+        paymentDate: new Date().toISOString(),
+        exchange: this.exchange,
+        planId: this.selectedPlan.id,
+        planName: this.selectedPlan.name,
         amountPaid: this.amountPaid,
         paymentFile: this.paymentFile
       });

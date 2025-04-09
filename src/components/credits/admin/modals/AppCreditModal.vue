@@ -43,7 +43,6 @@ export default {
       type: String,
       default: '',
       validator: function(value) {
-        console.log('Validating creditType:', value);
         return value === '' || ['main', 'plus', 'affiliateMain', 'alkosto'].includes(value);
       }
     },

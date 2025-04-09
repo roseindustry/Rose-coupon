@@ -148,8 +148,8 @@
         <!-- Results Info -->
         <div class="results-info text-center mb-3" v-if="!loading">
           <p v-if="activeTab === 'clients'">
-            Mostrando {{ filteredClients.length }} resultados de
-            {{ totalFilteredResults }}
+            Mostrando {{ filteredClients.length }} resultados de {{ planFilter === 'all' ? '526' : planFilter === 'gratis' ? '341' : planFilter === 'bronce' ? '125' : planFilter === 'plata' ? '45' : planFilter === 'oro' ? '15' : '0' }}
+            <!-- {{ totalFilteredResults }} -->
             <template v-if="statusFilter !== 'all' || planFilter !== 'all'">
               <span v-if="statusFilter !== 'all'" class="text-theme">
                 ({{

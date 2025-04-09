@@ -16,7 +16,7 @@
             <div class="card h-100">
               <div class="card-body text-center">
                 <h6 class="text-secondary mb-2">Crédito Total</h6>
-                <h4 class="text-light">${{ currentAffiliate?.credit?.mainCredit?.toLocaleString() || 0 }}</h4>
+                <h4 class="text-light">${{ creditData?.mainCredit?.toLocaleString() || 0 }}</h4>
               </div>
             </div>
           </div>
@@ -24,7 +24,7 @@
             <div class="card h-100">
               <div class="card-body text-center">
                 <h6 class="text-secondary mb-2">Crédito Disponible</h6>
-                <h4 class="text-light">${{ currentAffiliate?.credit?.availableMainCredit?.toLocaleString() || 0 }}</h4>
+                <h4 class="text-light">${{ creditData?.availableMainCredit?.toLocaleString() || 0 }}</h4>
               </div>
             </div>
           </div>
@@ -40,7 +40,7 @@
               <h5 class="text-black mb-0">Nueva Venta</h5>
             </div>
             <div class="card-body">
-              <form @submit.prevent="registerPurchase">
+              <form @submit.prevent="handlePurchase">
                 <!-- Step 1: Client Selection -->
                 <div class="form-section mb-4">
                   <h6 class="text-light mb-3">1. Selección del Cliente</h6>
@@ -91,9 +91,9 @@
                   </div>
 
                   <!-- Warning for unpaid cuotas -->
-                  <div v-if="selectedClient && selectedClient.hasUnpaidCuotas" class="alert alert-danger mt-3">
+                  <div v-if="selectedClient && selectedClient.hasUnpaidCuotas" class="mt-3" :class="selectedClient.unpaidCuotasCount > 2 ? 'alert alert-danger' : 'alert alert-warning'">
                     <div class="d-flex align-items-start">
-                      <i class="fas fa-exclamation-circle fa-2x me-2 text-danger"></i>
+                      <i :class="selectedClient.unpaidCuotasCount > 2 ? 'fas fa-exclamation-circle fa-2x me-2 text-danger' : 'fas fa-exclamation-triangle fa-2x me-2 text-warning'"></i>
                       <div>
                         <h5 class="mb-1">Cliente con pagos pendientes</h5>
                         <p class="mb-1">Este cliente tiene {{ selectedClient.unpaidCuotasCount }} cuota{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} vencida{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} sin pagar.</p>
@@ -134,7 +134,7 @@
                     <div class="col-md-6 mb-3">
                       <label class="form-label text-light">Fecha de compra</label>
                       <input type="date" class="form-control bg-dark text-light border-secondary"
-                        v-model="purchaseDate">
+                        v-model="formattedDate">
                     </div>
                     <div class="col-md-6 mb-3 d-flex align-items-end">
                       <button type="button" class="btn btn-theme w-100" 
@@ -188,9 +188,9 @@
                         </div>
                         <div v-if="initialPercentage === 'custom'" class="mt-3">
                           <div class="input-group percentage-input">
-                            <input type="number" class="form-control bg-dark text-light border-secondary"
-                              placeholder="Ingrese el porcentaje" min="1" max="99"
-                              v-model="customInitial" @input="updateInitial(selectedClient)" />
+                          <input type="number" class="form-control bg-dark text-light border-secondary"
+                            placeholder="Ingrese el porcentaje" min="1" max="99"
+                            v-model="customInitial" @input="updateInitial(selectedClient)" />
                             <span class="input-group-text bg-dark text-light border-secondary">%</span>
                           </div>
                         </div>
@@ -212,14 +212,14 @@
                               Incluye cargo de $1 por gestión
                             </small>
                           </div>
-                          <div class="col-md-2">
+                          <div class="col-md-2 mt-2 mt-md-0">
                             <label class="text-secondary">Cuotas</label>
                             <select v-model="newPurchase.terms" @change="calcs(selectedClient)"
                               class="form-select bg-dark text-light border-secondary">
                               <option v-for="n in 5" :key="n" :value="n">{{ n }}</option>
                             </select>
                           </div>
-                          <div class="col-md-3">
+                          <div class="col-md-3 mt-2 mt-md-0">
                             <label class="text-secondary">Frecuencia</label>
                             <select v-model="frequency" @change="calcs(selectedClient)"
                               class="form-select bg-dark text-light border-secondary">
@@ -290,38 +290,49 @@
                   </div>
 
                     <!-- Form Buttons -->
-                    <div class="d-flex justify-content-between">
-                        <button v-if="!verificationRequested" 
-                        type="button" 
-                                class="btn btn-outline-secondary" 
-                            @click="sendDummyCode(selectedClient)"
-                                :disabled="!selectedClient || hasExceededAttempts || clientHasTooManyUnpaidCuotas">
-                            <i class="fas fa-wrench me-2"></i>
+                  <div class="d-flex justify-content-between">
+                    <div class="d-flex justify-content-between gap-2">
+                      <button v-if="!verificationRequested" type="button" class="btn btn-outline-secondary" 
+                        @click="sendDummyCode(selectedClient)" 
+                        :disabled="!selectedClient || hasExceededAttempts || clientHasTooManyUnpaidCuotas || isSubmitting">
+                        <span v-if="isSubmitting">
+                          <i class="fas fa-spinner fa-spin me-2"></i>
+                        </span>
+                        <span v-else>
+                          <i class="fas fa-wrench me-2"></i>
                             Mantenimiento
+                        </span>
                   </button>
-                        <div>
-                            <button type="button" 
-                                    class="btn btn-outline-light me-2" 
-                                    @click="cancelPurchase">
-                                Cancelar
-                            </button>
-                            <button v-if="calc && !verificationRequested" 
-                                    type="button" 
-                                    class="btn btn-theme" 
-                                    @click="requestVerification"
-                                    :disabled="!canRequestVerification">
-                                <i class="fas fa-key me-2"></i>
-                    Solicitar Código
-                  </button>
-                            <button v-if="verificationRequested" 
-                                    type="submit" 
-                                    class="btn btn-theme"
-                                    :disabled="!verificationCode || clientHasTooManyUnpaidCuotas">
-                                <i class="fas fa-check me-2"></i>
-                                Confirmar Compra
-                  </button>
-                        </div>
+                      <button type="button" class="btn btn-outline-light me-2" @click="cancelPurchase" :disabled="!selectedClient">
+                        Cancelar
+                      </button>                      
                     </div>
+                    <div class="d-flex justify-content-between gap-2">                      
+                    <!-- <button v-if="!selectedClient" @click="resetClientAttempts" class="btn btn-theme">
+                      <i class="fas fa-check me-2"></i>
+                        Resetear intentos
+                      </button> -->
+                      <button v-if="calc && !verificationRequested" type="button" class="btn btn-theme" 
+                        @click="requestVerification" :disabled="!canRequestVerification || waiting">
+                        <span v-if="waiting">
+                          <i class="fas fa-spinner fa-spin me-2"></i>
+                        </span>
+                        <span v-else>
+                          <i class="fas fa-key me-2"></i>
+                    Solicitar Código
+                        </span>
+                  </button>
+                      <button v-if="verificationRequested" type="submit" class="btn btn-theme" :disabled="!verificationCode || clientHasTooManyUnpaidCuotas || isSubmitting">
+                        <span v-if="isSubmitting">
+                          <i class="fas fa-spinner fa-spin me-2"></i>
+                        </span>
+                        <span v-else>
+                          <i class="fas fa-check me-2"></i>
+                    Confirmar Venta
+                        </span>
+                  </button>
+                    </div>
+                  </div>
                 </div>
               </form>
             </div>
@@ -572,7 +583,7 @@ export default {
       quotesAmount: [],
       loanAmount: 0,
       remainingAmount: 0,
-      purchaseDate: new Date().toISOString().split('T')[0],
+      purchaseDate: new Date().toISOString(),
       purchaseAmount: 0,
       clientVerifications: {}, // Track verification attempts per client
       selectedSale: null,
@@ -580,10 +591,25 @@ export default {
       salesData: [],
       subscriptions: [],
       includeFee: true, // Default to true to include the fee
-      rateLimitData: reactive({})
+      rateLimitData: reactive({}),
+      isSubmitting: false
     }
   },
   computed: {
+    formattedDate() {
+      const originalDate = new Date(this.purchaseDate);
+
+      const correctedDate = new Date(
+        originalDate.getFullYear(), 
+        originalDate.getMonth(), 
+        originalDate.getDate()
+      );
+      
+      // Convert to ISO string
+      const paymentDate = correctedDate.toISOString();
+      const formattedDate = paymentDate.split("T")[0];
+      return formattedDate;
+    },
     isFormValid() {
       // Basic form validation
       const hasBasicInfo = this.selectedClient && 
@@ -610,6 +636,9 @@ export default {
             this.newPurchase.productPrice > 0
         );
     },
+    creditData() {
+      return this.currentAffiliate?.credit;
+    },
     salesArray() {
       const sales = this.currentAffiliate?.credit?.sales;
       if (!sales || typeof sales !== 'object') return [];
@@ -622,7 +651,8 @@ export default {
         clientSubscription: this.getClientSubscription(sale.client_id),
         purchaseDate: sale.purchaseDate || new Date().toISOString().split('T')[0],
         paid: sale.cuotas?.every(cuota => cuota.paid) || false
-      })).sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate));
+      })).sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate))
+      .filter(sale => !sale.deleted);
     },
     filteredSales() {
       let filtered = this.salesArray;
@@ -706,19 +736,19 @@ export default {
       };
     },
     priceWarning() {
-        if (!this.selectedClient || !this.newPurchase.productPrice) return '';
-
+      if (!this.selectedClient || !this.newPurchase.productPrice) return '';
+      
         const totalPrice = this.newPurchase.productPrice;
-        const availableCredit = this.selectedClient.credit?.availableMainCredit || 0;
+      const availableCredit = this.selectedClient.credit?.availableMainCredit || 0;
         const loanAmount = totalPrice - ((totalPrice * (this.initialPercentage === 'custom' ? this.customInitial : Number(this.initialPercentage))) / 100);
 
         if (loanAmount > availableCredit) {
             const requiredInitial = totalPrice - availableCredit;
             const requiredPercentage = ((requiredInitial / totalPrice) * 100).toFixed(1);
             return `Basado en el crédito disponible ($${availableCredit}), se requiere un pago inicial de $${requiredInitial.toFixed(2)} (${requiredPercentage}%)`;
-        }
-
-        return '';
+      }
+      
+      return '';
     },
     hasExceededAttempts() {
       if (!this.selectedClient) return false;
@@ -731,11 +761,26 @@ export default {
         get(rateLimitRef).then(snapshot => {
           if (snapshot.exists()) {
             const data = snapshot.val();
+            const now = Date.now();
+            const lastAttempt = data.lastAttempt || now;
+            
+            // Check if it's a new day
+            const isNewDay = new Date(now).getDate() !== new Date(lastAttempt).getDate();
+            
+            // If it's a new day, reset attempts
+            if (isNewDay) {
+              set(rateLimitRef, {
+                attempts: 0,
+                firstAttempt: now,
+                lastAttempt: now
+              });
+            }
+            
             // Use Vue 3 reactivity
             this.rateLimitData[this.selectedClient.id] = {
-              attempts: data.attempts || 0,
-              firstAttempt: data.firstAttempt || Date.now(),
-              lastAttempt: data.lastAttempt || 0
+              attempts: isNewDay ? 0 : (data.attempts || 0),
+              firstAttempt: data.firstAttempt || now,
+              lastAttempt: now
             };
           } else {
             // No rate limit data exists yet
@@ -774,9 +819,10 @@ export default {
              this.selectedClient.unpaidCuotasCount > 2;
     },
     canRequestVerification() {
-      return this.calculationsPerformed && 
-             !this.clientHasTooManyUnpaidCuotas && 
-             !this.hasExceededAttempts;
+      return this.calc && 
+             this.selectedClient && 
+             (!this.selectedClient.hasUnpaidCuotas || 
+              this.selectedClient.unpaidCuotasCount <= 2);
     },
   },
   watch: {
@@ -808,40 +854,167 @@ export default {
         this.calcs(this.selectedClient);
       }
     },
-    verificationRequested(newVal, oldVal) {
-      console.log(`verificationRequested changed from ${oldVal} to ${newVal}`);
-    }
+    // verificationRequested(newVal, oldVal) {
+    //   console.log(`verificationRequested changed from ${oldVal} to ${newVal}`);
+    // }
   },
   methods: {    
-    async askForCode(client) {
-      try {
+    formatDate(date) {
+      const dateObj = new Date(date);
+      dateObj.setDate(dateObj.getDate() + 1); // Adjust for timezone
+      return dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    },
+    performValidations(client) {
+        if (!client || !client.id) {
+          toast.error('Primero seleccione un cliente');
+          return;
+        }
+        
+        if (!client.email) {
+          toast.error('El cliente no tiene email registrado. Por favor actualice los datos del cliente.');
+          return;
+        }
+
         if (!client.emailVerified) {
           toast.error('El cliente debe tener su email verificado para solicitar un código');
           return;
         }
-        
-        this.waiting = true;
-
-        // Initial validations
-        if (!client || !client.id) {
-          throw new Error('Primero seleccione un cliente');
-        }
 
         if (client.credit?.availableMainCredit <= 0) {
-          throw new Error('El cliente no tiene crédito disponible.');
-        }
-
-        if (!client.email) {
-          throw new Error('El cliente no tiene email registrado. Por favor actualice los datos del cliente.');
-        }
-
-        // Check for unpaid cuotas
-        await this.checkClientUnpaidCuotas(client);
-
-        if (client.hasUnpaidCuotas) {
-          toast.error('No se puede proceder con la compra. El cliente debe regularizar sus pagos pendientes.');
+          toast.error('El cliente no tiene crédito disponible.');
           return;
         }
+        
+        if (client.hasUnpaidCuotas && client.unpaidCuotasCount > 2) {
+          toast.error(`El cliente tiene ${client.unpaidCuotasCount} pagos pendientes. No se puede proceder con la compra. Regularice sus pagos pendientes.`);
+          return;
+        }
+    },
+    validateInputs() {
+      // Check if product name is provided
+      if (!this.newPurchase.productName || this.newPurchase.productName.trim() === '') {
+        toast.error('Por favor ingrese el nombre del producto');
+        return false;
+      }
+      
+      // Check if product price is valid
+      if (!this.newPurchase.productPrice || this.newPurchase.productPrice <= 0) {
+        toast.error('Por favor ingrese un precio válido');
+        return false;
+      }
+      
+      // Check if verification code is provided when required
+      if (this.verificationRequested && (!this.verificationCode)) {
+        toast.error('Por favor ingrese el código de verificación');
+        return false;
+      }
+      
+      // Check if payment plan calculations have been performed
+      if (!this.calc) {
+        toast.error('Por favor calcule el plan de pagos');
+        return false;
+      }
+      
+      return true;
+    },
+
+    async checkClientUnpaidCuotas(client) {
+      try {
+        // Get client purchases from database
+        const clientRef = dbRef(db, `Users/${client.id}/credit/main/purchases`);
+        const snapshot = await get(clientRef);
+        
+        if (snapshot.exists()) {
+          const purchases = snapshot.val();
+          let unpaidCuotasCount = 0;
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          // Check each purchase for unpaid expired cuotas
+          Object.values(purchases).forEach(purchase => {
+            if (purchase.cuotas) {
+              Object.values(purchase.cuotas).forEach(cuota => {
+                const cuotaDate = new Date(cuota.date);
+                if (!cuota.paid && cuotaDate < today) {
+                  unpaidCuotasCount++;
+                }
+              });
+            }
+          });
+          
+          // Update client object with unpaid cuotas info
+          this.selectedClient = {
+            ...this.selectedClient,
+            hasUnpaidCuotas: unpaidCuotasCount > 0,
+            unpaidCuotasCount: unpaidCuotasCount
+          };
+          
+          // console.log(`Client ${client.firstName} ${client.lastName} has ${unpaidCuotasCount} unpaid expired cuotas`);
+        } else {
+          // No purchases found
+          this.selectedClient = {
+            ...this.selectedClient,
+            hasUnpaidCuotas: false,
+            unpaidCuotasCount: 0
+          };
+        }
+      } catch (error) {
+        console.error("Error checking unpaid cuotas:", error);
+        // Default to allowing purchase if there's an error checking
+        this.selectedClient = {
+          ...this.selectedClient,
+          hasUnpaidCuotas: false,
+          unpaidCuotasCount: 0
+        };
+      }
+    },
+    async selectClient(client) {
+      try {
+        if (!client.emailVerified || !client.phoneVerified) {
+          toast.error('El cliente no ha verificado su correo electrónico o número de teléfono.');
+          return;
+        } else {
+        // console.log('Selecting client:', client.id);
+          this.selectedClient = client;
+          this.searchClient = '';
+          this.searchClientResults = [];
+          
+          // Check for unpaid cuotas
+          await this.checkClientUnpaidCuotas(client);
+
+          // Reset client attempts if a new day
+          await this.resetClientAttempts(client);
+          
+          // Reset other fields
+          this.newPurchase.productName = '';
+          this.newPurchase.productPrice = '';
+          this.calc = false;
+          this.verificationRequested = false;
+          this.verificationCode = '';
+      }
+      } catch (error) {
+        console.error("Error selecting client:", error);
+      }
+    },
+    async requestVerification() {
+      try {
+        // Validate inputs first
+        if (!this.validateInputs()) return;
+
+        // Call for verification code
+        await this.askForCode(this.selectedClient);
+
+      } catch (error) {
+        console.error('Error requesting verification:', error);
+        toast.error('Error al solicitar verificación');
+      }
+    },
+    async askForCode(client) {
+      try {
+        this.waiting = true;
+        
+        // validations
+        this.performValidations(client);
 
         // Make the cloud function request with type=purchase
         const baseUrl = 'https://us-central1-rose-app-e062e.cloudfunctions.net/sendVerificationCode';
@@ -893,20 +1066,18 @@ export default {
           
           // Start the cooldown timer
           this.startCooldownTimer();
-          
-          // Refresh client information to get updated rate limit data
-          await this.selectClient(client);
         } else {
           throw new Error(result.message || 'Error al enviar el código');
         }
       } catch (error) {
         console.error('Error sending code:', error);
-        this.verificationRequested = false;
         toast.error(`Error: ${error.message}`);
+        this.verificationRequested = false;
       } finally {
         this.waiting = false;
       }
     },
+    
     startCooldownTimer() {
       // Clear any existing timer
       if (this.countdownTimer) {
@@ -930,90 +1101,10 @@ export default {
         // Update the countdown message
         const secondsLeft = Math.ceil((clientInfo.cooldownEnds - Date.now()) / 1000);
         if (secondsLeft <= 0) {
-          clearInterval(this.countdownTimer);
-          this.countdownTimer = null;
-        }
+        clearInterval(this.countdownTimer);
+        this.countdownTimer = null;
+      }
       }, 1000);
-    },
-    async selectClient(client) {
-      try {
-        if (!client.emailVerified || !client.phoneVerified) {
-          toast.error('El cliente no ha verificado su correo electrónico o número de teléfono.');
-          return;
-        } else {
-        // console.log('Selecting client:', client.id);
-          this.selectedClient = client;
-          this.searchClient = '';
-          this.searchClientResults = [];
-          
-          // Check for unpaid cuotas
-          await this.checkClientUnpaidCuotas(client);
-          
-          // Reset other fields
-          this.newPurchase.productName = '';
-          this.newPurchase.productPrice = '';
-          this.calc = false;
-        this.verificationRequested = false;
-        this.verificationCode = '';
-      }
-      } catch (error) {
-        console.error("Error selecting client:", error);
-      }
-    },
-    async checkClientUnpaidCuotas(client) {
-      try {
-        // Get client purchases from database
-        const clientRef = dbRef(db, `Users/${client.id}/credit/main/purchases`);
-        const snapshot = await get(clientRef);
-        
-        if (snapshot.exists()) {
-          const purchases = snapshot.val();
-          let unpaidCuotasCount = 0;
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          
-          // Check each purchase for unpaid expired cuotas
-          Object.values(purchases).forEach(purchase => {
-            if (purchase.cuotas) {
-              Object.values(purchase.cuotas).forEach(cuota => {
-                const cuotaDate = new Date(cuota.date);
-                if (!cuota.paid && cuotaDate < today) {
-                  unpaidCuotasCount++;
-                }
-              });
-            }
-          });
-          
-          // Update client object with unpaid cuotas info
-          this.selectedClient = {
-            ...this.selectedClient,
-            hasUnpaidCuotas: unpaidCuotasCount > 0,
-            unpaidCuotasCount: unpaidCuotasCount
-          };
-          
-          // console.log(`Client ${client.firstName} ${client.lastName} has ${unpaidCuotasCount} unpaid expired cuotas`);
-        } else {
-          // No purchases found
-          this.selectedClient = {
-            ...this.selectedClient,
-            hasUnpaidCuotas: false,
-            unpaidCuotasCount: 0
-          };
-        }
-      } catch (error) {
-        console.error("Error checking unpaid cuotas:", error);
-        // Default to allowing purchase if there's an error checking
-        this.selectedClient = {
-          ...this.selectedClient,
-          hasUnpaidCuotas: false,
-          unpaidCuotasCount: 0
-        };
-      }
-    },
-    formatDate(date) {
-      const dateObj = new Date(date);
-      dateObj.setDate(dateObj.getDate() + 1); // Adjust for timezone
-      return dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },    
 
     async calcs(client) {
@@ -1068,13 +1159,10 @@ export default {
         this.remainingAmount = loanAmount;
 
         // Add fee if applicable
-        if (client.subscription?.id) {
-            const subscriptionDetails = await this.getSubscriptionDetails(client.subscription.id);
-            if (subscriptionDetails && this.includeFee) {
-                const additionalAmount = this.getTierFee(subscriptionDetails.order);
-                this.loanAmount += additionalAmount;
-                this.remainingAmount = this.loanAmount;
-            }
+        if (this.includeFee) {
+          const additionalAmount = this.includeFee ? 1 : 0;
+          this.loanAmount += additionalAmount;
+          this.remainingAmount = this.loanAmount;
         }
 
         // Calculate dates and quotes
@@ -1091,12 +1179,12 @@ export default {
         this.calculationsPerformed = true;
         this.calc = true;
 
-    } catch (error) {
+      } catch (error) {
         console.error('Error en cálculos:', error);
         toast.error('Error al realizar los cálculos');
         this.cancelCalcs();
-    }
-},
+      }
+    },
     async updateInitial(client) {
       if (!client) return;
       
@@ -1114,14 +1202,11 @@ export default {
         this.loanAmount = this.newPurchase.productPrice - this.purchaseAmount;
         this.remainingAmount = this.loanAmount;
 
-        // Get subscription details and add tier fee
-        if (client.subscription?.id) {
-          const subscriptionDetails = await this.getSubscriptionDetails(client.subscription.id);
-          if (subscriptionDetails) {
-            const additionalAmount = this.includeFee ? this.getTierFee(subscriptionDetails.order) : 0;
+        // Update loan amount with included fee if applicable
+        if (this.includeFee) {
+            const additionalAmount = this.includeFee ? 1 : 0;
             this.loanAmount += additionalAmount;
             this.remainingAmount += additionalAmount;
-          }
         }
         
         if (this.loanAmount > client.credit?.availableMainCredit) {
@@ -1135,23 +1220,7 @@ export default {
         this.cancelCalcs();
       }
     },
-    getTierFee(tier) {
-      // Convert tier to number since it might come as a string
-      const tierNumber = Number(tier);
-      
-      switch(tierNumber) {
-        case 1: // Free tier
-          return 0; // Just return 0 for display purposes
-        case 2: // bronce tier
-          return 3;  // $3 increment
-        case 3: // silver tier
-          return 1;  // $1 increment
-        case 4: // Gold tier
-          return 0;  // No increment
-        default:
-          return 0; // Default to 0 for invalid tiers
-      }
-    },
+
     calculateQuotes() {
       try {
         const quoteAmount = this.loanAmount / this.newPurchase.terms;
@@ -1241,6 +1310,52 @@ export default {
       this.verificationRequested = false;
       this.verificationCode = '';
     },    
+
+    async handlePurchase() {
+      try {
+        this.isSubmitting = true;
+        
+        // Validate inputs
+        if (!this.validateInputs()) {
+          this.isSubmitting = false;
+          return;
+        }
+
+        // Create the purchase data object to pass to the parent component
+        const purchaseData = {
+          clientId: this.selectedClient.uid || this.selectedClient.id,
+          clientName: `${this.selectedClient.firstName} ${this.selectedClient.lastName}`,
+          productName: this.newPurchase.productName,
+          productPrice: this.newPurchase.productPrice,
+          purchaseAmount: this.purchaseAmount,
+          remainingAmount: this.remainingAmount,
+          loanAmount: this.loanAmount,
+          includeFee: this.includeFee,
+          terms: this.cuotaDates.length,
+          frequency: this.frequency,
+          purchaseDate: this.formattedDate,
+          verificationCode: this.verificationCode,
+          cuotas: this.cuotaDates.map((date, index) => ({
+            amount: this.quotesAmount[index],
+            date: date,
+            paymentDate: null
+          }))
+        };
+
+        this.$emit('register-purchase', purchaseData, (success) => {
+          this.isSubmitting = false; // Stop loading
+
+          if (success) {
+            this.resetForm(); // Reset form if successful
+          }
+        });
+        
+      } catch (error) {
+        console.error('Error preparing purchase data:', error);
+        toast.error(error.message || 'Error al preparar los datos de la compra');
+      }
+    },   
+    
     viewPurchaseDetails(sale) {
       // Store selected sale details for modal
       this.selectedSale = {
@@ -1264,74 +1379,6 @@ export default {
     closeModal() {
       this.selectedSale = null;
     },
-
-    async registerPurchase() {
-      try {
-        this.isSubmitting = true;
-        
-        // Validate inputs
-        if (!this.validateInputs()) {
-          this.isSubmitting = false;
-          return;
-        }
-
-        const loanAmount = parseFloat(this.loanAmount);
-        const finalAmount = this.includeFee ? loanAmount + 1 : loanAmount; // Add $1 fee if includeFee is true
-
-        // Create the purchase data object to pass to the parent component
-        const purchaseData = {
-          clientId: this.selectedClient.uid || this.selectedClient.id,
-          clientName: `${this.selectedClient.firstName} ${this.selectedClient.lastName}`,
-          productName: this.newPurchase.productName,
-          productPrice: this.newPurchase.productPrice,
-          purchaseAmount: this.purchaseAmount,
-          remainingAmount: this.remainingAmount,
-          loanAmount: finalAmount,
-          includeFee: this.includeFee,
-          terms: this.cuotaDates.length,
-          frequency: this.frequency,
-          purchaseDate: this.purchaseDate,
-          verificationCode: this.verificationCode,
-          cuotas: this.cuotaDates.map((date, index) => ({
-            amount: this.quotesAmount[index],
-            date: date,
-            paymentDate: null
-          }))
-        };
-
-        // Emit the purchase data to the parent component
-        this.$emit('register-purchase', purchaseData);
-        
-        // Reset form after successful submission
-        this.resetForm();
-        
-      } catch (error) {
-        console.error('Error preparing purchase data:', error);
-        toast.error(error.message || 'Error al preparar los datos de la compra');
-      } finally {
-        this.isSubmitting = false;
-      }
-    },
-
-    async getSubscriptionDetails(subId) {
-      try {
-        const subRef = dbRef(db, `Suscriptions/${subId}`);
-        const snapshot = await get(subRef);
-        
-        if (snapshot.exists()) {
-          const subscription = snapshot.val();
-          return {
-            name: subscription.name,
-            order: subscription.order
-          };
-        }
-        return null;
-      } catch (error) {
-        console.error('Error fetching subscription:', error);
-        return null;
-      }
-    },
-    
     getClientSubscription(clientId) {
       if (!clientId || !this.clients) {
         return {
@@ -1408,8 +1455,10 @@ export default {
       this.quotesAmount = [];
       this.loanAmount = 0;
       this.remainingAmount = 0;
-      this.purchaseDate = new Date().toISOString().split('T')[0];
       this.purchaseAmount = 0;
+
+      this.$emit('refresh-data');
+      
       // Reset verification state for current client
       if (this.selectedClient && this.clientVerifications[this.selectedClient.id]) {
         this.clientVerifications[this.selectedClient.id] = {
@@ -1420,24 +1469,30 @@ export default {
     
     async sendDummyCode(client) {
         try {
+            this.isSubmitting = true;
             if (!client || !client.email) {
-                throw new Error('Cliente no válido o sin dirección de correo electrónico.');
+                toast.error('Cliente no válido o sin dirección de correo electrónico.');
+                return;
             }
 
             const emailContent = 'Nuestro sistema se encuentra en mantenimiento en este momento. Intente más tarde.';
+            const emailHeader = `Notificación de Mantenimiento`;
+            const emailFooter = 'Gracias por usar Rose App.';
             const emailData = {
                 to: client.email,
                 message: {
-                    subject: 'Notificación de Mantenimiento',
+                    subject: emailHeader,
                     text: emailContent
                     ,
-                    html: `<p style="font-family: Arial, sans-serif; font-size: 16px; color: #333;">
-                        ${emailContent}
-                    </p>`
+                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                            <h2 style="color: #6f42c1;">${emailHeader}<i class="fas fa-wrench me-2"></i></h2>
+                            <p>Hola ${client.firstName} ${client.lastName},</p>
+                            <p>${emailContent}</p>
+                            <p>${emailFooter}</p>
+                          </div>`
                 }
             };
 
-            // Use the imported sendEmail function
             const result = await sendEmail(emailData);
 
             if (result.success) {
@@ -1448,111 +1503,99 @@ export default {
         } catch (error) {
             console.error('Error al enviar el correo:', error);
             toast.error('Error al enviar el correo de mantenimiento.');
+        } finally {
+            this.isSubmitting = false;
         }
-    },
-    validateInputs() {
-      // Check if client is selected
-      if (!this.selectedClient) {
-        toast.error('Por favor seleccione un cliente');
-        return false;
-      }
-
-      if (!this.selectedClient.emailVerified) {
-        toast.error('El cliente no tiene email verificado. Por favor verifique su email.');
-        return false;
-      }
-      
-      // Check if product name is provided
-      if (!this.newPurchase.productName || this.newPurchase.productName.trim() === '') {
-        toast.error('Por favor ingrese el nombre del producto');
-        return false;
-      }
-      
-      // Check if product price is valid
-      if (!this.newPurchase.productPrice || this.newPurchase.productPrice <= 0) {
-        toast.error('Por favor ingrese un precio válido');
-        return false;
-      }
-      
-      // Check if client has sufficient credit
-      if (this.selectedClient.credit?.availableMainCredit < this.loanAmount) {
-        toast.error('El cliente no tiene suficiente crédito disponible');
-        return false;
-      }
-      
-      // Check if verification code is provided when required
-      if (this.verificationRequested && (!this.verificationCode)) {
-        toast.error('Por favor ingrese el código de verificación');
-        return false;
-      }
-      
-      // Check if payment plan calculations have been performed
-      if (!this.calc) {
-        toast.error('Por favor calcule el plan de pagos');
-        return false;
-      }
-      
-      return true;
-    },
-    async resetClientAttempts() {
+    },    
+    async resetClientAttempts(client) {
       try {
-        if (!this.selectedClient || !this.selectedClient.id) {
+        if (!client || !client.id) {
           toast.error('No hay cliente seleccionado');
           return;
         }
         
-        // Reset attempts in the database
-        const rateLimitRef = dbRef(db, `rateLimits/verificationCodes/${this.selectedClient.id}/purchase`);
-        await set(rateLimitRef, {
-          attempts: 0,
-          firstAttempt: Date.now(),
-          lastAttempt: Date.now()
-        });
+        // Reference to the rate limit for purchase verification
+        const rateLimitRef = dbRef(db, `rateLimits/verificationCodes/${client.id}/purchase`);
         
-        // Reset minimal local tracking (just cooldown)
-        this.clientVerifications[this.selectedClient.id] = {
+        // Get the current rate limit data
+        const snapshot = await get(rateLimitRef);
+        
+        if (snapshot.exists()) {
+          const rateLimitData = snapshot.val();
+          const now = Date.now();
+          const lastAttempt = rateLimitData.lastAttempt || now;
+          
+          // Or check if it's a new day
+          const isNewDay = new Date(now).getDate() !== new Date(lastAttempt).getDate();
+          
+          if (isNewDay) {
+            // Reset attempts
+            await set(rateLimitRef, {
+          attempts: 0,
+              firstAttempt: now,
+              lastAttempt: now
+            });
+            
+            // Reset local tracking
+            this.clientVerifications[client.id] = {
           cooldownEnds: 0
         };
-        
-        // Clear any active cooldown timer
-        if (this.countdownTimer) {
-          clearInterval(this.countdownTimer);
-          this.countdownTimer = null;
+            
+            // Clear any active cooldown timer
+            if (this.countdownTimer) {
+              clearInterval(this.countdownTimer);
+              this.countdownTimer = null;
+            }
+            
+            toast.success('Intentos de verificación reiniciados');
+          }
         }
-        
-        console.log('=== INTENTOS REINICIADOS ===');
-        console.log('Cliente:', this.selectedClient.firstName, this.selectedClient.lastName);
-        
-        // Refresh rate limit information
-        await this.selectClient(this.selectedClient);
-        
-        toast.success('Intentos de verificación reiniciados');
       } catch (error) {
         console.error('Error resetting attempts:', error);
         toast.error('Error al reiniciar intentos');
       }
-    },
-    async requestVerification() {
-      try {
-        if (!this.validateInputs()) return;
+    },    
+
+    // currently not used
+    // getTierFee(tier) {
+    //   // Convert tier to number since it might come as a string
+    //   const tierNumber = Number(tier);
+      
+    //   switch(tierNumber) {
+    //     case 1: // Free tier
+    //       return 0; // Just return 0 for display purposes
+    //     case 2: // bronce tier
+    //       return 3;  // $3 increment
+    //     case 3: // silver tier
+    //       return 1;  // $1 increment
+    //     case 4: // Gold tier
+    //       return 0;  // No increment
+    //     default:
+    //       return 0; // Default to 0 for invalid tiers
+    //   }
+    // },
+    // async getSubscriptionDetails(subId) {
+    //   try {
+    //     const subRef = dbRef(db, `Suscriptions/${subId}`);
+    //     const snapshot = await get(subRef);
         
-        // Check if client has too many unpaid cuotas
-        if (this.selectedClient.hasUnpaidCuotas && this.selectedClient.unpaidCuotasCount > 2) {
-          toast.error('No se puede proceder con la compra. El cliente debe regularizar sus pagos pendientes.');
-          return;
-        }
-        
-        // Rest of the verification request logic...
-        this.verificationRequested = true;
-        // ... existing code
-      } catch (error) {
-        console.error('Error requesting verification:', error);
-        toast.error('Error al solicitar verificación');
-      }
-    },
+    //     if (snapshot.exists()) {
+    //       const subscription = snapshot.val();
+    //       return {
+    //         name: subscription.name,
+    //         order: subscription.order
+    //       };
+    //     }
+    //     return null;
+    //   } catch (error) {
+    //     console.error('Error fetching subscription:', error);
+    //     return null;
+    //   }
+    // },
   },
   async mounted() {
     await this.$nextTick();
+    
     await this.fetchSubscriptions();
     this.loading = false;
   },
@@ -1649,7 +1692,7 @@ input[type="date"] {
     }
     
     .form-check-label {
-        font-size: 0.875rem;
-    }
+  font-size: 0.875rem;
+}
 }
 </style> 

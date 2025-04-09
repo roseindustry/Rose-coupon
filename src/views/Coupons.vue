@@ -160,7 +160,7 @@ export default {
                 default:
                     break;
             }
-            
+
             return filtered;
         },
         paginatedFilteredCoupons() {
@@ -1731,7 +1731,7 @@ export default {
                                             <i class="fa fa-times-circle me-2"></i>
                                             <span>Limpiar selección</span>
                                         </button>
-                                    </div>
+                                                            </div>
                                     
                                     <!-- Selected clients cards -->
                                     <div v-if="selectedClients.length > 0 && !showClientsWithRequests" class="selected-clients-grid">
@@ -1791,12 +1791,12 @@ export default {
                                         <!-- Search Input -->
                                         <div class="col-12 col-md-6 col-lg-7">
                                             <div class="search-container position-relative">
-                                                <input type="text" class="form-control" v-model="searchCoupon"
-                                                    placeholder="Buscar cupón por nombre o código..." />
+                                <input type="text" class="form-control" v-model="searchCoupon"
+                                    placeholder="Buscar cupón por nombre o código..." />
                                                 <i class="fa fa-search search-icon"></i>
                                             </div>
-                                        </div>
-                                        
+                            </div>
+
                                         <!-- Filter Dropdown -->
                                         <div class="col-12 col-md-6 col-lg-5">
                                             <div class="filter-controls d-flex flex-wrap gap-2 justify-content-md-end justify-content-center">
@@ -1883,17 +1883,17 @@ export default {
                             <div v-else class="coupon-cards-container">
                                 <div class="coupon-card" v-for="(coupon, index) in paginatedFilteredCoupons" :key="coupon.id"
                                     @click="selectCoupon(coupon); queryCoupons(coupon.id)"
-                                    :class="{ 'selected': selectedCoupons.some(selectedCoupon => selectedCoupon.id === coupon.id) }">
+                                        :class="{ 'selected': selectedCoupons.some(selectedCoupon => selectedCoupon.id === coupon.id) }">
                                     
                                     <!-- Card Header -->
                                     <div class="coupon-card-header">
                                         <div class="coupon-title-section">
-                                            <template v-if="editingCoupon && editingCoupon.id === coupon.id">
+                                                    <template v-if="editingCoupon && editingCoupon.id === coupon.id">
                                                 <input v-model="editingCoupon.name" class="form-control" @click.stop />
-                                            </template>
-                                            <template v-else>
+                                                    </template>
+                                                    <template v-else>
                                                 <h5 class="coupon-title">{{ coupon.name.toUpperCase() }}</h5>
-                                            </template>
+                                                    </template>
                                             
                                             <!-- Status Badge -->
                                             <span class="status-badge me-3" :class="coupon.status ? 'status-active' : 'status-expired'">
@@ -1904,26 +1904,26 @@ export default {
                                         <!-- Action Buttons -->
                                         <div class="coupon-actions" @click.stop>
                                             <button class="action-btn edit-btn" 
-                                                v-if="editingCoupon && editingCoupon.id === coupon.id"
-                                                @click.prevent="updateCoupon">
+                                                        v-if="editingCoupon && editingCoupon.id === coupon.id"
+                                                        @click.prevent="updateCoupon">
                                                 <i class="fa fa-save"></i>
-                                            </button>
+                                                    </button>
                                             <button class="action-btn cancel-btn" 
-                                                v-if="editingCoupon && editingCoupon.id === coupon.id"
-                                                @click.prevent="cancelEdit">
+                                                        v-if="editingCoupon && editingCoupon.id === coupon.id"
+                                                        @click.prevent="cancelEdit">
                                                 <i class="fa fa-times"></i>
-                                            </button>
+                                                    </button>
                                             <button class="action-btn edit-btn" v-else
-                                                @click.prevent="enableEditMode(coupon)">
+                                                        @click.prevent="enableEditMode(coupon)">
                                                 <i class="fa fa-pencil"></i>
-                                            </button>
+                                                    </button>
                                             <button class="action-btn delete-btn"
-                                                @click.prevent="deleteCoupon(coupon.id, index)">
+                                                        @click.prevent="deleteCoupon(coupon.id, index)">
                                                 <i class="fa fa-trash"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    
+                                                    </button>
+                                                </div>
+                                            </div>
+
                                     <!-- Card Body -->
                                     <div class="coupon-card-body">
                                         <div class="coupon-content">
@@ -1931,25 +1931,25 @@ export default {
                                             <div class="coupon-main-info">
                                                 <div class="coupon-qr">
                                                     <img :src="coupon.qrFileUrl" alt="logo" class="qr-image">
-                                                </div>
-                                                
+                                            </div>
+
                                                 <div class="coupon-basic-info">
                                                     <!-- Add expiration date badge -->
                                                     <div class="expiration-badge" :class="isExpiringSoon(coupon.expiration) ? 'expiring-soon' : ''">
                                                         <i class="fa fa-calendar me-1"></i>
                                                         {{ formatDate(coupon.expiration) }}
-                                                    </div>
-                                                    
-                                                    <!-- Coupon Code -->
+                                            </div>
+
+                                            <!-- Coupon Code -->
                                                     <div class="info-item">
                                                         <span class="info-label">Código:</span>
                                                         <span class="info-value code-value">
-                                                            <template v-if="editingCoupon && editingCoupon.id === coupon.id">
+                                                <template v-if="editingCoupon && editingCoupon.id === coupon.id">
                                                                 <input v-model="editingCoupon.couponCode" class="form-control" @click.stop />
-                                                            </template>
-                                                            <template v-else>
-                                                                {{ coupon.couponCode }}
-                                                            </template>
+                                                </template>
+                                                <template v-else>
+                                                    {{ coupon.couponCode }}
+                                                </template>
                                                         </span>
                                                     </div>
                                                     
@@ -1960,19 +1960,19 @@ export default {
                                                                 <select v-model="editingCoupon.type" class="form-select form-select-sm" @click.stop>
                                                                     <option value="saldo">Saldo ($)</option>
                                                                     <option value="porcentaje">Porcentaje (%)</option>
-                                                                </select>
-                                                            </template>
-                                                            <template v-else>
+                                                                    </select>
+                                                                </template>
+                                                                <template v-else>
                                                                 {{ coupon.type === 'saldo' ? 'Saldo:' : 'Porcentaje:' }}
-                                                            </template>
+                                                                </template>
                                                         </span>
                                                         <span class="info-value value-highlight">
                                                             <template v-if="editingCoupon && editingCoupon.id === coupon.id">
                                                                 <input v-model="editingCoupon.balance" class="form-control" @click.stop />
-                                                            </template>
-                                                            <template v-else>
+                                                                </template>
+                                                                <template v-else>
                                                                 {{ coupon.type === 'saldo' ? '$' : '%' }}{{ coupon.balance }}
-                                                            </template>
+                                                                </template>
                                                         </span>
                                                     </div>
                                                     
@@ -2000,7 +2000,7 @@ export default {
                                                 
                                                 <div class="accordion-content" :class="{ 'open': accordionOpen[`coupon_${coupon.id}`] }">
                                                     <div class="details-grid">
-                                                        <!-- Redeem Count -->
+                                                            <!-- Redeem Count -->
                                                         <div class="detail-item">
                                                             <span class="detail-label">Número de usos:</span>
                                                             <span class="detail-value ms-2">
@@ -2048,13 +2048,13 @@ export default {
                                                             <span class="detail-label">Estado:</span>
                                                             <span class="detail-value ms-2">
                                                                 <template v-if="editingCoupon && editingCoupon.id === coupon.id">
-                                                                    <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox" 
+                                                                <div class="form-check form-switch">
+                                                                    <input class="form-check-input" type="checkbox"
                                                                         v-bind:id="'coupon' + coupon.id"
                                                                         v-model="coupon.status"
                                                                         @change="updateCouponStatus(coupon)"
                                                                         @click.stop>
-                                                                    </div>
+                                                                </div>
                                                                 </template>
                                                                 <template v-else>
                                                                     <span class="badge" :class="coupon.status ? 'bg-success' : 'bg-danger'">
@@ -2062,14 +2062,14 @@ export default {
                                                                     </span>
                                                                 </template>
                                                             </span>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
                                         </div>
                                     </div>
                                 </div>
-    
+
                                 <!-- Pagination Controls -->
                                 <nav class="mt-4" v-if="totalPages > 1" aria-label="Page navigation">
                                     <ul class="pagination justify-content-center">
@@ -2109,18 +2109,18 @@ export default {
                                     <h6 class="section-title">Información básica</h6>
                                     <div class="form-row">
                                         <div class="form-group">
-                                            <label for="couponName" class="form-label">Nombre</label>
-                                            <div class="input-group">
-                                                <input type="text" class="form-control" id="couponName" v-model="couponName">
-                                            </div>
-                                        </div>
+                                <label for="couponName" class="form-label">Nombre</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="couponName" v-model="couponName">
+                                </div>
+                            </div>
                                         
                                         <div class="form-group">
-                                            <label for="couponCode" class="form-label">Código</label>
-                                            <div class="input-group">
+                                <label for="couponCode" class="form-label">Código</label>
+                                <div class="input-group">
                                                 <input type="text" class="form-control" id="couponCode" v-model="formattedCouponCode">
-                                            </div>
-                                        </div>
+                                </div>
+                            </div>
                                     </div>
                                 </div>
 
@@ -2133,18 +2133,18 @@ export default {
                                             <select v-model="couponType" class="form-select text-white">
                                                 <option class="text-white" value="saldo">Saldo ($)</option>
                                                 <option class="text-white" value="porcentaje">Porcentaje (%)</option>
-                                            </select>
-                                        </div>
+                                </select>
+                            </div>
                                         
                                         <div class="form-group">
-                                            <label for="couponAmount" class="form-label">
+                                <label for="couponAmount" class="form-label">
                                                 {{ couponType === 'saldo' ? 'Monto' : 'Porcentaje' }}
-                                            </label>
-                                            <div class="input-group">
+                                </label>
+                                <div class="input-group">
                                                 <span class="input-group-text">{{ couponType === 'saldo' ? '$' : '%' }}</span>
-                                                <input type="number" class="form-control" id="couponAmount" v-model="couponAmount">
-                                            </div>
-                                        </div>
+                                    <input type="number" class="form-control" id="couponAmount" v-model="couponAmount">
+                                </div>
+                            </div>
                                     </div>
                                 </div>
 
@@ -2154,32 +2154,32 @@ export default {
                                     <div class="form-row">
                                         <div class="form-group">
                                             <label for="redeemCount" class="form-label">Límite de usos</label>
-                                            <div class="input-group">
-                                                <input type="number" class="form-control" id="redeemCount" v-model="redeemCount">
-                                            </div>
-                                        </div>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="redeemCount" v-model="redeemCount">
+                                </div>
+                            </div>
                                         
                                         <div class="form-group">
-                                            <label for="couponExp" class="form-label">Fecha de expiración</label>
-                                            <input type="date" v-model="couponExp" class="form-control" />
-                                        </div>
-                                    </div>
+                                <label for="couponExp" class="form-label">Fecha de expiración</label>
+                                    <input type="date" v-model="couponExp" class="form-control" />
+                                </div>
+                            </div>
                                     
                                     <div class="form-check mt-3">
                                         <input type="checkbox" class="form-check-input" id="storeCheckbox" v-model="onlyInStore">
                                         <label class="form-check-label text-black" for="storeCheckbox">Cupón pagable</label>
-                                    </div>
-                                </div>
+                            </div>
+                        </div>
 
                                 <!-- Image Section -->
                                 <div class="form-section">
                                     <h6 class="section-title">Imagen</h6>
                                     <div class="qr-upload-container">
-                                        <input type="file" id="qrFile" class="form-control" @change="handleFileUpload">
+                        <input type="file" id="qrFile" class="form-control" @change="handleFileUpload">
                                         <div v-if="qrPreview" class="qr-preview mt-3">
                                             <img :src="qrPreview" alt="Vista previa QR">
-                                        </div>
-                                    </div>
+                        </div>
+                        </div>
                                 </div>
                             </div>
 
@@ -2187,12 +2187,12 @@ export default {
                             <div class="form-actions mt-4">
                                 <button v-if="!assignTheCoupon" @click="createCoupon" :disabled="!isFormValid" class="btn btn-theme">
                                     <i class="fa fa-plus-circle me-2"></i>Crear cupón
-                                </button>
-                                
+                                            </button>
+
                                 <div class="form-check mt-3">
                                     <input type="checkbox" class="form-check-input" id="assignCheckbox" v-model="assignTheCoupon">
                                     <label class="form-check-label" for="assignCheckbox">Asignar cupón al crearlo</label>
-                                </div>
+                                        </div>
                             </div>
 
                             <!-- Client Selection Section -->
@@ -2203,8 +2203,8 @@ export default {
                                         <span class="badge bg-theme rounded-pill">
                                             {{ selectedClients.length }}
                                         </span>
-                                    </div>
-                                </div>
+                                                        </div>
+                                                        </div>
 
                                 <!-- Search Input -->
                                 <SearchInput 
@@ -2224,7 +2224,7 @@ export default {
                                             <i class="fa fa-times-circle me-2"></i>
                                             <span>Limpiar selección</span>
                                         </button>
-                                    </div>
+                                                    </div>
 
                                     <div class="selected-clients-list">
                                         <div v-for="clientId in selectedClients" 
@@ -2234,15 +2234,15 @@ export default {
                                             <div class="client-info">
                                                 <span class="client-name">{{ getClientFullName(clientId) }}</span>
                                                 <span class="client-id">V-{{ getClientIdentification(clientId) }}</span>
-                                            </div>
+                                                </div>
                                             <button @click="deselectClient(clientId)" 
                                                 class="btn btn-icon btn-outline-danger btn-sm"
                                             >
                                                 <i class="fa fa-trash"></i>
                                             </button>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
 
                                 <!-- Action Button -->
                                 <button v-if="selectedClients.length > 0" 
@@ -2252,8 +2252,8 @@ export default {
                                 >
                                     <i class="fa fa-share me-2"></i>Crear y asignar
                                 </button>
+                                </div>
                             </div>
-                        </div>
                     </div>
 
                     <!-- Option 3 = Manage Coupon payments -->
@@ -2363,7 +2363,7 @@ export default {
                                                         </a>
                                                     </li>
                                                 </ul>
-                                            </div>
+                        </div>
 
                                             <!-- Date Filter Toggle -->
                                             <label class="form-label">Por fecha</label>
@@ -2372,29 +2372,29 @@ export default {
                                                 <div class="form-check form-switch">
                                                     <input class="form-check-input" type="checkbox" 
                                                         id="flexSwitchCheckDefault" v-model="filterByDate">
-                                                </div>
-                                            </div>
-                                        </div>
+                        </div>
+                        </div>
+                        </div>
                                     </div>
-                                </div>
+                        </div>
 
                                 <!-- Date Range Picker -->
                                 <div v-if="filterByDate" class="date-range-section mt-3">
                                     <div class="date-range-container">
                                         <div class="date-input">
                                             <label class="form-label">Fecha inicial</label>
-                                            <input type="date" v-model="startDate" class="form-control" />
-                                        </div>
+                                    <input type="date" v-model="startDate" class="form-control" />
+                                </div>
                                         <div class="date-input">
                                             <label class="form-label">Fecha final</label>
-                                            <input type="date" v-model="endDate" class="form-control" />
-                                        </div>
+                                    <input type="date" v-model="endDate" class="form-control" />
+                                </div>
                                         <button type="button" class="btn btn-outline-theme" @click="clearDateFilter">
                                             <i class="fa fa-times-circle me-2"></i>Limpiar filtro
-                                        </button>
+                                </button>
                                     </div>
-                                </div>
                             </div>
+                        </div>
 
                             <!-- Coupons Grid -->
                             <div class="coupon-cards-container mt-4">
@@ -2403,11 +2403,11 @@ export default {
                                         <h6 class="mb-0 text-black">{{ coupon.name.toUpperCase() }}</h6>
                                         <div class="status-badges">
                                             <span class="badge" :class="coupon.status ? 'bg-success' : 'bg-danger'">
-                                                {{ coupon.status ? 'Activo' : 'Expirado' }}
-                                            </span>
+                                            {{ coupon.status ? 'Activo' : 'Expirado' }}
+                                        </span>
                                             <span class="badge ms-2" :class="coupon.isPaid ? 'bg-success' : 'bg-danger'">
-                                                {{ coupon.isPaid ? 'Pagado' : 'Sin pagar' }}
-                                            </span>
+                                            {{ coupon.isPaid ? 'Pagado' : 'Sin pagar' }}
+                                        </span>
                                         </div>
                                     </div>
 
@@ -2415,13 +2415,13 @@ export default {
                                         <div class="coupon-image">
                                             <img :src="coupon.qrFileUrl" alt="logo">
                                         </div>
-                                        
+
                                         <div class="coupon-details">
                                             <div class="detail-item">
                                                 <span class="detail-label">Código:</span>
                                                 <span class="detail-value">{{ coupon.couponCode }}</span>
-                                            </div>
-                                            
+                                        </div>
+
                                             <div class="accordion-section">
                                                 <div class="accordion-header" @click="toggleAccordion(coupon.id)">
                                                     <span>Detalles adicionales</span>
@@ -2456,11 +2456,13 @@ export default {
                                                         
                                                         <div class="detail-item">
                                                             <span class="detail-label">Pagado al comercio:</span>
-                                                            <div class="form-check form-switch">
-                                                                <input class="form-check-input" type="checkbox"
+                                                                    <div class="form-check form-switch">
+                                                                        <input class="form-check-input" type="checkbox"
                                                                     v-bind:id="'couponPaid' + coupon.id"
-                                                                    v-model="coupon.isPaid"
-                                                                    @change="updateCouponIsPaid(coupon)">
+                                                                            v-model="coupon.isPaid"
+                                                                            @change="updateCouponIsPaid(coupon)">
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -2468,8 +2470,6 @@ export default {
                                             </div>
                                         </div>
                                     </div>
-                                </div>                                
-                            </div>
                             <div v-if="!filteredCoupons ||filteredCoupons.length === 0" class="d-flex justify-content-center align-items-center min-vh-50">
                                 <div class="text-center">
                                     <div class="mb-3">
