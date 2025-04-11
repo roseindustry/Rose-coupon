@@ -877,12 +877,10 @@ export default {
   </div>
 </template>
 <style>
+.btn-outline-theme,
 .btn-theme {
   background-color: purple;
   border-color: purple;
-}
-.btn-outline-theme,
-.btn-theme {
   border-radius: 20px;
   font-size: 0.85rem;
   padding: 0.375rem 0.75rem;

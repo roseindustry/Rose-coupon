@@ -333,7 +333,7 @@ export default {
           case "affiliateNoSubscriptions":
             return Math.ceil(
               this.allFilteredAffiliatesNoSubscriptions.length /
-                this.itemsPerPage
+              this.itemsPerPage
             );
           default:
             return 0;
@@ -726,49 +726,49 @@ export default {
     async notifyPayment(plan) {
       if (confirm("¿Seguro que desea subir el pago?")) {
         if (!plan.paymentFile) {
-        this.errorMessage = "El archivo es requerido.";
-        return;
-      }
-
-      try {
-        this.isSubmitting = true;
-        const userId = this.userId;
-        let user;
-        let userType = "";
-        let userName = "";
-
-        const currentUserRef = dbRef(db, `Users/${userId}`);
-        const userSnapshot = await get(currentUserRef);
-        user = userSnapshot.exists() ? userSnapshot.val() : null;
-
-        // Calculate payDay (one month from today)
-        const payDay = moment().add(1, "month").toISOString();
-
-        // Prepare subscription details
-        const subscriptionData = {
-            subscription_id: plan.planId,
-          status: false, // Set the default status as false 'Inactive' until payment approval
-          payDay: payDay,
-          isPaid: false, // Set the default as unpaid
-          paymentUploaded: true,
-            lastPaymentDate: plan.paymentDate,
-        };
-
-        if (this.role === "cliente") {
-          userType = "cliente";
-          userName = `${user.firstName} ${user.lastName}`; // Full name for clients
-        } else if (this.role === "afiliado") {
-          userType = "afiliado";
-          userName = user.companyName; // Use companyName for affiliates
+          this.errorMessage = "El archivo es requerido.";
+          return;
         }
 
-        // Upload capture
-        const paymentUrl = await this.uploadPaymentFile(
+        try {
+          this.isSubmitting = true;
+          const userId = this.userId;
+          let user;
+          let userType = "";
+          let userName = "";
+
+          const currentUserRef = dbRef(db, `Users/${userId}`);
+          const userSnapshot = await get(currentUserRef);
+          user = userSnapshot.exists() ? userSnapshot.val() : null;
+
+          // Calculate payDay (one month from today)
+          const payDay = moment().add(1, "month").toISOString();
+
+          // Prepare subscription details
+          const subscriptionData = {
+            subscription_id: plan.planId,
+            status: false, // Set the default status as false 'Inactive' until payment approval
+            payDay: payDay,
+            isPaid: false, // Set the default as unpaid
+            paymentUploaded: true,
+            lastPaymentDate: plan.paymentDate,
+          };
+
+          if (this.role === "cliente") {
+            userType = "cliente";
+            userName = `${user.firstName} ${user.lastName}`; // Full name for clients
+          } else if (this.role === "afiliado") {
+            userType = "afiliado";
+            userName = user.companyName; // Use companyName for affiliates
+          }
+
+          // Upload capture
+          const paymentUrl = await this.uploadPaymentFile(
             plan.paymentFile,
             plan.paymentDate.split("T")[0],
-          userType
-        );
-        console.log("File uploaded successfully:", paymentUrl);
+            userType
+          );
+          console.log("File uploaded successfully:", paymentUrl);
 
           const paymentDetails = {
             subscription_id: plan.planId,
@@ -780,67 +780,67 @@ export default {
             type: "subscription",
           };
 
-        // Save the payment to the payments collection
-        const paymentRef = dbRef(
-          db,
+          // Save the payment to the payments collection
+          const paymentRef = dbRef(
+            db,
             `Payments/${userId}-${plan.paymentDate.split("T")[0]}`
-        );
-        await set(paymentRef, paymentDetails);
+          );
+          await set(paymentRef, paymentDetails);
 
-        // Update user collection
-        const userRef = dbRef(db, `Users/${userId}/subscription`);
-        await update(userRef, subscriptionData);
+          // Update user collection
+          const userRef = dbRef(db, `Users/${userId}/subscription`);
+          await update(userRef, subscriptionData);
 
-        // Notify client
-        const appUrl = "https://app.rosecoupon.com";
-        const userEmailPayload = {
-          to: user.email,
-          message: {
+          // Notify client
+          const appUrl = "https://app.rosecoupon.com";
+          const userEmailPayload = {
+            to: user.email,
+            message: {
               subject: `Suscripción ${plan.planName.toUpperCase()} activada`,
               text: `Hola ${userName}, se le ha activado la Suscripción ${plan.planName.toUpperCase()} in Roseapp.
                         Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}`,
               html: `<p>Hola ${userName}, se le ha activado la Suscripción ${plan.planName} in Roseapp.</p>
                         <p>Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}</p>`,
-          },
-        };
-        await this.sendNotificationEmail(userEmailPayload);
+            },
+          };
+          await this.sendNotificationEmail(userEmailPayload);
 
-        // Notify Admin
-        const adminEmailPayload = {
-          to: "roseindustry11@gmail.com",
-          message: {
+          // Notify Admin
+          const adminEmailPayload = {
+            to: "roseindustry11@gmail.com",
+            message: {
               subject: `Usuario ${this.role.toUpperCase()} se ha suscrito al Plan ${plan.planName.toUpperCase()}`,
               text: `El ${this.role.toUpperCase()}, ${userName}, se ha suscrito al plan ${plan.planName.toUpperCase()}.`,
               html: `<p>El ${this.role.toUpperCase()}, ${userName}, se ha suscrito al plan ${plan.planName.toUpperCase()}.</p>`,
-          },
-        };
-        await this.sendNotificationEmail(adminEmailPayload);
+            },
+          };
+          await this.sendNotificationEmail(adminEmailPayload);
 
-        //Success toast
-        showToast("Archivo subido!", "success");
+          //Success toast
+          showToast("Archivo subido!", "success");
 
-        //reset the image previews
-        this.paymentPreview = null;
+          //reset the image previews
+          this.paymentPreview = null;
 
-        // Hide the modal after submission
-        const paymentModal = Modal.getOrCreateInstance(
-          document.getElementById("notifyPaymentModal")
-        );
-        paymentModal.hide();
+          // Hide the modal after submission
+          const paymentModal = Modal.getOrCreateInstance(
+            document.getElementById("notifyPaymentModal")
+          );
+          paymentModal.hide();
 
-        // Redirect to Dashboard
-        if (this.role === "cliente") {
-          this.$router.push("/client-portal");
-        } else if (this.role === "afiliado") {
-          this.$router.push("/affiliate-portal");
-        }
-      } catch (error) {
-        console.error("Error during uploading:", error);
-        this.errorMessage =
-          "Error al subir el archivo, por favor intente nuevamente.";
-      } finally {
-        // Hide the loader
-        this.isSubmitting = false;
+          // Redirect to Dashboard
+          if (this.role === "cliente") {
+            this.$router.push("/client-portal");
+          } else if (this.role === "afiliado") {
+            this.$router.push("/affiliate-portal");
+          }
+        } catch (error) {
+          console.error("Error during uploading:", error);
+          this.errorMessage =
+            "Error al subir el archivo, por favor intente nuevamente.";
+        } finally {
+          // Hide the loader
+          this.isSubmitting = false;
         }
       }
     },
@@ -861,8 +861,8 @@ export default {
     handleFileUpload(file) {
       if (!file) return;
 
-        this.paymentFile = file;
-        this.paymentPreview = URL.createObjectURL(file);
+      this.paymentFile = file;
+      this.paymentPreview = URL.createObjectURL(file);
     },
     clearDateFilter() {
       this.filterDate = null;
@@ -1002,83 +1002,49 @@ export default {
 };
 </script>
 <template>
-    <!-- Page Header -->
+  <!-- Page Header -->
   <header class="page-header responsive-margin">
-      <div class="container">
+    <div class="container">
       <div class="header-content">
         <div class="header-title">
           <h4 class="mb-0 fw-bold text-theme">
             <i class="fa-solid fa-handshake me-2"></i>
-              Suscripciones
+            Suscripciones
           </h4>
-          </div>
-          <!-- Exchange Rate Button - Only for Admin -->
+        </div>
+        <!-- Exchange Rate Button - Only for Admin -->
         <div v-if="role === 'admin'" class="header-actions">
-            <button
-            class="btn btn-glass"
-              data-bs-toggle="modal"
-              data-bs-target="#setExchange"
-            >
+          <button class="btn btn-glass" data-bs-toggle="modal" data-bs-target="#setExchange">
             <i class="fa-solid fa-money-bill-transfer me-2"></i>
-              Tasa de cambio
+            Tasa de cambio
             <span class="exchange-badge" v-if="exchange">
               {{ exchange }}$
             </span>
-            </button>
-          </div>
+          </button>
         </div>
       </div>
-    </header>
+    </div>
+  </header>
 
   <div class="subscriptions-view">
-      <!-- Admin View -->
-      <AdminSubscriptionsView
-        v-if="role === 'admin'"
-        :loading="loading"
-        :plans="plans"
-        :affiliate-plans="affiliatePlans"
-        :clients="clients"
-        :affiliates="affiliates"
-        :filtered-clients-subscriptions="filteredClientsSubscriptions"
-        :all-filtered-clients-subscriptions="allFilteredClientsSubscriptions"
-        :filtered-clients-no-subscriptions="filteredClientsNoSubscriptions"
-        :all-filtered-clients-no-subscriptions="
-          allFilteredClientsNoSubscriptions
-        "
-        :filtered-affiliates-subscriptions="filteredAffiliatesSubscriptions"
-        :all-filtered-affiliates-subscriptions="
-          allFilteredAffiliatesSubscriptions
-        "
-        :filtered-affiliates-no-subscriptions="
-          filteredAffiliatesNoSubscriptions
-        "
-        :all-filtered-affiliates-no-subscriptions="
-          allFilteredAffiliatesNoSubscriptions
-        "
-        :current-page="currentPage"
-        @tab-changed="setActiveTab"
-        @search-changed="handleSearchChange"
-        @date-filter-changed="handleDateFilterChange"
-        @date-filter-cleared="clearDateFilter"
-        @page-changed="handlePageChange"
-        @plans-updated="fetchPlans"
-        @exchange-updated="handleExchangeUpdated"
-      />
+    <!-- Admin View -->
+    <AdminSubscriptionsView v-if="role === 'admin'" :loading="loading" :plans="plans" :affiliate-plans="affiliatePlans"
+      :clients="clients" :affiliates="affiliates" :filtered-clients-subscriptions="filteredClientsSubscriptions"
+      :all-filtered-clients-subscriptions="allFilteredClientsSubscriptions"
+      :filtered-clients-no-subscriptions="filteredClientsNoSubscriptions" :all-filtered-clients-no-subscriptions="allFilteredClientsNoSubscriptions
+        " :filtered-affiliates-subscriptions="filteredAffiliatesSubscriptions" :all-filtered-affiliates-subscriptions="allFilteredAffiliatesSubscriptions
+          " :filtered-affiliates-no-subscriptions="filteredAffiliatesNoSubscriptions
+            " :all-filtered-affiliates-no-subscriptions="allFilteredAffiliatesNoSubscriptions
+              " :current-page="currentPage" @tab-changed="setActiveTab" @search-changed="handleSearchChange"
+      @date-filter-changed="handleDateFilterChange" @date-filter-cleared="clearDateFilter"
+      @page-changed="handlePageChange" @plans-updated="fetchPlans" @exchange-updated="handleExchangeUpdated" />
 
-      <!-- Client/Affiliate View -->
-      <UserSubscriptionsView
-        v-else
-        :loading="loadingPlans"
-        :plans="sortedPlans"
-        :current-sub="currentSub"
-        :user-type="role || 'cliente'"
-        :exchange="exchange"
-        @contract-plan="contractPlan"
-        @payment-submitted="notifyPayment"
-        @file-uploaded="handleFileUpload"
-      />
-    
-                </div>
+    <!-- Client/Affiliate View -->
+    <UserSubscriptionsView v-else :loading="loadingPlans" :plans="sortedPlans" :current-sub="currentSub"
+      :user-type="role || 'cliente'" :exchange="exchange" @contract-plan="contractPlan"
+      @payment-submitted="notifyPayment" @file-uploaded="handleFileUpload" />
+
+  </div>
 
   <!-- Add this somewhere in your template -->
   <ExchangeRateModal @exchange-updated="fetchExchangeRate" />
@@ -1188,73 +1154,76 @@ export default {
 }
 
 /* Button Styles */
-.btn-outline-theme, .btn-theme {
-    border-radius: 20px;
-    font-size: 0.85rem;
-    padding: 0.375rem 0.75rem;
-    transition: all 0.2s ease;
+.btn-outline-theme,
+.btn-theme {
+  border-radius: 20px;
+  font-size: 0.85rem;
+  padding: 0.375rem 0.75rem;
+  transition: all 0.2s ease;
 }
 
 .btn-outline-theme {
-    border-color: purple;
-    color: purple;
+  border-color: purple;
+  color: purple;
 }
 
 .btn-outline-theme:hover {
-    background-color: purple;
-    color: white;
-    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+  background-color: purple;
+  color: white;
+  box-shadow: 0 2px 5px rgba(128, 0, 128, 0.3);
 }
 
 .btn-theme {
-    background-color: purple;
-    border-color: purple;
+  background-color: purple;
+  border-color: purple;
   color: white;
 }
 
 .btn-theme:hover {
-    background-color: #8a2be2;
-    border-color: #8a2be2;
-    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
+  background-color: #8a2be2;
+  border-color: #8a2be2;
+  box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
 }
 
 .btn-group .btn {
-        flex: 1;
-        font-size: 0.875rem;
-        padding: 0.375rem 0.5rem;
+  flex: 1;
+  font-size: 0.875rem;
+  padding: 0.375rem 0.5rem;
 }
+
 /* Filter dropdown styling */
 .dropdown-menu {
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border: 1px solid #e9ecef;
-    padding: 8px 0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e9ecef;
+  padding: 8px 0;
 }
 
 .dropdown-header {
-    color: #6c757d;
-    font-weight: 600;
-    padding: 8px 16px;
+  color: #6c757d;
+  font-weight: 600;
+  padding: 8px 16px;
 }
 
 .dropdown-item {
-    padding: 8px 16px;
-    color: #495057;
-    transition: all 0.2s ease;
+  padding: 8px 16px;
+  color: #495057;
+  transition: all 0.2s ease;
 }
 
 .dropdown-item:hover {
-    background-color: #f8f0ff;
+  background-color: #f8f0ff;
 }
 
 .dropdown-item:active {
-    background-color: purple;
-    color: white;
+  background-color: purple;
+  color: white;
 }
 
 .dropdown-divider {
-    margin: 4px 0;
+  margin: 4px 0;
 }
+
 /* Card Styles */
 .card {
   background-color: #2d2d2d;
@@ -1471,12 +1440,14 @@ export default {
 }
 
 .responsive-margin {
-  margin-bottom: 1.5rem; /* Default margin for all screens */
+  margin-bottom: 1.5rem;
+  /* Default margin for all screens */
 }
 
 @media (min-width: 768px) {
   .responsive-margin {
-    margin-bottom: 1rem; /* 2rem = mb-4 in Bootstrap */
+    margin-bottom: 1rem;
+    /* 2rem = mb-4 in Bootstrap */
   }
 }
 
