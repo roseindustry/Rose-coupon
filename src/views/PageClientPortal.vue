@@ -272,7 +272,7 @@ export default defineComponent({
                     <!-- User Status Badges -->
                     <div class="badges-container">
                         <!-- Subscription Badge -->
-                <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
+                        <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
                             class="status-card subscription-card" @click="redirectToSubs(subscriptionPlan)">
                             <div class="status-icon subscription-icon">
                                 <i :class="subscriptionPlan.icon"></i>
@@ -685,10 +685,6 @@ export default defineComponent({
 @media (max-width: 576px) {
     .row-cols-1 {
         margin: 0 0.5rem;
-    }
-    
-    .card-content {
-        padding: 1rem;
     }
 }
 

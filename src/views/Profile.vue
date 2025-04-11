@@ -1534,9 +1534,8 @@ export default defineComponent({
                       Verificar
                     </button>
                     <template v-else>
-                      <span v-if="!editingEmail" class="input-group-text bg-success border-success text-light">
-                        <i class="fas fa-check-circle me-1"></i>
-                        Verificado
+                      <span v-if="!editingEmail" class="input-group-text bg-success border-secondary text-light">
+                        <i class="fas fa-check-circle"></i>
                       </span>
                       <button 
                         v-if="!editingEmail" 
@@ -1574,7 +1573,6 @@ export default defineComponent({
                       title="Guardar cambios"
                     >
                       <i class="fas fa-save me-1"></i>
-                      Guardar
                     </button>
                   </template>
                 </div>
@@ -1609,9 +1607,8 @@ export default defineComponent({
                       <span v-else>Verificar</span>
                     </button>
                     <template v-else>
-                      <span v-if="!editingPhone" class="input-group-text bg-success border-success text-light">
+                      <span v-if="!editingPhone" class="input-group-text bg-success border-secondary text-light">
                         <i class="fas fa-check-circle me-1"></i>
-                        Verificado
                       </span>
                       <button 
                         v-if="!editingPhone" 
@@ -1654,7 +1651,6 @@ export default defineComponent({
                       title="Guardar cambios"
                     >
                       <i class="fas fa-save me-1"></i>
-                      Guardar
                     </button>
                   </template>
                 </div>
@@ -1889,7 +1885,8 @@ export default defineComponent({
                     class="btn btn-theme-success"
                     @click="openImgModal"
                   >
-                    <i class="fas fa-receipt me-2"></i>Ver Comprobante
+                    <i class="fas fa-receipt me-2"></i>
+                    <span class="d-none d-sm-inline">Ver </span>Comprobante
                   </button>
                   <router-link to="/suscripciones" class="btn btn-theme-info">
                     <i class="fas fa-arrow-up me-2"></i>Cambiar Plan
@@ -2149,7 +2146,7 @@ export default defineComponent({
 .profile-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem;
+  
 }
 
 /* Remove scrollspy-related styles */
@@ -2387,7 +2384,7 @@ input[type="file"]::-webkit-file-upload-button {
 
 /* Social Media and Payment Details sections */
 .input-group-text {
-    min-width: 40px;
+    min-width: auto;
     justify-content: center;
 }
 
@@ -2440,7 +2437,7 @@ input[type="file"]::-webkit-file-upload-button {
 }
 
 .input-group .input-group-text {
-    min-width: 100px;
+    width: auto;
 }
 
 .input-group .form-control:disabled {
@@ -2477,7 +2474,6 @@ input[type="file"]::-webkit-file-upload-button {
     
     .input-group .btn-outline-warning,
     .input-group .input-group-text {
-        min-width: 90px;
         padding: 0.375rem 0.5rem;
         font-size: 0.875rem;
     }

@@ -13,16 +13,22 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
+        id: 'https://app.rosecoupon.com/',
         name: 'Rose Coupon - Ahorra y Compra con Facilidad',
         short_name: 'Rose Coupon',
         description: 'Rose Coupon es una aplicación que te permite ahorrar dinero y comprar con facilidad. Encuentra las mejores ofertas y promociones en tu área.',
         start_url: '/',
         lang: 'es',
-        scope: '/',
         display: 'standalone',
         orientation: 'portrait',
         background_color: '#ffffff',
-        theme_color: '#42b883',
+        theme_color: '#29122f',
+        categories: ['shopping', 'finance', 'coupons', 'deals', 'discount', 'cashback', 'rebates', 'savings', 'promotions', 'offers'],
+        prefer_related_applications: false,
+        iarc_rating_id: '13+',
+        launch_handler: {
+          client_mode: 'navigate-existing'
+        },
         icons: [
           {
             src: 'assets/img/icon/roseapp-icon.png',
@@ -32,6 +38,38 @@ export default defineConfig({
           {
             src: 'assets/img/icon/playstore.png',
             sizes: '512x512',
+            type: 'image/png'
+          }
+        ],
+        screenshots: [
+          {
+            src: 'assets/img/screenshots/portal-clientes.png',
+            sizes: '326x690',
+            type: 'image/png'
+          },
+          {
+            src: 'assets/img/screenshots/comercios-afiliados.png',
+            sizes: '326x690',
+            type: 'image/png'
+          },
+          {
+            src: 'assets/img/screenshots/cupones.png',
+            sizes: '326x690',
+            type: 'image/png'
+          },
+          {
+            src: 'assets/img/screenshots/preferencias.png',
+            sizes: '326x690',
+            type: 'image/png'
+          },
+          {
+            src: 'assets/img/screenshots/panel-credito.png',
+            sizes: '326x690',
+            type: 'image/png'
+          },
+          {
+            src: 'assets/img/screenshots/sistema-puntos.png',
+            sizes: '326x690',
             type: 'image/png'
           }
         ]

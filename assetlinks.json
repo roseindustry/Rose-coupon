@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.rosecoupon.app.twa",
+        "sha256_cert_fingerprints": ["07:D8:38:02:2E:FA:35:B4:93:46:0C:6E:68:39:94:FF:98:FB:51:23:00:A8:3A:25:52:D6:4B:B0:BB:0D:F8:72"]
+      }
+    }]

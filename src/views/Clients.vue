@@ -887,8 +887,8 @@ export default {
                 <button class="btn btn-theme btn-sm" @click="downloadClients()">
                 <i class="fa fa-download fa-fw me-1"></i> Exportar clientes
                 </button>
-        </div>
             </div>
+        </div>
 
         <div class="clients-wrapper">
             <div class="search-section p-3">
@@ -906,12 +906,9 @@ export default {
                         <div class="input-group">
                             <span class="input-group-text bg-dark border-secondary">
                                 <i class="fas fa-search text-light"></i>
-                                    </span>
-                            <input 
-                                v-model="searchQuery" 
-                                class="form-control form-control-sm bg-dark text-light border-secondary" 
-                                placeholder="Buscar por nombre o cédula..."
-                            >
+                            </span>
+                            <input v-model="searchQuery" class="form-control form-control-sm bg-dark text-light border-secondary" 
+                            placeholder="Buscar por nombre o cédula...">
                         </div>
                     </div>
                     <!-- Filter by verification -->
@@ -922,7 +919,7 @@ export default {
                             <option value="verified">Verificados ({{ verificationCounts.verified }})</option>
                             <option value="pending">Pendientes de verificación ({{ verificationCounts.pending }})</option>
                             <option value="unverified">No verificados ({{ verificationCounts.unverified }})</option>
-                                                </select>
+                        </select>
                     </div>                    
                 </div>
             </div>
@@ -933,9 +930,9 @@ export default {
                 <div v-if="loading" class="text-center py-5">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Cargando...</span>
-                                        </div>
+                    </div>
                     <p class="mt-2 text-secondary">Cargando lista de clientes...</p>
-                                    </div>
+                </div>
 
                 <!-- Empty State -->
                 <div v-else-if="paginatedFilteredUsers.length === 0" class="text-center py-5">
@@ -1242,7 +1239,7 @@ export default {
                             </div>
                         </div>
                         </div>
-                    </div>
+                </div>
 
                 <!-- Pagination -->
                 <nav v-if="totalPages > 1" class="mt-4 p-2" aria-label="Page navigation">
@@ -1258,8 +1255,8 @@ export default {
                             <button class="page-link" @click="goToPage(currentPage + 1)">Siguiente</button>
                             </li>
                         </ul>
-                    </nav>
-                </div>
+                </nav>
+            </div>
         </div>
 
         <!-- Modal for Adding New Client -->

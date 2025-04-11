@@ -56,8 +56,8 @@ export default {
 			if (!this.clientsModalData) return [];
 
 			// Create a copy of the data to filter
-			let filtered = Array.isArray(this.clientsModalData) 
-				? [...this.clientsModalData] 
+			let filtered = Array.isArray(this.clientsModalData)
+				? [...this.clientsModalData]
 				: [];
 
 			// Apply search filter if query exists
@@ -67,8 +67,8 @@ export default {
 					// Get all searchable fields
 					const fullName = `${client.firstName} ${client.lastName}`.toLowerCase();
 					const identification = String(client.identification || '').toLowerCase();
-					const subscriptionName = client.subscriptionName 
-						? client.subscriptionName.toLowerCase() 
+					const subscriptionName = client.subscriptionName
+						? client.subscriptionName.toLowerCase()
 						: '';
 					const email = (client.email || '').toLowerCase();
 
@@ -94,7 +94,7 @@ export default {
 				filtered = filtered.filter(client => {
 					const fullName = `${client.firstName} ${client.lastName}`.toLowerCase();
 					const identification = String(client.identification || '').toLowerCase();
-					
+
 					return fullName.includes(query) || identification.includes(query);
 				});
 			}
@@ -119,13 +119,13 @@ export default {
 		async sendNotificationEmail(emailPayload) {
 			try {
 				// Send email via the utility function
-                const result = await sendEmail(emailPayload);
+				const result = await sendEmail(emailPayload);
 
-                if (result.success) {
-                    console.log("Email sent successfully:", result.message);
-                } else {
-                    console.error("Failed to send email:", result.error);
-                }
+				if (result.success) {
+					console.log("Email sent successfully:", result.message);
+				} else {
+					console.error("Failed to send email:", result.error);
+				}
 			} catch (error) {
 				console.error('Error sending email:', error);
 			}
@@ -403,7 +403,7 @@ export default {
 				}
 
 				// Prepare update data
-				const updateData = { 
+				const updateData = {
 					isVerified: true,
 					verificationApprovedAt: new Date().toISOString()
 				};
@@ -434,24 +434,24 @@ export default {
 				};
 
 				// Send notification email
-				await sendEmail(emailPayload);				
+				await sendEmail(emailPayload);
 
 				// hide modal method
 				const modal = Modal.getInstance(document.getElementById('idImgModal'));
 				if (modal) {
-				modal.hide();
+					modal.hide();
 				}
 
 				// Success toast
 				showToast.success(`Verificación de ${client.firstName.charAt(0).toUpperCase() + client.firstName.slice(1)} ${client.lastName.charAt(0).toUpperCase() + client.lastName.slice(1)} aprobada.`);
-				
+
 				// Refresh the verification requests list
 				await this.fetchClients();
 				this.requestsModalData = this.clientsVerifyRequests.filter(client => client.requestedVerification === true && !client.isVerified);
 
 			} catch (error) {
 				console.error("Error approving verification:", error);
-				
+
 				// Detailed error handling
 				const errorMessage = error.message || 'Error desconocido al aprobar la verificación';
 				showToast.error(`No se pudo completar la verificación: ${errorMessage}`);
@@ -463,22 +463,22 @@ export default {
 			}
 		},
 		async rejectVerification(client) {
-				try {
-					this.isSubmitting = true;
+			try {
+				this.isSubmitting = true;
 				this.selectedClientId = client.uid;
 
 				// Update verification status in the database
-					const userRef = dbRef(db, `Users/${client.uid}`);
-					await update(userRef, {
-						requestedVerification: null,
+				const userRef = dbRef(db, `Users/${client.uid}`);
+				await update(userRef, {
+					requestedVerification: null,
 					// Don't change isVerified status if it was already verified
-					});
+				});
 
 				// Send an email notification to the client
-					const emailPayload = {
-						to: client.email,
-						message: {
-							subject: "Verificación Denegada",
+				const emailPayload = {
+					to: client.email,
+					message: {
+						subject: "Verificación Denegada",
 						text: `Hola ${client.firstName}, tu solicitud de verificación ha sido denegada. Por favor, intenta nuevamente con documentos más claros.`,
 					},
 				};
@@ -491,24 +491,24 @@ export default {
 				}
 
 				showToast.success('Verificación denegada.');
-				
+
 				// Refresh the verification requests list
 				await this.fetchClients();
 				this.clientsVerifyRequests = this.clients.filter(client => client.requestedVerification === true);
-				
+
 				// Update the modal data if it's open
 				if (this.requestsModalTitle === 'Solicitudes de Verificación') {
 					this.requestsModalData = this.clientsVerifyRequests;
 				}
-				} catch (error) {
+			} catch (error) {
 				console.error("Error rejecting verification:", error);
 				showToast.error('Error al denegar la verificación');
-				} finally {
-					this.isSubmitting = false;
+			} finally {
+				this.isSubmitting = false;
 				this.selectedClientId = null;
 			}
 		},
-		
+
 		showCouponRequest(client) {
 			if (!client.coupon_requests) {
 				console.error("No coupon requests found for this client");
@@ -829,11 +829,11 @@ export default {
 <template>
 	<div class="container">
 		<!-- Admin Dashboard -->
-	<div v-if="this.role === 'admin'">
+		<div v-if="this.role === 'admin'">
 			<!-- Header Section -->
 			<div class="dashboard-header mb-4">
-					<div class="row align-items-center">
-						<div class="col-md-8">
+				<div class="row align-items-center">
+					<div class="col-md-8">
 						<h2 class="fw-bold mb-0">Hola, {{ userName }} 🎉</h2>
 						<p class="text-muted small mb-0">Aquí está un resumen de tu App</p>
 					</div>
@@ -847,12 +847,12 @@ export default {
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-user"></i>
-							</div>
+						</div>
 						<h6 class="card-title text-white mb-2">Total de Clientes</h6>
 						<div class="mt-1">
 							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
 							<h4 v-else class="fw-bold mb-2">{{ clients.length || 0 }}</h4>
-							</div>
+						</div>
 						<div class="mt-2">
 							<router-link to="/clientes" class="btn btn-theme btn-sm">
 								Ir a clientes
@@ -860,13 +860,13 @@ export default {
 						</div>
 					</div>
 				</div>
-				
+
 				<!-- Clientes registrados el dia... -->
 				<div class="col-12 col-sm-6 col-lg-4">
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-user"></i>
-							</div>
+						</div>
 						<h6 class="card-title text-white mb-2">Clientes Registrados El Día</h6>
 						<div class="date-filter mb-3">
 							<input type="date" v-model="filterDate" class="form-control" @change="fetchDayClients" />
@@ -877,7 +877,7 @@ export default {
 						</div>
 					</div>
 				</div>
-				
+
 				<!-- Clientes verificados -->
 				<div class="col-12 col-sm-6 col-lg-4">
 					<div class="dashboard-card">
@@ -887,8 +887,8 @@ export default {
 						<h6 class="card-title text-white mb-2">Clientes Verificados</h6>
 						<div class="mt-1">
 							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
-							<!-- <h4 v-else class="fw-bold mb-2">{{ verifiedClients.length || 0 }}</h4> -->
-							<h4 v-else class="fw-bold mb-2">223</h4>
+							<h4 v-else class="fw-bold mb-2">{{ verifiedClients.length || 0 }}</h4>
+							<!-- <h4 v-else class="fw-bold mb-2">223</h4> -->
 						</div>
 						<div class="mt-2">
 							<router-link to="/clientes" class="btn btn-theme btn-sm">
@@ -896,14 +896,14 @@ export default {
 							</router-link>
 						</div>
 					</div>
-							</div>
+				</div>
 
 				<!-- Afiliados -->
 				<div class="col-12 col-sm-6 col-lg-4">
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-store"></i>
-							</div>
+						</div>
 						<h6 class="card-title text-white mb-2">Comercios Afiliados</h6>
 						<div class="mt-1">
 							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
@@ -913,16 +913,16 @@ export default {
 							<router-link to="/comercios-afiliados" class="btn btn-theme btn-sm">
 								Ir a comercios
 							</router-link>
+						</div>
 					</div>
 				</div>
-							</div>
-				
+
 				<!-- Cupones aplicados -->
 				<div class="col-12 col-sm-6 col-lg-4">
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-ticket-alt"></i>
-							</div>
+						</div>
 						<h6 class="card-title text-white mb-2">Cupones Aplicados</h6>
 						<div class="mt-1">
 							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
@@ -930,20 +930,21 @@ export default {
 						</div>
 					</div>
 				</div>
-				
+
 				<!-- Solicitudes de cupones -->
 				<div class="col-12 col-sm-6 col-lg-4">
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-bell"></i>
-							</div>
+						</div>
 						<h6 class="card-title text-white mb-2">Solicitudes de Cupones</h6>
 						<div class="mt-1">
 							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
 							<h4 v-else class="fw-bold mb-2">{{ clientsWithRequests.length || 0 }}</h4>
-							</div>
+						</div>
 						<div class="mt-2">
-							<a href="#" class="btn btn-theme btn-sm" @click.prevent="openRequestsModal('couponRequests')">
+							<a href="#" class="btn btn-theme btn-sm"
+								@click.prevent="openRequestsModal('couponRequests')">
 								Ver solicitudes
 							</a>
 						</div>
@@ -955,21 +956,22 @@ export default {
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-id-card"></i>
-							</div>
+						</div>
 						<h6 class="card-title text-white mb-2">Solicitudes de Verificación</h6>
 						<div class="mt-1">
 							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
 							<h4 v-else class="fw-bold mb-2">{{ clientsVerifyRequests.length || 0 }}</h4>
-							</div>
+						</div>
 						<div class="mt-2">
-							<a href="#" class="btn btn-theme btn-sm" @click.prevent="openRequestsModal('verificationRequests')">
+							<a href="#" class="btn btn-theme btn-sm"
+								@click.prevent="openRequestsModal('verificationRequests')">
 								Ver solicitudes
 							</a>
 						</div>
 					</div>
 				</div>
-							</div>
-							</div>
+			</div>
+		</div>
 
 		<!-- Mesero/Promotora Dashboard -->
 		<div v-if="this.role === 'mesero' || this.role === 'promotora'">
@@ -979,9 +981,9 @@ export default {
 					<div class="col-md-8">
 						<h2 class="fw-bold mb-0">Hola, {{ userName }} 🎉</h2>
 						<p class="text-muted small mb-0">Aquí está un resumen de tu actividad</p>
-						</div>
 					</div>
 				</div>
+			</div>
 
 			<!-- Stats Cards -->
 			<div class="row g-3">
@@ -990,11 +992,11 @@ export default {
 					<div class="dashboard-card">
 						<div class="icon-container">
 							<i class="fa fa-qrcode"></i>
-							</div>
+						</div>
 						<h6 class="card-title text-white mb-2">Tu código de Referido</h6>
 						<div class="mt-1">
 							<h4 class="fw-bold mb-2">{{ this.userDetails?.codigoReferido || 'N/A' }}</h4>
-							</div>
+						</div>
 						<div class="mt-2">
 							<h6 class="text-muted">Rol</h6>
 							<span class="badge bg-info px-3 py-2">
@@ -1003,7 +1005,7 @@ export default {
 						</div>
 					</div>
 				</div>
-				
+
 				<!-- Clientes Referidos -->
 				<div class="col-12 col-sm-6 col-lg-3">
 					<div class="dashboard-card">
@@ -1016,12 +1018,13 @@ export default {
 							<h4 v-else class="fw-bold mb-2">{{ this.referralClients.length || 0 }}</h4>
 						</div>
 						<div class="mt-2">
-							<a href="#" class="btn btn-theme btn-sm" @click.prevent="openClientsModal('referralClients')">
+							<a href="#" class="btn btn-theme btn-sm"
+								@click.prevent="openClientsModal('referralClients')">
 								Ver lista
 							</a>
 						</div>
-			</div>
-		</div>
+					</div>
+				</div>
 
 				<!-- Clientes Referidos el día -->
 				<div class="col-12 col-sm-6 col-lg-3">
@@ -1048,8 +1051,7 @@ export default {
 		</div>
 
 		<!-- Clients Modal -->
-		<div class="modal fade" id="clientsModal" tabindex="-1" aria-labelledby="clientsModalLabel"
-			aria-hidden="true">
+		<div class="modal fade" id="clientsModal" tabindex="-1" aria-labelledby="clientsModalLabel" aria-hidden="true">
 			<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
 				<div class="modal-content">
 					<div class="modal-header">
@@ -1073,7 +1075,7 @@ export default {
 											<i class="fa-solid fa-sort"></i>
 										</th>
 										<th scope="col">Suscripción</th>
-											<th scope="col">Acciones</th>
+										<th scope="col">Acciones</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -1081,7 +1083,8 @@ export default {
 										<td>{{ client.firstName + ' ' + client.lastName }}</td>
 										<td>{{ client.identification }}</td>
 										<td v-if="!this.assigningSubscription || selectedClientId !== client.id">
-											{{ client.subscription ? client.subscription.name.toUpperCase() : `Sin suscripcion` }}
+											{{ client.subscription ? client.subscription.name.toUpperCase() : `Sin
+											suscripcion` }}
 										</td>
 										<td v-else-if="selectedClientId === client.id">
 											<select v-model="subToAssign" class="form-control mb-2">
@@ -1119,12 +1122,14 @@ export default {
 		</div>
 
 		<!-- Requests Modal -->
-		<div class="modal fade" id="requestsModal" tabindex="-1" aria-labelledby="requestsModalLabel" aria-hidden="true">
+		<div class="modal fade" id="requestsModal" tabindex="-1" aria-labelledby="requestsModalLabel"
+			aria-hidden="true">
 			<div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
 				<div class="modal-content">
 					<div class="modal-header">
 						<h5 class="modal-title" id="requestsModalLabel">
-							<i class="fas" :class="requestsModalTitle.includes('Cupones') ? 'fa-ticket-alt' : 'fa-id-card'"></i>
+							<i class="fas"
+								:class="requestsModalTitle.includes('Cupones') ? 'fa-ticket-alt' : 'fa-id-card'"></i>
 							{{ requestsModalTitle }}
 						</h5>
 						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -1136,11 +1141,8 @@ export default {
 								<span class="input-group-text">
 									<i class="fas fa-search"></i>
 								</span>
-								<input type="text" 
-									class="form-control" 
-									v-model="searchQuery"
-									placeholder="Buscar por nombre o cédula..." 
-								/>
+								<input type="text" class="form-control" v-model="searchQuery"
+									placeholder="Buscar por nombre o cédula..." />
 							</div>
 						</div>
 
@@ -1159,32 +1161,34 @@ export default {
 									<tbody>
 										<template v-if="filteredRequestsData.length">
 											<tr v-for="client in filteredRequestsData" :key="client.uid">
-										<td>{{ client.firstName + ' ' + client.lastName }}</td>
-										<td>V-{{ client.identification }}</td>
-										<td>
+												<td>{{ client.firstName + ' ' + client.lastName }}</td>
+												<td>V-{{ client.identification }}</td>
+												<td>
 													<div class="d-flex gap-2">
 														<!-- Verification Actions -->
-											<template v-if="requestsModalTitle === 'Solicitudes de Verificación'">
+														<template
+															v-if="requestsModalTitle === 'Solicitudes de Verificación'">
 															<button class="btn btn-outline-info btn-sm"
-													@click.prevent="showIDfiles(client)">
+																@click.prevent="showIDfiles(client)">
 																<i class="fas fa-id-card me-1"></i>
 																Ver documentos
-												</button>
-											</template>
-														
+															</button>
+														</template>
+
 														<!-- Coupon Actions -->
-											<template v-else-if="requestsModalTitle === 'Solicitudes de Cupones'">
+														<template
+															v-else-if="requestsModalTitle === 'Solicitudes de Cupones'">
 															<button class="btn btn-outline-info btn-sm"
-													@click.prevent="showCouponRequest(client)">
+																@click.prevent="showCouponRequest(client)">
 																<i class="fas fa-search me-1"></i>
 																Ver solicitud
-												</button>
+															</button>
 															<button class="btn btn-outline-success btn-sm"
-													@click.prevent="assignCoupon(client)">
+																@click.prevent="assignCoupon(client)">
 																<i class="fas fa-check me-1"></i>
 																Asignar
-												</button>
-											</template>
+															</button>
+														</template>
 													</div>
 												</td>
 											</tr>
@@ -1195,14 +1199,14 @@ export default {
 													<i class="fas fa-inbox mb-3"></i>
 													<h6 class="mb-1">No hay solicitudes</h6>
 													<p class="text-muted mb-0">
-														{{ searchQuery ? 'No se encontraron resultados' : 'No hay solicitudes pendientes' }}
+														{{ searchQuery ? `No se encontraron resultados` : `No hay solicitudes pendientes` }}
 													</p>
 												</div>
-										</td>
-									</tr>
-								</tbody>
-							</table>
-						</div>
+											</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
 
 							<!-- Mobile Card View -->
 							<div class="d-md-none">
@@ -1214,19 +1218,21 @@ export default {
 													{{ client.firstName + ' ' + client.lastName }}
 												</h6>
 												<p class="card-subtitle mb-3">V-{{ client.identification }}</p>
-												
+
 												<div class="d-flex gap-2 justify-content-center">
 													<!-- Verification Actions -->
-													<template v-if="requestsModalTitle === 'Solicitudes de Verificación'">
+													<template
+														v-if="requestsModalTitle === 'Solicitudes de Verificación'">
 														<button class="btn btn-outline-info btn-sm"
 															@click.prevent="showIDfiles(client)">
 															<i class="fas fa-id-card"></i>
 															Ver
 														</button>
 													</template>
-													
+
 													<!-- Coupon Actions -->
-													<template v-else-if="requestsModalTitle === 'Solicitudes de Cupones'">
+													<template
+														v-else-if="requestsModalTitle === 'Solicitudes de Cupones'">
 														<button class="btn btn-outline-info btn-sm"
 															@click.prevent="showCouponRequest(client)">
 															<i class="fas fa-search"></i>
@@ -1238,16 +1244,16 @@ export default {
 															Asignar
 														</button>
 													</template>
-					</div>
-				</div>
-			</div>
-		</div>
+												</div>
+											</div>
+										</div>
+									</div>
 								</template>
 								<div v-else class="empty-state-mobile text-center py-4">
 									<i class="fas fa-inbox mb-3"></i>
 									<h6 class="mb-1">No hay solicitudes</h6>
 									<p class="text-muted mb-0">
-										{{ searchQuery ? 'No se encontraron resultados' : 'No hay solicitudes pendientes' }}
+										{{ searchQuery ? `No se encontraron resultados` : `No hay solicitudes pendientes` }}
 									</p>
 								</div>
 							</div>
@@ -1312,9 +1318,9 @@ export default {
 									aria-hidden="true"></span>
 								<span v-else>Denegar</span>
 							</button>
+						</div>
+					</div>
 				</div>
-			</div>
-		</div>
 			</div>
 		</div>
 
@@ -1379,34 +1385,35 @@ export default {
 </template>
 <style scoped>
 /* Keep existing button color */
-.btn-outline-theme, .btn-theme {
-    border-radius: 20px;
-    font-size: 0.85rem;
-    padding: 0.375rem 0.75rem;
-    transition: all 0.2s ease;
+.btn-outline-theme,
+.btn-theme {
+	border-radius: 20px;
+	font-size: 0.85rem;
+	padding: 0.375rem 0.75rem;
+	transition: all 0.2s ease;
 }
 
 .btn-outline-theme {
-    border-color: purple;
-    color: purple;
+	border-color: purple;
+	color: purple;
 }
 
 .btn-outline-theme:hover {
-    background-color: purple;
-    color: white;
-    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+	background-color: purple;
+	color: white;
+	box-shadow: 0 2px 5px rgba(128, 0, 128, 0.3);
 }
 
 .btn-theme {
-    background-color: purple;
-    border-color: purple;
-    color: white;
+	background-color: purple;
+	border-color: purple;
+	color: white;
 }
 
 .btn-theme:hover {
-    background-color: #8a2be2;
-    border-color: #8a2be2;
-    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
+	background-color: #8a2be2;
+	border-color: #8a2be2;
+	box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
 }
 
 /* Improved icon circle */
@@ -1429,7 +1436,7 @@ export default {
 .dashboard-header {
 	padding-bottom: 1rem;
 	margin-bottom: 1.5rem;
-	border-bottom: 1px solid rgba(0,0,0,0.1);
+	border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 /* Card styling improvements */
@@ -1488,8 +1495,8 @@ export default {
 
 .date-filter .form-control {
 	border-radius: 8px;
-	border: 1px solid rgba(0,0,0,0.1);
-	box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+	border: 1px solid rgba(0, 0, 0, 0.1);
+	box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
 }
 
 /* Modal styling */
@@ -1543,7 +1550,7 @@ export default {
 	color: #fff;
 }
 
-.table > :not(caption) > * > * {
+.table> :not(caption)>*>* {
 	background-color: transparent;
 	border-bottom-color: #333;
 }
@@ -1590,16 +1597,16 @@ export default {
 	.dashboard-card {
 		padding: 1rem;
 	}
-	
+
 	.dashboard-card .icon-container {
 		width: 36px;
 		height: 36px;
 	}
-	
+
 	.dashboard-card .icon-container i {
 		font-size: 0.875rem;
 	}
-	
+
 	.dashboard-card h4 {
 		font-size: 1.25rem;
 	}
@@ -1609,12 +1616,12 @@ export default {
 	.dashboard-card {
 		padding: 0.875rem;
 	}
-	
+
 	.dashboard-card .icon-container {
 		width: 32px;
 		height: 32px;
 	}
-	
+
 	.dashboard-card h6 {
 		font-size: 0.8125rem;
 	}
@@ -1643,59 +1650,63 @@ export default {
 }
 
 /* Empty state styles */
-.empty-state, .empty-state-mobile {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem 1rem;
+.empty-state,
+.empty-state-mobile {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 2rem 1rem;
 }
 
-.empty-state i, .empty-state-mobile i {
+.empty-state i,
+.empty-state-mobile i {
 	font-size: 2rem;
-    color: #666;
-    margin-bottom: 1rem;
+	color: #666;
+	margin-bottom: 1rem;
 }
 
-.empty-state h6, .empty-state-mobile h6 {
-    color: #fff;
-    font-size: 1rem;
-    margin-bottom: 0.5rem;
+.empty-state h6,
+.empty-state-mobile h6 {
+	color: #fff;
+	font-size: 1rem;
+	margin-bottom: 0.5rem;
 }
 
-.empty-state p, .empty-state-mobile p {
-    color: #888;
-    font-size: 0.875rem;
+.empty-state p,
+.empty-state-mobile p {
+	color: #888;
+	font-size: 0.875rem;
 }
 
 /* Mobile specific styles */
 .empty-state-mobile {
-    background-color: #2d2d2d;
-    border-radius: 8px;
-    margin: 0.5rem;
+	background-color: #2d2d2d;
+	border-radius: 8px;
+	margin: 0.5rem;
 }
 
 /* Table empty state specific */
 .table td.text-center .empty-state {
-    padding: 1.5rem;
+	padding: 1.5rem;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-    .empty-state-mobile {
-        padding: 1.5rem 1rem;
-    }
-    
-    .empty-state-mobile i {
-        font-size: 1.75rem;
-    }
-    
-    .empty-state-mobile h6 {
-        font-size: 0.9375rem;
-    }
-    
-    .empty-state-mobile p {
-        font-size: 0.8125rem;
-    }
+	.empty-state-mobile {
+		padding: 1.5rem 1rem;
+	}
+
+	.empty-state-mobile i {
+		font-size: 1.75rem;
+	}
+
+	.empty-state-mobile h6 {
+		font-size: 0.9375rem;
+	}
+
+	.empty-state-mobile p {
+		font-size: 0.8125rem;
+	}
 }
 </style>

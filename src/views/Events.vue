@@ -61,7 +61,9 @@ export default {
 			paymentPreview: null,
 			paymentDate: null,
 
-			clientTickets: []
+			clientTickets: [],
+
+			loading: false
 		}
 	},
 	methods: {
@@ -141,6 +143,8 @@ export default {
 			const eventsRef = dbRef(db, 'Events');
 
 			try {
+				this.loading = true;
+
 				const snapshot = await get(eventsRef);
 
 				if (snapshot.exists()) {
@@ -245,6 +249,8 @@ export default {
 				}
 			} catch (error) {
 				console.error('Error fetching events:', error);
+			} finally {
+				this.loading = false;
 			}
 		},
 		async fetchAffiliates() {
@@ -924,778 +930,782 @@ export default {
 }
 </script>
 <template>
-	<h2 class="mb-4 text-center text-uppercase fw-bold">
-		eventos
-	</h2>
+	<div class="container">
+		<!-- Header -->
+		<div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="mb-0 text-primary">
+                <i class="fa-solid fa-calendar-days me-2"></i>
+                Eventos
+            </h4>
+            <div v-if="this.role === 'admin'" class="d-flex gap-2">
+                <button class="btn btn-theme btn-sm" data-bs-toggle="modal" data-bs-target="#createEventModal" @click.prevent="fetchAffiliates(), getNextEventOrder()">
+                <i class="fa fa-plus-circle fa-fw me-1"></i> Crear Evento
+                </button>
+            </div>
+        </div>
 
-	<!-- Admin view -->
-	<div v-if="this.role === 'admin'" class="container">
-		<div class="d-flex justify-content-end align-items-center">
-			<a href="#" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#createEventModal"
-				style="margin: 14px;" @click.prevent="fetchAffiliates(), getNextEventOrder()">
-				<i class="fa fa-plus-circle fa-fw me-1"></i> Crear Evento
-			</a>
-		</div>
-
-		<div class="container-fluid">
-			<div class="row">
-				<!-- No Events Registered -->
-				<div v-if="events.length === 0" class="d-flex justify-content-center align-items-center"
-					style="height: 100vh;">
-					<div class="text-center">
-						<div class="mb-3 mt-n5">
-							<i class="fa-solid fa-pizza-slice text-body text-opacity-25" style="font-size: 5em"></i>
-						</div>
-						<h5>No hay Eventos registrados.</h5>
-					</div>
+		<!-- Admin view -->
+		<div v-if="this.role === 'admin'">
+			<!-- Loading State -->
+			<div v-if="loading" class="text-center py-5">
+				<div class="spinner-border text-primary" role="status">
+					<span class="visually-hidden">Cargando...</span>
 				</div>
+			</div>
 
-				<!-- Events Registered -->
-				<div v-else>
-					<!-- Loop through events and display them in cards -->
-					<div class="row">
-						<div v-for="(evento, index) in events" :key="evento.id" class="col-12 col-sm-6 col-md-4 mb-4">
-							<div class="card h-100 position-relative">
+			<!-- Empty State -->
+			<div v-else-if="events.length === 0" class="text-center py-5">
+				<div class="mb-3">
+					<i class="fa fa-calendar-days text-secondary opacity-25" style="font-size: 5em"></i>
+				</div>
+				<h5 class="text-secondary">No hay Eventos disponibles</h5>
+			</div>
 
-								<!-- Image Display -->
-								<div class="img-container position-relative">
-									<div v-if="!evento.isEditing" class="img"
-										:style="{ backgroundImage: 'url(' + evento.image + ')', backgroundSize: 'cover', backgroundPosition: 'center', height: '200px' }">
-									</div>
-									<div v-if="evento.isEditing">
-										<div v-if="evento.updatedImagePreview" class="mt-2">
-											<img :src="evento.updatedImagePreview" class="img-thumbnail" alt="preview"
-												style="max-height: 200px;">
+			<!-- Events list -->
+			<div v-else class="row">
+				<!-- Loop through events and display them in cards -->
+				<div class="row">
+							<div v-for="(evento, index) in events" :key="evento.id" class="col-12 col-sm-6 col-md-4 mb-4">
+								<div class="card h-100 position-relative">
+
+									<!-- Image Display -->
+									<div class="img-container position-relative">
+										<div v-if="!evento.isEditing" class="img"
+											:style="{ backgroundImage: 'url(' + evento.image + ')', backgroundSize: 'cover', backgroundPosition: 'center', height: '200px' }">
 										</div>
-										<input type="file" @change="event => previewUpdatedImage(event, evento)"
-											class="form-control" />
+										<div v-if="evento.isEditing">
+											<div v-if="evento.updatedImagePreview" class="mt-2">
+												<img :src="evento.updatedImagePreview" class="img-thumbnail" alt="preview"
+													style="max-height: 200px;">
+											</div>
+											<input type="file" @change="event => previewUpdatedImage(event, evento)"
+												class="form-control" />
+										</div>
+									</div>
+
+									<!-- Event Information -->
+									<div class="card-body d-flex flex-column">
+										<h5 class="card-title text-truncate">{{ evento.name }}</h5>
+										<p class="card-text"><strong>Fecha: </strong>{{ formatDate(evento.date) }}</p>
+										<p class="card-text"><strong>Tipo de Evento: </strong>{{
+											evento.type.charAt(0).toUpperCase() + evento.type.slice(1) }}</p>
+
+										<!-- Event's Affiliates -->
+										<div v-if="evento.type === 'Rifa' && evento.raffleAffiliate">
+											<p class="card-text"><strong>{{ evento.type === 'Rifa' ? `Comercio Afiliado:` :
+												`Comercios Afiliados` }}</strong></p>
+											<div class="row">
+												<div class="col mb-3">
+													<div class="affiliate-logo" style="max-width: 80px; margin: 0 auto;">
+														<!-- Affiliate Image -->
+														<div class="img-thumbnail p-1"
+															:style="{ backgroundImage: 'url(' + evento.raffleAffiliate.image + ')', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', height: '50px', width: '50px', borderRadius: '50%' }">
+														</div>
+														<!-- Affiliate Info -->
+														<div class="mt-2">
+															<h6 class="small">
+																<strong>{{ evento.raffleAffiliate.companyName }}</strong>
+															</h6>
+														</div>
+													</div>
+												</div>
+											</div>
+										</div>
+										<div v-else class="row">
+											<div v-for="affiliate in evento.affiliates" :key="affiliate.id"
+												class="col mb-3">
+												<div class="affiliate-logo" style="max-width: 80px; margin: 0 auto;">
+													<!-- Affiliate Image -->
+													<div v-if="affiliate.image" class="img-thumbnail p-1"
+														:style="{ backgroundImage: 'url(' + affiliate.image + ')', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', height: '50px', width: '50px', borderRadius: '50%' }">
+													</div>
+													<!-- Affiliate Info -->
+													<div class="mt-2">
+														<h6 class="small">
+															<strong>{{ affiliate.companyName }}</strong>
+														</h6>
+													</div>
+												</div>
+											</div>
+										</div>
+
+										<!-- Action Buttons -->
+										<div class="d-flex justify-content-end mt-2">
+											<button class="btn btn-sm btn-theme me-1" @click="openSoldTicketsModal(evento)">
+												<i class="fa-solid fa-list"></i> Tickets
+											</button>
+											<button class="btn btn-sm btn-outline-info me-1"
+												@click="editEvent(evento), fetchAffiliates()">
+												<i class="fa-solid fa-pencil"></i>
+											</button>
+											<button class="btn btn-sm btn-outline-danger"
+												@click="deleteEvent(evento.id, index)">
+												<i class="fa-solid fa-trash"></i>
+											</button>
+										</div>
+									</div>
+								</div>
+							</div>
+				</div>
+			</div>
+
+			<!-- Modal for creating new event -->
+			<div class="modal fade" id="createEventModal" tabindex="-1" aria-labelledby="createEventModalLabel"
+				aria-hidden="true">
+				<div class="modal-dialog modal-lg">
+					<div class="modal-content">
+						<div class="modal-header">
+							<h5 class="modal-title" id="createEventModalLabel">Crear Evento</h5>
+							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+						</div>
+						<div class="modal-body">
+							<div class="container">
+								<!-- Event Type -->
+								<div class="row justify-content-center mb-3">
+									<div class="col-12">
+										<label for="eventType" class="form-label">Tipo de Evento</label>
+										<div class="dropdown">
+											<button class="btn btn-secondary dropdown-toggle" type="button"
+												id="dropdownTypeButton" data-bs-toggle="dropdown" aria-expanded="false">
+												{{ event.type || 'Seleccione...' }}
+											</button>
+											<ul class="dropdown-menu" aria-labelledby="dropdownTypeButton">
+												<li v-for="type in eventTypes" :key="type">
+													<a class="dropdown-item" href="#" @click="selectEventType(type)">
+														{{ type }}
+													</a>
+												</li>
+											</ul>
+										</div>
 									</div>
 								</div>
 
-								<!-- Event Information -->
-								<div class="card-body d-flex flex-column">
-									<h5 class="card-title text-truncate">{{ evento.name }}</h5>
-									<p class="card-text"><strong>Fecha: </strong>{{ formatDate(evento.date) }}</p>
-									<p class="card-text"><strong>Tipo de Evento: </strong>{{
-										evento.type.charAt(0).toUpperCase() + evento.type.slice(1) }}</p>
+								<!-- Shared Fields -->
+								<div class="row">
+									<div class="col-lg-6 mb-3">
+										<label for="eventName" class="form-label">Nombre</label>
+										<input type="text" class="form-control" id="eventName" v-model="event.name" />
+									</div>
+									<div class="col-lg-6 mb-3">
+										<label for="eventOrder" class="form-label">Orden</label>
+										<input type="number" class="form-control" id="eventOrder" v-model="event.order" />
+									</div>
+								</div>
+								<div class="row">
+									<div class="col-lg-6 mb-3">
+										<label for="eventDate" class="form-label">Fecha</label>
+										<input type="date" v-model="event.date" class="form-control" />
+									</div>
+									<div class="col-lg-6 mb-3">
+										<label for="eventStatus" class="form-label">Estado</label>
+										<select class="form-select" v-model="event.status">
+											<option value="true">Activo</option>
+											<option value="false">Inactivo</option>
+										</select>
+									</div>
+								</div>
+								<div class="row">
+									<div class="col-lg-12 mb-3">
+										<label for="eventDesc" class="form-label">Descripción</label>
+										<textarea class="form-control" id="eventDesc" v-model="event.desc"></textarea>
+									</div>
+								</div>
 
-									<!-- Event's Affiliates -->
-									<div v-if="evento.type === 'Rifa' && evento.raffleAffiliate">
+								<!-- Rifa Specific Fields -->
+								<div v-if="event.type === 'Rifa'">
+									<div class="row">
+										<div class="col-lg-6 mb-3">
+											<label for="raffleAffiliate" class="form-label">Comercio Afiliado</label>
+											<div class="dropdown">
+												<button class="btn btn-secondary dropdown-toggle" type="button"
+													id="dropdownRaffleAffiliate" data-bs-toggle="dropdown"
+													aria-expanded="false">
+													{{ event.raffle.affiliateId ? affiliates.find(a => a.id ===
+														event.raffle.affiliateId).companyName : 'Seleccione...' }}
+												</button>
+												<ul class="dropdown-menu scrollable-dropdown"
+													aria-labelledby="dropdownRaffleAffiliate">
+													<li v-for="aff in affiliates" :key="aff.id">
+														<a class="dropdown-item" href="#"
+															@click="selectRaffleAffiliate(aff.id)">
+															{{ aff.companyName }}
+														</a>
+													</li>
+												</ul>
+											</div>
+										</div>
+									</div>
+									<div class="row">
+										<div class="col-lg-4 mb-3">
+											<label for="raffleLimitDate" class="form-label">Fecha límite para comprar
+												números</label>
+											<input type="date" v-model="event.raffle.purchaseDeadline" class="form-control"
+												id="raffleLimitDate" />
+										</div>
+										<div class="col-lg-4 mb-3">
+											<label for="raffleticketLimit" class="form-label">Total de números</label>
+											<input type="number" v-model="event.raffle.ticketLimit" class="form-control"
+												id="raffleticketLimit" />
+										</div>
+										<div class="col-lg-4 mb-3">
+											<label for="rafflePrice" class="form-label">Precio por número</label>
+											<div class="input-group mt-2">
+												<span class="input-group-text text-wrap" id="price-addon">$</span>
+												<input id="rafflePrice" type="number" class="form-control"
+													v-model="event.raffle.ticketPrice" aria-label="Monto"
+													aria-describedby="price-addon">
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<!-- Fiesta Specific Fields -->
+								<div v-if="event.type === 'Fiesta'">
+									<div class="row">
+										<div class="col-lg-6 mb-3">
+											<label for="eventAffiliate" class="form-label">Comercios Afiliados</label>
+											<div class="dropdown">
+												<button class="btn btn-secondary dropdown-toggle" type="button"
+													id="dropdownMenuCategory" data-bs-toggle="dropdown"
+													data-bs-auto-close="false" aria-expanded="false">
+													{{ selectedAffiliateIds.length > 0 ? selectedAffiliateIds.map(id =>
+														affiliates.find(aff => aff.id === id).companyName).join(', ') :
+														'Seleccione...' }}
+												</button>
+												<ul class="dropdown-menu" aria-labelledby="dropdownMenuCategory">
+													<li v-if="affiliates.length === 0">
+														<p style="margin: 10px;">No hay afiliados registrados.</p>
+													</li>
+													<li v-for="aff in affiliates" :key="aff.id">
+														<div class="form-check" style="margin: 10px;">
+															<input type="checkbox" class="form-check-input"
+																:id="'dropdownCheck_' + aff.id" :value="aff.id"
+																v-model="selectedAffiliateIds">
+															<label class="form-check-label"
+																:for="'dropdownCheck_' + aff.id">
+																{{ aff.companyName }}
+															</label>
+														</div>
+													</li>
+												</ul>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<!-- Upload Image -->
+								<div class="row" v-if="uploadImage">
+									<div class="col-lg-12 mb-3">
+										<label for="eventImg" class="form-label">Imagen</label>
+										<input type="file" class="form-control" id="eventImg" @change="previewImage"
+											accept="image/*" />
+										<div v-if="imagePreview" class="mt-2">
+											<img :src="imagePreview" class="img-thumbnail" alt="preview"
+												style="max-height: 200px;" />
+										</div>
+									</div>
+								</div>
+								<div class="form-check">
+									<input type="checkbox" class="form-check-input" id="uploadImageCheckbox"
+										v-model="uploadImage">
+									<label class="form-check-label" for="uploadImageCheckbox">Subir imagen del
+										evento</label>
+								</div>
+							</div>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+
+							<button v-if="event.type === 'Rifa'" type="button" :disabled="isSubmitting"
+								@click="createRaffle()" class="btn btn-theme">
+								<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+									aria-hidden="true"></span>
+								<span v-else>Crear Rifa</span>
+							</button>
+
+							<button v-if="event.type === 'Fiesta'" type="button" :disabled="isSubmitting"
+								@click="createEvent()" class="btn btn-theme">
+								<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+									aria-hidden="true"></span>
+								<span v-else>Crear Fiesta</span>
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Modal for editing an event -->
+			<div class="modal fade" id="editEventModal" tabindex="-1" aria-labelledby="editEventModalLabel"
+				aria-hidden="true">
+				<div class="modal-dialog modal-lg">
+					<div class="modal-content">
+						<div class="modal-header">
+							<h5 class="modal-title" id="editEventModalLabel">Editar Evento</h5>
+							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+						</div>
+						<div class="modal-body">
+							<div class="container">
+								<!-- Event Type -->
+								<div class="row justify-content-center mb-3">
+									<div class="col-12">
+										<label for="eventType" class="form-label">Tipo de Evento</label>
+										<div class="dropdown">
+											<button class="btn btn-secondary dropdown-toggle" type="button"
+												id="dropdownTypeButton" data-bs-toggle="dropdown" aria-expanded="false">
+												{{ editEventData.type || 'Seleccione...' }}
+											</button>
+											<ul class="dropdown-menu" aria-labelledby="dropdownTypeButton">
+												<li v-for="type in eventTypes" :key="type">
+													<a class="dropdown-item" href="#" @click="editEventType(type)">
+														{{ type }}
+													</a>
+												</li>
+											</ul>
+										</div>
+									</div>
+								</div>
+
+								<!-- Shared Fields -->
+								<div class="row">
+									<div class="col-lg-6 mb-3">
+										<label for="eventName" class="form-label">Nombre</label>
+										<input type="text" class="form-control" id="eventName"
+											v-model="editEventData.name" />
+									</div>
+									<div class="col-lg-6 mb-3">
+										<label for="eventOrder" class="form-label">Orden</label>
+										<input type="number" class="form-control" id="eventOrder"
+											v-model="editEventData.order" />
+									</div>
+								</div>
+								<div class="row">
+									<div class="col-lg-6 mb-3">
+										<label for="eventDate" class="form-label">Fecha</label>
+										<input type="date" v-model="editEventData.date" class="form-control" />
+									</div>
+									<div class="col-lg-6 mb-3">
+										<label for="eventStatus" class="form-label">Estado</label>
+										<select class="form-select" v-model="editEventData.status">
+											<option value="true">Activo</option>
+											<option value="false">Inactivo</option>
+										</select>
+									</div>
+								</div>
+								<div class="row">
+									<div class="col-lg-12 mb-3">
+										<label for="eventDesc" class="form-label">Descripción</label>
+										<textarea class="form-control" id="eventDesc"
+											v-model="editEventData.desc"></textarea>
+									</div>
+								</div>
+
+								<!-- Raffle Specific Fields -->
+								<div v-if="editEventData.type === 'Rifa'">
+									<div class="row">
+										<div class="col-lg-6 mb-3">
+											<label for="raffleAffiliate" class="form-label">Comercio Afiliado</label>
+											<div class="dropdown">
+												<button class="btn btn-secondary dropdown-toggle" type="button"
+													id="dropdownRaffleAffiliate" data-bs-toggle="dropdown"
+													aria-expanded="false">
+													{{ editEventData.raffle?.affiliateId ? affiliates.find(a => a.id ===
+														editEventData.raffle.affiliateId)?.companyName : 'Seleccione...' }}
+												</button>
+												<ul class="dropdown-menu" aria-labelledby="dropdownRaffleAffiliate">
+													<li v-for="aff in affiliates" :key="aff.id">
+														<a class="dropdown-item" href="#"
+															@click="editRaffleAffiliate(aff.id)">
+															{{ aff.companyName }}
+														</a>
+													</li>
+												</ul>
+											</div>
+										</div>
+									</div>
+									<div class="row">
+										<div class="col-lg-4 mb-3">
+											<label for="raffleLimitDate" class="form-label">Fecha límite para comprar
+												números</label>
+											<input type="date" v-model="editEventData.raffle.purchaseDeadline"
+												class="form-control" id="raffleLimitDate" />
+										</div>
+										<div class="col-lg-4 mb-3">
+											<label for="raffleTicketLimit" class="form-label">Total de números</label>
+											<input type="number" v-model="editEventData.raffle.ticketLimit"
+												class="form-control" id="raffleTicketLimit" />
+										</div>
+										<div class="col-lg-4 mb-3">
+											<label for="rafflePrice" class="form-label">Precio por número</label>
+											<div class="input-group mt-2">
+												<span class="input-group-text text-wrap" id="price-addon">$</span>
+												<input id="rafflePrice" type="number" class="form-control"
+													v-model="editEventData.raffle.ticketPrice" aria-label="Monto"
+													aria-describedby="price-addon">
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<!-- Fiesta Specific Fields -->
+								<div v-if="editEventData.type === 'Fiesta'">
+									<div class="row">
+										<div class="col-lg-6 mb-3">
+											<label for="eventAffiliate" class="form-label">Comercios Afiliados</label>
+											<div class="dropdown">
+												<button class="btn btn-secondary dropdown-toggle" type="button"
+													id="dropdownMenuAffiliate" data-bs-toggle="dropdown"
+													data-bs-auto-close="false" aria-expanded="false">
+													{{ selectedAffiliateIds.length > 0 ? selectedAffiliateIds.map(id =>
+														affiliates.find(aff => aff.id === id).companyName).join(', ') :
+														'Seleccione...' }}
+												</button>
+												<ul class="dropdown-menu dropdown-toggle"
+													aria-labelledby="dropdownMenuAffiliate">
+													<li v-for="aff in affiliates" :key="aff.id">
+														<div class="form-check" style="margin: 10px;">
+															<input type="checkbox" class="form-check-input"
+																:id="'dropdownCheck_' + aff.id" :value="aff.id"
+																v-model="selectedAffiliateIds">
+															<label class="form-check-label"
+																:for="'dropdownCheck_' + aff.id">
+																{{ aff.companyName }}
+															</label>
+														</div>
+													</li>
+												</ul>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<!-- Upload Image -->
+								<!-- <div class="row" v-if="uploadImage">
+									<div class="col-lg-12 mb-3">
+										<label for="eventImg" class="form-label">Imagen</label>
+										<input type="file" class="form-control" id="eventImg" @change="previewImage"
+											accept="image/*" />
+										<div v-if="imagePreview" class="mt-2">
+											<img :src="imagePreview" class="img-thumbnail" alt="preview"
+												style="max-height: 200px;" />
+										</div>
+									</div>
+								</div>
+								<div class="form-check">
+									<input type="checkbox" class="form-check-input" id="uploadImageCheckbox"
+										v-model="uploadImage">
+									<label class="form-check-label" for="uploadImageCheckbox">Subir imagen del
+										evento</label>
+								</div> -->
+							</div>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+							<button type="button" class="btn btn-theme" @click="updateEvent(editEventData.id)"
+								:disabled="isSubmitting">Guardar Cambios</button>
+							<div v-if="isSubmitting" class="d-flex justify-content-center my-3">
+								<div class="spinner-border text-primary" role="status">
+									<span class="visually-hidden">Cargando...</span>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- ADMIN Visualize bought Tickets -->
+			<div v-if="raffleTickets" class="modal fade" id="TicketsModal" tabindex="-1" aria-labelledby="TicketsModalLabel"
+				aria-hidden="true">
+				<div class="modal-dialog modal-dialog-centered">
+					<div class="modal-content">
+						<div class="modal-header">
+							<h5 class="modal-title" id="TicketsModalLabel">Tickets comprados</h5>
+							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+						</div>
+						<div class="modal-body">
+							<!-- Tickets -->
+							<div class="d-flex justify-content-center flex-wrap gap-2 mb-3">
+								<button v-for="ticket in modalEvent?.raffle?.ticketLimit" :key="ticket"
+									:disabled="raffleTickets.some(soldTicket => soldTicket.ticketNumber === ticket)" :class="[
+										'btn',
+										'rounded-circle',
+										'ticket-button',
+										'btn-outline-secondary',
+										{
+											'btn-disabled': raffleTickets.some(soldTicket => soldTicket.ticketNumber === ticket)
+										}]" style="width: 50px; height: 50px;">
+									{{ ticket }}
+								</button>
+							</div>
+							<div class="table-responsive">
+								<!-- For admins: show ticketNumber, clientId, and purchasedDate -->
+								<table class="table table-bordered table-responsive text-center">
+									<thead>
+										<tr>
+											<th>Número de Ticket</th>
+											<th>Cliente</th>
+											<th>Cédula</th>
+											<th>Fecha de Compra</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr v-if="raffleTickets.length === 0">
+											<td colspan="4" class="text-center">
+												<i class="fas fa-exclamation-circle"></i> No hay tickets comprados aún.
+											</td>
+										</tr>
+										<tr v-for="ticket in raffleTickets" :key="ticket.ticketNumber">
+											<td>{{ ticket.ticketNumber }}</td>
+											<td>{{ ticket.clientName }}</td>
+											<td>{{ ticket.cedula }}</td>
+											<td>{{ formatDate(ticket.paymentDate) }}</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Client view -->
+		<div v-if="this.role === 'cliente'">
+			<div class="row">
+				<!-- Loading State -->
+				<div v-if="loading" class="text-center py-5">
+					<div class="spinner-border text-primary" role="status">
+						<span class="visually-hidden">Cargando...</span>
+					</div>
+				</div>
+
+				<!-- Empty State -->
+				<div v-else-if="events.length === 0" class="text-center py-5">
+						<div class="mb-3">
+							<i class="fa fa-calendar-days text-secondary opacity-25" style="font-size: 5em"></i>
+						</div>
+						<h5 class="text-secondary">No hay Eventos disponibles</h5>
+				</div>
+
+				<!-- Events list -->
+				<div v-else class="row">
+						<div v-for="evento in events" :key="evento.id" class="col-12 col-sm-6 col-md-4 mb-4">
+								<div class="card h-100 position-relative">
+									<div class="img-container position-relative">
+										<!-- Image Display -->
+										<div class="img"
+											:style="{ backgroundImage: 'url(' + evento.image + ')', backgroundSize: 'cover', backgroundPosition: 'center', height: '200px' }">
+										</div>
+									</div>
+
+									<div class="card-body d-flex flex-column">
+										<h5 class="card-title text-truncate">{{ evento.name }}</h5>
+										<p class="card-text"><strong>Fecha: </strong>{{ formatDate(evento.date) }}</p>
+										<p class="card-text"><strong>Tipo de Evento: </strong>{{
+											evento.type.charAt(0).toUpperCase() + evento.type.slice(1) }}</p>
+
+										<!-- Event's Affiliates -->
 										<p class="card-text"><strong>{{ evento.type === 'Rifa' ? `Comercio Afiliado:` :
 											`Comercios Afiliados` }}</strong></p>
-										<div class="row">
-											<div class="col mb-3">
+										<div v-if="evento.type === 'Fiesta'" class="row">
+											<div v-for="affiliate in evento.affiliates" :key="affiliate.id"
+												class="col mb-3">
 												<div class="affiliate-logo" style="max-width: 80px; margin: 0 auto;">
 													<!-- Affiliate Image -->
-													<div class="img-thumbnail p-1"
-														:style="{ backgroundImage: 'url(' + evento.raffleAffiliate.image + ')', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', height: '50px', width: '50px', borderRadius: '50%' }">
+													<div v-if="affiliate.image" class="img-thumbnail p-1"
+														:style="{ backgroundImage: 'url(' + affiliate.image + ')', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', height: '50px', width: '50px', borderRadius: '50%' }">
 													</div>
 													<!-- Affiliate Info -->
 													<div class="mt-2">
 														<h6 class="small">
-															<strong>{{ evento.raffleAffiliate.companyName }}</strong>
+															<strong>{{ affiliate.companyName }}</strong>
 														</h6>
 													</div>
 												</div>
 											</div>
 										</div>
-									</div>
-									<div v-else class="row">
-										<div v-for="affiliate in evento.affiliates" :key="affiliate.id"
-											class="col mb-3">
-											<div class="affiliate-logo" style="max-width: 80px; margin: 0 auto;">
-												<!-- Affiliate Image -->
-												<div v-if="affiliate.image" class="img-thumbnail p-1"
-													:style="{ backgroundImage: 'url(' + affiliate.image + ')', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', height: '50px', width: '50px', borderRadius: '50%' }">
-												</div>
-												<!-- Affiliate Info -->
-												<div class="mt-2">
-													<h6 class="small">
-														<strong>{{ affiliate.companyName }}</strong>
-													</h6>
-												</div>
-											</div>
-										</div>
-									</div>
-
-									<!-- Action Buttons -->
-									<div class="d-flex justify-content-end mt-2">
-										<button class="btn btn-sm btn-theme me-1" @click="openSoldTicketsModal(evento)">
-											<i class="fa-solid fa-list"></i> Tickets
-										</button>
-										<button class="btn btn-sm btn-outline-info me-1"
-											@click="editEvent(evento), fetchAffiliates()">
-											<i class="fa-solid fa-pencil"></i>
-										</button>
-										<button class="btn btn-sm btn-outline-danger"
-											@click="deleteEvent(evento.id, index)">
-											<i class="fa-solid fa-trash"></i>
-										</button>
-									</div>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<!-- Modal for creating new event -->
-		<div class="modal fade" id="createEventModal" tabindex="-1" aria-labelledby="createEventModalLabel"
-			aria-hidden="true">
-			<div class="modal-dialog modal-lg">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="createEventModalLabel">Crear Evento</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-					</div>
-					<div class="modal-body">
-						<div class="container">
-							<!-- Event Type -->
-							<div class="row justify-content-center mb-3">
-								<div class="col-12">
-									<label for="eventType" class="form-label">Tipo de Evento</label>
-									<div class="dropdown">
-										<button class="btn btn-secondary dropdown-toggle" type="button"
-											id="dropdownTypeButton" data-bs-toggle="dropdown" aria-expanded="false">
-											{{ event.type || 'Seleccione...' }}
-										</button>
-										<ul class="dropdown-menu" aria-labelledby="dropdownTypeButton">
-											<li v-for="type in eventTypes" :key="type">
-												<a class="dropdown-item" href="#" @click="selectEventType(type)">
-													{{ type }}
-												</a>
-											</li>
-										</ul>
-									</div>
-								</div>
-							</div>
-
-							<!-- Shared Fields -->
-							<div class="row">
-								<div class="col-lg-6 mb-3">
-									<label for="eventName" class="form-label">Nombre</label>
-									<input type="text" class="form-control" id="eventName" v-model="event.name" />
-								</div>
-								<div class="col-lg-6 mb-3">
-									<label for="eventOrder" class="form-label">Orden</label>
-									<input type="number" class="form-control" id="eventOrder" v-model="event.order" />
-								</div>
-							</div>
-							<div class="row">
-								<div class="col-lg-6 mb-3">
-									<label for="eventDate" class="form-label">Fecha</label>
-									<input type="date" v-model="event.date" class="form-control" />
-								</div>
-								<div class="col-lg-6 mb-3">
-									<label for="eventStatus" class="form-label">Estado</label>
-									<select class="form-select" v-model="event.status">
-										<option value="true">Activo</option>
-										<option value="false">Inactivo</option>
-									</select>
-								</div>
-							</div>
-							<div class="row">
-								<div class="col-lg-12 mb-3">
-									<label for="eventDesc" class="form-label">Descripción</label>
-									<textarea class="form-control" id="eventDesc" v-model="event.desc"></textarea>
-								</div>
-							</div>
-
-							<!-- Rifa Specific Fields -->
-							<div v-if="event.type === 'Rifa'">
-								<div class="row">
-									<div class="col-lg-6 mb-3">
-										<label for="raffleAffiliate" class="form-label">Comercio Afiliado</label>
-										<div class="dropdown">
-											<button class="btn btn-secondary dropdown-toggle" type="button"
-												id="dropdownRaffleAffiliate" data-bs-toggle="dropdown"
-												aria-expanded="false">
-												{{ event.raffle.affiliateId ? affiliates.find(a => a.id ===
-													event.raffle.affiliateId).companyName : 'Seleccione...' }}
-											</button>
-											<ul class="dropdown-menu scrollable-dropdown"
-												aria-labelledby="dropdownRaffleAffiliate">
-												<li v-for="aff in affiliates" :key="aff.id">
-													<a class="dropdown-item" href="#"
-														@click="selectRaffleAffiliate(aff.id)">
-														{{ aff.companyName }}
-													</a>
-												</li>
-											</ul>
-										</div>
-									</div>
-								</div>
-								<div class="row">
-									<div class="col-lg-4 mb-3">
-										<label for="raffleLimitDate" class="form-label">Fecha límite para comprar
-											números</label>
-										<input type="date" v-model="event.raffle.purchaseDeadline" class="form-control"
-											id="raffleLimitDate" />
-									</div>
-									<div class="col-lg-4 mb-3">
-										<label for="raffleticketLimit" class="form-label">Total de números</label>
-										<input type="number" v-model="event.raffle.ticketLimit" class="form-control"
-											id="raffleticketLimit" />
-									</div>
-									<div class="col-lg-4 mb-3">
-										<label for="rafflePrice" class="form-label">Precio por número</label>
-										<div class="input-group mt-2">
-											<span class="input-group-text text-wrap" id="price-addon">$</span>
-											<input id="rafflePrice" type="number" class="form-control"
-												v-model="event.raffle.ticketPrice" aria-label="Monto"
-												aria-describedby="price-addon">
-										</div>
-									</div>
-								</div>
-							</div>
-
-							<!-- Fiesta Specific Fields -->
-							<div v-if="event.type === 'Fiesta'">
-								<div class="row">
-									<div class="col-lg-6 mb-3">
-										<label for="eventAffiliate" class="form-label">Comercios Afiliados</label>
-										<div class="dropdown">
-											<button class="btn btn-secondary dropdown-toggle" type="button"
-												id="dropdownMenuCategory" data-bs-toggle="dropdown"
-												data-bs-auto-close="false" aria-expanded="false">
-												{{ selectedAffiliateIds.length > 0 ? selectedAffiliateIds.map(id =>
-													affiliates.find(aff => aff.id === id).companyName).join(', ') :
-													'Seleccione...' }}
-											</button>
-											<ul class="dropdown-menu" aria-labelledby="dropdownMenuCategory">
-												<li v-if="affiliates.length === 0">
-													<p style="margin: 10px;">No hay afiliados registrados.</p>
-												</li>
-												<li v-for="aff in affiliates" :key="aff.id">
-													<div class="form-check" style="margin: 10px;">
-														<input type="checkbox" class="form-check-input"
-															:id="'dropdownCheck_' + aff.id" :value="aff.id"
-															v-model="selectedAffiliateIds">
-														<label class="form-check-label"
-															:for="'dropdownCheck_' + aff.id">
-															{{ aff.companyName }}
-														</label>
-													</div>
-												</li>
-											</ul>
-										</div>
-									</div>
-								</div>
-							</div>
-
-							<!-- Upload Image -->
-							<div class="row" v-if="uploadImage">
-								<div class="col-lg-12 mb-3">
-									<label for="eventImg" class="form-label">Imagen</label>
-									<input type="file" class="form-control" id="eventImg" @change="previewImage"
-										accept="image/*" />
-									<div v-if="imagePreview" class="mt-2">
-										<img :src="imagePreview" class="img-thumbnail" alt="preview"
-											style="max-height: 200px;" />
-									</div>
-								</div>
-							</div>
-							<div class="form-check">
-								<input type="checkbox" class="form-check-input" id="uploadImageCheckbox"
-									v-model="uploadImage">
-								<label class="form-check-label" for="uploadImageCheckbox">Subir imagen del
-									evento</label>
-							</div>
-						</div>
-					</div>
-					<div class="modal-footer">
-						<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-
-						<button v-if="event.type === 'Rifa'" type="button" :disabled="isSubmitting"
-							@click="createRaffle()" class="btn btn-theme">
-							<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
-								aria-hidden="true"></span>
-							<span v-else>Crear Rifa</span>
-						</button>
-
-						<button v-if="event.type === 'Fiesta'" type="button" :disabled="isSubmitting"
-							@click="createEvent()" class="btn btn-theme">
-							<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
-								aria-hidden="true"></span>
-							<span v-else>Crear Fiesta</span>
-						</button>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<!-- Modal for editing an event -->
-		<div class="modal fade" id="editEventModal" tabindex="-1" aria-labelledby="editEventModalLabel"
-			aria-hidden="true">
-			<div class="modal-dialog modal-lg">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="editEventModalLabel">Editar Evento</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-					</div>
-					<div class="modal-body">
-						<div class="container">
-							<!-- Event Type -->
-							<div class="row justify-content-center mb-3">
-								<div class="col-12">
-									<label for="eventType" class="form-label">Tipo de Evento</label>
-									<div class="dropdown">
-										<button class="btn btn-secondary dropdown-toggle" type="button"
-											id="dropdownTypeButton" data-bs-toggle="dropdown" aria-expanded="false">
-											{{ editEventData.type || 'Seleccione...' }}
-										</button>
-										<ul class="dropdown-menu" aria-labelledby="dropdownTypeButton">
-											<li v-for="type in eventTypes" :key="type">
-												<a class="dropdown-item" href="#" @click="editEventType(type)">
-													{{ type }}
-												</a>
-											</li>
-										</ul>
-									</div>
-								</div>
-							</div>
-
-							<!-- Shared Fields -->
-							<div class="row">
-								<div class="col-lg-6 mb-3">
-									<label for="eventName" class="form-label">Nombre</label>
-									<input type="text" class="form-control" id="eventName"
-										v-model="editEventData.name" />
-								</div>
-								<div class="col-lg-6 mb-3">
-									<label for="eventOrder" class="form-label">Orden</label>
-									<input type="number" class="form-control" id="eventOrder"
-										v-model="editEventData.order" />
-								</div>
-							</div>
-							<div class="row">
-								<div class="col-lg-6 mb-3">
-									<label for="eventDate" class="form-label">Fecha</label>
-									<input type="date" v-model="editEventData.date" class="form-control" />
-								</div>
-								<div class="col-lg-6 mb-3">
-									<label for="eventStatus" class="form-label">Estado</label>
-									<select class="form-select" v-model="editEventData.status">
-										<option value="true">Activo</option>
-										<option value="false">Inactivo</option>
-									</select>
-								</div>
-							</div>
-							<div class="row">
-								<div class="col-lg-12 mb-3">
-									<label for="eventDesc" class="form-label">Descripción</label>
-									<textarea class="form-control" id="eventDesc"
-										v-model="editEventData.desc"></textarea>
-								</div>
-							</div>
-
-							<!-- Raffle Specific Fields -->
-							<div v-if="editEventData.type === 'Rifa'">
-								<div class="row">
-									<div class="col-lg-6 mb-3">
-										<label for="raffleAffiliate" class="form-label">Comercio Afiliado</label>
-										<div class="dropdown">
-											<button class="btn btn-secondary dropdown-toggle" type="button"
-												id="dropdownRaffleAffiliate" data-bs-toggle="dropdown"
-												aria-expanded="false">
-												{{ editEventData.raffle?.affiliateId ? affiliates.find(a => a.id ===
-													editEventData.raffle.affiliateId)?.companyName : 'Seleccione...' }}
-											</button>
-											<ul class="dropdown-menu" aria-labelledby="dropdownRaffleAffiliate">
-												<li v-for="aff in affiliates" :key="aff.id">
-													<a class="dropdown-item" href="#"
-														@click="editRaffleAffiliate(aff.id)">
-														{{ aff.companyName }}
-													</a>
-												</li>
-											</ul>
-										</div>
-									</div>
-								</div>
-								<div class="row">
-									<div class="col-lg-4 mb-3">
-										<label for="raffleLimitDate" class="form-label">Fecha límite para comprar
-											números</label>
-										<input type="date" v-model="editEventData.raffle.purchaseDeadline"
-											class="form-control" id="raffleLimitDate" />
-									</div>
-									<div class="col-lg-4 mb-3">
-										<label for="raffleTicketLimit" class="form-label">Total de números</label>
-										<input type="number" v-model="editEventData.raffle.ticketLimit"
-											class="form-control" id="raffleTicketLimit" />
-									</div>
-									<div class="col-lg-4 mb-3">
-										<label for="rafflePrice" class="form-label">Precio por número</label>
-										<div class="input-group mt-2">
-											<span class="input-group-text text-wrap" id="price-addon">$</span>
-											<input id="rafflePrice" type="number" class="form-control"
-												v-model="editEventData.raffle.ticketPrice" aria-label="Monto"
-												aria-describedby="price-addon">
-										</div>
-									</div>
-								</div>
-							</div>
-
-							<!-- Fiesta Specific Fields -->
-							<div v-if="editEventData.type === 'Fiesta'">
-								<div class="row">
-									<div class="col-lg-6 mb-3">
-										<label for="eventAffiliate" class="form-label">Comercios Afiliados</label>
-										<div class="dropdown">
-											<button class="btn btn-secondary dropdown-toggle" type="button"
-												id="dropdownMenuAffiliate" data-bs-toggle="dropdown"
-												data-bs-auto-close="false" aria-expanded="false">
-												{{ selectedAffiliateIds.length > 0 ? selectedAffiliateIds.map(id =>
-													affiliates.find(aff => aff.id === id).companyName).join(', ') :
-													'Seleccione...' }}
-											</button>
-											<ul class="dropdown-menu dropdown-toggle"
-												aria-labelledby="dropdownMenuAffiliate">
-												<li v-for="aff in affiliates" :key="aff.id">
-													<div class="form-check" style="margin: 10px;">
-														<input type="checkbox" class="form-check-input"
-															:id="'dropdownCheck_' + aff.id" :value="aff.id"
-															v-model="selectedAffiliateIds">
-														<label class="form-check-label"
-															:for="'dropdownCheck_' + aff.id">
-															{{ aff.companyName }}
-														</label>
-													</div>
-												</li>
-											</ul>
-										</div>
-									</div>
-								</div>
-							</div>
-
-							<!-- Upload Image -->
-							<!-- <div class="row" v-if="uploadImage">
-								<div class="col-lg-12 mb-3">
-									<label for="eventImg" class="form-label">Imagen</label>
-									<input type="file" class="form-control" id="eventImg" @change="previewImage"
-										accept="image/*" />
-									<div v-if="imagePreview" class="mt-2">
-										<img :src="imagePreview" class="img-thumbnail" alt="preview"
-											style="max-height: 200px;" />
-									</div>
-								</div>
-							</div>
-							<div class="form-check">
-								<input type="checkbox" class="form-check-input" id="uploadImageCheckbox"
-									v-model="uploadImage">
-								<label class="form-check-label" for="uploadImageCheckbox">Subir imagen del
-									evento</label>
-							</div> -->
-						</div>
-					</div>
-					<div class="modal-footer">
-						<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-						<button type="button" class="btn btn-theme" @click="updateEvent(editEventData.id)"
-							:disabled="isSubmitting">Guardar Cambios</button>
-						<div v-if="isSubmitting" class="d-flex justify-content-center my-3">
-							<div class="spinner-border text-primary" role="status">
-								<span class="visually-hidden">Cargando...</span>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<!-- ADMIN Visualize bought Tickets -->
-		<div v-if="raffleTickets" class="modal fade" id="TicketsModal" tabindex="-1" aria-labelledby="TicketsModalLabel"
-			aria-hidden="true">
-			<div class="modal-dialog modal-dialog-centered">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="TicketsModalLabel">Tickets comprados</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-					</div>
-					<div class="modal-body">
-						<!-- Tickets -->
-						<div class="d-flex justify-content-center flex-wrap gap-2 mb-3">
-							<button v-for="ticket in modalEvent?.raffle?.ticketLimit" :key="ticket"
-								:disabled="raffleTickets.some(soldTicket => soldTicket.ticketNumber === ticket)" :class="[
-									'btn',
-									'rounded-circle',
-									'ticket-button',
-									'btn-outline-secondary',
-									{
-										'btn-disabled': raffleTickets.some(soldTicket => soldTicket.ticketNumber === ticket)
-									}]" style="width: 50px; height: 50px;">
-								{{ ticket }}
-							</button>
-						</div>
-						<div class="table-responsive">
-							<!-- For admins: show ticketNumber, clientId, and purchasedDate -->
-							<table class="table table-bordered table-responsive text-center">
-								<thead>
-									<tr>
-										<th>Número de Ticket</th>
-										<th>Cliente</th>
-										<th>Cédula</th>
-										<th>Fecha de Compra</th>
-									</tr>
-								</thead>
-								<tbody>
-									<tr v-if="raffleTickets.length === 0">
-										<td colspan="4" class="text-center">
-											<i class="fas fa-exclamation-circle"></i> No hay tickets comprados aún.
-										</td>
-									</tr>
-									<tr v-for="ticket in raffleTickets" :key="ticket.ticketNumber">
-										<td>{{ ticket.ticketNumber }}</td>
-										<td>{{ ticket.clientName }}</td>
-										<td>{{ ticket.cedula }}</td>
-										<td>{{ formatDate(ticket.paymentDate) }}</td>
-									</tr>
-								</tbody>
-							</table>
-						</div>
-					</div>
-					<div class="modal-footer">
-						<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Client view -->
-	<div v-if="this.role === 'cliente'" class="container">
-		<h4 class="mb-4 fw-bold">Próximos eventos</h4>
-
-		<div class="container-fluid">
-			<div class="row">
-				<div v-if="events.length === 0" class="d-flex justify-content-center align-items-center"
-					style="height: 100vh;">
-					<div class="text-center">
-						<div class="mb-3 mt-n5">
-							<i class="fa-solid fa-pizza-slice text-body text-opacity-25" style="font-size: 5em"></i>
-						</div>
-						<h5>No hay Eventos registrados.</h5>
-					</div>
-				</div>
-				<div v-else>
-					<!-- Loop through events and display them in cards -->
-					<div class="row">
-						<div v-for="evento in events" :key="evento.id" class="col-12 col-sm-6 col-md-4 mb-4">
-							<div class="card h-100 position-relative">
-								<div class="img-container position-relative">
-									<!-- Image Display -->
-									<div class="img"
-										:style="{ backgroundImage: 'url(' + evento.image + ')', backgroundSize: 'cover', backgroundPosition: 'center', height: '200px' }">
-									</div>
-								</div>
-
-								<div class="card-body d-flex flex-column">
-									<h5 class="card-title text-truncate">{{ evento.name }}</h5>
-									<p class="card-text"><strong>Fecha: </strong>{{ formatDate(evento.date) }}</p>
-									<p class="card-text"><strong>Tipo de Evento: </strong>{{
-										evento.type.charAt(0).toUpperCase() + evento.type.slice(1) }}</p>
-
-									<!-- Event's Affiliates -->
-									<p class="card-text"><strong>{{ evento.type === 'Rifa' ? `Comercio Afiliado:` :
-										`Comercios Afiliados` }}</strong></p>
-									<div v-if="evento.type === 'Fiesta'" class="row">
-										<div v-for="affiliate in evento.affiliates" :key="affiliate.id"
-											class="col mb-3">
-											<div class="affiliate-logo" style="max-width: 80px; margin: 0 auto;">
-												<!-- Affiliate Image -->
-												<div v-if="affiliate.image" class="img-thumbnail p-1"
-													:style="{ backgroundImage: 'url(' + affiliate.image + ')', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', height: '50px', width: '50px', borderRadius: '50%' }">
-												</div>
-												<!-- Affiliate Info -->
-												<div class="mt-2">
-													<h6 class="small">
-														<strong>{{ affiliate.companyName }}</strong>
-													</h6>
-												</div>
-											</div>
-										</div>
-									</div>
-									<div v-if="evento.type === 'Rifa' && evento.raffleAffiliate">
-										<div class="row">
-											<div class="col mb-3">
-												<div class="affiliate-logo" style="max-width: 80px; margin: 0 auto;">
-													<!-- Affiliate Image -->
-													<div class="img-thumbnail p-1"
-														:style="{ backgroundImage: 'url(' + evento.raffleAffiliate.image + ')', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', height: '50px', width: '50px', borderRadius: '50%' }">
-													</div>
-													<!-- Affiliate Info -->
-													<div class="mt-2">
-														<h6 class="small">
-															<strong>{{ evento.raffleAffiliate.companyName }}</strong>
-														</h6>
+										<div v-if="evento.type === 'Rifa' && evento.raffleAffiliate">
+											<div class="row">
+												<div class="col mb-3">
+													<div class="affiliate-logo" style="max-width: 80px; margin: 0 auto;">
+														<!-- Affiliate Image -->
+														<div class="img-thumbnail p-1"
+															:style="{ backgroundImage: 'url(' + evento.raffleAffiliate.image + ')', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', height: '50px', width: '50px', borderRadius: '50%' }">
+														</div>
+														<!-- Affiliate Info -->
+														<div class="mt-2">
+															<h6 class="small">
+																<strong>{{ evento.raffleAffiliate.companyName }}</strong>
+															</h6>
+														</div>
 													</div>
 												</div>
 											</div>
 										</div>
 									</div>
+
+									<div v-if="evento.type === 'Rifa'" class="card-footer text-center">
+										<a href="#" @click.prevent="buyTicket(evento)" class="btn btn-outline-success me-2">
+											<i class="fa-solid fa-ticket"></i> Comprar Ticket
+										</a>
+										<a href="#" @click.prevent="openTicketsModal(evento)"
+											class="btn btn-outline-success">
+											<i class="fa-solid fa-ticket"></i> Mis Tickets
+										</a>
+									</div>
+
+									<div v-if="evento.type === 'Fiesta'" class="card-footer text-center">
+										<a :href="`https://wa.me/${evento.raffleAffiliate.phoneNumber}?text=Hola,%20deseo%20realizar%20una%20reserva.%20Y%20obtener%20mi%20cupon%20de%20rose%20app`"
+											target="_blank" class="btn btn-outline-success">
+											<i class="fa-brands fa-whatsapp"></i> Comprar entrada
+										</a>
+									</div>
+								</div>
+						</div>
+				</div>
+			</div>
+
+			<!-- Modals -->
+			<!-- Purchase tickets -->
+			<div v-if="modalEvent" class="modal fade" id="buyTicketModal" tabindex="-1"
+				aria-labelledby="buyTicketModalLabel" aria-hidden="true">
+				<div class="modal-dialog modal-dialog-centered">
+					<div class="modal-content">
+						<div class="modal-header">
+							<h5 class="modal-title" id="buyTicketModalLabel">Selecciona uno o mas Tickets</h5>
+							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+						</div>
+						<div class="modal-body">
+							<!-- Event Details -->
+							<div class="mb-3">
+								<p class="mb-1 text-muted">Descripción:</p>
+								<p>{{ modalEvent.desc }}</p>
+							</div>
+							<div class="row">
+								<div class="col-md-12 mb-3">
+									<p class="mb-1 text-muted">Fecha:</p>
+									<div :class="isPastDate(modalEvent.date) ? 'text-danger' : 'text-success'">
+										<span>{{ formattedDate(modalEvent.date) }}</span>
+									</div>
+								</div>
+								<div class="col-md-6 mb-3">
+									<p class="mb-1 text-muted">Precio por Ticket:</p>
+									<p class="text-primary fw-bold">{{ modalEvent.raffle.ticketPrice.toFixed(2) }} USD</p>
+								</div>
+								<div class="col-md-6 mb-3">
+									<p class="mb-1 text-muted">Tasa:</p>
+									<p class="text-primary fw-bold">{{ exchange }} Bs</p>
+								</div>
+								<div class="col-md-6 mb-3">
+									<p class="mb-1 text-muted">Total en Divisas:</p>
+									<p class="text-primary fw-bold">{{ (modalEvent.raffle.ticketPrice *
+										selectedTickets.length).toFixed(2) }} USD</p>
+								</div>
+								<div class="col-md-6 mb-3">
+									<p class="mb-1 text-muted">Total en Bolívares:</p>
+									<input type="number" class="form-control text-primary fw-bold"
+										v-model="totalInBolivares" style="width: auto;" disabled />
 								</div>
 
-								<div v-if="evento.type === 'Rifa'" class="card-footer text-center">
-									<a href="#" @click.prevent="buyTicket(evento)" class="btn btn-outline-success me-2">
-										<i class="fa-solid fa-ticket"></i> Comprar Ticket
-									</a>
-									<a href="#" @click.prevent="openTicketsModal(evento)"
-										class="btn btn-outline-success">
-										<i class="fa-solid fa-ticket"></i> Mis Tickets
+								<div class="d-flex justify-contents-center mb-3">
+									<a href="#" @click.prevent="togglePaymentMethods">
+										{{ showPaymentMethods ? "Ocultar métodos de pago" : "Mostrar métodos de pago" }}
 									</a>
 								</div>
 
-								<div v-if="evento.type === 'Fiesta'" class="card-footer text-center">
-									<a :href="`https://wa.me/${evento.raffleAffiliate.phoneNumber}?text=Hola,%20deseo%20realizar%20una%20reserva.%20Y%20obtener%20mi%20cupon%20de%20rose%20app`"
-										target="_blank" class="btn btn-outline-success">
-										<i class="fa-brands fa-whatsapp"></i> Comprar entrada
-									</a>
+								<!-- Payment methods -->
+								<div v-if="showPaymentMethods" class="card mb-3">
+									<h4 class="text-center">Métodos de Pago</h4>
+									<h6><u>Pago Móvil</u></h6>
+									<div class="card-text">
+										<strong>Banco: </strong>Banco Provincial
+									</div>
+									<div class="card-text">
+										<strong>Teléfono: </strong>04246003370
+										<button class="btn btn-sm btn-secondary ms-2"
+											@click="copyToClipboard('04246003370')">
+											<i class="fa fa-copy"></i>
+										</button>
+									</div>
+									<div class="card-text">
+										<strong>RIF: </strong>J506221772
+										<button class="btn btn-sm btn-secondary ms-2"
+											@click="copyToClipboard('J506221772')">
+											<i class="fa fa-copy"></i>
+										</button>
+									</div>
+								</div>
+
+								<div class="col-12 mb-3">
+									<label for="payment" class="form-label">Captura de Pago</label>
+									<input type="file" class="form-control" id="payment" @change="handleFileUpload($event)"
+										required style="width: auto;">
+									<img v-if="paymentPreview" :src="paymentPreview" alt="payment preview"
+										class="img-fluid mt-2" />
 								</div>
 							</div>
+							<hr />
+
+							<!-- Tickets -->
+							<p class="mb-3 text-muted">Selecciona tu(s) ticket(s):</p>
+							<div class="d-flex flex-wrap gap-2">
+								<button v-for="ticket in modalEvent.raffle.ticketLimit" :key="ticket"
+									:disabled="modalEvent.raffle.soldTickets.includes(ticket)" @click="selectTicket(ticket)"
+									:class="[
+										'btn',
+										'rounded-circle',
+										'ticket-button',
+										{
+											'btn-primary': selectedTickets.includes(ticket),
+											'btn-outline-secondary': !selectedTickets.includes(ticket),
+											'btn-disabled': modalEvent.raffle.soldTickets.includes(ticket),
+										}]" style="width: 50px; height: 50px;">
+									{{ ticket }}
+								</button>
+							</div>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+
+							<button type="button" :disabled="isSubmitting || selectedTickets.length === 0"
+								@click="notifyTicketPayment(modalEvent)" class="btn btn-theme">
+								<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+									aria-hidden="true"></span>
+								<span v-else>Notificar Pago</span>
+							</button>
 						</div>
 					</div>
 				</div>
 			</div>
-		</div>
-
-		<!-- Modals -->
-		<!-- Purchase tickets -->
-		<div v-if="modalEvent" class="modal fade" id="buyTicketModal" tabindex="-1"
-			aria-labelledby="buyTicketModalLabel" aria-hidden="true">
-			<div class="modal-dialog modal-dialog-centered">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="buyTicketModalLabel">Selecciona uno o mas Tickets</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-					</div>
-					<div class="modal-body">
-						<!-- Event Details -->
-						<div class="mb-3">
-							<p class="mb-1 text-muted">Descripción:</p>
-							<p>{{ modalEvent.desc }}</p>
+			<!-- Display tickets bought -->
+			<div v-if="clientTickets" class="modal fade" id="myTicketsModal" tabindex="-1"
+				aria-labelledby="myTicketsModalLabel" aria-hidden="true">
+				<div class="modal-dialog modal-dialog-centered">
+					<div class="modal-content">
+						<div class="modal-header">
+							<h5 class="modal-title" id="myTicketsModalLabel">Tickets comprados</h5>
+							<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 						</div>
-						<div class="row">
-							<div class="col-md-12 mb-3">
-								<p class="mb-1 text-muted">Fecha:</p>
-								<div :class="isPastDate(modalEvent.date) ? 'text-danger' : 'text-success'">
-									<span>{{ formattedDate(modalEvent.date) }}</span>
-								</div>
+						<div class="modal-body">
+							<!-- If no tickets are purchased, show the no tickets message -->
+							<div v-if="clientTickets.length === 0" class="text-center">
+								<i class="fas fa-exclamation-circle"></i>
+								<p>No hay tickets comprados aún</p>
 							</div>
-							<div class="col-md-6 mb-3">
-								<p class="mb-1 text-muted">Precio por Ticket:</p>
-								<p class="text-primary fw-bold">{{ modalEvent.raffle.ticketPrice.toFixed(2) }} USD</p>
-							</div>
-							<div class="col-md-6 mb-3">
-								<p class="mb-1 text-muted">Tasa:</p>
-								<p class="text-primary fw-bold">{{ exchange }} Bs</p>
-							</div>
-							<div class="col-md-6 mb-3">
-								<p class="mb-1 text-muted">Total en Divisas:</p>
-								<p class="text-primary fw-bold">{{ (modalEvent.raffle.ticketPrice *
-									selectedTickets.length).toFixed(2) }} USD</p>
-							</div>
-							<div class="col-md-6 mb-3">
-								<p class="mb-1 text-muted">Total en Bolívares:</p>
-								<input type="number" class="form-control text-primary fw-bold"
-									v-model="totalInBolivares" style="width: auto;" disabled />
-							</div>
-
-							<div class="d-flex justify-contents-center mb-3">
-								<a href="#" @click.prevent="togglePaymentMethods">
-									{{ showPaymentMethods ? "Ocultar métodos de pago" : "Mostrar métodos de pago" }}
-								</a>
-							</div>
-
-							<!-- Payment methods -->
-							<div v-if="showPaymentMethods" class="card mb-3">
-								<h4 class="text-center">Métodos de Pago</h4>
-								<h6><u>Pago Móvil</u></h6>
-								<div class="card-text">
-									<strong>Banco: </strong>Banco Provincial
-								</div>
-								<div class="card-text">
-									<strong>Teléfono: </strong>04246003370
-									<button class="btn btn-sm btn-secondary ms-2"
-										@click="copyToClipboard('04246003370')">
-										<i class="fa fa-copy"></i>
-									</button>
-								</div>
-								<div class="card-text">
-									<strong>RIF: </strong>J506221772
-									<button class="btn btn-sm btn-secondary ms-2"
-										@click="copyToClipboard('J506221772')">
-										<i class="fa fa-copy"></i>
-									</button>
-								</div>
-							</div>
-
-							<div class="col-12 mb-3">
-								<label for="payment" class="form-label">Captura de Pago</label>
-								<input type="file" class="form-control" id="payment" @change="handleFileUpload($event)"
-									required style="width: auto;">
-								<img v-if="paymentPreview" :src="paymentPreview" alt="payment preview"
-									class="img-fluid mt-2" />
+							<!-- If tickets are purchased, display them -->
+							<div v-else class="d-flex justify-content-center flex-wrap gap-2">
+								<button v-for="ticket in clientTickets" :key="ticket"
+									:class="['btn', 'btn-disabled', 'rounded-circle', 'ticket-button']"
+									style="width: 50px; height: 50px;">
+									{{ ticket }}
+								</button>
 							</div>
 						</div>
-						<hr />
-
-						<!-- Tickets -->
-						<p class="mb-3 text-muted">Selecciona tu(s) ticket(s):</p>
-						<div class="d-flex flex-wrap gap-2">
-							<button v-for="ticket in modalEvent.raffle.ticketLimit" :key="ticket"
-								:disabled="modalEvent.raffle.soldTickets.includes(ticket)" @click="selectTicket(ticket)"
-								:class="[
-									'btn',
-									'rounded-circle',
-									'ticket-button',
-									{
-										'btn-primary': selectedTickets.includes(ticket),
-										'btn-outline-secondary': !selectedTickets.includes(ticket),
-										'btn-disabled': modalEvent.raffle.soldTickets.includes(ticket),
-									}]" style="width: 50px; height: 50px;">
-								{{ ticket }}
-							</button>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
 						</div>
-					</div>
-					<div class="modal-footer">
-						<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-
-						<button type="button" :disabled="isSubmitting || selectedTickets.length === 0"
-							@click="notifyTicketPayment(modalEvent)" class="btn btn-theme">
-							<span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
-								aria-hidden="true"></span>
-							<span v-else>Notificar Pago</span>
-						</button>
-					</div>
-				</div>
-			</div>
-		</div>
-		<!-- Display tickets bought -->
-		<div v-if="clientTickets" class="modal fade" id="myTicketsModal" tabindex="-1"
-			aria-labelledby="myTicketsModalLabel" aria-hidden="true">
-			<div class="modal-dialog modal-dialog-centered">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="myTicketsModalLabel">Tickets comprados</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-					</div>
-					<div class="modal-body">
-						<!-- If no tickets are purchased, show the no tickets message -->
-						<div v-if="clientTickets.length === 0" class="text-center">
-							<i class="fas fa-exclamation-circle"></i>
-							<p>No hay tickets comprados aún</p>
-						</div>
-						<!-- If tickets are purchased, display them -->
-						<div v-else class="d-flex justify-content-center flex-wrap gap-2">
-							<button v-for="ticket in clientTickets" :key="ticket"
-								:class="['btn', 'btn-disabled', 'rounded-circle', 'ticket-button']"
-								style="width: 50px; height: 50px;">
-								{{ ticket }}
-							</button>
-						</div>
-					</div>
-					<div class="modal-footer">
-						<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
 					</div>
 				</div>
 			</div>
@@ -1725,5 +1735,11 @@ export default {
 .btn-theme {
 	background-color: purple;
 	border-color: purple;
+}
+.btn-outline-theme, .btn-theme {
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.2s ease;
 }
 </style>

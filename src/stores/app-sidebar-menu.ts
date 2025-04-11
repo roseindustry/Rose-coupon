@@ -56,7 +56,7 @@ export const useAppSidebarMenuStore = defineStore({
       },
       {
         url: "/events",
-        icon: "fa fa-pizza-slice",
+        icon: "fa-solid fa-calendar-days",
         text: "Eventos",
       },
       {
@@ -106,7 +106,7 @@ export const useAppSidebarMenuStore = defineStore({
       },
       {
         url: "/events",
-        icon: "fa fa-pizza-slice",
+        icon: "fa-solid fa-calendar-days",
         text: "Eventos",
       },
       {
