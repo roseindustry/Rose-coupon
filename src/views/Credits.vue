@@ -1568,6 +1568,7 @@ export default {
         } else if (this.role === 'afiliado') {
             const creditData = await this.fetchAffiliateCreditData(this.userId);
             this.currentAffiliate = {
+                id: this.userId,
                 companyName: this.userName,
                 credit: {
                     mainCredit: creditData?.mainCredit || 0,

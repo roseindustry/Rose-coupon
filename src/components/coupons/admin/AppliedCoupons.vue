@@ -15,13 +15,10 @@
                                 <span class="input-group-text">
                                     <i class="fa fa-search"></i>
                                 </span>
-                                <input type="text" 
-                                    class="form-control" 
-                                    v-model="searchQuery"
-                                    placeholder="Buscar por nombre o código..." 
-                                />
-                    </div>
-                </div>
+                                <input type="text" class="form-control" v-model="searchQuery"
+                                    placeholder="Buscar por nombre o código..." />
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Right side: Filters -->
@@ -31,21 +28,20 @@
                             <div class="filter-item">
                                 <label class="form-label">Por comercio</label>
                                 <div class="dropdown">
-                                    <button class="btn btn-outline-theme dropdown-toggle" type="button" 
+                                    <button class="btn btn-outline-theme dropdown-toggle" type="button"
                                         data-bs-toggle="dropdown" aria-expanded="false">
                                         <i class="fa fa-store me-2"></i>
                                         {{ activeAffiliate ? activeAffiliate.companyName : 'Todos los comercios' }}
                                     </button>
                                     <ul class="dropdown-menu">
                                         <li>
-                                            <a class="dropdown-item" href="#" 
-                                                @click.prevent="clearAffiliateFilter"
+                                            <a class="dropdown-item" href="#" @click.prevent="clearAffiliateFilter"
                                                 :class="{ active: !activeAffiliate }">
                                                 Todos los comercios
                                             </a>
                                         </li>
                                         <li v-for="affiliate in affiliates" :key="affiliate.id">
-                                            <a class="dropdown-item" href="#" 
+                                            <a class="dropdown-item" href="#"
                                                 @click.prevent="setActiveAffiliate(affiliate)"
                                                 :class="{ active: activeAffiliate?.id === affiliate.id }">
                                                 {{ affiliate.companyName }}
@@ -61,12 +57,12 @@
                                 <div class="dropdown">
                                     <div class="date-filter-toggle">
                                         <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" 
-                                                id="filterByDate" v-model="filterByDate">
-                </div>
-            </div>
-        </div>
-            </div>
+                                            <input class="form-check-input" type="checkbox" id="filterByDate"
+                                                v-model="filterByDate">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -77,11 +73,11 @@
                         <div class="date-input">
                             <label class="form-label">Fecha inicial</label>
                             <input type="date" v-model="startDate" class="form-control" />
-            </div>
+                        </div>
                         <div class="date-input">
                             <label class="form-label">Fecha final</label>
                             <input type="date" v-model="endDate" class="form-control" />
-        </div>
+                        </div>
                         <button type="button" class="btn btn-outline-theme" @click="clearDateFilter">
                             <i class="fa fa-times-circle me-2"></i>Limpiar filtro
                         </button>
@@ -92,43 +88,41 @@
             <!-- Sort Section -->
             <div class="sort-section mt-3">
                 <div class="btn-group">
-                    <button class="btn btn-outline-theme" 
-                        :class="{ active: sortBy === 'date' }"
+                    <button class="btn btn-outline-theme" :class="{ active: sortBy === 'date' }"
                         @click="toggleSort('date')">
-                        <i class="fa" :class="sortBy === 'date' ? 
-                            (sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 
+                        <i class="fa" :class="sortBy === 'date' ?
+                            (sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down') :
                             'fa-sort'">
                         </i>
                         Fecha
                     </button>
-                    <button class="btn btn-outline-theme"
-                        :class="{ active: sortBy === 'name' }"
+                    <button class="btn btn-outline-theme" :class="{ active: sortBy === 'name' }"
                         @click="toggleSort('name')">
-                        <i class="fa" :class="sortBy === 'name' ? 
-                            (sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 
+                        <i class="fa" :class="sortBy === 'name' ?
+                            (sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down') :
                             'fa-sort'">
                         </i>
                         Nombre
                     </button>
-                    <button class="btn btn-outline-theme"
-                        :class="{ active: sortBy === 'code' }"
+                    <button class="btn btn-outline-theme" :class="{ active: sortBy === 'code' }"
                         @click="toggleSort('code')">
-                        <i class="fa" :class="sortBy === 'code' ? 
-                            (sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 
+                        <i class="fa" :class="sortBy === 'code' ?
+                            (sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down') :
                             'fa-sort'">
                         </i>
                         Código
                     </button>
+                </div>
             </div>
-        </div>
 
             <!-- Loading State -->
             <div class="d-flex justify-content-center align-items-center min-vh-50 mt-4" v-if="loading">
-            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-        </div>
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            </div>
 
             <!-- Empty State -->
-            <div v-else-if="filteredAndSortedCoupons.length === 0" class="d-flex justify-content-center align-items-center min-vh-50">
+            <div v-else-if="filteredAndSortedCoupons.length === 0"
+                class="d-flex justify-content-center align-items-center min-vh-50">
                 <div class="text-center">
                     <div class="mb-3">
                         <i class="fa fa-ticket-alt text-secondary opacity-25" style="font-size: 5em"></i>
@@ -136,15 +130,15 @@
                     <h5 class="text-secondary">No hay cupones aplicados</h5>
                     <div class="d-flex justify-content-center">
                         <button class="btn btn-theme mt-3" @click="fetchAllAppliedCoupons">
-                        <i class="fa fa-sync-alt me-2"></i>Mostrar todos
+                            <i class="fa fa-sync-alt me-2"></i>Mostrar todos
                         </button>
-                    </div>                    
+                    </div>
                 </div>
             </div>
 
             <!-- Results Count -->
             <div v-else class="results-count mt-4 mb-3">
-                Mostrando {{ filteredAndSortedCoupons.length }} 
+                Mostrando {{ filteredAndSortedCoupons.length }}
                 {{ filteredAndSortedCoupons.length === 1 ? 'resultado' : 'resultados' }}
             </div>
 
@@ -153,15 +147,13 @@
                 {{ fetchError }}
                 <button class="btn btn-link" @click="fetchAllAppliedCoupons">
                     Reintentar
-            </button>
-        </div>
+                </button>
+            </div>
 
             <!-- Coupons Grid -->
             <div class="coupon-cards-container">
-                <div v-for="coupon in filteredAndSortedCoupons" 
-                    :key="`${coupon.couponId}-${coupon.clientId}`" 
-                    class="coupon-payment-card"
-                >
+                <div v-for="coupon in filteredAndSortedCoupons" :key="`${coupon.couponId}-${coupon.clientId}`"
+                    class="coupon-payment-card">
                     <div class="card-header">
                         <h6 class="mb-0 text-black">{{ coupon.name?.toUpperCase() || 'Cupón borrado' }}</h6>
                         <div class="badge rounded-pill bg-info text-black">
@@ -179,18 +171,30 @@
                             <div class="detail-item">
                                 <span class="detail-label fw-bold me-1">Código:</span>
                                 <span class="detail-value">{{ coupon.couponCode || 'N/A' }}</span>
-                                    </div>
+                            </div>
 
                             <div class="detail-item">
                                 <span class="detail-label fw-bold me-1">
-                                    {{ coupon.type ? coupon.type.charAt(0).toUpperCase() + coupon.type.slice(1) : 'Balance' }}:
+                                    {{ coupon.type ? coupon.type.charAt(0).toUpperCase() + coupon.type.slice(1) :
+                                    'Balance' }}:
                                 </span>
-                                <span class="detail-value">${{ coupon.balance || '0' }}</span>
-                                </div>
+                                <span class="detail-value">{{ coupon.type === 'saldo' ? `$${coupon.balance}` :
+                                    coupon.type === 'porcentaje' ? `${coupon.balance }%` : `NA` }}</span>
+                            </div>
 
                             <div class="detail-item">
                                 <span class="detail-label fw-bold me-1">Cliente:</span>
                                 <span class="detail-value">{{ coupon.clientName || 'Aplicado sin cliente' }}</span>
+                            </div>
+
+                            <div class="detail-item">
+                                <span class="detail-label fw-bold me-1">Monto Completo:</span>
+                                <span class="detail-value">${{ coupon.itemPrice }}</span>
+                            </div>
+
+                            <div class="detail-item">
+                                <span class="detail-label fw-bold me-1">Monto Pagado:</span>
+                                <span class="detail-value">${{ coupon.discountedPrice }}</span>
                             </div>
                         </div>
                     </div>
@@ -212,7 +216,6 @@ export default {
             required: true
         }
     },
-    
     data() {
         return {
             filterByDate: false,
@@ -228,7 +231,6 @@ export default {
             clientsCache: new Map(), // Cache for client names
         };
     },
-
     computed: {
         filteredAndSortedCoupons() {
             let filtered = [...this.appliedCoupons];
@@ -236,7 +238,7 @@ export default {
             try {
                 // Apply affiliate filter
                 if (this.activeAffiliate) {
-                    filtered = filtered.filter(coupon => 
+                    filtered = filtered.filter(coupon =>
                         coupon.affiliateId === this.activeAffiliate.id
                     );
                 }
@@ -244,7 +246,7 @@ export default {
                 // Apply search filter
                 if (this.searchQuery.trim()) {
                     const query = this.searchQuery.toLowerCase();
-                    filtered = filtered.filter(coupon => 
+                    filtered = filtered.filter(coupon =>
                         (coupon.name?.toLowerCase().includes(query)) ||
                         (coupon.couponCode?.toLowerCase().includes(query)) ||
                         (coupon.clientName?.toLowerCase().includes(query))
@@ -272,24 +274,24 @@ export default {
                         case 'date':
                             const dateA = new Date(a.appliedDate);
                             const dateB = new Date(b.appliedDate);
-                            return this.sortOrder === 'asc' 
-                                ? dateA - dateB 
+                            return this.sortOrder === 'asc'
+                                ? dateA - dateB
                                 : dateB - dateA;
-                        
+
                         case 'name':
                             const nameA = (a.name || '').toLowerCase();
                             const nameB = (b.name || '').toLowerCase();
                             return this.sortOrder === 'asc'
                                 ? nameA.localeCompare(nameB)
                                 : nameB.localeCompare(nameA);
-                        
+
                         case 'code':
                             const codeA = (a.couponCode || '').toLowerCase();
                             const codeB = (b.couponCode || '').toLowerCase();
                             return this.sortOrder === 'asc'
                                 ? codeA.localeCompare(codeB)
                                 : codeB.localeCompare(codeA);
-                            
+
                         default:
                             return 0;
                     }
@@ -304,9 +306,9 @@ export default {
         },
 
         hasFiltersApplied() {
-            return this.activeAffiliate || 
-                   this.searchQuery.trim() || 
-                   (this.filterByDate && this.startDate && this.endDate);
+            return this.activeAffiliate ||
+                this.searchQuery.trim() ||
+                (this.filterByDate && this.startDate && this.endDate);
         },
 
         sortLabel() {
@@ -318,16 +320,15 @@ export default {
             return labels[this.sortBy] || 'Ordenar por';
         }
     },
-
     methods: {
         async fetchAllAppliedCoupons() {
             this.loading = true;
             this.fetchError = null;
-            
+
             try {
                 // Reset filters
                 this.resetFilters();
-                
+
                 let appliedCoupons = [];
 
                 // Process each affiliate
@@ -365,6 +366,9 @@ export default {
                             affiliateId: affiliate.id,
                             affiliateName: affiliate.companyName,
                             appliedDate: couponDetails.appliedDate,
+                            itemName: couponDetails.itemName,
+                            itemPrice: couponDetails.itemPrice,
+                            discountedPrice: couponDetails.discountedPrice,
                             image: couponData.qrFileUrl,
                         });
                     } catch (error) {
@@ -389,7 +393,7 @@ export default {
                     this.clientsCache.set(clientId, name);
                     return name;
                 }
-                
+
                 return 'Cliente no encontrado';
             } catch (error) {
                 console.error('Error fetching client name:', error);
@@ -399,8 +403,8 @@ export default {
 
         async getCouponData(couponId) {
             try {
-                            const couponRef = dbRef(db, `Coupons/${couponId}`);
-                            const couponSnapshot = await get(couponRef);
+                const couponRef = dbRef(db, `Coupons/${couponId}`);
+                const couponSnapshot = await get(couponRef);
                 return couponSnapshot.exists() ? couponSnapshot.val() : {};
             } catch (error) {
                 console.error('Error fetching coupon data:', error);
@@ -458,7 +462,6 @@ export default {
     }
 };
 </script>
-
 <style scoped>
 /* Base styles */
 .expiration-badge {
@@ -474,6 +477,7 @@ export default {
     display: flex;
     align-items: center;
 }
+
 .filters-container {
     display: flex;
     gap: 20px;
@@ -532,7 +536,7 @@ export default {
     .filter-item {
         flex: 0 0 auto;
     }
-    
+
     .btn-outline-theme {
         min-width: 180px;
     }
@@ -544,35 +548,35 @@ export default {
         flex-direction: column;
         gap: 20px;
     }
-    
+
     .search-side {
         flex: 0 0 100%;
         max-width: 100%;
     }
-    
+
     .filters-side {
         width: 100%;
     }
-    
+
     .filters-group {
         justify-content: center;
         gap: 15px;
     }
-    
+
     .filter-item {
         flex: 0 0 auto;
         min-width: 220px;
     }
-    
+
     .sort-section {
         justify-content: center;
         margin-top: 25px;
     }
-    
+
     .btn-group {
         gap: 10px;
     }
-    
+
     .btn-outline-theme {
         min-width: 160px;
     }
@@ -590,23 +594,23 @@ export default {
         width: 100%;
         gap: 20px;
     }
-    
+
     .filter-item {
         width: 100%;
         max-width: 300px;
     }
-    
+
     .btn-group {
         width: 100%;
         max-width: 300px;
     }
-    
+
     .btn-group .btn {
         flex: 1;
         padding: 8px;
         font-size: 0.9rem;
     }
-    
+
     .btn-outline-theme {
         width: 100%;
     }
@@ -614,41 +618,41 @@ export default {
 
 /* Extra small screens (<576px) */
 @media (max-width: 575px) {
-    
+
     .filters-container {
         gap: 15px;
     }
-    
+
     .filters-group {
         gap: 15px;
     }
-    
+
     .filter-item {
         max-width: 100%;
     }
-    
+
     .btn-group {
         max-width: 100%;
         flex-direction: column;
     }
-    
+
     .btn-group .btn {
         width: 100%;
         margin: 0;
         padding: 10px;
     }
-    
+
     .dropdown-menu {
         width: 100%;
         max-width: none;
     }
-    
+
     .date-range-container {
         flex-direction: column;
         gap: 15px;
     }
-    
-    .date-range-container > * {
+
+    .date-range-container>* {
         width: 100%;
     }
 }

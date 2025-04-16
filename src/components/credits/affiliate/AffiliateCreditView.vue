@@ -10,7 +10,7 @@
     <div v-else>
       <!-- Header with Credit Stats -->
       <div class="mb-4">
-        <h2 class="mb-3 fw-500 text-center">{{ currentAffiliate?.companyName }}</h2>
+        <h2 class="mb-3 fw-500 text-center text-primary">Panel de Crédito del Comercio</h2>
         <div class="row g-3">
           <div class="col-md-6">
             <div class="card h-100">
@@ -46,13 +46,9 @@
                   <h6 class="text-light mb-3">1. Selección del Cliente</h6>
                   <div class="row">
                     <div class="col-md-12 mb-3">
-                      <SearchInput
-                        v-model="searchClient"
-                        placeholder="Buscar cliente por nombre o cédula..."
-                        :results="searchClientResults"
-                        @select="selectClient"
-                        @blur="() => !selectedClient && clearSearchResults()"
-                      >
+                      <SearchInput v-model="searchClient" placeholder="Buscar cliente por nombre o cédula..."
+                        :results="searchClientResults" @select="selectClient"
+                        @blur="() => !selectedClient && clearSearchResults()">
                         <template #result="{ result }">
                           <div>
                             <strong>{{ result.firstName }} {{ result.lastName }}</strong>
@@ -63,7 +59,7 @@
                       </SearchInput>
                     </div>
                   </div>
-                  
+
                   <!-- Selected Client Info -->
                   <div v-if="selectedClient" class="selected-client-info p-3 border rounded bg-dark">
                     <div class="d-flex justify-content-between align-items-start">
@@ -73,30 +69,37 @@
                       </div>
                       <div class="text-end">
                         <p class="text-light mb-1">Crédito Disponible</p>
-                        <h5 class="text-success">${{ selectedClient.credit?.availableMainCredit?.toLocaleString() || 0 }}</h5>
+                        <h5 class="text-success">${{ selectedClient.credit?.availableMainCredit?.toLocaleString() || 0
+                          }}</h5>
                       </div>
                     </div>
                   </div>
 
                   <!-- Warning for unverified user -->
-                  <div v-if="selectedClient && (!selectedClient.emailVerified || !selectedClient.phoneVerified)" class="alert alert-danger mt-3">
+                  <div v-if="selectedClient && (!selectedClient.emailVerified || !selectedClient.phoneVerified)"
+                    class="alert alert-danger mt-3">
                     <div class="d-flex align-items-start">
                       <i class="fas fa-exclamation-circle fa-2x me-2 text-danger"></i>
                       <div>
                         <h5 class="mb-1">Cliente no verificado</h5>
                         <p class="mb-0">El cliente no ha verificado su correo electrónico o número de teléfono.</p>
-                        <p class="mb-0">No se puede proceder con la compra hasta que el cliente verifique su cuenta.</p>                        
+                        <p class="mb-0">No se puede proceder con la compra hasta que el cliente verifique su cuenta.</p>
                       </div>
                     </div>
                   </div>
 
                   <!-- Warning for unpaid cuotas -->
-                  <div v-if="selectedClient && selectedClient.hasUnpaidCuotas" class="mt-3" :class="selectedClient.unpaidCuotasCount > 2 ? 'alert alert-danger' : 'alert alert-warning'">
+                  <div v-if="selectedClient && selectedClient.hasUnpaidCuotas" class="mt-3"
+                    :class="selectedClient.unpaidCuotasCount > 2 ? 'alert alert-danger' : 'alert alert-warning'">
                     <div class="d-flex align-items-start">
-                      <i :class="selectedClient.unpaidCuotasCount > 2 ? 'fas fa-exclamation-circle fa-2x me-2 text-danger' : 'fas fa-exclamation-triangle fa-2x me-2 text-warning'"></i>
+                      <i
+                        :class="selectedClient.unpaidCuotasCount > 2 ? 'fas fa-exclamation-circle fa-2x me-2 text-danger' : 'fas fa-exclamation-triangle fa-2x me-2 text-warning'"></i>
                       <div>
                         <h5 class="mb-1">Cliente con pagos pendientes</h5>
-                        <p class="mb-1">Este cliente tiene {{ selectedClient.unpaidCuotasCount }} cuota{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} vencida{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} sin pagar.</p>
+                        <p class="mb-1">Este cliente tiene {{ selectedClient.unpaidCuotasCount }} cuota{{
+                          selectedClient.unpaidCuotasCount
+                          !== 1 ? 's' : '' }} vencida{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} sin pagar.
+                        </p>
                         <p v-if="selectedClient.unpaidCuotasCount > 2" class="mb-0 fw-bold">
                           No se puede proceder con la compra hasta que el cliente regularice sus pagos.
                         </p>
@@ -114,14 +117,14 @@
                   <div class="row">
                     <div class="col-md-6 mb-3">
                       <label class="form-label text-light">Producto</label>
-                      <input type="text" v-model="newPurchase.productName" 
+                      <input type="text" v-model="newPurchase.productName"
                         class="form-control bg-dark text-light border-secondary" required>
                     </div>
                     <div class="col-md-6 mb-3">
                       <label class="form-label text-light">Precio Total</label>
                       <div class="input-group">
                         <span class="input-group-text bg-dark text-light border-secondary">$</span>
-                        <input type="number" v-model.number="newPurchase.productPrice" 
+                        <input type="number" step="0.01" v-model.number="newPurchase.productPrice"
                           class="form-control bg-dark text-light border-secondary" required>
                       </div>
                       <div v-if="priceWarning" class="price-warning mt-2">
@@ -137,8 +140,7 @@
                         v-model="formattedDate">
                     </div>
                     <div class="col-md-6 mb-3 d-flex align-items-end">
-                      <button type="button" class="btn btn-theme w-100" 
-                        @click="calcs(selectedClient)"
+                      <button type="button" class="btn btn-theme w-100" @click="calcs(selectedClient)"
                         :disabled="!canCalculate"
                         :title="!canCalculate ? 'Verifique el monto y el crédito disponible' : ''">
                         <i class="fas fa-calculator me-2"></i>
@@ -148,10 +150,7 @@
                   </div>
                   <div class="mb-3">
                     <div class="form-check">
-                      <input type="checkbox" 
-                             class="form-check-input" 
-                             id="includeFee" 
-                             v-model="includeFee">
+                      <input type="checkbox" class="form-check-input" id="includeFee" v-model="includeFee">
                       <label class="form-check-label" for="includeFee">
                         Incluir cargo por gestión ($1)
                       </label>
@@ -179,8 +178,8 @@
                             <label class="form-check-label text-light" for="initial-25">25%</label>
                           </div>
                           <div class="form-check">
-                            <input class="form-check-input" type="radio" id="initial-custom"
-                              value="custom" v-model="initialPercentage" />
+                            <input class="form-check-input" type="radio" id="initial-custom" value="custom"
+                              v-model="initialPercentage" />
                             <label class="form-check-label text-light" for="initial-custom">
                               Personalizado
                             </label>
@@ -188,9 +187,9 @@
                         </div>
                         <div v-if="initialPercentage === 'custom'" class="mt-3">
                           <div class="input-group percentage-input">
-                          <input type="number" class="form-control bg-dark text-light border-secondary"
-                            placeholder="Ingrese el porcentaje" min="1" max="99"
-                            v-model="customInitial" @input="updateInitial(selectedClient)" />
+                            <input type="number" class="form-control bg-dark text-light border-secondary"
+                              placeholder="Ingrese el porcentaje" min="1" max="99" v-model="customInitial"
+                              @input="updateInitial(selectedClient)" />
                             <span class="input-group-text bg-dark text-light border-secondary">%</span>
                           </div>
                         </div>
@@ -204,13 +203,13 @@
                           <div class="col-md-3">
                             <label class="text-secondary">Inicial</label>
                             <h5 class="text-light">${{ purchaseAmount.toLocaleString() }}</h5>
+                            <small class="text-secondary" v-if="includeFee">
+                              Incluye cargo de $1 por gestión
+                            </small>
                           </div>
                           <div class="col-md-4">
                             <label class="text-secondary">Préstamo</label>
                             <h5 class="text-light">${{ loanAmount.toLocaleString() }}</h5>
-                            <small class="text-secondary" v-if="includeFee">
-                              Incluye cargo de $1 por gestión
-                            </small>
                           </div>
                           <div class="col-md-2 mt-2 mt-md-0">
                             <label class="text-secondary">Cuotas</label>
@@ -268,69 +267,70 @@
                 <!-- Form Actions -->
                 <div class="text-end mt-4">
                   <!-- Rate Limit Info -->
-                    <div v-if="shouldShowVerificationMessages" class="text-start mb-3">
-                        <div v-if="hasExceededAttempts" class="d-flex align-items-center text-danger">
-                            <i class="fas fa-ban me-2"></i>
-                            <small>Cliente superó los intentos permitidos para hoy</small>
-                        </div>
-                        <template v-else>
-                    <div v-if="cooldownMessage" class="d-flex align-items-center text-warning mb-2">
-                      <i class="fas fa-clock me-2"></i>
-                      <small>{{ cooldownMessage }}</small>
+                  <div v-if="shouldShowVerificationMessages" class="text-start mb-3">
+                    <div v-if="hasExceededAttempts" class="d-flex align-items-center text-danger">
+                      <i class="fas fa-ban me-2"></i>
+                      <small>Cliente superó los intentos permitidos para hoy</small>
                     </div>
-                    <div v-if="attemptsMessage" class="d-flex align-items-center" 
-                      :class="{
-                                    'text-danger': rateLimitData[selectedClient?.id]?.attempts >= 4,
-                                    'text-warning': rateLimitData[selectedClient?.id]?.attempts < 4
+                    <template v-else>
+                      <div v-if="cooldownMessage" class="d-flex align-items-center text-warning mb-2">
+                        <i class="fas fa-clock me-2"></i>
+                        <small>{{ cooldownMessage }}</small>
+                      </div>
+                      <div v-if="attemptsMessage" class="d-flex align-items-center" :class="{
+                        'text-danger': rateLimitData[selectedClient?.id]?.attempts >= 4,
+                        'text-warning': rateLimitData[selectedClient?.id]?.attempts < 4
                       }">
-                      <i class="fas fa-exclamation-triangle me-2"></i>
-                      <small>{{ attemptsMessage }}</small>
-                    </div>
-                        </template>
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <small>{{ attemptsMessage }}</small>
+                      </div>
+                    </template>
                   </div>
 
-                    <!-- Form Buttons -->
+                  <!-- Form Buttons -->
                   <div class="d-flex justify-content-between">
                     <div class="d-flex justify-content-between gap-2">
-                      <button v-if="!verificationRequested" type="button" class="btn btn-outline-secondary" 
-                        @click="sendDummyCode(selectedClient)" 
+                      <button v-if="!verificationRequested" type="button" class="btn btn-outline-secondary"
+                        @click="sendDummyCode(selectedClient)"
                         :disabled="!selectedClient || hasExceededAttempts || clientHasTooManyUnpaidCuotas || isSubmitting">
                         <span v-if="isSubmitting">
                           <i class="fas fa-spinner fa-spin me-2"></i>
                         </span>
                         <span v-else>
                           <i class="fas fa-wrench me-2"></i>
-                            Mantenimiento
+                          Mantenimiento
                         </span>
-                  </button>
-                      <button type="button" class="btn btn-outline-light me-2" @click="cancelPurchase" :disabled="!selectedClient">
+                      </button>
+                      <button type="button" class="btn btn-outline-light me-2" @click="cancelPurchase"
+                        :disabled="!selectedClient">
                         Cancelar
-                      </button>                      
+                      </button>
                     </div>
-                    <div class="d-flex justify-content-between gap-2">                      
-                    <!-- <button v-if="!selectedClient" @click="resetClientAttempts" class="btn btn-theme">
+                    <div class="d-flex justify-content-between gap-2">
+                      <!-- <button v-if="!selectedClient" @click="resetClientAttempts" class="btn btn-theme">
                       <i class="fas fa-check me-2"></i>
                         Resetear intentos
                       </button> -->
-                      <button v-if="calc && !verificationRequested" type="button" class="btn btn-theme" 
+                      <button v-if="calc && !verificationRequested" type="button" class="btn btn-theme"
                         @click="requestVerification" :disabled="!canRequestVerification || waiting">
                         <span v-if="waiting">
                           <i class="fas fa-spinner fa-spin me-2"></i>
                         </span>
                         <span v-else>
                           <i class="fas fa-key me-2"></i>
-                    Solicitar Código
+                          Solicitar Código
                         </span>
-                  </button>
-                      <button v-if="verificationRequested" type="submit" class="btn btn-theme" :disabled="!verificationCode || clientHasTooManyUnpaidCuotas || isSubmitting">
+                      </button>
+                      <button v-if="verificationRequested" type="submit" class="btn btn-theme"
+                        :disabled="!verificationCode || clientHasTooManyUnpaidCuotas || isSubmitting">
                         <span v-if="isSubmitting">
                           <i class="fas fa-spinner fa-spin me-2"></i>
                         </span>
                         <span v-else>
                           <i class="fas fa-check me-2"></i>
-                    Confirmar Venta
+                          Confirmar Venta
                         </span>
-                  </button>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -348,23 +348,25 @@
               <span class="badge bg-secondary text-black">Últimas 5</span>
             </div>
             <div class="card-body p-0">
-              <div class="list-group list-group-flush">
-                <div v-for="sale in recentSales" :key="sale.id" 
-                     class="list-group-item bg-dark border-secondary">
+              <div v-if="recentSales.length > 0" class="list-group list-group-flush">
+                <div v-for="sale in recentSales" :key="sale.id" class="list-group-item bg-dark border-secondary">
                   <div class="d-flex justify-content-between align-items-center">
                     <div>
                       <h6 class="mb-1 text-light text-truncate" style="max-width: 100px;">{{ sale.clientName }}</h6>
                       <small class="text-secondary">{{ formatDate(sale.purchaseDate) }}</small>
                     </div>
-                    
+
                     <div class="text-light">${{ Number(sale.productPrice).toFixed(2) }}</div>
-                    <div class="text-end">                      
+                    <div class="text-end">
                       <span :class="['badge', sale.paid ? 'text-success' : 'text-warning']">
                         {{ sale.paid ? 'Completado' : 'Pendiente' }}
                       </span>
                     </div>
                   </div>
                 </div>
+              </div>
+              <div v-else>
+                <p class="text-center fw-bold py-4">No hay ventas registradas</p>
               </div>
             </div>
           </div>
@@ -399,30 +401,23 @@
             <!-- Card Header with Filters -->
             <div class="card-header">
               <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-              <h5 class="text-black mb-0">Historial de Ventas</h5>
+                <h5 class="text-black mb-0">Historial de Ventas</h5>
                 <div class="d-flex flex-column flex-sm-row gap-3 align-items-stretch align-items-sm-center">
-                <!-- Status Filter -->
-                <select 
-                  v-model="salesFilter"
-                  class="form-select bg-dark text-light border-secondary"
-                >
-                  <option value="all">Todas las ventas</option>
-                  <option value="pending">Pendientes</option>
-                  <option value="completed">Completadas</option>
-                </select>
-                
-                <!-- Search Bar -->
+                  <!-- Status Filter -->
+                  <select v-model="salesFilter" class="form-select bg-dark text-light border-secondary">
+                    <option value="all">Todas las ventas</option>
+                    <option value="pending">Pendientes</option>
+                    <option value="completed">Completadas</option>
+                  </select>
+
+                  <!-- Search Bar -->
                   <div class="search-container">
-                  <div class="input-group">
-                    <span class="input-group-text bg-dark border-secondary">
-                      <i class="fas fa-search text-secondary"></i>
-                    </span>
-                    <input 
-                      type="text" 
-                      class="form-control bg-dark text-light border-secondary" 
-                      v-model="searchSales"
-                      placeholder="Buscar por cliente, producto o fecha..."
-                    >
+                    <div class="input-group">
+                      <span class="input-group-text bg-dark border-secondary">
+                        <i class="fas fa-search text-secondary"></i>
+                      </span>
+                      <input type="text" class="form-control bg-dark text-light border-secondary" v-model="searchSales"
+                        placeholder="Buscar por cliente, producto o fecha...">
                     </div>
                   </div>
                 </div>
@@ -431,32 +426,23 @@
 
             <!-- Date Filter Section -->
             <div class="card-body border-bottom border-secondary pb-3">
-              <div class="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center justify-content-center gap-3">
+              <div
+                class="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center justify-content-center gap-3">
                 <div class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center">
                   <div class="d-flex flex-column">
                     <small class="text-secondary mb-1">Desde</small>
-                    <input 
-                      type="date" 
-                      class="form-control bg-dark text-light border-secondary" 
-                      v-model="dateRange.start"
-                    >
+                    <input type="date" class="form-control bg-dark text-light border-secondary"
+                      v-model="dateRange.start">
                   </div>
                   <div class="d-flex flex-column">
                     <small class="text-secondary mb-1">Hasta</small>
-                    <input 
-                      type="date" 
-                      class="form-control bg-dark text-light border-secondary" 
-                      v-model="dateRange.end"
-                    >
+                    <input type="date" class="form-control bg-dark text-light border-secondary" v-model="dateRange.end">
                   </div>
-                  </div>
-                  <button 
-                  class="btn btn-outline-secondary align-self-sm-end mt-2 mt-sm-0" 
-                    @click="clearDateFilter"
-                  v-if="dateRange.start || dateRange.end"
-                >
-                    Limpiar
-                  </button>
+                </div>
+                <button class="btn btn-outline-secondary align-self-sm-end mt-2 mt-sm-0" @click="clearDateFilter"
+                  v-if="dateRange.start || dateRange.end">
+                  Limpiar
+                </button>
               </div>
             </div>
 
@@ -506,12 +492,7 @@
       </div>
     </div>
 
-    <PurchaseDetailsModal 
-      v-if="selectedSale"
-      :sale="selectedSale"
-      @close="closeModal"
-      ref="purchaseModal"
-    />
+    <PurchaseDetailsModal v-if="selectedSale" :sale="selectedSale" @close="closeModal" ref="purchaseModal" />
   </div>
 </template>
 
@@ -537,6 +518,7 @@ export default {
       type: Object,
       required: false,
       default: () => ({
+        id: '',
         companyName: '',
         credit: {
           mainCredit: 0,
@@ -600,11 +582,11 @@ export default {
       const originalDate = new Date(this.purchaseDate);
 
       const correctedDate = new Date(
-        originalDate.getFullYear(), 
-        originalDate.getMonth(), 
+        originalDate.getFullYear(),
+        originalDate.getMonth(),
         originalDate.getDate()
       );
-      
+
       // Convert to ISO string
       const paymentDate = correctedDate.toISOString();
       const formattedDate = paymentDate.split("T")[0];
@@ -612,29 +594,29 @@ export default {
     },
     isFormValid() {
       // Basic form validation
-      const hasBasicInfo = this.selectedClient && 
-                          this.newPurchase.productName && 
-                          this.newPurchase.productPrice > 0;
-      
+      const hasBasicInfo = this.selectedClient &&
+        this.newPurchase.productName &&
+        this.newPurchase.productPrice > 0;
+
       // Payment plan validation
       const hasPaymentPlan = this.purchaseAmount > 0 &&
-                            this.loanAmount > 0 &&
-                            this.quotesAmount.length > 0 &&
-                            this.cuotaDates.length > 0;
-      
+        this.loanAmount > 0 &&
+        this.quotesAmount.length > 0 &&
+        this.cuotaDates.length > 0;
+
       // Verification attempts validation - only check for cooldown period
       // We don't track attempts locally anymore, we rely on the cloud function
-      const isNotInCooldown = !this.selectedClient || 
-                             !this.clientVerifications[this.selectedClient.id] || 
-                             this.clientVerifications[this.selectedClient.id].cooldownEnds <= Date.now();
-      
+      const isNotInCooldown = !this.selectedClient ||
+        !this.clientVerifications[this.selectedClient.id] ||
+        this.clientVerifications[this.selectedClient.id].cooldownEnds <= Date.now();
+
       return hasBasicInfo && hasPaymentPlan && isNotInCooldown;
     },
     canCalculate() {
-        return (
-            this.selectedClient && 
-            this.newPurchase.productPrice > 0
-        );
+      return (
+        this.selectedClient &&
+        this.newPurchase.productPrice > 0
+      );
     },
     creditData() {
       return this.currentAffiliate?.credit;
@@ -642,7 +624,7 @@ export default {
     salesArray() {
       const sales = this.currentAffiliate?.credit?.sales;
       if (!sales || typeof sales !== 'object') return [];
-      
+
       // Convert to array and sort by date in descending order
       return Object.entries(sales).map(([id, sale]) => ({
         ...sale,
@@ -652,40 +634,40 @@ export default {
         purchaseDate: sale.purchaseDate || new Date().toISOString().split('T')[0],
         paid: sale.cuotas?.every(cuota => cuota.paid) || false
       })).sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate))
-      .filter(sale => !sale.deleted);
+        .filter(sale => !sale.deleted);
     },
     filteredSales() {
       let filtered = this.salesArray;
-      
+
       // Filter by date range
       if (this.dateRange.start && this.dateRange.end) {
         const startDate = new Date(this.dateRange.start);
         const endDate = new Date(this.dateRange.end);
         endDate.setHours(23, 59, 59);
-        
+
         filtered = filtered.filter(sale => {
           const saleDate = new Date(sale.purchaseDate);
           return saleDate >= startDate && saleDate <= endDate;
         });
       }
-      
+
       // Filter by status
       if (this.salesFilter === 'pending') {
         filtered = filtered.filter(sale => !sale.paid);
       } else if (this.salesFilter === 'completed') {
         filtered = filtered.filter(sale => sale.paid);
       }
-      
+
       // Filter by search term
       if (this.searchSales) {
         const searchTerm = this.searchSales.toLowerCase();
-        filtered = filtered.filter(sale => 
+        filtered = filtered.filter(sale =>
           sale.clientName.toLowerCase().includes(searchTerm) ||
           sale.productName.toLowerCase().includes(searchTerm) ||
           sale.purchaseDate.includes(searchTerm)
         );
       }
-      
+
       return filtered;
     },
     recentSales() {
@@ -699,29 +681,29 @@ export default {
     },
     cooldownMessage() {
       if (!this.selectedClient) return '';
-      
+
       const cooldownEnds = this.clientVerifications[this.selectedClient.id]?.cooldownEnds || 0;
       if (cooldownEnds > Date.now()) {
         const secondsLeft = Math.ceil((cooldownEnds - Date.now()) / 1000);
         return `Espera ${secondsLeft} segundos antes de solicitar otro código`;
       }
-      
+
       return '';
     },
     attemptsMessage() {
       if (!this.selectedClient || !this.rateLimitData[this.selectedClient.id]) return '';
-      
+
       const attempts = this.rateLimitData[this.selectedClient.id].attempts || 0;
       const remaining = 5 - attempts;
-      
+
       if (remaining <= 0) return 'Sin';
-      
+
       return `${remaining} intentos restantes para hoy`;
     },
     paymentStats() {
       const totalSales = this.salesArray.length;
       const paidSales = this.paidPurchases.length;
-      
+
       return {
         total: totalSales,
         paid: paidSales,
@@ -737,25 +719,25 @@ export default {
     },
     priceWarning() {
       if (!this.selectedClient || !this.newPurchase.productPrice) return '';
-      
-        const totalPrice = this.newPurchase.productPrice;
-      const availableCredit = this.selectedClient.credit?.availableMainCredit || 0;
-        const loanAmount = totalPrice - ((totalPrice * (this.initialPercentage === 'custom' ? this.customInitial : Number(this.initialPercentage))) / 100);
 
-        if (loanAmount > availableCredit) {
-            const requiredInitial = totalPrice - availableCredit;
-            const requiredPercentage = ((requiredInitial / totalPrice) * 100).toFixed(1);
-            return `Basado en el crédito disponible ($${availableCredit}), se requiere un pago inicial de $${requiredInitial.toFixed(2)} (${requiredPercentage}%)`;
+      const totalPrice = this.newPurchase.productPrice;
+      const availableCredit = this.selectedClient.credit?.availableMainCredit || 0;
+      const loanAmount = totalPrice - ((totalPrice * (this.initialPercentage === 'custom' ? this.customInitial : Number(this.initialPercentage))) / 100);
+
+      if (loanAmount > availableCredit) {
+        const requiredInitial = totalPrice - availableCredit;
+        const requiredPercentage = ((requiredInitial / totalPrice) * 100).toFixed(1);
+        return `Basado en el crédito disponible ($${availableCredit}), se requiere un pago inicial de $${requiredInitial.toFixed(2)} (${requiredPercentage}%)`;
       }
-      
+
       return '';
     },
     hasExceededAttempts() {
       if (!this.selectedClient) return false;
-      
+
       // Check if we have rate limit data from the server
       const rateLimitRef = dbRef(db, `rateLimits/verificationCodes/${this.selectedClient.id}/purchase`);
-      
+
       if (!this.rateLimitData[this.selectedClient.id]) {
         // Fetch the data if we don't have it yet
         get(rateLimitRef).then(snapshot => {
@@ -763,10 +745,10 @@ export default {
             const data = snapshot.val();
             const now = Date.now();
             const lastAttempt = data.lastAttempt || now;
-            
+
             // Check if it's a new day
             const isNewDay = new Date(now).getDate() !== new Date(lastAttempt).getDate();
-            
+
             // If it's a new day, reset attempts
             if (isNewDay) {
               set(rateLimitRef, {
@@ -775,7 +757,7 @@ export default {
                 lastAttempt: now
               });
             }
-            
+
             // Use Vue 3 reactivity
             this.rateLimitData[this.selectedClient.id] = {
               attempts: isNewDay ? 0 : (data.attempts || 0),
@@ -793,36 +775,36 @@ export default {
         }).catch(error => {
           console.error('Error fetching rate limit data:', error);
         });
-        
+
         // Return false while we're loading
         return false;
       }
-      
+
       // Check if attempts have exceeded the limit
       return this.rateLimitData[this.selectedClient.id].attempts >= 5;
     },
     shouldShowVerificationMessages() {
       if (!this.selectedClient) return false;
-      
+
       // Check if we have cooldown information
       const hasCooldown = this.clientVerifications[this.selectedClient.id]?.cooldownEnds > Date.now();
-      
+
       // Check if we have rate limit data
       const hasRateLimitData = !!this.rateLimitData[this.selectedClient.id];
-      
+
       // If we have either, show messages
       return hasCooldown || hasRateLimitData;
     },
     clientHasTooManyUnpaidCuotas() {
-      return this.selectedClient && 
-             this.selectedClient.hasUnpaidCuotas && 
-             this.selectedClient.unpaidCuotasCount > 2;
+      return this.selectedClient &&
+        this.selectedClient.hasUnpaidCuotas &&
+        this.selectedClient.unpaidCuotasCount > 2;
     },
     canRequestVerification() {
-      return this.calc && 
-             this.selectedClient && 
-             (!this.selectedClient.hasUnpaidCuotas || 
-              this.selectedClient.unpaidCuotasCount <= 2);
+      return this.calc &&
+        this.selectedClient &&
+        (!this.selectedClient.hasUnpaidCuotas ||
+          this.selectedClient.unpaidCuotasCount <= 2);
     },
   },
   watch: {
@@ -858,37 +840,51 @@ export default {
     //   console.log(`verificationRequested changed from ${oldVal} to ${newVal}`);
     // }
   },
-  methods: {    
+  methods: {
+    // async applyCredit(userId) {
+    //   try {
+    //     const userPath = `Users/${userId}/credit/main`;
+
+    //     await update(dbRef(db, userPath), {
+    //       totalCredit: 100,
+    //       availableCredit: 100,
+    //     });
+
+    //     console.log('Credit assigned to: ', userId);
+    //   } catch (error) {
+    //     console.error('Error assigning credit:', error);
+    //   }
+    // },
     formatDate(date) {
       const dateObj = new Date(date);
       dateObj.setDate(dateObj.getDate() + 1); // Adjust for timezone
       return dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },
     performValidations(client) {
-        if (!client || !client.id) {
-          toast.error('Primero seleccione un cliente');
-          return;
-        }
-        
-        if (!client.email) {
-          toast.error('El cliente no tiene email registrado. Por favor actualice los datos del cliente.');
-          return;
-        }
+      if (!client || !client.id) {
+        toast.error('Primero seleccione un cliente');
+        return;
+      }
 
-        if (!client.emailVerified) {
-          toast.error('El cliente debe tener su email verificado para solicitar un código');
-          return;
-        }
+      if (!client.email) {
+        toast.error('El cliente no tiene email registrado. Por favor actualice los datos del cliente.');
+        return;
+      }
 
-        if (client.credit?.availableMainCredit <= 0) {
-          toast.error('El cliente no tiene crédito disponible.');
-          return;
-        }
-        
-        if (client.hasUnpaidCuotas && client.unpaidCuotasCount > 2) {
-          toast.error(`El cliente tiene ${client.unpaidCuotasCount} pagos pendientes. No se puede proceder con la compra. Regularice sus pagos pendientes.`);
-          return;
-        }
+      if (!client.emailVerified) {
+        toast.error('El cliente debe tener su email verificado para solicitar un código');
+        return;
+      }
+
+      if (client.credit?.availableMainCredit <= 0) {
+        toast.error('El cliente no tiene crédito disponible.');
+        return;
+      }
+
+      if (client.hasUnpaidCuotas && client.unpaidCuotasCount > 2) {
+        toast.error(`El cliente tiene ${client.unpaidCuotasCount} pagos pendientes. No se puede proceder con la compra. Regularice sus pagos pendientes.`);
+        return;
+      }
     },
     validateInputs() {
       // Check if product name is provided
@@ -896,25 +892,25 @@ export default {
         toast.error('Por favor ingrese el nombre del producto');
         return false;
       }
-      
+
       // Check if product price is valid
       if (!this.newPurchase.productPrice || this.newPurchase.productPrice <= 0) {
         toast.error('Por favor ingrese un precio válido');
         return false;
       }
-      
+
       // Check if verification code is provided when required
       if (this.verificationRequested && (!this.verificationCode)) {
         toast.error('Por favor ingrese el código de verificación');
         return false;
       }
-      
+
       // Check if payment plan calculations have been performed
       if (!this.calc) {
         toast.error('Por favor calcule el plan de pagos');
         return false;
       }
-      
+
       return true;
     },
 
@@ -923,13 +919,13 @@ export default {
         // Get client purchases from database
         const clientRef = dbRef(db, `Users/${client.id}/credit/main/purchases`);
         const snapshot = await get(clientRef);
-        
+
         if (snapshot.exists()) {
           const purchases = snapshot.val();
           let unpaidCuotasCount = 0;
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          
+
           // Check each purchase for unpaid expired cuotas
           Object.values(purchases).forEach(purchase => {
             if (purchase.cuotas) {
@@ -941,14 +937,14 @@ export default {
               });
             }
           });
-          
+
           // Update client object with unpaid cuotas info
           this.selectedClient = {
             ...this.selectedClient,
             hasUnpaidCuotas: unpaidCuotasCount > 0,
             unpaidCuotasCount: unpaidCuotasCount
           };
-          
+
           // console.log(`Client ${client.firstName} ${client.lastName} has ${unpaidCuotasCount} unpaid expired cuotas`);
         } else {
           // No purchases found
@@ -974,24 +970,24 @@ export default {
           toast.error('El cliente no ha verificado su correo electrónico o número de teléfono.');
           return;
         } else {
-        // console.log('Selecting client:', client.id);
+          // console.log('Selecting client:', client.id);
           this.selectedClient = client;
           this.searchClient = '';
           this.searchClientResults = [];
-          
+
           // Check for unpaid cuotas
           await this.checkClientUnpaidCuotas(client);
 
           // Reset client attempts if a new day
           await this.resetClientAttempts(client);
-          
+
           // Reset other fields
           this.newPurchase.productName = '';
           this.newPurchase.productPrice = '';
           this.calc = false;
           this.verificationRequested = false;
           this.verificationCode = '';
-      }
+        }
       } catch (error) {
         console.error("Error selecting client:", error);
       }
@@ -1012,7 +1008,7 @@ export default {
     async askForCode(client) {
       try {
         this.waiting = true;
-        
+
         // validations
         this.performValidations(client);
 
@@ -1025,10 +1021,10 @@ export default {
           lastName: client.lastName || '',
           type: 'purchase'
         });
-        
+
         const response = await fetch(`${baseUrl}?${params.toString()}`);
         const result = await response.json();
-        
+
         if (result.rateLimit) {
           // Store only cooldown information for UI
           this.clientVerifications[client.id] = {
@@ -1063,7 +1059,7 @@ export default {
           if (result.rateLimit?.remainingAttempts) {
             toast.info(`Te quedan ${result.rateLimit.remainingAttempts} intentos para hoy`);
           }
-          
+
           // Start the cooldown timer
           this.startCooldownTimer();
         } else {
@@ -1077,35 +1073,35 @@ export default {
         this.waiting = false;
       }
     },
-    
+
     startCooldownTimer() {
       // Clear any existing timer
       if (this.countdownTimer) {
         clearInterval(this.countdownTimer);
       }
-      
+
       // Start a new countdown timer
       this.countdownTimer = setInterval(() => {
         if (!this.selectedClient) {
           clearInterval(this.countdownTimer);
           return;
         }
-        
+
         const clientInfo = this.clientVerifications[this.selectedClient.id];
         if (!clientInfo || clientInfo.cooldownEnds <= Date.now()) {
           clearInterval(this.countdownTimer);
           this.countdownTimer = null;
           return;
         }
-        
+
         // Update the countdown message
         const secondsLeft = Math.ceil((clientInfo.cooldownEnds - Date.now()) / 1000);
         if (secondsLeft <= 0) {
-        clearInterval(this.countdownTimer);
-        this.countdownTimer = null;
-      }
+          clearInterval(this.countdownTimer);
+          this.countdownTimer = null;
+        }
       }, 1000);
-    },    
+    },
 
     async calcs(client) {
       try {
@@ -1118,13 +1114,13 @@ export default {
         const availableCredit = client.credit?.availableMainCredit || 0;
 
         // Get the initial percentage (either from radio buttons or custom input)
-        let percentage = this.initialPercentage === 'custom' 
-            ? this.customInitial 
-            : Number(this.initialPercentage);
+        let percentage = this.initialPercentage === 'custom'
+          ? this.customInitial
+          : Number(this.initialPercentage);
 
         if (percentage <= 0 || percentage >= 100) {
-            toast.error('El porcentaje inicial debe estar entre 0 y 100');
-            return;
+          toast.error('El porcentaje inicial debe estar entre 0 y 100');
+          return;
         }
 
         // Calculate initial amounts
@@ -1133,24 +1129,24 @@ export default {
 
         // If loan amount exceeds available credit, adjust the amounts
         if (loanAmount > availableCredit) {
-            loanAmount = availableCredit;
-            initialPayment = totalPrice - loanAmount;
-            
-            // Calculate and update the actual initial percentage
-            const actualPercentage = ((initialPayment / totalPrice) * 100).toFixed(1);
-            
-            // Show info to user about the adjusted amounts
-            // toast.info(
-            //     `Basado en el crédito disponible ($${availableCredit}), ` +
-            //     `se requiere un pago inicial de $${initialPayment.toFixed(2)} (${actualPercentage}%)`,
-            //     { duration: 5000 }
-            // );
+          loanAmount = availableCredit;
+          initialPayment = totalPrice - loanAmount;
 
-            // Update the UI to show the new percentage
-            if (this.initialPercentage !== 'custom') {
-                this.initialPercentage = 'custom';
-            }
-            this.customInitial = Number(actualPercentage);
+          // Calculate and update the actual initial percentage
+          const actualPercentage = ((initialPayment / totalPrice) * 100).toFixed(1);
+
+          // Show info to user about the adjusted amounts
+          // toast.info(
+          //     `Basado en el crédito disponible ($${availableCredit}), ` +
+          //     `se requiere un pago inicial de $${initialPayment.toFixed(2)} (${actualPercentage}%)`,
+          //     { duration: 5000 }
+          // );
+
+          // Update the UI to show the new percentage
+          if (this.initialPercentage !== 'custom') {
+            this.initialPercentage = 'custom';
+          }
+          this.customInitial = Number(actualPercentage);
         }
 
         // Update the amounts
@@ -1161,21 +1157,21 @@ export default {
         // Add fee if applicable
         if (this.includeFee) {
           const additionalAmount = this.includeFee ? 1 : 0;
-          this.loanAmount += additionalAmount;
+          this.purchaseAmount += additionalAmount;
           this.remainingAmount = this.loanAmount;
         }
 
         // Calculate dates and quotes
         this.cuotaDates = this.calculateDates(
-            this.purchaseDate,
-            this.newPurchase.terms,
-            this.frequency
+          this.purchaseDate,
+          this.newPurchase.terms,
+          this.frequency
         );
-        
+
         // Calculate quote amounts
         const quoteAmount = this.loanAmount / this.newPurchase.terms;
         this.quotesAmount = Array(this.newPurchase.terms).fill(quoteAmount);
-        
+
         this.calculationsPerformed = true;
         this.calc = true;
 
@@ -1187,12 +1183,12 @@ export default {
     },
     async updateInitial(client) {
       if (!client) return;
-      
+
       try {
-        const percentage = this.initialPercentage === 'custom' 
-          ? this.customInitial 
+        const percentage = this.initialPercentage === 'custom'
+          ? this.customInitial
           : Number(this.initialPercentage);
-        
+
         if (percentage <= 0 || percentage >= 100) {
           throw new Error('El porcentaje inicial debe estar entre 0 y 100');
         }
@@ -1202,13 +1198,13 @@ export default {
         this.loanAmount = this.newPurchase.productPrice - this.purchaseAmount;
         this.remainingAmount = this.loanAmount;
 
-        // Update loan amount with included fee if applicable
+        // Update initial amount with included fee if applicable
         if (this.includeFee) {
-            const additionalAmount = this.includeFee ? 1 : 0;
-            this.loanAmount += additionalAmount;
-            this.remainingAmount += additionalAmount;
+          const additionalAmount = this.includeFee ? 1 : 0;
+          this.purchaseAmount += additionalAmount;
+          this.remainingAmount = this.loanAmount;
         }
-        
+
         if (this.loanAmount > client.credit?.availableMainCredit) {
           throw new Error('El monto del préstamo excede el crédito disponible del cliente');
         }
@@ -1239,11 +1235,11 @@ export default {
         const dates = [];
         // Create a new Date object from the purchase date
         let currentDate = new Date(startDate);
-        
+
         if (isNaN(currentDate.getTime())) {
           throw new Error('Fecha de compra inválida');
         }
-        
+
         // Set the first payment date based on frequency
         // First, advance the date by the frequency period
         if (frequency === 2) {
@@ -1253,12 +1249,12 @@ export default {
           // Monthly: Add 1 month for the first payment
           currentDate.setMonth(currentDate.getMonth() + 1);
         }
-        
+
         // Now generate all payment dates
-        for(let i = 0; i < terms; i++) {
+        for (let i = 0; i < terms; i++) {
           // Add the date to our array
           dates.push(currentDate.toISOString().split('T')[0]);
-          
+
           // Move to the next payment date
           if (frequency === 2) {
             // Bi-weekly: Add 14 days for each subsequent payment
@@ -1268,7 +1264,7 @@ export default {
             currentDate.setMonth(currentDate.getMonth() + 1);
           }
         }
-        
+
         return dates;
       } catch (error) {
         console.error('Error al calcular fechas:', error);
@@ -1309,12 +1305,12 @@ export default {
       // Clear verification
       this.verificationRequested = false;
       this.verificationCode = '';
-    },    
+    },
 
     async handlePurchase() {
       try {
         this.isSubmitting = true;
-        
+
         // Validate inputs
         if (!this.validateInputs()) {
           this.isSubmitting = false;
@@ -1349,13 +1345,13 @@ export default {
             this.resetForm(); // Reset form if successful
           }
         });
-        
+
       } catch (error) {
         console.error('Error preparing purchase data:', error);
         toast.error(error.message || 'Error al preparar los datos de la compra');
       }
-    },   
-    
+    },
+
     viewPurchaseDetails(sale) {
       // Store selected sale details for modal
       this.selectedSale = {
@@ -1387,7 +1383,7 @@ export default {
           order: null
         };
       }
-      
+
       const client = this.clients.find(c => c.id === clientId || c.uid === clientId);
       if (!client) {
         return {
@@ -1396,7 +1392,7 @@ export default {
           order: null
         };
       }
-      
+
       if (!client.subscription) {
         return {
           name: "Sin suscripción",
@@ -1404,7 +1400,7 @@ export default {
           order: null
         };
       }
-      
+
       return client ? client.subscription : null;
     },
     async fetchSubscriptions() {
@@ -1413,7 +1409,7 @@ export default {
       if (snapshot.exists()) {
         // Convert to array and add IDs
         this.subscriptions = Object.entries(snapshot.val()).map(([id, data]) => ({
-          ...data,          
+          ...data,
           id
         }));
       } else {
@@ -1432,7 +1428,7 @@ export default {
     clearDateFilter() {
       this.dateRange.start = '';
       this.dateRange.end = '';
-    },   
+    },
     resetForm() {
       this.calculationsPerformed = false;
       this.newPurchase = {
@@ -1458,95 +1454,95 @@ export default {
       this.purchaseAmount = 0;
 
       this.$emit('refresh-data');
-      
+
       // Reset verification state for current client
       if (this.selectedClient && this.clientVerifications[this.selectedClient.id]) {
         this.clientVerifications[this.selectedClient.id] = {
           cooldownEnds: 0
         };
       }
-    }, 
-    
-    async sendDummyCode(client) {
-        try {
-            this.isSubmitting = true;
-            if (!client || !client.email) {
-                toast.error('Cliente no válido o sin dirección de correo electrónico.');
-                return;
-            }
+    },
 
-            const emailContent = 'Nuestro sistema se encuentra en mantenimiento en este momento. Intente más tarde.';
-            const emailHeader = `Notificación de Mantenimiento`;
-            const emailFooter = 'Gracias por usar Rose App.';
-            const emailData = {
-                to: client.email,
-                message: {
-                    subject: emailHeader,
-                    text: emailContent
-                    ,
-                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+    async sendDummyCode(client) {
+      try {
+        this.isSubmitting = true;
+        if (!client || !client.email) {
+          toast.error('Cliente no válido o sin dirección de correo electrónico.');
+          return;
+        }
+
+        const emailContent = 'Nuestro sistema se encuentra en mantenimiento en este momento. Intente más tarde.';
+        const emailHeader = `Notificación de Mantenimiento`;
+        const emailFooter = 'Gracias por usar Rose App.';
+        const emailData = {
+          to: client.email,
+          message: {
+            subject: emailHeader,
+            text: emailContent
+            ,
+            html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
                             <h2 style="color: #6f42c1;">${emailHeader}<i class="fas fa-wrench me-2"></i></h2>
                             <p>Hola ${client.firstName} ${client.lastName},</p>
                             <p>${emailContent}</p>
                             <p>${emailFooter}</p>
                           </div>`
-                }
-            };
+          }
+        };
 
-            const result = await sendEmail(emailData);
+        const result = await sendEmail(emailData);
 
-            if (result.success) {
-                toast.success('Correo de mantenimiento enviado exitosamente.');
-            } else {
-                throw new Error(result.error);
-            }
-        } catch (error) {
-            console.error('Error al enviar el correo:', error);
-            toast.error('Error al enviar el correo de mantenimiento.');
-        } finally {
-            this.isSubmitting = false;
+        if (result.success) {
+          toast.success('Correo de mantenimiento enviado exitosamente.');
+        } else {
+          throw new Error(result.error);
         }
-    },    
+      } catch (error) {
+        console.error('Error al enviar el correo:', error);
+        toast.error('Error al enviar el correo de mantenimiento.');
+      } finally {
+        this.isSubmitting = false;
+      }
+    },
     async resetClientAttempts(client) {
       try {
         if (!client || !client.id) {
           toast.error('No hay cliente seleccionado');
           return;
         }
-        
+
         // Reference to the rate limit for purchase verification
         const rateLimitRef = dbRef(db, `rateLimits/verificationCodes/${client.id}/purchase`);
-        
+
         // Get the current rate limit data
         const snapshot = await get(rateLimitRef);
-        
+
         if (snapshot.exists()) {
           const rateLimitData = snapshot.val();
           const now = Date.now();
           const lastAttempt = rateLimitData.lastAttempt || now;
-          
+
           // Or check if it's a new day
           const isNewDay = new Date(now).getDate() !== new Date(lastAttempt).getDate();
-          
+
           if (isNewDay) {
             // Reset attempts
             await set(rateLimitRef, {
-          attempts: 0,
+              attempts: 0,
               firstAttempt: now,
               lastAttempt: now
             });
-            
+
             // Reset local tracking
             this.clientVerifications[client.id] = {
-          cooldownEnds: 0
-        };
-            
+              cooldownEnds: 0
+            };
+
             // Clear any active cooldown timer
             if (this.countdownTimer) {
               clearInterval(this.countdownTimer);
               this.countdownTimer = null;
             }
-            
+
             toast.success('Intentos de verificación reiniciados');
           }
         }
@@ -1554,13 +1550,13 @@ export default {
         console.error('Error resetting attempts:', error);
         toast.error('Error al reiniciar intentos');
       }
-    },    
+    },
 
     // currently not used
     // getTierFee(tier) {
     //   // Convert tier to number since it might come as a string
     //   const tierNumber = Number(tier);
-      
+
     //   switch(tierNumber) {
     //     case 1: // Free tier
     //       return 0; // Just return 0 for display purposes
@@ -1578,7 +1574,7 @@ export default {
     //   try {
     //     const subRef = dbRef(db, `Suscriptions/${subId}`);
     //     const snapshot = await get(subRef);
-        
+
     //     if (snapshot.exists()) {
     //       const subscription = snapshot.val();
     //       return {
@@ -1595,7 +1591,7 @@ export default {
   },
   async mounted() {
     await this.$nextTick();
-    
+
     await this.fetchSubscriptions();
     this.loading = false;
   },
@@ -1610,30 +1606,33 @@ export default {
 
 <style lang="scss" scoped>
 .card-header {
-.form-select {
+  .form-select {
     min-width: 150px;
+
     @media (max-width: 575.98px) {
       width: 100%;
-}
-}
+    }
+  }
 
   .search-container {
     @media (min-width: 576px) {
       width: 300px;
-}
+    }
+
     @media (max-width: 575.98px) {
       width: 100%;
-}
+    }
   }
 }
 
 .card-body {
-input[type="date"] {
+  input[type="date"] {
     @media (max-width: 575.98px) {
       width: 100%;
     }
+
     @media (min-width: 576px) {
-  width: 140px;
+      width: 140px;
     }
   }
 }
@@ -1643,7 +1642,7 @@ input[type="date"] {
   .card-header {
     padding-bottom: 1rem;
   }
-  
+
   .gap-3 {
     gap: 0.75rem !important;
   }
@@ -1663,36 +1662,36 @@ input[type="date"] {
 
 /* Add these styles */
 .percentage-input {
-    max-width: 150px;
-    margin: 0 auto;
+  max-width: 150px;
+  margin: 0 auto;
 }
 
 .percentage-input .form-control {
-    text-align: center;
-    padding-right: 0;
+  text-align: center;
+  padding-right: 0;
 }
 
 .percentage-input .input-group-text {
-    min-width: 35px;
-    justify-content: center;
+  min-width: 35px;
+  justify-content: center;
 }
 
 /* Responsive adjustments */
 @media (max-width: 576px) {
-    .percentage-input {
-        max-width: 120px;
-    }
-    
-    .payment-options {
-        padding: 1rem;
-    }
-    
-    .payment-options .d-flex {
-        gap: 0.5rem;
-    }
-    
-    .form-check-label {
-  font-size: 0.875rem;
+  .percentage-input {
+    max-width: 120px;
+  }
+
+  .payment-options {
+    padding: 1rem;
+  }
+
+  .payment-options .d-flex {
+    gap: 0.5rem;
+  }
+
+  .form-check-label {
+    font-size: 0.875rem;
+  }
 }
-}
-</style> 
+</style>

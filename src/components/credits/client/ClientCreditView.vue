@@ -328,7 +328,7 @@ export default {
         if (!purchase.deleted && purchase.cuotas) {
           const expiredCuotas = purchase.cuotas.filter(cuota => {
             const cuotaDate = new Date(cuota.date);
-            return !cuota.paid && cuotaDate < today;
+            return !cuota.paid && !cuota.paymentUpload && cuotaDate < today;
           });
           
           if (expiredCuotas.length > 0) {

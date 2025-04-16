@@ -22,11 +22,11 @@ export default defineComponent({
             // data for portal items
             portalItems: [
                 {
-                    title: 'Comercios Afiliados',
-                    description: 'Aquí puede ver los comercios donde puede usar su crédito.',
-                    link: '/comercios-afiliados',
-                    actionText: 'Ver más',
-                    bgImage: '/assets/img/rose_imgs/3.png'
+                    title: 'Compra en RoseMarket',
+                    description: 'El primer supermercado con pagos a Cuotas.',
+                    link: 'https://rossemarket.com/',
+                    actionText: 'Descubre más',
+                    bgImage: '/assets/img/rose_imgs/2.png'
                 },                
                 { title: 'Cupones', description: 'Descubre tus cupones aquí.', link: '/cupones', actionText: 'Ver más', bgImage: '/assets/img/rose_imgs/1.png' },
                 {
@@ -37,13 +37,20 @@ export default defineComponent({
                     notReady: false,
                     bgImage: '/assets/img/rose_imgs/2.png'
                 },
+                {
+                    title: 'Comercios Afiliados',
+                    description: 'Aquí puede ver los comercios donde puede usar su crédito.',
+                    link: '/comercios-afiliados',
+                    actionText: 'Ver más',
+                    bgImage: '/assets/img/rose_imgs/3.png'
+                },
                 { title: 'Cupones que te interesan', description: 'Cuentanos que te gusta.', link: '/preferencias', actionText: 'Cuentanos', notReady: false, bgImage: '/assets/img/rose_imgs/1.png' },
                 { title: 'Solicitar cupón', description: 'Solicita los cupones que deseas.', link: '/request-coupons', actionText: 'Solicitar', notReady: false, bgImage: '/assets/img/rose_imgs/1.png' },
                 { title: 'Suscripciones', description: 'Administra tu suscripcion aqui.', link: '/suscripciones', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/5.png' },
                 { title: 'Eventos', description: 'Descubre nuestros próximos eventos.', link: '/events', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/3.png' },
                 { title: 'Sorteos', description: 'Descubre nuestros próximos sorteos.', link: '/giveaways', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/3.png' },
                 { title: 'Vacantes', description: 'Descubre vacantes aquí.', link: '/jobs', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/3.png' },
-                
+
                 // { title: 'Compras recientes', description: 'Ver sus compras recientes.', link: '#', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/5.png' },
                 // { title: 'Mis Opiniones', description: 'Aqui se muestran tus reseñas y opiniones de lo que consumes.', link: '/clients-ratings', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
                 // { title: 'Encuestas', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/customer-survey', actionText: 'Tomar Encuesta', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
@@ -129,10 +136,10 @@ export default defineComponent({
             if (!file) return;
 
             if (!file.type.startsWith('image/')) {
-				alert('Por favor, selecciona un archivo de imagen válido.');
-				event.target.value = ''; // Clear the invalid file
-				return;
-			}
+                alert('Por favor, selecciona un archivo de imagen válido.');
+                event.target.value = ''; // Clear the invalid file
+                return;
+            }
 
             // Update the correct file and preview based on the side
             if (type === 'front') {
@@ -206,7 +213,7 @@ export default defineComponent({
                <p>Para verificar el usuario, por favor <a href="${appUrl}" target="_blank">abre la app</a>.</p>`
                     },
                 };
-                
+
                 // Send email via the utility function
                 const result = await sendEmail(emailPayload);
 
@@ -295,7 +302,7 @@ export default defineComponent({
                         </div>
 
                         <!-- Verification Badge -->
-                        <div v-if="!userVerified" class="status-card verification-card-alert mt-2" 
+                        <div v-if="!userVerified" class="status-card verification-card-alert mt-2"
                             data-bs-toggle="modal" data-bs-target="#verificationModal">
                             <div class="status-icon">
                                 <i class="fa-solid fa-user-xmark"></i>
@@ -321,50 +328,51 @@ export default defineComponent({
 
         <!-- Main Content -->
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-                        <div class="col" v-for="item in portalItems" :key="item.title">
+            <div class="col" v-for="item in portalItems" :key="item.title">
                 <div class="card h-100 portal-card position-relative">
                     <div v-if="item.notReady === true" class="ribbon">
                         <span>Proximamente</span>
                     </div>
-                    <div class="card-body d-flex flex-column" 
-                        :style="{
-                                backgroundImage: `url(${item.bgImage})`,
-                                backgroundSize: 'cover',
-                                backgroundPosition: 'center',
-                            }">
+                    <div class="card-body d-flex flex-column" :style="{
+                        backgroundImage: `url(${item.bgImage})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                    }">
                         <div class="card-content">
                             <h5 class="card-title mb-3">{{ item.title }}</h5>
                             <p class="card-text">{{ item.description }}</p>
-                            
+
                             <div class="mt-auto pt-3">
-                                <router-link :to="item.link" class="btn btn-theme w-100"
-                                    :class="{ 
-                                        'disabled': (item.title === 'Crédito' && !userVerified) || 
-                                                  (item.title === 'Solicitar cupón' && subscriptionPlan.price === 0) || 
-                                                  item.notReady === true 
-                                    }"
-                                            :aria-disabled="item.title === 'Crédito' && !userVerified"
-                                            :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
-                                            {{ item.actionText }}
-                                        </router-link>
-                                
+                                <a v-if="item.title.includes('RoseMarket')" :href="item.link" class="btn btn-theme w-100" target="_blank">
+                                    {{ item.actionText }}
+                                </a>
+                                <router-link v-else :to="item.link" class="btn btn-theme w-100" :class="{
+                                    'disabled': (item.title === 'Crédito' && !userVerified) ||
+                                        (item.title === 'Solicitar cupón' && subscriptionPlan.price === 0) ||
+                                        item.notReady === true
+                                }" :aria-disabled="item.title === 'Crédito' && !userVerified"
+                                    :tabindex="item.title === 'Crédito' && !userVerified ? -1 : 0">
+                                    {{ item.actionText }}
+                                </router-link>
+
                                 <!-- Warning messages -->
                                 <div v-if="item.title === 'Crédito' && !userVerified" class="warning-message mt-2">
-                                            <small class="text-danger">
-                                                <span v-if="verificationStatus === 'unverified'">
-                                                    Verifique su cuenta para habilitar la opción de crédito.
-                                                </span>
-                                                <span v-else-if="verificationStatus === 'pending'">
-                                                    Verificación pendiente por Aprobación.
-                                                </span>
-                                            </small>
-                                        </div>
-                                
+                                    <small class="text-danger">
+                                        <span v-if="verificationStatus === 'unverified'">
+                                            Verifique su cuenta para habilitar la opción de crédito.
+                                        </span>
+                                        <span v-else-if="verificationStatus === 'pending'">
+                                            Verificación pendiente por Aprobación.
+                                        </span>
+                                    </small>
+                                </div>
+
                                 <div class="warning-message mt-2"
-                                            v-if="item.title === 'Solicitar cupón' && subscriptionPlan.price === 0">
-                                            <small class="text-danger">
-                                        <span>Debes contar con suscripción Bronce en adelante para este beneficio.</span>
-                                            </small>
+                                    v-if="item.title === 'Solicitar cupón' && subscriptionPlan.price === 0">
+                                    <small class="text-danger">
+                                        <span>Debes contar con suscripción Bronce en adelante para este
+                                            beneficio.</span>
+                                    </small>
                                 </div>
                             </div>
                         </div>
@@ -374,7 +382,8 @@ export default defineComponent({
         </div>
 
         <!-- Verification Modal -->
-        <div class="modal fade" id="verificationModal" tabindex="-1" aria-labelledby="verificationModalLabel" aria-hidden="true">
+        <div class="modal fade" id="verificationModal" tabindex="-1" aria-labelledby="verificationModalLabel"
+            aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content verification-modal">
                     <div class="modal-header">
@@ -384,7 +393,8 @@ export default defineComponent({
                             </h5>
                             <p class="modal-subtitle">Sube tus documentos para completar tu verificación</p>
                         </div>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <form @submit.prevent="submitVerification" class="verification-form">
@@ -396,101 +406,64 @@ export default defineComponent({
                                                 <i class="fas fa-id-card"></i>
                                             </div>
                                             <label for="idFront" class="form-label">Frontal de Cédula</label>
-                                            <input 
-                                                type="file" 
-                                                class="form-control" 
-                                                id="idFront"
-                                                accept="image/*" 
-                                                @change="handleFileUpload($event, 'front')" 
-                                                required
-                                            >
+                                            <input type="file" class="form-control" id="idFront" accept="image/*"
+                                                @change="handleFileUpload($event, 'front')" required>
                                             <div class="preview-container">
-                                                <img 
-                                                    v-if="idFrontPreview" 
-                                                    :src="idFrontPreview" 
-                                                    alt="Front ID Preview" 
-                                                    class="img-preview" 
-                                                />
+                                                <img v-if="idFrontPreview" :src="idFrontPreview" alt="Front ID Preview"
+                                                    class="img-preview" />
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="col-md-4">
                                         <div class="document-upload-card">
                                             <div class="document-upload-icon">
                                                 <i class="fas fa-id-card-alt"></i>
                                             </div>
                                             <label for="idBack" class="form-label">Reverso de Cédula</label>
-                                            <input 
-                                                type="file" 
-                                                class="form-control" 
-                                                id="idBack"
-                                                accept="image/*" 
-                                                @change="handleFileUpload($event, 'back')" 
-                                                required
-                                            >
+                                            <input type="file" class="form-control" id="idBack" accept="image/*"
+                                                @change="handleFileUpload($event, 'back')" required>
                                             <div class="preview-container">
-                                                <img 
-                                                    v-if="idBackPreview" 
-                                                    :src="idBackPreview" 
-                                                    alt="Back ID Preview" 
-                                                    class="img-preview" 
-                                                />
+                                                <img v-if="idBackPreview" :src="idBackPreview" alt="Back ID Preview"
+                                                    class="img-preview" />
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="col-md-4">
                                         <div class="document-upload-card">
                                             <div class="document-upload-icon">
                                                 <i class="fas fa-selfie"></i>
                                             </div>
                                             <label for="selfie" class="form-label">Selfie con Cédula</label>
-                                            <input 
-                                                type="file" 
-                                                class="form-control" 
-                                                id="selfie"
-                                                accept="image/*" 
-                                                @change="handleFileUpload($event, 'selfie')" 
-                                                required
-                                            >
+                                            <input type="file" class="form-control" id="selfie" accept="image/*"
+                                                @change="handleFileUpload($event, 'selfie')" required>
                                             <div class="preview-container">
-                                                <img 
-                                                    v-if="selfiePreview" 
-                                                    :src="selfiePreview" 
-                                                    alt="Selfie Preview" 
-                                                    class="img-preview" 
-                                                />
+                                                <img v-if="selfiePreview" :src="selfiePreview" alt="Selfie Preview"
+                                                    class="img-preview" />
                                             </div>
                                         </div>
-                            </div>
-                            </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Error Message -->
                             <div v-if="errorMessage" class="alert alert-danger mt-3">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
                                 {{ errorMessage }}
-                                </div>
+                            </div>
 
                             <div class="modal-footer">
-                                <button 
-                                    type="button" 
-                                    class="btn btn-secondary" 
-                                    data-bs-dismiss="modal"
-                                >
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                                     Cancelar
                                 </button>
-                                <button 
-                                    type="submit" 
-                                    class="btn btn-primary" 
-                                    :disabled="isSubmitting"
-                                >
+                                <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
                                     <span v-if="!isSubmitting">
                                         <i class="fas fa-upload me-2"></i>Subir Documentos
                                     </span>
                                     <span v-else>
-                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        <span class="spinner-border spinner-border-sm me-2" role="status"
+                                            aria-hidden="true"></span>
                                         Procesando...
                                     </span>
                                 </button>
@@ -510,7 +483,7 @@ export default defineComponent({
     transition: all 0.2s ease;
 }
 
-.btn-theme:hover {  
+.btn-theme:hover {
     opacity: 0.9;
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -536,7 +509,7 @@ export default defineComponent({
 }
 
 .card-content {
-    background-color:transparent;
+    background-color: transparent;
     border-radius: 8px;
     padding: 0.5rem;
     height: 100%;
@@ -562,7 +535,7 @@ export default defineComponent({
 /* Compact header styles */
 .portal-header {
     padding-bottom: 1rem;
-    border-bottom: 1px solid rgba(0,0,0,0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 /* Status badges container */
@@ -671,12 +644,12 @@ export default defineComponent({
     .portal-header {
         text-align: center;
     }
-    
+
     .badges-container {
         align-items: center;
         margin-top: 1rem;
     }
-    
+
     .status-card {
         max-width: 250px;
     }

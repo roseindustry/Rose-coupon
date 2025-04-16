@@ -342,16 +342,6 @@ export default {
                     return;
                 }
 
-                if (
-                    !this.paymentDetails.bank ||
-                    !this.paymentDetails.identification ||
-                    !this.paymentDetails.phoneNumber ||
-                    !this.paymentDetails.bankAccount
-                ) {
-                    alert("Por favor, ingrese todos los Datos de Pago del Afiliado.");
-                    return;
-                }
-
                 this.isSubmitting = true;
 
                 // Set location data from selections
@@ -368,7 +358,9 @@ export default {
                 }
 
                 // Add payment details
-                affiliateData.paymentDetails = this.paymentDetails;
+                if (this.paymentDetails) {
+                    affiliateData.paymentDetails = this.paymentDetails;
+                }                
                 
                 // Add order number
                 affiliateData.order = this.order;

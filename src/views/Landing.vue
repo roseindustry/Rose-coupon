@@ -210,7 +210,7 @@ export default defineComponent({
         <div class="container-fluid">
             <div class="row justify-content-center justify-content-md-between align-items-center">
                 <div class="col-12 col-md-6 text-center text-md-start my-2">
-                    Copyright © 2024 All Rights Reserved by Rose App
+                    Copyright © 2024 All Rights Reserved by Rose Coupon
                 </div>
                 <div class="col-12 col-md-6 text-center text-md-end my-2">
                     <a href="#" class="social-icon" aria-label="Facebook">
@@ -312,7 +312,19 @@ header {
 }
 
 .logo {
-    max-height: 80px;
+    border-radius: 50%; /* Make logo circular */
+    max-width: 150px;
+    max-height: 150px;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Ensure image covers entire circle */
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.logo:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 10px rgba(0,0,0,0.2);
 }
 
 @media (min-width: 576px) {
@@ -459,6 +471,8 @@ form .form-control {
     color: white;
     /* Text color */
     padding: 10px 20px;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
     /* Padding for button */
     border-radius: 25px;
     /* Rounded edges */
@@ -469,6 +483,11 @@ form .form-control {
     transition: background-color 0.3s ease;
     /* Transition for hover effect */
     margin-top: 20px;
+}
+
+.btn-registrate:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
 }
 
 .btn-premium {
@@ -487,11 +506,6 @@ form .form-control {
     transition: background-color 0.3s ease;
     /* Transition for hover effect */
     margin-top: 20px;
-}
-
-.btn-registrate:hover {
-    background-color: #a300b0;
-    /* Darker purple on hover */
 }
 
 .btn-premium:hover {
@@ -582,5 +596,64 @@ form .form-control {
 
 ul li {
     margin-bottom: 10px;
+}
+
+/* Responsive Typography */
+@media (max-width: 768px) {
+    .display-2 {
+        font-size: 2.5rem;
+    }
+
+    .hero-content {
+        padding: 0 15px;
+    }
+
+    .feature-item {
+        margin-bottom: 1.5rem;
+    }
+}
+
+/* Responsive Grid Adjustments */
+.row.g-4 > [class*='col-'] {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Enhanced Responsiveness for Small Screens */
+@media (max-width: 576px) {
+    .logo {
+        max-width: 100px;
+        max-height: 100px;
+    }
+
+    .btn-registrate {
+        padding: 8px 15px;
+        font-size: 0.8rem;
+    }
+
+    .display-2 {
+        font-size: 2rem;
+    }
+
+    .feature-image {
+        max-width: 120px;
+    }
+}
+
+/* Smooth Responsive Transitions */
+.container, .container-fluid {
+    transition: padding 0.3s ease;
+}
+
+/* Enhanced Hover Effects for Feature Items */
+.feature-item {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border-radius: 10px;
+    padding: 15px;
+}
+
+.feature-item:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
 }
 </style>

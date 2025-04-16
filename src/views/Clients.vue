@@ -44,37 +44,42 @@ export default {
             clients: [],
             clientCoupons: [],
             clientPreferences: [],
+            updateRequests: [],
             currentEditing: null,
             searchQuery: null,
             modalImageUrl: '',
             paymentUrl: null,
             isSubmitting: false,
             loading: false,
+            loadingRequests:false,
 
             currentPage: 1,
             itemsPerPage: 10,
             paymentClient: '',
             expandedClients: new Set(),
             loadingStates: {},
-            verificationFilter: 'all'
+            verificationFilter: 'all',
+
+            displayRequests: false,
         }
     },
     async mounted() {
         await this.fetchClients();
-        
+        await this.fetchUpdateRequests();
+
     },
     computed: {
         filteredUsers() {
             // Start with search filter
             const trimmedSearchQuery = this.searchQuery?.trim().toLowerCase();
             let filtered = this.clients;
-            
+
             if (trimmedSearchQuery) {
                 filtered = this.clients.filter(client => {
                     // Basic fields search
-                const identification = client.identification?.toString().toLowerCase() || '';
-                const firstName = client.firstName?.toLowerCase() || '';
-                const lastName = client.lastName?.toLowerCase() || '';
+                    const identification = client.identification?.toString().toLowerCase() || '';
+                    const firstName = client.firstName?.toLowerCase() || '';
+                    const lastName = client.lastName?.toLowerCase() || '';
 
                     // Combined full name (both firstName + lastName)
                     const fullName = `${firstName} ${lastName}`.toLowerCase();
@@ -82,13 +87,13 @@ export default {
 
                     // Search in individual fields and combined names
                     return identification.includes(trimmedSearchQuery) ||
-                    firstName.includes(trimmedSearchQuery) ||
-                           lastName.includes(trimmedSearchQuery) ||
-                           fullName.includes(trimmedSearchQuery) ||
-                           reversedFullName.includes(trimmedSearchQuery);
+                        firstName.includes(trimmedSearchQuery) ||
+                        lastName.includes(trimmedSearchQuery) ||
+                        fullName.includes(trimmedSearchQuery) ||
+                        reversedFullName.includes(trimmedSearchQuery);
                 });
             }
-            
+
             // Apply verification filter
             if (this.verificationFilter !== 'all') {
                 filtered = filtered.filter(client => {
@@ -104,7 +109,7 @@ export default {
                     }
                 });
             }
-            
+
             return filtered;
         },
         paginatedFilteredUsers() {
@@ -143,7 +148,7 @@ export default {
                 pending: 0,
                 unverified: 0
             };
-            
+
             this.clients.forEach(client => {
                 if (client.isVerified) {
                     counts.verified++;
@@ -153,7 +158,7 @@ export default {
                     counts.unverified++;
                 }
             });
-            
+
             return counts;
         }
     },
@@ -177,12 +182,12 @@ export default {
             try {
                 this.loading = true;
                 const snapshot = await get(clientRef);
-                
+
                 if (!snapshot.exists()) {
                     this.clients = [];
                     return;
                 }
-                
+
                 // Only fetch basic information initially
                 this.clients = Object.entries(snapshot.val()).map(([uid, user]) => ({
                     uid,
@@ -267,34 +272,34 @@ export default {
 
         async fetchClientSubscription(client) {
             try {
-            const subscriptionRef = dbRef(db, `Users/${client.uid}/subscription`);
-            const subscriptionSnapshot = await get(subscriptionRef);
+                const subscriptionRef = dbRef(db, `Users/${client.uid}/subscription`);
+                const subscriptionSnapshot = await get(subscriptionRef);
 
-            if (subscriptionSnapshot.exists()) {
-                client.subscription = subscriptionSnapshot.val();
-                const subscriptionId = client.subscription.subscription_id;
+                if (subscriptionSnapshot.exists()) {
+                    client.subscription = subscriptionSnapshot.val();
+                    const subscriptionId = client.subscription.subscription_id;
 
                     if (subscriptionId) {
-                // Query the Suscriptions table to fetch the details
-                const subscriptionDataRef = dbRef(db, `Suscriptions/${subscriptionId}`);
-                const userSuscriptionSnapshot = await get(subscriptionDataRef);
+                        // Query the Suscriptions table to fetch the details
+                        const subscriptionDataRef = dbRef(db, `Suscriptions/${subscriptionId}`);
+                        const userSuscriptionSnapshot = await get(subscriptionDataRef);
 
-                if (userSuscriptionSnapshot.exists()) {
-                    const userSubscription = userSuscriptionSnapshot.val();
-                    // Merge the userSubscription into the client's subscription object
-                    client.subscription = {
-                        ...client.subscription,
-                        ...userSubscription
-                    };
-                    if (client.subscription.lastPaymentDate) {
-                        // In case the client made a payment
-                        const paymentDate = (client.subscription.lastPaymentDate).split('T')[0];
-                        this.fetchPaymentFiles(client, paymentDate);
+                        if (userSuscriptionSnapshot.exists()) {
+                            const userSubscription = userSuscriptionSnapshot.val();
+                            // Merge the userSubscription into the client's subscription object
+                            client.subscription = {
+                                ...client.subscription,
+                                ...userSubscription
+                            };
+                            if (client.subscription.lastPaymentDate) {
+                                // In case the client made a payment
+                                const paymentDate = (client.subscription.lastPaymentDate).split('T')[0];
+                                this.fetchPaymentFiles(client, paymentDate);
                             }
+                        }
                     }
-                }
-            } else {
-                // Set a default empty subscription if none exist
+                } else {
+                    // Set a default empty subscription if none exist
                     client.subscription = null;
                 }
             } catch (error) {
@@ -312,7 +317,7 @@ export default {
                     const creditData = creditSnapshot.val();
 
                     // Set default values for missing credit data
-                        client.credit = {
+                    client.credit = {
                         mainCredit: creditData.main?.totalCredit || 0,
                         availableMainCredit: creditData.main?.availableCredit || 0,
                         plusCredit: creditData.plus?.totalCredit || 0,
@@ -406,27 +411,27 @@ export default {
             if (!client.requestedVerification && !client.verificationFiles) {
                 return;
             }
-            
+
             try {
                 // Set loading state
                 this.loadingStates = {
                     ...this.loadingStates,
                     [client.uid + '_files']: true
                 };
-                
+
                 // Check if verification files exist in the database
                 const verificationFilesRef = dbRef(db, `Users/${client.uid}/verificationFiles`);
                 const snapshot = await get(verificationFilesRef);
-                
+
                 if (!snapshot.exists()) {
                     // No verification files found
                     client.idFiles = [];
                     return;
                 }
-                
+
                 const verificationFiles = snapshot.val();
                 const idFiles = [];
-                
+
                 // Process each file type
                 for (const [type, path] of Object.entries(verificationFiles)) {
                     if (path) {
@@ -441,7 +446,7 @@ export default {
                         }
                     }
                 }
-                
+
                 // Set the ID files on the client object
                 client.idFiles = idFiles;
             } catch (error) {
@@ -479,6 +484,46 @@ export default {
             } catch (error) {
                 console.error('Error fetching payment file:', error.message || error);
                 client.paymentUrl = null;
+            }
+        },
+        async fetchUpdateRequests() {
+            try {
+                this.loadingRequests = true;
+
+                const updateRequestsRef = dbRef(db, 'updateRequests');
+                const updateRequestsSnapshot = await get(updateRequestsRef);
+
+                if (!updateRequestsSnapshot.exists()) {
+                    this.updateRequests = [];
+                    return;
+                }
+
+                const requests = updateRequestsSnapshot.val();
+
+                // Transform the requests into a flat array with additional metadata
+                this.updateRequests = Object.entries(requests).flatMap(([userId, userRequests]) => {
+                    // Find the corresponding user
+                    const user = this.clients.find(client => client.uid === userId);
+
+                    // Transform each request for the user
+                    return Object.entries(userRequests).map(([requestId, requestData]) => ({
+                        id: requestId,
+                        userId: userId,
+                        userName: user
+                            ? `${user.firstName} ${user.lastName}`
+                            : 'Usuario Desconocido',
+                        userEmail: user ? user.email : 'Email no disponible',
+                        ...requestData
+                    }));
+                }).sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt))
+                .filter(r => r.status === 'pending'); // Sort by most recent first and status pending
+
+            } catch (error) {
+                console.error('Error fetching update requests:', error);
+                showToast.error('No se pudieron cargar las solicitudes de actualización');
+                this.updateRequests = [];
+            } finally {
+                this.loadingRequests = false;
             }
         },
 
@@ -674,57 +719,57 @@ export default {
         },
 
         async approveID(client) {
-                const validationErrors = [];
-                    
-                if (!client) {
-                    showToast.error('No se ha seleccionado un cliente válido.');
-                    validationErrors.push('No se ha seleccionado un cliente válido.');
-                    return;
-			    }
-                // Fetch ID files if they haven't been loaded yet
-                if (!client.idFiles) {
-                    validationErrors.push('No se encontraron archivos de verificación.');
-                    await this.fetchIdFiles(client);
-                }
+            const validationErrors = [];
 
-                // Check for required verification files
-                if (!client.idFiles) {
-                    validationErrors.push('No se encontraron archivos de verificación.');
-                }
+            if (!client) {
+                showToast.error('No se ha seleccionado un cliente válido.');
+                validationErrors.push('No se ha seleccionado un cliente válido.');
+                return;
+            }
+            // Fetch ID files if they haven't been loaded yet
+            if (!client.idFiles) {
+                validationErrors.push('No se encontraron archivos de verificación.');
+                await this.fetchIdFiles(client);
+            }
 
-                if (validationErrors.length > 0) {
-                    showToast.error('Error al aprobar la verificación: ' + validationErrors.join(', '));
-                    return;
-                }
+            // Check for required verification files
+            if (!client.idFiles) {
+                validationErrors.push('No se encontraron archivos de verificación.');
+            }
+
+            if (validationErrors.length > 0) {
+                showToast.error('Error al aprobar la verificación: ' + validationErrors.join(', '));
+                return;
+            }
 
             try {
 
                 if (!confirm('¿Estás seguro de que deseas aprobar la verificación?')) {
-                        return;
-                    }
+                    return;
+                }
 
 
                 this.isSubmitting = true;
 
                 // Prepare update data
-				const updateData = { 
-					isVerified: true,
-					verificationApprovedAt: new Date().toISOString()
-				};
-                
+                const updateData = {
+                    isVerified: true,
+                    verificationApprovedAt: new Date().toISOString()
+                };
+
                 // Update the client's verification status in the database
                 const clientRef = dbRef(db, `Users/${client.uid}`);
                 await update(clientRef, updateData);
-                
+
                 // Update the local client object
                 client.isVerified = true;
 
                 // Prepare email notification
-                    const emailPayload = {
-                        to: client.email,
-                        message: {
-						subject: 'Verificación de Identidad Aprobada',
-						html: `
+                const emailPayload = {
+                    to: client.email,
+                    message: {
+                        subject: 'Verificación de Identidad Aprobada',
+                        html: `
 							<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
 								<h2 style="color: #6f42c1;">¡Verificación Aprobada!</h2>
 								<p>Hola ${client.firstName.charAt(0).toUpperCase() + client.firstName.slice(1)},</p>
@@ -734,16 +779,16 @@ export default {
 								<p style="font-size: 0.8em; color: #666;">Si tienes alguna pregunta, no dudes en contactarnos.</p>
 							</div>
 						`,
-						text: `Hola ${client.firstName}, tu verificación de identidad ha sido aprobada exitosamente.`
-					}
-				};
+                        text: `Hola ${client.firstName}, tu verificación de identidad ha sido aprobada exitosamente.`
+                    }
+                };
 
-				// Send notification email
-				await sendEmail(emailPayload);
-                
+                // Send notification email
+                await sendEmail(emailPayload);
+
                 // Show success message
                 showToast.success('Verificación de identidad aprobada');
-                    this.fetchClients();
+                this.fetchClients();
             } catch (error) {
                 console.error('Error approving ID verification:', error);
                 showToast.error('Error al aprobar la verificación');
@@ -757,14 +802,14 @@ export default {
                     isVerified: false,
                     requestedVerification: false
                 });
-                
+
                 // Update the local client object
                 client.isVerified = false;
                 client.requestedVerification = false;
-                
+
                 // Show success message
                 showToast.warning('Verificación de identidad rechazada');
-                } catch (error) {
+            } catch (error) {
                 console.error('Error disapproving ID verification:', error);
                 showToast.error('Error al rechazar la verificación');
             }
@@ -865,9 +910,41 @@ export default {
         },
         openIDImage(url) {
             if (!url) return;
-            
+
             // Open the image in a new tab
             window.open(url, '_blank');
+        },
+
+        toggleRequests(){
+            if (!this.displayRequests) {
+                this.displayRequests = true;
+                // console.log('true')
+            } else {
+                this.displayRequests = false;
+                // console.log('false')
+            }            
+        },
+        async approve(request){
+            if (confirm('¿Se comunicó con el cliente y ya actualizó sus datos acorde a su solicitud?')) {
+                try {
+                    this.isSubmitting = true;
+
+                    const requestsRef = dbRef(db, `updateRequests/${request.userId}/${request.id}`);
+                    const requestSnapshot = await get(requestsRef);
+
+                    if (requestSnapshot.exists()) {
+                        await update(requestsRef, { status: 'approved' });
+                        showToast.success('Solicitud aprobada');
+                        await this.fetchUpdateRequests();
+                    } else {
+                        console.error('Solicitud no encontrada.');
+                    }
+                } catch (error) {
+                    console.error('Error approving request:', error);
+                } finally {
+                    this.isSubmitting = false;                    
+                }  
+            }            
         }
     }
 }
@@ -882,22 +959,28 @@ export default {
             </h4>
             <div class="d-flex gap-2">
                 <button class="btn btn-theme btn-sm" data-bs-toggle="modal" data-bs-target="#addClientModal">
-                <i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Cliente
+                    <i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Cliente
                 </button>
                 <button class="btn btn-theme btn-sm" @click="downloadClients()">
-                <i class="fa fa-download fa-fw me-1"></i> Exportar clientes
+                    <i class="fa fa-download fa-fw me-1"></i> Exportar clientes
                 </button>
             </div>
         </div>
 
-        <div class="clients-wrapper">
+        <div v-if="!displayRequests" class="clients-wrapper">
             <div class="search-section p-3">
-                <div class="row align-items-center mb-3">
+                <div class="row justify-content-between align-items-center mb-3">
                     <div class="col-md-4 mt-3 mt-md-0">
                         <span class="badge bg-dark fs-6 p-2">
                             {{ clients.length }} Clientes registrados
                         </span>
-                </div>
+                    </div>
+                    <div class="col-md-4 mt-3 mt-md-0 d-flex justify-content-end">
+                        <button class="btn btn-theme fs-6" id="requestsButton" @click="toggleRequests">
+                            {{ updateRequests.length }} Solicitudes
+                            <i class="fa-solid fa-arrow-right ms-2"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="row align-items-center">
                     <!-- Search bar -->
@@ -907,20 +990,23 @@ export default {
                             <span class="input-group-text bg-dark border-secondary">
                                 <i class="fas fa-search text-light"></i>
                             </span>
-                            <input v-model="searchQuery" class="form-control form-control-sm bg-dark text-light border-secondary" 
-                            placeholder="Buscar por nombre o cédula...">
+                            <input v-model="searchQuery"
+                                class="form-control form-control-sm bg-dark text-light border-secondary"
+                                placeholder="Buscar por nombre o cédula...">
                         </div>
                     </div>
                     <!-- Filter by verification -->
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Filtrar por verificación</label>
-                        <select class="form-select form-select-sm bg-dark text-light border-secondary" v-model="verificationFilter">
+                        <select class="form-select form-select-sm bg-dark text-light border-secondary"
+                            v-model="verificationFilter">
                             <option value="all">Todos los clientes ({{ verificationCounts.all }})</option>
                             <option value="verified">Verificados ({{ verificationCounts.verified }})</option>
-                            <option value="pending">Pendientes de verificación ({{ verificationCounts.pending }})</option>
+                            <option value="pending">Pendientes de verificación ({{ verificationCounts.pending }})
+                            </option>
                             <option value="unverified">No verificados ({{ verificationCounts.unverified }})</option>
                         </select>
-                    </div>                    
+                    </div>
                 </div>
             </div>
 
@@ -951,25 +1037,23 @@ export default {
                                 <div class="d-flex align-items-center gap-3">
                                     <div class="client-avatar">
                                         <i class="fas fa-user"></i>
-                                                        </div>
+                                    </div>
                                     <div>
                                         <div class="d-flex align-items-center">
                                             <h6 class="mb-0">{{ client.firstName }} {{ client.lastName }}</h6>
-                                            <span v-if="client.isVerified" 
-                                                  class="ms-2 badge bg-success" 
-                                                  title="Cliente verificado">
+                                            <span v-if="client.isVerified" class="ms-2 badge bg-success"
+                                                title="Cliente verificado">
                                                 <i class="fas fa-check-circle"></i>
                                             </span>
-                                            <span v-else-if="client.requestedVerification" 
-                                                  class="ms-2 badge bg-warning" 
-                                                  title="Verificación pendiente">
+                                            <span v-else-if="client.requestedVerification" class="ms-2 badge bg-warning"
+                                                title="Verificación pendiente">
                                                 <i class="fas fa-clock"></i>
                                             </span>
-                                                    </div>
+                                        </div>
                                         <div class="client-contact">
                                             <div class="text-secondary small">
                                                 <i class="fas fa-envelope me-2"></i>{{ client.email }}
-                                                </div>
+                                            </div>
                                             <div class="text-secondary small">
                                                 <i class="fas fa-phone me-2"></i>{{ client.phoneNumber }}
                                             </div>
@@ -979,20 +1063,19 @@ export default {
                             </div>
                             <div class="client-actions-group">
                                 <div class="client-actions">
-                                    <button class="btn btn-sm btn-outline-primary me-2" 
-                                            @click.stop="toggleEdit(client)"
-                                            :title="client.isEditing ? 'Cancelar edición' : 'Editar cliente'">
+                                    <button class="btn btn-sm btn-outline-primary me-2" @click.stop="toggleEdit(client)"
+                                        :title="client.isEditing ? 'Cancelar edición' : 'Editar cliente'">
                                         <i :class="client.isEditing ? 'fas fa-times' : 'fas fa-edit'"></i>
-                                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger" 
-                                            @click.stop="deleteClient(client, index)"
-                                            title="Eliminar cliente">
-                                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                            <i class="fas fa-trash" v-else></i>
                                     </button>
-                                                                        </div>
-                                                                        </div>
-                                                                    </div>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                        @click.stop="deleteClient(client, index)" title="Eliminar cliente">
+                                        <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+                                            aria-hidden="true"></span>
+                                        <i class="fas fa-trash" v-else></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
                         <!-- Edit Form -->
                         <div v-if="client.isEditing" class="edit-form mt-3">
@@ -1000,62 +1083,72 @@ export default {
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label class="form-label">Nombre</label>
-                                        <input type="text" class="form-control form-control-sm rounded-0" v-model="client.firstName">
-                                                                </div>
-                                                            </div>
+                                        <input type="text" class="form-control form-control-sm rounded-0"
+                                            v-model="client.firstName">
+                                    </div>
+                                </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label class="form-label">Apellido</label>
-                                        <input type="text" class="form-control form-control-sm rounded-0" v-model="client.lastName">
-                                                        </div>
-                                                    </div>
+                                        <input type="text" class="form-control form-control-sm rounded-0"
+                                            v-model="client.lastName">
+                                    </div>
+                                </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label class="form-label">Cédula</label>
-                                        <input type="text" class="form-control form-control-sm rounded-0" v-model="client.identification">
-                                                </div>
-                                            </div>
+                                        <input type="text" class="form-control form-control-sm rounded-0"
+                                            v-model="client.identification">
+                                    </div>
+                                </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label class="form-label">Email</label>
-                                        <input type="email" class="form-control form-control-sm rounded-0" v-model="client.email">
-                                                                        </div>
-                                                                                </div>
+                                        <input type="email" class="form-control form-control-sm rounded-0"
+                                            v-model="client.email">
+                                    </div>
+                                </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label class="form-label">Teléfono</label>
-                                        <input type="text" class="form-control form-control-sm rounded-0" v-model="client.phoneNumber">
-                                                                            </div>
-                                                                        </div>
+                                        <input type="text" class="form-control form-control-sm rounded-0"
+                                            v-model="client.phoneNumber">
+                                    </div>
+                                </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label class="form-label">Estado</label>
-                                        <select class="form-select form-select-sm rounded-0" v-model="client.state" @change="displayMunicipios(client.state)">
-                                            <option v-for="state in venezuelanStates" :key="state" :value="state">{{ state }}</option>
+                                        <select class="form-select form-select-sm rounded-0" v-model="client.state"
+                                            @change="displayMunicipios(client.state)">
+                                            <option v-for="state in venezuelanStates" :key="state" :value="state">{{
+                                                state }}</option>
                                         </select>
-                                                                    </div>
-                                                                </div>
+                                    </div>
+                                </div>
                                 <div class="col-md-6" v-if="municipios.length">
                                     <div class="form-group">
                                         <label class="form-label">Municipio</label>
-                                        <select class="form-select form-select-sm rounded-0" v-model="client.municipio" @change="displayParroquias(client.municipio)">
-                                            <option v-for="municipio in municipios" :key="municipio" :value="municipio">{{ municipio }}</option>
+                                        <select class="form-select form-select-sm rounded-0" v-model="client.municipio"
+                                            @change="displayParroquias(client.municipio)">
+                                            <option v-for="municipio in municipios" :key="municipio" :value="municipio">
+                                                {{ municipio }}</option>
                                         </select>
-                                                            </div>
-                                                        </div>
+                                    </div>
+                                </div>
                                 <div class="col-md-6" v-if="parroquias.length">
                                     <div class="form-group">
                                         <label class="form-label">Parroquia</label>
                                         <select class="form-select form-select-sm rounded-0" v-model="client.parroquia">
-                                            <option v-for="parroquia in parroquias" :key="parroquia" :value="parroquia">{{ parroquia }}</option>
+                                            <option v-for="parroquia in parroquias" :key="parroquia" :value="parroquia">
+                                                {{ parroquia }}</option>
                                         </select>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="mt-3 text-end">
                                 <button class="btn btn-sm btn-outline-secondary me-2" @click="cancelEdit(client)">
                                     Cancelar
-                                                    </button>
+                                </button>
                                 <button class="btn btn-sm btn-theme" @click="updateClient(client)">
                                     Guardar cambios
                                 </button>
@@ -1068,9 +1161,9 @@ export default {
                             <div v-if="loadingStates[client.uid]" class="text-center py-3">
                                 <div class="spinner-border spinner-border-sm text-primary" role="status">
                                     <span class="visually-hidden">Cargando...</span>
-                                                                </div>
+                                </div>
                                 <p class="text-secondary small mb-0">Cargando detalles...</p>
-                                                                </div>
+                            </div>
 
                             <!-- Details Content -->
                             <div v-else class="row g-4">
@@ -1082,10 +1175,11 @@ export default {
                                         </h6>
                                         <div class="location-info">
                                             <div class="mb-1">{{ client.state }}</div>
-                                            <div class="ms-3">{{ client.municipio }}{{ client.parroquia ? `, ${client.parroquia}` : '' }}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                            <div class="ms-3">{{ client.municipio }}{{ client.parroquia ? `,
+                                                ${client.parroquia}` : '' }}</div>
+                                        </div>
+                                    </div>
+                                </div>
 
                                 <!-- Credits Info -->
                                 <div class="col-md-4">
@@ -1098,42 +1192,46 @@ export default {
                                                 <div v-if="client.credit?.mainCredit" class="mb-2">
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span>Rose Credit:</span>
-                                                        <span class="text-success">${{ client.credit.mainCredit }}</span>
-                                                        </div>
+                                                        <span class="text-success">${{ client.credit.mainCredit
+                                                            }}</span>
+                                                    </div>
                                                     <div class="progress" style="height: 6px;">
-                                                        <div class="progress-bar bg-success" 
-                                                             :style="{ width: `${(client.credit.availableMainCredit / client.credit.mainCredit) * 100}%` }">
-                                                                    </div>
-                                                                </div>
+                                                        <div class="progress-bar bg-success"
+                                                            :style="{ width: `${(client.credit.availableMainCredit / client.credit.mainCredit) * 100}%` }">
+                                                        </div>
+                                                    </div>
                                                     <small class="text-muted">
                                                         Disponible: ${{ client.credit.availableMainCredit }}
                                                     </small>
-                                                            </div>
+                                                </div>
                                                 <div v-if="client.credit?.plusCredit">
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span>Rose Credit Plus:</span>
-                                                        <span class="text-primary">${{ client.credit.plusCredit }}</span>
-                                                                    </div>
+                                                        <span class="text-primary">${{ client.credit.plusCredit
+                                                            }}</span>
+                                                    </div>
                                                     <div class="progress" style="height: 6px;">
-                                                        <div class="progress-bar bg-primary" 
-                                                             :style="{ width: `${(client.credit.availablePlusCredit / client.credit.plusCredit) * 100}%` }">
-                                                                </div>
-                                                            </div>
+                                                        <div class="progress-bar bg-primary"
+                                                            :style="{ width: `${(client.credit.availablePlusCredit / client.credit.plusCredit) * 100}%` }">
+                                                        </div>
+                                                    </div>
                                                     <small class="text-muted">
                                                         Disponible: ${{ client.credit.availablePlusCredit }}
                                                     </small>
-                                                                    </div>
-                                                <div v-if="!client.credit.mainCredit && !client.credit.plusCredit" class="text-center py-2">
+                                                </div>
+                                                <div v-if="!client.credit.mainCredit && !client.credit.plusCredit"
+                                                    class="text-center py-2">
                                                     <p class="text-secondary mb-0">Sin crédito asignado</p>
-                                                                </div>
-                                                            </div>
+                                                </div>
+                                            </div>
                                             <div v-else class="text-center py-3">
-                                                <i class="fas fa-exclamation-circle text-warning mb-2" style="font-size: 1.5rem;"></i>
+                                                <i class="fas fa-exclamation-circle text-warning mb-2"
+                                                    style="font-size: 1.5rem;"></i>
                                                 <p class="text-secondary mb-0">Sin crédito asignado</p>
-                                                        </div>
-                                                            </div>
-                                                                </div>
-                                                            </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
 
                                 <!-- Subscription Info -->
                                 <div class="col-md-4">
@@ -1145,20 +1243,24 @@ export default {
                                             <div v-if="client.subscription">
                                                 <div class="d-flex justify-content-start gap-2 align-items-center mb-2">
                                                     <span class="fw-bold">Nivel:</span>
-                                                    <span>{{ client.subscription?.name?.toUpperCase() || 'Básico' }}</span>
-                                                        </div>
-                                                <div class="d-flex justify-content-start gap-2 align-items-center mb-2">                                                
+                                                    <span>{{ client.subscription?.name?.toUpperCase() || 'Básico'
+                                                        }}</span>
+                                                </div>
+                                                <div class="d-flex justify-content-start gap-2 align-items-center mb-2">
                                                     <span class="fw-bold">Estado:</span>
-                                                    <span :class="client.subscription?.isPaid ? 'text-success' : 'text-danger'">
+                                                    <span
+                                                        :class="client.subscription?.isPaid ? 'text-success' : 'text-danger'">
                                                         {{ client.subscription?.isPaid ? 'Activa' : 'Inactiva' }}
-                                                                </span>
-                                                            </div>
-                                                <div v-if="client.subscription?.lastPaymentDate" class="small text-muted">
+                                                    </span>
+                                                </div>
+                                                <div v-if="client.subscription?.lastPaymentDate"
+                                                    class="small text-muted">
                                                     Último pago: {{ formatDate(client.subscription.lastPaymentDate) }}
-                                                        </div>
+                                                </div>
                                                 <div v-if="client.subscription?.paymentUrl" class="mt-2">
                                                     <div class="d-flex justify-content-center align-items-center mb-2">
-                                                        <button class="btn btn-sm btn-theme" @click="openImageInNewTab(client.subscription.paymentUrl)">
+                                                        <button class="btn btn-sm btn-theme"
+                                                            @click="openImageInNewTab(client.subscription.paymentUrl)">
                                                             <i class="fa fa-eye"></i>
                                                             Ver pago
                                                         </button>
@@ -1166,12 +1268,13 @@ export default {
                                                 </div>
                                             </div>
                                             <div v-else class="text-center py-3">
-                                                <i class="fas fa-exclamation-circle text-warning mb-2" style="font-size: 1.5rem;"></i>
+                                                <i class="fas fa-exclamation-circle text-warning mb-2"
+                                                    style="font-size: 1.5rem;"></i>
                                                 <p class="text-secondary mb-0">Sin suscripción activa</p>
-                                                    </div>
-                                                </div>
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
 
                                 <!-- ID Verification Section -->
                                 <div class="col-md-12 mt-4">
@@ -1182,44 +1285,61 @@ export default {
                                         <div class="id-documents">
                                             <!-- Show message if client is not verified -->
                                             <div v-if="!client.requestedVerification" class="text-center py-3">
-                                                <i class="fas fa-exclamation-circle text-warning mb-2" style="font-size: 2rem;"></i>
-                                                <p class="text-secondary mb-0">Este cliente no ha solicitado verificación de identidad.</p>
+                                                <i class="fas fa-exclamation-circle text-warning mb-2"
+                                                    style="font-size: 2rem;"></i>
+                                                <p class="text-secondary mb-0">Este cliente no ha solicitado
+                                                    verificación de identidad.</p>
                                             </div>
-                                            
+
                                             <!-- Show verification status if requested but not approved -->
-                                            <div v-else-if="client.requestedVerification && !client.isVerified" class="text-center py-3">
+                                            <div v-else-if="client.requestedVerification && !client.isVerified"
+                                                class="text-center py-3">
                                                 <i class="fas fa-clock text-info mb-2" style="font-size: 2rem;"></i>
-                                                <p class="text-secondary mb-0">Este cliente ha solicitado verificación pero aún no ha sido aprobada.</p>
+                                                <p class="text-secondary mb-0">Este cliente ha solicitado verificación
+                                                    pero aún no ha sido aprobada.</p>
                                                 <div class="mt-3">
-                                                    <button class="btn btn-sm btn-success me-2" @click="approveID(client)" :disabled="isSubmitting">
-                                                        <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                    <button class="btn btn-sm btn-success me-2"
+                                                        @click="approveID(client)" :disabled="isSubmitting">
+                                                        <span v-if="isSubmitting"
+                                                            class="spinner-border spinner-border-sm" role="status"
+                                                            aria-hidden="true"></span>
                                                         <span v-else>
                                                             <i class="fas fa-check me-1"></i>Aprobar
                                                         </span>
-                                            </button>
-                                                    <button class="btn btn-sm btn-danger" @click="dissapproveID(client)" :disabled="isSubmitting">
-                                                        <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-danger" @click="dissapproveID(client)"
+                                                        :disabled="isSubmitting">
+                                                        <span v-if="isSubmitting"
+                                                            class="spinner-border spinner-border-sm" role="status"
+                                                            aria-hidden="true"></span>
                                                         <span v-else>
                                                             <i class="fas fa-times me-1"></i>Rechazar
                                                         </span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                            
+                                                    </button>
+                                                </div>
+                                            </div>
+
                                             <!-- Show ID documents if client is verified -->
-                                            <div v-if="client.isVerified || client.requestedVerification" class="row g-3">
-                                                <div v-if="loadingStates[client.uid + '_files']" class="text-center py-3">
-                                                    <div class="spinner-border spinner-border-sm text-secondary" role="status">
+                                            <div v-if="client.isVerified || client.requestedVerification"
+                                                class="row g-3">
+                                                <div v-if="loadingStates[client.uid + '_files']"
+                                                    class="text-center py-3">
+                                                    <div class="spinner-border spinner-border-sm text-secondary"
+                                                        role="status">
                                                         <span class="visually-hidden">Cargando...</span>
-                                </div>
+                                                    </div>
                                                     <p class="text-secondary mt-2 mb-0">Cargando documentos...</p>
-                            </div>
+                                                </div>
                                                 <template v-else>
-                                                    <div v-if="client.idFiles && client.idFiles.length > 0" class="row g-3">
-                                                        <div v-for="(file, index) in client.idFiles" :key="index" class="col-md-4">
+                                                    <div v-if="client.idFiles && client.idFiles.length > 0"
+                                                        class="row g-3">
+                                                        <div v-for="(file, index) in client.idFiles" :key="index"
+                                                            class="col-md-4">
                                                             <div class="id-file-card">
-                                                                <div class="id-file-preview" @click="openIDImage(file.url)">
-                                                                    <img :src="file.url" alt="ID Document" class="img-fluid">
+                                                                <div class="id-file-preview"
+                                                                    @click="openIDImage(file.url)">
+                                                                    <img :src="file.url" alt="ID Document"
+                                                                        class="img-fluid">
                                                                 </div>
                                                                 <div class="id-file-info">
                                                                     <span class="id-file-type">{{ file.type }}</span>
@@ -1228,7 +1348,8 @@ export default {
                                                         </div>
                                                     </div>
                                                     <div v-else class="text-center py-3">
-                                                        <i class="fas fa-folder-open text-secondary mb-2" style="font-size: 2rem;"></i>
+                                                        <i class="fas fa-folder-open text-secondary mb-2"
+                                                            style="font-size: 2rem;"></i>
                                                         <p class="text-secondary mb-0">No se encontraron documentos.</p>
                                                     </div>
                                                 </template>
@@ -1238,29 +1359,118 @@ export default {
                                 </div>
                             </div>
                         </div>
-                        </div>
+                    </div>
                 </div>
 
                 <!-- Pagination -->
                 <nav v-if="totalPages > 1" class="mt-4 p-2" aria-label="Page navigation">
-                        <ul class="pagination justify-content-center">
-                            <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item" :class="{ disabled: currentPage === 1 }">
                             <button class="page-link" @click="goToPage(currentPage - 1)">Anterior</button>
-                            </li>
-                            <li class="page-item" v-for="page in visiblePages" :key="page"
-                                :class="{ active: page === currentPage }">
-                                <button class="page-link" @click="goToPage(page)">{{ page }}</button>
-                            </li>
-                            <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                        </li>
+                        <li class="page-item" v-for="page in visiblePages" :key="page"
+                            :class="{ active: page === currentPage }">
+                            <button class="page-link" @click="goToPage(page)">{{ page }}</button>
+                        </li>
+                        <li class="page-item" :class="{ disabled: currentPage === totalPages }">
                             <button class="page-link" @click="goToPage(currentPage + 1)">Siguiente</button>
-                            </li>
-                        </ul>
+                        </li>
+                    </ul>
                 </nav>
+            </div>
+        </div>
+        <div v-else class="requests-wrapper">
+            <div class="search-section p-3">
+                <div class="row justify-content-between align-items-center mb-3">
+                    <div class="col-md-4 mt-3 mt-md-0 d-flex">
+                        <button class="btn btn-theme fs-6" id="requestsButton" @click="toggleRequests">
+                            <i class="fa-solid fa-arrow-left me-2"></i>Volver a Clientes
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Requests List -->
+            <div class="requests-list">
+                <!-- Loading State -->
+                <div v-if="loadingRequests" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden"></span>
+                    </div>
+                    <p class="mt-2 text-secondary">Cargando lista de Solicitudes...</p>
+                </div>
+
+                <!-- Empty State -->
+                <div v-else-if="updateRequests.length === 0" class="text-center py-5">
+                    <div class="mb-3">
+                        <i class="fa fa-users text-secondary opacity-25" style="font-size: 5em"></i>
+                    </div>
+                    <h5 class="text-secondary">No se encontraron clientes</h5>
+                </div>
+
+                <!-- Requests Grid -->
+                <div v-else class="request-items">
+                    <div class="request-item" v-for="request in updateRequests" :key="request.id">
+                        <!-- Header Section -->
+                        <div class="requests-header">
+                            <div class="request-info">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="request-avatar">
+                                        <i class="fa-solid fa-bell"></i>
+                                    </div>
+                                    <div>
+                                        <div class="d-flex align-items-center">
+                                            <h6 class="mb-0">{{ request.userName }}</h6>
+                                        </div>
+                                        <div class="client-contact">
+                                            <div class="text-secondary fs-5">
+                                                {{ request.fieldLabel }}
+                                            </div>
+                                            <div class="text-secondary small">
+                                                <strong>Valor actual: </strong>{{ request.currentValue }}
+                                            </div>
+                                            <div class="text-secondary small">
+                                                <strong>Valor solicitado: </strong>{{ request.newValue }}
+                                            </div>
+                                            <div class="text-secondary small">
+                                                <strong>Solicitado el dia: </strong>{{ formatDate(request.requestedAt) }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="request-actions-group">
+                                <div class="request-actions">
+                                    <button class="btn btn-sm btn-outline-success me-2" @click.stop="approve(request)">
+                                        <i class="fa-solid fa-check"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pagination
+                <nav v-if="totalPages > 1" class="mt-4 p-2" aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                            <button class="page-link" @click="goToPage(currentPage - 1)">Anterior</button>
+                        </li>
+                        <li class="page-item" v-for="page in visiblePages" :key="page"
+                            :class="{ active: page === currentPage }">
+                            <button class="page-link" @click="goToPage(page)">{{ page }}</button>
+                        </li>
+                        <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                            <button class="page-link" @click="goToPage(currentPage + 1)">Siguiente</button>
+                        </li>
+                    </ul>
+                </nav> -->
             </div>
         </div>
 
         <!-- Modal for Adding New Client -->
-        <div class="modal fade" id="addClientModal" tabindex="-1" aria-labelledby="addClientModalLabel" aria-hidden="true">
+        <div class="modal fade" id="addClientModal" tabindex="-1" aria-labelledby="addClientModalLabel"
+            aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
                 <div class="modal-content bg-dark">
                     <div class="modal-header border-secondary">
@@ -1268,7 +1478,8 @@ export default {
                             <i class="fas fa-user-plus me-2"></i>
                             Agregar Cliente
                         </h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <div class="row g-3">
@@ -1277,27 +1488,21 @@ export default {
                                     <label for="clientFirstName" class="form-label">
                                         Nombre <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" 
-                                           class="form-control form-control-sm rounded-0" 
-                                           id="clientFirstName" 
-                                           v-model="client.firstName"
-                                           placeholder="Ingrese el nombre"
-                                required />
-                        </div>
+                                    <input type="text" class="form-control form-control-sm rounded-0"
+                                        id="clientFirstName" v-model="client.firstName" placeholder="Ingrese el nombre"
+                                        required />
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="clientLastName" class="form-label">
                                         Apellido <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" 
-                                           class="form-control form-control-sm rounded-0" 
-                                           id="clientLastName" 
-                                           v-model="client.lastName"
-                                           placeholder="Ingrese el apellido"
-                                required />
-                        </div>
-                        </div>
+                                    <input type="text" class="form-control form-control-sm rounded-0"
+                                        id="clientLastName" v-model="client.lastName" placeholder="Ingrese el apellido"
+                                        required />
+                                </div>
+                            </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="clientIdentification" class="form-label">
@@ -1305,26 +1510,19 @@ export default {
                                     </label>
                                     <div class="input-group input-group-sm">
                                         <span class="input-group-text bg-dark border-secondary text-light">V-</span>
-                                        <input type="text" 
-                                               class="form-control form-control-sm rounded-0" 
-                                               id="clientIdentification"
-                                               v-model="client.identification"
-                                               placeholder="Ingrese la cédula"
-                                               required />
-                        </div>
-                        </div>
-                    </div>
+                                        <input type="text" class="form-control form-control-sm rounded-0"
+                                            id="clientIdentification" v-model="client.identification"
+                                            placeholder="Ingrese la cédula" required />
+                                    </div>
+                                </div>
+                            </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="clientEmail" class="form-label">
                                         Email <span class="text-danger">*</span>
                                     </label>
-                                    <input type="email" 
-                                           class="form-control form-control-sm rounded-0" 
-                                           id="clientEmail" 
-                                           v-model="client.email"
-                                           placeholder="ejemplo@correo.com"
-                                           required />
+                                    <input type="email" class="form-control form-control-sm rounded-0" id="clientEmail"
+                                        v-model="client.email" placeholder="ejemplo@correo.com" required />
                                 </div>
                             </div>
                             <div class="col-12">
@@ -1332,11 +1530,9 @@ export default {
                                     <label for="clientPhoneNumber" class="form-label">
                                         Teléfono
                                     </label>
-                                    <input type="tel" 
-                                           class="form-control form-control-sm rounded-0" 
-                                           id="clientPhoneNumber"
-                                           v-model="client.phoneNumber"
-                                           placeholder="XXXX-XXXXXXX" />
+                                    <input type="tel" class="form-control form-control-sm rounded-0"
+                                        id="clientPhoneNumber" v-model="client.phoneNumber"
+                                        placeholder="XXXX-XXXXXXX" />
                                 </div>
                             </div>
                         </div>
@@ -1352,7 +1548,8 @@ export default {
                             <i class="fas fa-times me-2"></i>Cancelar
                         </button>
                         <button type="button" class="btn btn-sm btn-theme" @click="createClient()">
-                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+                                aria-hidden="true"></span>
                             <span v-else>
                                 <i class="fas fa-save me-2"></i>Guardar
                             </span>
@@ -1426,7 +1623,7 @@ export default {
     </div>
 </template>
 <style scoped>
-.clients-wrapper {
+.clients-wrapper, .requests-wrapper {
     background: #29122f;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -1436,17 +1633,17 @@ export default {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.client-item {
+.client-item, .request-item {
     padding: 1.5rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     transition: background-color 0.2s ease;
 }
 
-.client-item:hover {
+.client-item:hover, .request-item:hover {
     background-color: rgba(255, 255, 255, 0.05);
 }
 
-.client-item:last-child {
+.client-item:last-child, .request-item:last-child {
     border-bottom: none;
 }
 
@@ -1487,7 +1684,7 @@ export default {
     color: #155724;
 }
 
-.client-header {
+.client-header, .requests-header {
     cursor: pointer;
     user-select: none;
     display: flex;
@@ -1496,13 +1693,13 @@ export default {
     gap: 1rem;
 }
 
-.client-actions-group {
+.client-actions-group, .request-actions-group {
     display: flex;
     align-items: flex-start;
     gap: 1rem;
 }
 
-.client-actions {
+.client-actions, .request-actions {
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;
@@ -1530,7 +1727,8 @@ export default {
     margin-top: 0.5rem;
 }
 
-.btn-outline-theme, .btn-theme {
+.btn-outline-theme,
+.btn-theme {
     border-radius: 20px;
     font-size: 0.85rem;
     padding: 0.375rem 0.75rem;
@@ -1545,7 +1743,7 @@ export default {
 .btn-outline-theme:hover {
     background-color: purple;
     color: white;
-    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+    box-shadow: 0 2px 5px rgba(128, 0, 128, 0.3);
 }
 
 .btn-theme {
@@ -1557,7 +1755,7 @@ export default {
 .btn-theme:hover {
     background-color: #8a2be2;
     border-color: #8a2be2;
-    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
+    box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
 }
 
 /* Mobile Styles */
@@ -1575,9 +1773,10 @@ export default {
     .verification-status {
         margin-bottom: 0.5rem;
     }
+
     .btn-theme.btn-sm {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
     }
 }
 
@@ -1616,13 +1815,15 @@ export default {
     margin-bottom: 0.5rem;
 }
 
-.form-control, .form-select {
+.form-control,
+.form-select {
     background-color: #1a1a1a;
     border-color: rgba(255, 255, 255, 0.1);
     color: #fff;
 }
 
-.form-control:focus, .form-select:focus {
+.form-control:focus,
+.form-select:focus {
     background-color: #1a1a1a;
     border-color: purple;
     color: #fff;
@@ -1714,31 +1915,31 @@ export default {
     }
 
     .search-section {
-    padding: 1rem;
-  }
-  
-  .row.align-items-center {
-    row-gap: 0.5rem;
-  }
-  
-  .d-flex.justify-content-between.align-items-center.mb-4 {
-    flex-direction: column;
-    align-items: flex-start !important;
-    gap: 1rem;
-  }
-  
-  .d-flex.justify-content-between.align-items-center.mb-4 .btn-group {
-    width: 100%;
-    justify-content: center;
-  }
+        padding: 1rem;
+    }
 
-  .badge.fs-6 {
-    font-size: 0.75rem !important;
-    display: inline-block;
-    width: auto;
-    text-align: center;
-    margin-bottom: 0.5rem;
-  }
+    .row.align-items-center {
+        row-gap: 0.5rem;
+    }
+
+    .d-flex.justify-content-between.align-items-center.mb-4 {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 1rem;
+    }
+
+    .d-flex.justify-content-between.align-items-center.mb-4 .btn-group {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .badge.fs-6 {
+        font-size: 0.75rem !important;
+        display: inline-block;
+        width: auto;
+        text-align: center;
+        margin-bottom: 0.5rem;
+    }
 }
 
 /* Modal Styles */
@@ -1799,7 +2000,8 @@ export default {
     cursor: pointer;
     position: relative;
     overflow: hidden;
-    padding-top: 60%; /* 3:5 aspect ratio */
+    padding-top: 60%;
+    /* 3:5 aspect ratio */
 }
 
 .id-file-preview img {

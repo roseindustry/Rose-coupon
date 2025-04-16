@@ -6,6 +6,7 @@ interface UserRoleState {
   role: string;
   userId: string | null;
   userName: string | null;
+  userIdentification: string | null;
   isVerified: boolean;
   isProfileCompleted: boolean;
 }
@@ -15,6 +16,7 @@ export const useUserStore = defineStore('user-role', {
     role: '',
     userId: null,
     userName: null,
+    userIdentification: null,
     isVerified: false,
     isProfileCompleted: false,
   }),
@@ -43,10 +45,10 @@ export const useUserStore = defineStore('user-role', {
         if (snapshot.exists()) {
           const data = snapshot.val();
           this.role = data.role || 'unknown';
-          this.userName = this.role === 'cliente' ||
-          this.role === 'admin'
+          this.userName = this.role === 'cliente' || this.role === 'admin'
             ? `${data.firstName} ${data.lastName}` 
             : data.companyName;
+          this.userIdentification = this.role === 'afiliado' ? `${data.rif}` : data.identification;
           this.isVerified = data.isVerified;
           this.isProfileCompleted = !!(data.state && data.municipio && data.parroquia);
         } else {
@@ -72,6 +74,7 @@ export const useUserStore = defineStore('user-role', {
       this.role = 'unknown';
       this.userId = null;
       this.userName = null;
+      this.userIdentification = null;
       this.isVerified = false;
       this.isProfileCompleted = false;
     },
@@ -80,6 +83,7 @@ export const useUserStore = defineStore('user-role', {
     getUserRole: (state) => state.role,
     getUserId: (state) => state.userId,
     getUserName: (state) => state.userName,
+    getUserIdentification: (state) => state.userIdentification,
     getUserVerifiedStatus: (state) => state.isVerified,
     getProfileStatus: (state) => state.isProfileCompleted,
   },

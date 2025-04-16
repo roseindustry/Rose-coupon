@@ -1,11 +1,5 @@
 <template>
-  <div
-    class="modal fade"
-    id="assignModal"
-    tabindex="-1"
-    aria-labelledby="assignModalLabel"
-    aria-hidden="true"
-  >
+  <div class="modal fade" id="assignModal" tabindex="-1" aria-labelledby="assignModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
@@ -13,13 +7,8 @@
             Asignar Suscripción a
             {{ activeTab === "clients" ? "Cliente" : "Afiliado" }}
           </h5>
-          <button
-            type="button"
-            class="btn-close btn-close-white"
-            data-bs-dismiss="modal"
-            aria-label="Close"
-            @click="resetModalData"
-          ></button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"
+            @click="resetModalData"></button>
         </div>
         <div class="modal-body">
           <!-- Top Actions -->
@@ -30,11 +19,7 @@
               {{ activeTab === "clients" ? "cliente" : "afiliado" }} para
               asignar una suscripción.
             </div>
-            <button
-              class="btn btn-theme"
-              data-bs-toggle="modal"
-              data-bs-target="#createPlan"
-            >
+            <button class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#createPlan">
               <i class="fa-solid fa-plus me-2"></i>Crear Plan
             </button>
           </div>
@@ -46,33 +31,20 @@
                 <i class="fa-solid fa-search me-2"></i>Buscar
                 {{ activeTab === "clients" ? "Cliente" : "Afiliado" }}
               </h6>
-              <SearchInput
-                v-model="searchQuery"
-                :results="searchResults"
-                :placeholder="
-                  activeTab === 'clients'
-                    ? 'Buscar por nombre o cédula...'
-                    : 'Buscar por nombre o RIF...'
-                "
-                @input="
+              <SearchInput v-model="searchQuery" :results="searchResults" :placeholder="activeTab === 'clients'
+                  ? 'Buscar por nombre o cédula...'
+                  : 'Buscar por nombre o RIF...'
+                " @input="
                   activeTab === 'clients' ? searchClients() : searchAffiliates()
-                "
-                @select="handleSelect"
-                class="form-control mb-3"
-              />
+                  " @select="handleSelect" class="form-control mb-3" />
 
               <div v-if="internalSelectedUser" class="selected-item">
-                <div
-                  class="d-flex align-items-center justify-content-between p-2 rounded bg-dark-purple"
-                >
+                <div class="d-flex align-items-center justify-content-between p-2 rounded bg-dark-purple">
                   <span>
                     <i class="fa-solid fa-user me-2"></i>
                     {{ getUserDisplayName }}
                   </span>
-                  <button
-                    class="btn btn-sm btn-outline-danger"
-                    @click="deselectUser"
-                  >
+                  <button class="btn btn-sm btn-outline-danger" @click="deselectUser">
                     <i class="fa-solid fa-times"></i>
                   </button>
                 </div>
@@ -127,12 +99,7 @@
                 <!-- Common Fields -->
                 <div class="col-md-6">
                   <label class="form-label">Fecha de Corte</label>
-                  <input
-                    type="date"
-                    v-model="payDay"
-                    class="form-control"
-                    id="payDay"
-                  />
+                  <input type="date" v-model="calculatedPayday" class="form-control" id="payDay" />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Teléfono</label>
@@ -167,33 +134,18 @@
 
                 <!-- Plans List -->
                 <template v-else>
-                  <div
-                    v-for="plan in availablePlans"
-                    :key="plan.id"
-                    class="col-md-4"
-                  >
+                  <div v-for="plan in availablePlans" :key="plan.id" class="col-md-4">
                     <div class="plan-card">
                       <div class="plan-actions">
-                        <button 
-                          class="btn btn-sm btn-outline-light"
-                          @click="editPlan(plan)"
-                          title="Editar plan"
-                        >
+                        <button class="btn btn-sm btn-outline-light" @click="editPlan(plan)" title="Editar plan">
                           <i class="fas fa-edit"></i>
                         </button>
-                        <button 
-                          class="btn btn-sm btn-outline-danger"
-                          @click="deletePlan(plan)"
-                          title="Eliminar plan"
-                        >
+                        <button class="btn btn-sm btn-outline-danger" @click="deletePlan(plan)" title="Eliminar plan">
                           <i class="fas fa-trash"></i>
                         </button>
                       </div>
-                      <button 
-                        class="plan-button-big w-100"
-                        :class="{ selected: selectedPlan === plan.name }"
-                        @click="selectPlan(plan.name)"
-                      >
+                      <button class="plan-button-big w-100" :class="{ selected: selectedPlan === plan.name }"
+                        @click="selectPlan(plan.name)">
                         <span>{{ plan.name.toUpperCase() }}</span>
                         <small>${{ plan.price }}/mes</small>
                         <div class="popular-badge" v-if="plan.isPopular">
@@ -208,39 +160,23 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button
-            type="button"
-            class="btn btn-outline-light"
-            data-bs-dismiss="modal"
-          >
+          <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
             Cancelar
           </button>
-          <button
-            type="button"
-            class="btn btn-theme"
-            @click="assignPlan"
-            :disabled="!internalSelectedUser || !selectedPlan || !payDay"
-          >
-            <i class="fa-solid fa-check me-2"></i>Asignar Plan
+          <button type="button" class="btn btn-theme" @click="assignPlan"
+            :disabled="loading || !internalSelectedUser || !selectedPlan || !calculatedPayday">
+            <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span v-else><i class="fa-solid fa-check me-2"></i>Asignar Plan</span>            
           </button>
         </div>
       </div>
     </div>
   </div>
 
-  <CreatePlanModal
-    ref="createPlanModal"
-    :active-tab="activeTab"
-    @plan-created="handlePlanCreated"
-  />
+  <CreatePlanModal ref="createPlanModal" :active-tab="activeTab" @plan-created="handlePlanCreated" />
 
-  <EditPlanModal
-    ref="editPlanModal"
-    :active-tab="activeTab"
-    :edit-client-plan-data="editClientPlanData"
-    :edit-affiliate-plan-data="editAffiliatePlanData"
-    @plan-updated="handlePlanUpdated"
-  />
+  <EditPlanModal ref="editPlanModal" :active-tab="activeTab" :edit-client-plan-data="editClientPlanData"
+    :edit-affiliate-plan-data="editAffiliatePlanData" @plan-updated="handlePlanUpdated" />
 </template>
 
 <script>
@@ -248,7 +184,7 @@ import { Modal } from "bootstrap";
 import { showToast } from "@/utils/toast";
 import { db } from "@/firebase/init";
 import { ref as dbRef, update, get, remove, push, set } from "firebase/database";
-import { sendEmail } from "@/utils/emailService";
+import { sendEmail } from "@/utils/emailService.js";
 import SearchInput from "@/components/app/SearchInput.vue";
 import EditPlanModal from "./EditPlanModal.vue";
 import CreatePlanModal from "./CreatePlanModal.vue";
@@ -297,7 +233,6 @@ export default {
       searchResults: [],
       internalSelectedUser: null,
       selectedPlan: null,
-      payDay: null,
       isPaid: false,
       editClientPlanData: {
         id: null,
@@ -317,6 +252,7 @@ export default {
         order: 0,
         isPopular: false,
       },
+      loading: false
     };
   },
   computed: {
@@ -331,6 +267,13 @@ export default {
         ? `${this.internalSelectedUser.firstName} ${this.internalSelectedUser.lastName}`
         : this.internalSelectedUser.companyName;
     },
+    calculatedPayday() {
+      const today = new Date();
+      const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
+      
+      // return the date in YYYY-MM-DD format for date input
+      return nextMonth.toISOString().split('T')[0];
+    }
   },
   watch: {
     selectedClient: {
@@ -413,12 +356,12 @@ export default {
       this.$emit("user-selected", null);
     },
     async assignPlan() {
-      if (!this.internalSelectedUser || !this.selectedPlan || !this.payDay) {
+      if (!this.internalSelectedUser || !this.selectedPlan || !this.calculatedPayday) {
         showToast("Por favor complete todos los campos requeridos", "error");
         return;
       }
 
-      const userId = this.internalSelectedUser.uid;
+      const userId = this.internalSelectedUser.id;
       const userDisplayName = this.getUserDisplayName;
       const selectedPlanDetails = this.availablePlans.find(
         (plan) => plan.name === this.selectedPlan
@@ -432,13 +375,19 @@ export default {
       const subscriptionData = {
         subscription_id: selectedPlanDetails.id,
         status: true,
-        payDay: new Date(this.payDay).toISOString(),
+        payDay: new Date(this.calculatedPayday).toISOString(),
         isPaid: this.isPaid,
       };
 
+      if (!confirm("¿Desea asignar esta suscripcion?")) {
+        return;
+      }
+
       try {
+        this.loading = true;
+
         const userPlanRef = dbRef(db, `Users/${userId}/subscription`);
-        await update(userPlanRef, subscriptionData);
+        await set(userPlanRef, subscriptionData);
 
         // Email notifications
         const appUrl = "https://app.rosecoupon.com";
@@ -451,21 +400,231 @@ export default {
             subject: `Suscripción ${selectedPlanDetails.name.toUpperCase()} activada`,
             text: `Hola ${userDisplayName}, se le ha activado la Suscripción ${selectedPlanDetails.name.toUpperCase()} en Roseapp.
                         Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}`,
-            html: `<p>Hola ${userDisplayName}, se le ha activado la Suscripción ${selectedPlanDetails.name} en Roseapp.</p>
-                        <p>Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}</p>`,
+            html: `
+              <!DOCTYPE html>
+              <html lang="es">
+              <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Rose Coupon - Suscripción Activada</title>
+                <style>
+                  body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    background-color: #f4f6f9;
+                    margin: 0;
+                    padding: 0;
+                  }
+                  .email-container {
+                    max-width: 600px;
+                    margin: 0 auto;
+                    background-color: #ffffff;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+                    border-radius: 8px;
+                    overflow: hidden;
+                  }
+                  .email-header {
+                    background-color: #f0f2f5;
+                    color: #2c3e50;
+                    text-align: center;
+                    padding: 20px;
+                    border-bottom: 1px solid #e1e4e8;
+                  }
+                  .email-body {
+                    padding: 30px;
+                  }
+                  .email-footer {
+                    background-color: #f0f2f5;
+                    color: #6c757d;
+                    text-align: center;
+                    padding: 15px;
+                    font-size: 0.9em;
+                    border-top: 1px solid #e1e4e8;
+                  }
+                  .btn {
+                    display: inline-block;
+                    background-color: #4a90e2;
+                    color: white;
+                    padding: 12px 24px;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    margin: 20px 0;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                  }
+                  .details-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                  }
+                  .details-table td {
+                    padding: 10px;
+                    border-bottom: 1px solid #e1e4e8;
+                  }
+                  .details-table tr:last-child td {
+                    border-bottom: none;
+                  }
+                  .details-label {
+                    color: #6c757d;
+                    font-weight: 600;
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="email-container">
+                  <div class="email-header">
+                    <h1 style="margin: 0;">Rose Coupon</h1>
+                    <p style="margin: 10px 0 0;">Confirmación de Suscripción</p>
+                  </div>
+                  
+                  <div class="email-body">
+                    <h2>Hola ${userDisplayName},</h2>
+                    
+                    <p>Su suscripción <strong>${selectedPlanDetails.name.toUpperCase()}</strong> ha sido activada exitosamente.</p>
+                    
+                    <table class="details-table">
+                      <tr>
+                        <td class="details-label">Plan</td>
+                        <td>${selectedPlanDetails.name.toUpperCase()}</td>
+                      </tr>
+                      <tr>
+                        <td class="details-label">Fecha de Activación</td>
+                        <td>${new Date().toLocaleDateString()}</td>
+                      </tr>
+                      <tr>
+                        <td class="details-label">Precio Mensual</td>
+                        <td>$${selectedPlanDetails.price}</td>
+                      </tr>
+                    </table>
+                    
+                    <a href="${appUrl}" class="btn">Acceder a Rose Coupon</a>
+                    
+                    <p>Si tiene alguna pregunta, no dude en contactar a nuestro equipo de soporte.</p>
+                  </div>
+                  
+                  <div class="email-footer">
+                    <p>&copy; ${new Date().getFullYear()} Rose Coupon. Todos los derechos reservados.</p>
+                    <p>Este es un correo electrónico automático. Por favor, no responda.</p>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `,
           },
         };
-        await this.sendNotificationEmail(userEmailPayload);
 
-        // Admin notification
         const adminEmailPayload = {
           to: "roseindustry11@gmail.com",
           message: {
             subject: `Nuevo ${userType} suscrito al Plan ${selectedPlanDetails.name.toUpperCase()}`,
             text: `Un nuevo ${userType}, ${userDisplayName}, se ha suscrito al plan ${selectedPlanDetails.name.toUpperCase()}.`,
-            html: `<p>Un nuevo ${userType}, ${userDisplayName}, se ha suscrito al plan ${selectedPlanDetails.name.toUpperCase()}.</p>`,
+            html: `
+              <!DOCTYPE html>
+              <html lang="es">
+              <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Rose Coupon - Nueva Suscripción</title>
+                <style>
+                  body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    background-color: #f4f6f9;
+                    margin: 0;
+                    padding: 0;
+                  }
+                  .email-container {
+                    max-width: 600px;
+                    margin: 0 auto;
+                    background-color: #ffffff;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+                    border-radius: 8px;
+                    overflow: hidden;
+                  }
+                  .email-header {
+                    background-color: #f0f2f5;
+                    color: #2c3e50;
+                    text-align: center;
+                    padding: 20px;
+                    border-bottom: 1px solid #e1e4e8;
+                  }
+                  .email-body {
+                    padding: 30px;
+                  }
+                  .email-footer {
+                    background-color: #f0f2f5;
+                    color: #6c757d;
+                    text-align: center;
+                    padding: 15px;
+                    font-size: 0.9em;
+                    border-top: 1px solid #e1e4e8;
+                  }
+                  .details-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                  }
+                  .details-table td {
+                    padding: 10px;
+                    border-bottom: 1px solid #e1e4e8;
+                  }
+                  .details-table tr:last-child td {
+                    border-bottom: none;
+                  }
+                  .details-label {
+                    color: #6c757d;
+                    font-weight: 600;
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="email-container">
+                  <div class="email-header">
+                    <h1 style="margin: 0;">Rose Coupon</h1>
+                    <p style="margin: 10px 0 0;">Notificación de Nueva Suscripción</p>
+                  </div>
+                  
+                  <div class="email-body">
+                    <h2>Nueva Suscripción Registrada</h2>
+                    
+                    <p>Un nuevo ${userType} se ha suscrito al plan <strong>${selectedPlanDetails.name.toUpperCase()}</strong>.</p>
+                    
+                    <table class="details-table">
+                      <tr>
+                        <td class="details-label">Tipo de Usuario</td>
+                        <td>${userType}</td>
+                      </tr>
+                      <tr>
+                        <td class="details-label">Nombre</td>
+                        <td>${userDisplayName}</td>
+                      </tr>
+                      <tr>
+                        <td class="details-label">Plan</td>
+                        <td>${selectedPlanDetails.name.toUpperCase()}</td>
+                      </tr>
+                      <tr>
+                        <td class="details-label">Fecha de Registro</td>
+                        <td>${new Date().toLocaleDateString()}</td>
+                      </tr>
+                    </table>
+                    
+                    <p>Por favor, revise los detalles de la nueva suscripción en el panel administrativo.</p>
+                  </div>
+                  
+                  <div class="email-footer">
+                    <p>&copy; ${new Date().getFullYear()} Rose Coupon. Notificación Administrativa</p>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `,
           },
         };
+
+        await this.sendNotificationEmail(userEmailPayload);
         await this.sendNotificationEmail(adminEmailPayload);
 
         showToast("Suscripción asignada con éxito!");
@@ -474,6 +633,8 @@ export default {
       } catch (error) {
         console.error("Error assigning plan:", error);
         showToast("La asignación de la suscripción falló", "error");
+      } finally {
+        this.loading = false;
       }
     },
     async sendNotificationEmail(emailPayload) {
@@ -496,11 +657,8 @@ export default {
       }
     },
     resetModalData() {
-      if (!this.selectedClient && !this.selectedAffiliate) {
-        this.internalSelectedUser = null;
-      }
+      this.internalSelectedUser = null;
       this.selectedPlan = null;
-      this.payDay = null;
       this.isPaid = false;
       this.searchQuery = "";
       this.searchResults = [];
@@ -515,13 +673,13 @@ export default {
         const assignModal = new Modal(document.getElementById("assignModal"));
         assignModal.show();
       }, 100);
-      
+
       this.$emit("plan-updated");
     },
     editPlan(plan) {
       // Create a deep copy of the plan
       const planData = JSON.parse(JSON.stringify(plan));
-      
+
       if (this.activeTab === "clients") {
         this.editClientPlanData = {
           id: planData.id,
@@ -610,35 +768,37 @@ export default {
 }
 
 /* Button Styles */
-.btn-outline-theme, .btn-theme {
-    border-radius: 20px;
-    font-size: 0.85rem;
-    padding: 0.375rem 0.75rem;
-    transition: all 0.2s ease;
+.btn-outline-theme,
+.btn-theme {
+  border-radius: 20px;
+  font-size: 0.85rem;
+  padding: 0.375rem 0.75rem;
+  transition: all 0.2s ease;
 }
 
 .btn-outline-theme {
-    border-color: purple;
-    color: purple;
+  border-color: purple;
+  color: purple;
 }
 
 .btn-outline-theme:hover {
-    background-color: purple;
-    color: white;
-    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+  background-color: purple;
+  color: white;
+  box-shadow: 0 2px 5px rgba(128, 0, 128, 0.3);
 }
 
 .btn-theme {
-    background-color: purple;
-    border-color: purple;
-    color: white;
+  background-color: purple;
+  border-color: purple;
+  color: white;
 }
 
 .btn-theme:hover {
-    background-color: #8a2be2;
-    border-color: #8a2be2;
-    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
+  background-color: #8a2be2;
+  border-color: #8a2be2;
+  box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
 }
+
 .btn-outline-light {
   border-radius: 20px;
 }
@@ -743,3 +903,4 @@ export default {
   gap: 0.25rem;
 }
 </style>
+
