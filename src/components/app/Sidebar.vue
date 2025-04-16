@@ -326,7 +326,7 @@ const installPWA = async () => {
 					<i class="fas fa-life-ring me-2"></i>
 					Descarga la App
 				</a>
-				<router-link to="/terms-and-conditions">
+				<router-link to="/terms-and-conditions" target="_blank">
 					Términos y Condiciones
 				</router-link>
 			</div>
