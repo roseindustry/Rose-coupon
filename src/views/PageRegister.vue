@@ -174,7 +174,7 @@ export default defineComponent({
 
 			try {
 				this.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-					'size': 'normal',
+					'size': 'invisible',
 					'callback': () => {
 						console.log('reCAPTCHA verified');
 					},
@@ -575,10 +575,6 @@ export default defineComponent({
 							</div>
 							<div class="mt-2">
 								<small class="form-text text-muted d-block">
-									<i class="fas fa-info-circle me-1"></i> Verifique el captcha de seguridad antes de
-									solicitar el código de verificación.
-								</small>
-								<small class="form-text text-muted d-block">
 									<i class="fas fa-info-circle me-1"></i> Formatos de teléfono aceptados:
 								</small>
 								<small class="form-text text-muted d-block">
@@ -598,7 +594,7 @@ export default defineComponent({
 							</div>
 
 							<!-- reCAPTCHA container -->
-							<div id="recaptcha-container" class="mt-2 d-flex justify-content-center"></div>
+							<div id="recaptcha-container"></div>
 
 							<!-- Verification code input (shown after sending code) -->
 							<div v-if="showVerificationInput" class="mt-3">
@@ -873,13 +869,6 @@ small {
 
 .btn-lg {
 	padding: 0.5rem 1rem !important;
-}
-
-/* reCAPTCHA container */
-#recaptcha-container {
-	transform: scale(0.9);
-	transform-origin: 0 0;
-	margin-bottom: 0.5rem;
 }
 
 /* Responsive adjustments */

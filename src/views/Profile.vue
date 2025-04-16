@@ -1160,47 +1160,82 @@ export default defineComponent({
 
     // recaptcha
     initRecaptcha() {
-      try {
-        // Clear any existing reCAPTCHA
-        if (this.recaptchaVerifier) {
-          this.recaptchaVerifier.clear();
-          this.recaptchaVerifier = null;
-        }
+			if (this.recaptchaVerifier) {
+				this.recaptchaVerifier.clear();
+				this.recaptchaVerifier = null;
+			}
 
-        // Make sure the container exists
-        const recaptchaContainer = document.getElementById('recaptcha-container');
-        if (!recaptchaContainer) {
-          console.error('reCAPTCHA container not found');
-          return;
-        }
+			try {
+				this.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+					'size': 'invisible',
+					'callback': () => {
+						console.log('reCAPTCHA verified');
+					},
+					'expired-callback': () => {
+						this.recaptchaVerifier = null;
+						showToast('El captcha ha expirado. Por favor, inténtelo de nuevo.', 'error');
+					},
+					'error-callback': (error) => {
+						console.error('reCAPTCHA error:', error);
+						showToast('Error en la verificación de reCAPTCHA. Por favor, recargue la página.', 'error');
+						this.recaptchaVerifier = null;
+					}
+				});
 
-        // Create a new reCAPTCHA verifier
-        this.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          'size': 'normal',
-          'callback': (response) => {
-            this.captchaVerified = true;
-            console.log('reCAPTCHA verified');
-          },
-          'expired-callback': () => {
-            this.captchaVerified = false;
-            console.log('reCAPTCHA expired');
-            showToast.warning('El captcha ha expirado. Por favor, inténtelo de nuevo.');
-          }
-        });
+				// Render the reCAPTCHA widget
+				this.recaptchaVerifier.render().then((widgetId) => {
+					this.recaptchaWidgetId = widgetId;
+				}).catch(error => {
+					console.error('Error rendering reCAPTCHA:', error);
+					showToast('Error al cargar el captcha. Por favor, recargue la página.', 'error');
+				});
+			} catch (error) {
+				console.error('Error initializing reCAPTCHA:', error);
+				showToast('Error al inicializar reCAPTCHA. Por favor, recargue la página.', 'error');
+			}
+		},
+    // initRecaptcha() {
+    //   try {
+    //     // Clear any existing reCAPTCHA
+    //     if (this.recaptchaVerifier) {
+    //       this.recaptchaVerifier.clear();
+    //       this.recaptchaVerifier = null;
+    //     }
 
-        // Render the reCAPTCHA
-        this.recaptchaVerifier.render().then((widgetId) => {
-          this.recaptchaWidgetId = widgetId;
-          this.recaptchaVisible = true;
-          console.log('reCAPTCHA rendered with ID:', widgetId);
-        }).catch(error => {
-          console.error('Error rendering reCAPTCHA:', error);
-        });
-      } catch (error) {
-        console.error('Error initializing reCAPTCHA:', error);
-        showToast.error('Error al inicializar reCAPTCHA. Por favor, recargue la página.');
-      }
-    },
+    //     // Make sure the container exists
+    //     const recaptchaContainer = document.getElementById('recaptcha-container');
+    //     if (!recaptchaContainer) {
+    //       console.error('reCAPTCHA container not found');
+    //       return;
+    //     }
+
+    //     // Create a new reCAPTCHA verifier
+    //     this.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+    //       'size': 'normal',
+    //       'callback': (response) => {
+    //         this.captchaVerified = true;
+    //         console.log('reCAPTCHA verified');
+    //       },
+    //       'expired-callback': () => {
+    //         this.captchaVerified = false;
+    //         console.log('reCAPTCHA expired');
+    //         showToast.warning('El captcha ha expirado. Por favor, inténtelo de nuevo.');
+    //       }
+    //     });
+
+    //     // Render the reCAPTCHA
+    //     this.recaptchaVerifier.render().then((widgetId) => {
+    //       this.recaptchaWidgetId = widgetId;
+    //       this.recaptchaVisible = true;
+    //       console.log('reCAPTCHA rendered with ID:', widgetId);
+    //     }).catch(error => {
+    //       console.error('Error rendering reCAPTCHA:', error);
+    //     });
+    //   } catch (error) {
+    //     console.error('Error initializing reCAPTCHA:', error);
+    //     showToast.error('Error al inicializar reCAPTCHA. Por favor, recargue la página.');
+    //   }
+    // },
 
     // Check verification status
     async fetchVerificationStatus() {
@@ -1603,7 +1638,6 @@ export default defineComponent({
                         <i class="fas fa-sms me-1"></i>
                         <span v-if="phoneVerificationLoading">
                           <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                          Enviando...
                         </span>
                         <span v-else>Verificar</span>
                       </button>
@@ -1625,11 +1659,11 @@ export default defineComponent({
                 <!-- Captcha container for phone verification -->
                 <div v-if="role === 'cliente' && (!phoneVerified || editingPhone)"
                   class="mt-2 phone-verification-notice">
-                  <div class="alert alert-info py-2">
+                  <!-- <div class="alert alert-info py-2">
                     <i class="fas fa-info-circle me-2"></i>
                     <span>Complete el captcha y presione "Verificar" para recibir un código por SMS.</span>
-                  </div>
-                  <div id="recaptcha-container" class="mt-2 d-flex justify-content-center"></div>
+                  </div> -->
+                  
                 </div>
               </div>
             </div>
@@ -2002,12 +2036,12 @@ export default defineComponent({
       </div>
     </div>
 
-    <div id="invisible-recaptcha-container"></div>
+    <div id="recaptcha-container"></div>
 
   </div>
 </template>
 <style scoped>
-#recaptcha-container {
+/* #recaptcha-container {
   width: 100%;
   height: 78px;
   display: flex;
@@ -2023,7 +2057,7 @@ export default defineComponent({
 #recaptcha-container iframe {
   width: 100%;
   height: 100%;
-}
+} */
 
 .text-theme {
   color: var(--accent-color);
@@ -2400,14 +2434,14 @@ input[type="file"]::-webkit-file-upload-button {
   padding: 0.5rem 0.75rem;
 }
 
-#recaptcha-container {
+/* #recaptcha-container {
   transform-origin: left top;
   overflow: hidden;
 }
 
 #recaptcha-container iframe {
   max-width: 100%;
-}
+} */
 
 @media (max-width: 576px) {
   .phone-verification-notice .alert {
@@ -2415,10 +2449,10 @@ input[type="file"]::-webkit-file-upload-button {
     text-align: center;
   }
 
-  #recaptcha-container {
+  /* #recaptcha-container {
     transform: scale(0.85);
     margin: 0 auto;
-  }
+  } */
 }
 
 /* Verification Modal Styles */
