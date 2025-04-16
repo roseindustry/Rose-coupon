@@ -8,6 +8,18 @@ import { slideUp } from '@/composables/slideUp.js';
 import { slideDown } from '@/composables/slideDown.js';
 import SidebarNav from '@/components/app/SidebarNav.vue';
 
+// Declare BeforeInstallPromptEvent type
+declare global {
+	interface BeforeInstallPromptEvent extends Event {
+		readonly platforms: Array<string>;
+		readonly userChoice: Promise<{
+			outcome: 'accepted' | 'dismissed';
+			platform: string;
+		}>;
+		prompt(): Promise<void>;
+	}
+}
+
 const appSidebarMenu = useAppSidebarMenuStore();
 const appOption = useAppOptionStore();
 const userStore = useUserStore();
@@ -15,6 +27,9 @@ const isMenuLoaded = ref(false);
 
 var appSidebarFloatSubmenuTimeout = '';
 var appSidebarFloatSubmenuDom = '';
+
+const deferredPrompt = ref<BeforeInstallPromptEvent | null>(null);
+const showInstallButton = ref(false);
 
 function appSidebarMobileToggled() {
 	appOption.appSidebarMobileToggled = !appOption.appSidebarMobileToggled;
@@ -185,7 +200,17 @@ function handleGetHiddenMenuHeight(elm) {
 	return targetHeight;
 }
 
-onMounted(async () => {
+onMounted(() => {
+	// Listen for the beforeinstallprompt event
+	window.addEventListener('beforeinstallprompt', (event: BeforeInstallPromptEvent) => {
+		// Prevent the mini-infobar from appearing
+		event.preventDefault();
+		// Store the event so it can be triggered later
+		deferredPrompt.value = event;
+		// Show your custom install button
+		showInstallButton.value = true;
+	});
+
 	// Ensure user role is fetched before generating the menu
 	watch(
 		() => userStore.role,
@@ -249,6 +274,27 @@ onMounted(async () => {
 
 	handleSidebarMinifyFloatMenu();
 });
+
+const installPWA = async () => {
+	if (deferredPrompt.value) {
+		// Show the prompt
+		deferredPrompt.value.prompt();
+
+		// Wait for the user to respond to the prompt
+		const { outcome } = await deferredPrompt.value.userChoice;
+
+		// Optionally, handle the outcome
+		if (outcome === 'accepted') {
+			console.log('User accepted the PWA install prompt');
+		} else {
+			console.log('User dismissed the PWA install prompt');
+		}
+
+		// Reset the prompt variable, it can't be used again
+		deferredPrompt.value = null;
+		showInstallButton.value = false;
+	}
+};
 </script>
 
 <template>
@@ -269,6 +315,72 @@ onMounted(async () => {
 			</div>
 		</perfect-scrollbar>
 		<button class="app-sidebar-mobile-backdrop" @click="appSidebarMobileToggled"></button>
+		
+		<!-- New Bottom Navigation Button -->
+		<div class="sidebar-bottom-nav">
+			<div class="bottom-nav-links">
+				<a class="btn btn-outline-theme btn-sm mb-2" 
+                   id="app-button" 
+                   v-if="showInstallButton" 
+                   @click="installPWA">
+					<i class="fas fa-life-ring me-2"></i>
+					Descarga la App
+				</a>
+				<router-link to="/terms-and-conditions">
+					Términos y Condiciones
+				</router-link>
+			</div>
+		</div>
 	</div>
 </template>
 
+<style scoped>
+.sidebar-bottom-nav {
+	position: absolute;
+	bottom: 20px;
+	left: 0;
+	width: 100%;
+	display: flex;
+	justify-content: center;
+	padding: 0 15px;
+}
+
+.bottom-nav-links {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: 80%;
+}
+
+.sidebar-bottom-nav .btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	padding: 10px;
+	margin-bottom: 10px;
+	border-radius: 25px;
+	transition: all 0.3s ease;
+}
+
+.sidebar-bottom-nav .btn:hover {
+	transform: translateY(-3px);
+	box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.sidebar-bottom-nav .btn:last-child {
+	margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+	.sidebar-bottom-nav {
+		bottom: 10px;
+	}
+	
+	.sidebar-bottom-nav .btn {
+		width: 90%;
+		padding: 8px;
+		font-size: 0.9rem;
+	}
+}
+</style>

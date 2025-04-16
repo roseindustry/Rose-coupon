@@ -261,7 +261,6 @@ export default defineComponent({
         this.verificationModal = new Modal(document.getElementById('verificationModal'));
 
         await this.fetchSubscriptionPlan();
-        window.addEventListener('beforeinstallprompt', this.handleBeforeInstallPrompt());
     },
 });
 

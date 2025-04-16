@@ -222,6 +222,8 @@ export default defineComponent({
                     <a href="#" class="social-icon" aria-label="Instagram">
                         <i class="fa fa-instagram"></i>
                     </a>
+                    <router-link to="/terms-and-conditions" target="_blank">Términos y Condiciones
+                    </router-link>
                 </div>
             </div>
         </div>

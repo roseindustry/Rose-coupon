@@ -15,46 +15,11 @@ const appOption = useAppOptionStore();
 const userStore = useUserStore();
 const internalInstance = getCurrentInstance();
 
-// Install PWA app prompt
-const deferredPrompt = ref<BeforeInstallPromptEvent | null>(null);
-const showInstallButton = ref(false);
-
 const progresses = [] as ProgressFinisher[];
 
 onMounted(() => {
-	// Listen for the beforeinstallprompt event
-	window.addEventListener('beforeinstallprompt', (event: BeforeInstallPromptEvent) => {
-		// Prevent the mini-infobar from appearing
-		event.preventDefault();
-		// Store the event so it can be triggered later
-		deferredPrompt.value = event;
-		// Show your custom install button
-		showInstallButton.value = true;
-	});
-
 	userStore.fetchUser();
 });
-
-const installPWA = async () => {
-	if (deferredPrompt.value) {
-		// Show the prompt
-		deferredPrompt.value.prompt();
-
-		// Wait for the user to respond to the prompt
-		const { outcome } = await deferredPrompt.value.userChoice;
-
-		// Optionally, handle the outcome
-		if (outcome === 'accepted') {
-			console.log('User accepted the PWA install prompt');
-		} else {
-			console.log('User dismissed the PWA install prompt');
-		}
-
-		// Reset the prompt variable, it can't be used again
-		deferredPrompt.value = null;
-		showInstallButton.value = false;
-	}
-};
 
 router.beforeEach(async (to, from) => {
 	progresses.push(useProgress().start());
@@ -97,9 +62,5 @@ document.querySelector('body').classList.add('app-init');
 			<router-view></router-view>
 		</div>
 		<app-footer v-if="appOption.appFooter" />
-		<!-- <app-theme-panel /> -->
-	</div>
-	<div class="text-center" v-if="showInstallButton">
-		<button @click="installPWA" class="btn btn-primary">Instale Rose App</button>
 	</div>
 </template>

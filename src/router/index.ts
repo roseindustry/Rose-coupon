@@ -166,6 +166,11 @@ const router = createRouter({
 			name: 'Landing Page',
 			component: () => import('../views/Landing.vue')
 		},
+		{
+			path: '/terms-and-conditions',
+			name: 'Terminos y Condiciones',
+			component: () => import('../views/TermsAndConditions.vue')
+		},
 
 		// {
 		// 	path: '/analytics',
