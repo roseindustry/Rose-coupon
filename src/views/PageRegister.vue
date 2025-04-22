@@ -42,6 +42,7 @@ export default defineComponent({
 				identificationUsed: false,
 				passwordMismatch: false,
 				passwordTooShort: false,
+				maxAttempts: false
 			},
 			venezuelanStates: [
 				"Amazonas", "Anzoátegui", "Apure", "Aragua", "Barinas",
@@ -208,7 +209,54 @@ export default defineComponent({
 				return;
 			}
 
+			// In-memory rate limiting
+			const now = Date.now();
+			const rateLimitKey = `phoneVerification_${this.formattedPhoneNumber}`;
+			const storedAttempts = localStorage.getItem(rateLimitKey);
+			
 			try {
+				if (storedAttempts) {
+					const { attempts, firstAttempt, lastAttempt } = JSON.parse(storedAttempts);
+
+					// Reset if it's been more than 24 hours
+					if (now - firstAttempt > 24 * 60 * 60 * 1000) {
+						localStorage.setItem(rateLimitKey, JSON.stringify({
+							attempts: 1,
+							firstAttempt: now,
+							lastAttempt: now
+						}));
+					} else {
+						// Check max attempts (3 per 24h)
+						if (attempts >= 3) {
+							this.formErrors.maxAttempts = true;
+							// showToast('Ha excedido el límite de intentos. Por favor, intente de nuevo mañana.', 'error');
+							return;
+						}
+
+						// Check cooldown period (2 min between attempts)
+						const timeSinceLastAttempt = now - lastAttempt;
+						if (timeSinceLastAttempt < 2 * 60 * 1000) {
+							const waitTime = Math.ceil((2 * 60 * 1000 - timeSinceLastAttempt) / 1000);
+							showToast(`Por favor espere ${waitTime} segundos antes de solicitar otro código.`, 'error');
+							return;
+						}
+
+						// Update attempts
+						localStorage.setItem(rateLimitKey, JSON.stringify({
+							attempts: attempts + 1,
+							firstAttempt,
+							lastAttempt: now
+						}));
+					}
+				} else {
+					// First attempt
+					localStorage.setItem(rateLimitKey, JSON.stringify({
+						attempts: 1,
+						firstAttempt: now,
+						lastAttempt: now
+					}));
+				}
+
 				this.phoneVerificationLoading = true;
 
 				// Initialize reCAPTCHA if not already done
@@ -236,7 +284,7 @@ export default defineComponent({
 					showToast('La verificación por SMS no está habilitada en este momento. Por favor, contacte al administrador.', 'error');
 				} else if (error.code === 'auth/invalid-phone-number') {
 					showToast('El número de teléfono no es válido. Asegúrese de usar el formato correcto.', 'error');
-				} else if (error.code === 'auth/quota-exceeded') {
+				} else if (error.code === 'auth/error-code:-39') {
 					showToast('Se ha excedido el límite de verificaciones. Por favor, intente más tarde.', 'error');
 				} else if (error.code === 'auth/captcha-check-failed') {
 					showToast('Verificación de reCAPTCHA fallida. Por favor, intente de nuevo.', 'error');
@@ -443,7 +491,7 @@ export default defineComponent({
 				this.resetForm();
 			}
 		}
-	}	
+	}
 });
 </script>
 <template>
@@ -573,6 +621,7 @@ export default defineComponent({
 									{{ phoneVerified ? 'Verificado' : 'Verificar' }}
 								</button>
 							</div>
+							<!-- Phone Formats -->
 							<div class="mt-2">
 								<small class="form-text text-muted d-block">
 									<i class="fas fa-info-circle me-1"></i> Formatos de teléfono aceptados:
@@ -583,6 +632,9 @@ export default defineComponent({
 								<!-- <small class="form-text text-muted d-block">
 									• Brasil: <span class="text-success">5511987654321</span> (incluya el código de país 55)
 								</small> -->
+								<small v-if="formErrors.maxAttempts" class="text-danger">
+									Superó su límite de intentos de verificación. Por favor, inténtelo de nuevo mañana o utilice otro Numero de Teléfono.
+								</small>
 							</div>
 
 							<!-- Phone number preview -->

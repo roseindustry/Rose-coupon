@@ -79,4 +79,104 @@ export default {
     }
 }
 </script>
-<style></style>
+<style scoped>
+/* Responsive Grid Styles */
+@media (max-width: 576px) {
+    /* 1 column on small screens (phones) */
+    .coupon-card {
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+}
+
+@media (min-width: 577px) and (max-width: 992px) {
+    /* 2 columns on medium screens (tablets) */
+    .coupon-card {
+        width: calc(50% - 1rem);
+        margin: 0.5rem;
+    }
+}
+
+@media (min-width: 993px) {
+    /* 3 columns on large screens */
+    .coupon-card {
+        width: calc(33.333% - 1.5rem);
+        margin: 0.75rem;
+    }
+}
+
+/* Existing styles */
+.coupon-card {
+    background-color: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    position: relative;
+}
+
+.coupon-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+}
+
+.coupon-header {
+    background-color: #f8f9fa;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.coupon-body {
+    padding: 1rem;
+}
+
+.coupon-footer {
+    position: relative;
+    border-top: 2px dashed #dee2e6;
+    padding: 0.5rem;
+    text-align: center;
+}
+
+.coupon-scissors {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: white;
+    padding: 0 0.5rem;
+    color: #6c757d;
+}
+
+.coupon-qr img {
+    max-width: 200px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.coupon-qr img:hover {
+    transform: scale(1.05);
+}
+
+.coupon-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.coupon-info {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 0.25rem;
+}
+
+.coupon-label {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.coupon-value {
+    color: #212529;
+    font-weight: 600;
+}
+</style>

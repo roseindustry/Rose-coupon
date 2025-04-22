@@ -838,7 +838,7 @@ export default defineComponent({
     },
 
     // Field updates
-    updateFieldModal(field){
+    updateFieldModal(field) {
       this.updatingField = field;
 
       const modal = new Modal(document.getElementById("updateFieldModal"));
@@ -894,6 +894,9 @@ export default defineComponent({
       } finally {
         this.isSubmitting = false;
       }
+    },
+    async requestDeleteAccount(userId){
+
     },
 
     // Handle verification requests
@@ -1160,40 +1163,40 @@ export default defineComponent({
 
     // recaptcha
     initRecaptcha() {
-			if (this.recaptchaVerifier) {
-				this.recaptchaVerifier.clear();
-				this.recaptchaVerifier = null;
-			}
+      if (this.recaptchaVerifier) {
+        this.recaptchaVerifier.clear();
+        this.recaptchaVerifier = null;
+      }
 
-			try {
-				this.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-					'size': 'invisible',
-					'callback': () => {
-						console.log('reCAPTCHA verified');
-					},
-					'expired-callback': () => {
-						this.recaptchaVerifier = null;
-						showToast('El captcha ha expirado. Por favor, inténtelo de nuevo.', 'error');
-					},
-					'error-callback': (error) => {
-						console.error('reCAPTCHA error:', error);
-						showToast('Error en la verificación de reCAPTCHA. Por favor, recargue la página.', 'error');
-						this.recaptchaVerifier = null;
-					}
-				});
+      try {
+        this.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          'size': 'invisible',
+          'callback': () => {
+            console.log('reCAPTCHA verified');
+          },
+          'expired-callback': () => {
+            this.recaptchaVerifier = null;
+            showToast('El captcha ha expirado. Por favor, inténtelo de nuevo.', 'error');
+          },
+          'error-callback': (error) => {
+            console.error('reCAPTCHA error:', error);
+            showToast('Error en la verificación de reCAPTCHA. Por favor, recargue la página.', 'error');
+            this.recaptchaVerifier = null;
+          }
+        });
 
-				// Render the reCAPTCHA widget
-				this.recaptchaVerifier.render().then((widgetId) => {
-					this.recaptchaWidgetId = widgetId;
-				}).catch(error => {
-					console.error('Error rendering reCAPTCHA:', error);
-					showToast('Error al cargar el captcha. Por favor, recargue la página.', 'error');
-				});
-			} catch (error) {
-				console.error('Error initializing reCAPTCHA:', error);
-				showToast('Error al inicializar reCAPTCHA. Por favor, recargue la página.', 'error');
-			}
-		},
+        // Render the reCAPTCHA widget
+        this.recaptchaVerifier.render().then((widgetId) => {
+          this.recaptchaWidgetId = widgetId;
+        }).catch(error => {
+          console.error('Error rendering reCAPTCHA:', error);
+          showToast('Error al cargar el captcha. Por favor, recargue la página.', 'error');
+        });
+      } catch (error) {
+        console.error('Error initializing reCAPTCHA:', error);
+        showToast('Error al inicializar reCAPTCHA. Por favor, recargue la página.', 'error');
+      }
+    },
     // initRecaptcha() {
     //   try {
     //     // Clear any existing reCAPTCHA
@@ -1535,7 +1538,7 @@ export default defineComponent({
               )" :key="field.name" class="col-md-6 mb-3">
                 <label :for="field.name" class="form-label">{{
                   field.label
-                  }}</label>
+                }}</label>
                 <div class="d-flex align-items-center gap-2">
                   <input :type="field.name.includes('password') ? 'password' : 'text'" :id="field.name"
                     v-model="field.value" class="form-control" :disabled="role === 'cliente'" />
@@ -1663,7 +1666,7 @@ export default defineComponent({
                     <i class="fas fa-info-circle me-2"></i>
                     <span>Complete el captcha y presione "Verificar" para recibir un código por SMS.</span>
                   </div> -->
-                  
+
                 </div>
               </div>
             </div>
@@ -1683,7 +1686,7 @@ export default defineComponent({
               )" :key="field.name" class="col-md-4 mb-3">
                 <label :for="field.name" class="form-label">{{
                   field.label
-                  }}</label>
+                }}</label>
                 <div class="d-flex align-items-center gap-2">
                   <select v-if="field.name === 'state'" class="form-control" v-model="state"
                     :disabled="!editStates.state" @change="displayMunicipios($event.target.value)">
@@ -1832,6 +1835,13 @@ export default defineComponent({
             </div>
           </div>
         </div>
+
+        <!-- Request delete account -->
+        <div class="mt-3 d-flex flex-wrap">
+          <button class="btn btn-danger" @click="requestDeleteAccount(this.userId)">
+            Solicitar eliminar cuenta
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1947,7 +1957,7 @@ export default defineComponent({
           <div class="modal-body">
             <p class="text-center mb-3">
               Hemos enviado un código de verificación a tu {{ verifyingField === 'email' ? 'correo electrónico' :
-              'teléfono'
+                'teléfono'
               }}.
               Por favor, ingrésalo a continuación:
             </p>
@@ -1985,7 +1995,8 @@ export default defineComponent({
     </div>
 
     <!-- Request update field Modal -->
-    <div class="modal fade" id="updateFieldModal" tabindex="-1" aria-labelledby="updateFieldModalLabel" aria-hidden="true">
+    <div class="modal fade" id="updateFieldModal" tabindex="-1" aria-labelledby="updateFieldModalLabel"
+      aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
@@ -2006,11 +2017,11 @@ export default defineComponent({
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
               Cancelar
             </button>
-            <button type="button" class="btn btn-primary"
-              @click="requestFieldUpdate(updatingField)"
+            <button type="button" class="btn btn-primary" @click="requestFieldUpdate(updatingField)"
               :disabled="(isSubmitting || !newValue)">
-              <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-              <span v-else>Enviar solicitud</span>        
+              <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+                aria-hidden="true"></span>
+              <span v-else>Enviar solicitud</span>
             </button>
           </div>+
         </div>

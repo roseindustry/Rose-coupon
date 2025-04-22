@@ -1829,7 +1829,7 @@ export default {
                 <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
             </div>
             <div v-else class="row">
-                <div class="col-12 col-md-3" v-if="coupons.length > 0" v-for="coupon in coupons" :key="coupon.id">
+                <div v-if="coupons.length > 0" v-for="coupon in coupons" :key="coupon.id">
                     <CouponCard :coupon="coupon" :key="coupon.id" />
                 </div>
                 <div class="col-12" v-else>
