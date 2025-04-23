@@ -547,10 +547,12 @@ export default {
                     // Extract client names from sales and map the sales object
                     const mappedSales = {};
                     for (const [id, sale] of Object.entries(sales)) {
+                        const clientData = await this.getClient(sale.client_id);
                         mappedSales[id] = {
                             ...sale,
                             id,
-                            clientName: sale.clientName || await this.getClientName(sale.client_id)
+                            clientName: sale.clientName || clientData.name,
+                            clientCedula: clientData.cedula
                         };
                     }
 
@@ -577,18 +579,22 @@ export default {
                 throw error;
             }
         },
-        async getClientName(clientId) {
+        async getClient(clientId) {
             try {
                 const clientRef = dbRef(db, `Users/${clientId}`);
                 const clientSnap = await get(clientRef);
                 if (clientSnap.exists()) {
                     const client = clientSnap.val();
-                    return `${client.firstName} ${client.lastName}`;
+
+                    const name = client.firstName + ' ' + client.lastName;
+                    const cedula = client.identification;
+
+                    return { name, cedula };
                 }
-                return 'Cliente no encontrado';
+                return { name: 'Cliente no encontrado', cedula: '' };
             } catch (error) {
                 console.error('Error fetching client name:', error);
-                return 'Error al cargar nombre';
+                return { name: 'Error al cargar nombre', cedula: '' };
             }
         },
 

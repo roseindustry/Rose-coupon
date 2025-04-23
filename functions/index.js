@@ -16,6 +16,7 @@ const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 const cors = require("cors")({ origin: true });
 const functions = require("firebase-functions");
+const { user } = require("firebase-functions/v1/auth");
 
 admin.initializeApp();
 
@@ -833,6 +834,269 @@ exports.requestFieldUpdate = onRequest(
       });
     } catch (error) {
       console.error("Error in requestFieldUpdate:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error al procesar la solicitud",
+      });
+    }
+  }
+);
+
+// Request account delete function
+exports.requestAccountDelete = onRequest(
+  {
+    cors: true,
+    maxInstances: 10,
+  },
+  async (req, res) => {
+    try {
+      const {
+        userId,
+        userEmail,
+        userName,
+      } = req.body;
+
+      // Validate request data
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          message: "Datos incompletos para la solicitud",
+        });
+      }
+
+      const requestDate = new Date().toLocaleDateString('es-VE');
+
+      // Create email content
+      const mailOptions = {
+        from: EMAIL_USER,  
+        to: EMAIL_USER, // Send to admin email
+        subject: "Solicitud de Eliminación de cuenta de Usuario",
+        html: `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        .header {
+            background-color: #29122f;
+            color: white;
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px 10px 0 0;
+            margin: -30px -30px 20px;
+        }
+        .header h3 {
+            margin: 0;
+            font-size: 1.5em;
+        }
+        .user-info {
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 4px solid #29122f;
+        }
+        .user-info p {
+            margin: 10px 0;
+        }
+        .user-info strong {
+            color: #29122f;
+        }
+        .action-note {
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-style: italic;
+            color: #666;
+        }
+        .contact-button {
+            display: block;
+            width: auto;
+            background-color: #29122f;
+            color: white;
+            text-align: center;
+            padding: 12px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-weight: bold;
+        }
+        .contact-button:hover {
+            background-color:rgb(26, 10, 30);
+            color: #f0f0f0
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #888;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h3>Solicitud de Eliminación de cuenta de Usuario</h3>
+        </div>
+        
+        <div class="user-info">
+            <p>El usuario ${userName} ha solicitado la eliminación de su cuenta.</p>
+        </div>
+
+        <div class="action-note">
+            <p>Para procesar esta solicitud, por favor verifique la información con el usuario 
+            y realice los cambios necesarios en el panel de administración.</p>
+        </div>
+
+        <a href="https://wa.me/${userPhone}?text=Saludos!%20El%20equipo%20de%20Rose%20Coupon%20ha%20recibido%20tu%20solicitud%20para%20actualizar%20tus%20datos%20de%20usuario.%20Nos%20confirmas%20que%20quieres%20cambiar%20tu%20campo%20${fieldLabel}%20de%20${currentValue}%20a%20${newValue}?" 
+           class="contact-button" target="_blank">Contactar a ${userName}</a>
+
+        <div class="footer">
+            © 2025 Rose Coupon. Todos los derechos reservados.
+        </div>
+    </div>
+</body>
+              </html>`,
+      };
+
+      // Send confirmation email to user
+      const userMailOptions = {
+        from: EMAIL_USER,
+        to: userEmail,
+        subject: "Solicitud de Eliminación de cuenta Recibida",
+        html: `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        .header {
+            background-color: #b800c2;
+            color: white;
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px 10px 0 0;
+            margin: -30px -30px 20px;
+        }
+        .header h3 {
+            margin: 0;
+            font-size: 1.5em;
+        }
+        .user-info {
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 4px solid #b800c2;
+        }
+        .user-info p {
+            margin: 10px 0;
+        }
+        .user-info strong {
+            color: #b800c2;
+        }
+        .action-note {
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-style: italic;
+            color: #666;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #888;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h3>Solicitud de Actualización Recibida</h3>
+        </div>
+        
+        <div class="user-info">
+            <p>Hola ${userName},</p>
+            <p>Hemos recibido tu solicitud para actualizar el campo <strong>${fieldLabel}</strong>.</p>
+            <p>Detalles de la solicitud:</p>
+            <ul>
+                <li><strong>Campo:</strong> ${fieldLabel}</li>
+                <li><strong>Valor actual:</strong> ${currentValue}</li>
+                <li><strong>Valor solicitado:</strong> ${newValue}</li>
+            </ul>
+        </div>
+
+        <div class="action-note">
+            <p>Nuestro equipo revisará tu solicitud y se pondrá en contacto contigo pronto para procesar los cambios.</p>
+            <p>Agradecemos tu paciencia y colaboración.</p>
+        </div>
+
+        <div class="footer">
+            © 2024 Rose Coupon. Todos los derechos reservados.
+            <p>Si no reconoces esta solicitud, por favor contáctanos.</p>
+        </div>
+    </div>
+</body>
+</html>
+              `,
+      };
+
+      // Send both emails
+      await Promise.all([
+        transporter.sendMail(mailOptions),
+        transporter.sendMail(userMailOptions),
+      ]);
+
+      // Store the request in the database for tracking
+      const db = getDatabase();
+      await db.ref(`deleteRequests/${userId}`).push({
+        requestedAt: new Date(requestDate).toISOString(),
+        status: "pending",
+      });
+
+      await db.ref(`Users/${userId}`).push({
+        requestedAccountDelete: true,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Solicitud enviada correctamente",
+      });
+    } catch (error) {
+      console.error("Error in requestAccountDelete:", error);
       return res.status(500).json({
         success: false,
         message: "Error al procesar la solicitud",

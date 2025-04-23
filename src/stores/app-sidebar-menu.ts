@@ -15,30 +15,25 @@ export const useAppSidebarMenuStore = defineStore({
         text: "Dashboard",
       },
       {
-        url: "/comercios-afiliados",
-        icon: "fa fa-building",
-        text: "Comercios Afiliados",
-      },
-      {
         url: "/clientes",
         icon: "fa fa-users",
         text: "Clientes",
       },
+      {
+        url: "/comercios-afiliados",
+        icon: "fa fa-building",
+        text: "Comercios Afiliados",
+      },      
       {
         url: "/employees",
         icon: "fa fa-users",
         text: "Empleados",
       },
       {
-        url: "/cupones",
-        icon: "fa fa-ticket",
-        text: "Cupones",
-      },      
-      {
-        url: "/giftcards",
-        icon: "fa-solid fa-money-bill",
-        text: "Giftcards",
-      },  
+        url: "/creditos",
+        icon: "fa fa-dollar",
+        text: "Créditos",
+      },
       {
         url: "/suscripciones",
         icon: "fa fa-handshake",
@@ -50,9 +45,14 @@ export const useAppSidebarMenuStore = defineStore({
         text: "Notificaciones de Pago",
       },
       {
-        url: "/creditos",
-        icon: "fa fa-dollar",
-        text: "Créditos",
+        url: "/cupones",
+        icon: "fa fa-ticket",
+        text: "Cupones",
+      },      
+      {
+        url: "/giftcards",
+        icon: "fa-solid fa-money-bill",
+        text: "Giftcards",
       },
       {
         url: "/events",

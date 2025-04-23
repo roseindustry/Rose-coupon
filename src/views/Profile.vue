@@ -896,7 +896,9 @@ export default defineComponent({
       }
     },
     async requestDeleteAccount(userId){
-
+      if (confirm("¿Seguro que desea eliminar su cuenta?")) {
+        
+      }
     },
 
     // Handle verification requests
