@@ -76,18 +76,18 @@ export const useAppSidebarMenuStore = defineStore({
       //   icon: "fa fa-clipboard",
       //   text: "Reportes por Encuesta",
       // },
-      {
-        is_divider: true,
-      },
-      {
-        text: "Usuario",
-        is_header: true,
-      },
-      {
-        url: "/profile",
-        icon: "fa fa-user-circle",
-        text: "Ajustes",
-      },
+      // {
+      //   is_divider: true,
+      // },
+      // {
+      //   text: "Usuario",
+      //   is_header: true,
+      // },
+      // {
+      //   url: "/profile",
+      //   icon: "fa fa-user-circle",
+      //   text: "Ajustes",
+      // },
     ],
     clientMenu: [
       {
@@ -154,18 +154,18 @@ export const useAppSidebarMenuStore = defineStore({
       //   icon: "fa fa-shopping-cart",
       //   text: "Compras",
       // },
-      {
-        is_divider: true,
-      },
-      {
-        text: "Usuario",
-        is_header: true,
-      },
-      {
-        url: "/profile",
-        icon: "fa fa-user-circle",
-        text: "Perfil",
-      },
+      // {
+      //   is_divider: true,
+      // },
+      // {
+      //   text: "Usuario",
+      //   is_header: true,
+      // },
+      // {
+      //   url: "/profile",
+      //   icon: "fa fa-user-circle",
+      //   text: "Perfil",
+      // },
     ],
     affiliateMenu: [
       {
@@ -215,18 +215,18 @@ export const useAppSidebarMenuStore = defineStore({
       //   icon: "fa fa-dollar",
       //   text: "Crédito",
       // },
-      {
-        is_divider: true,
-      },
-      {
-        text: "Usuario",
-        is_header: true,
-      },
-      {
-        url: "/profile",
-        icon: "fa fa-user-circle",
-        text: "Perfil",
-      },
+      // {
+      //   is_divider: true,
+      // },
+      // {
+      //   text: "Usuario",
+      //   is_header: true,
+      // },
+      // {
+      //   url: "/profile",
+      //   icon: "fa fa-user-circle",
+      //   text: "Perfil",
+      // },
     ],
     menuItems: [],
   }),

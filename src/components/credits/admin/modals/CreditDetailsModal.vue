@@ -24,6 +24,10 @@
               </div>
               <div class="info-content">
                 <div class="info-grid">
+                  <!-- <div class="info-item">
+                    <strong>ID de usuario:</strong>
+                    <span>{{ userData.id }}</span>
+                  </div> -->
                   <div class="info-item">
                     <strong>{{ isAffiliate ? 'Empresa:' : 'Nombre:' }}</strong>
                     <span>{{ isAffiliate ? userData.companyName.charAt(0).toUpperCase() + userData.companyName.slice(1) : `${userData.firstName.charAt(0).toUpperCase() + userData.firstName.slice(1)} ${userData.lastName.charAt(0).toUpperCase() + userData.lastName.slice(1)}` }}</span>
@@ -255,7 +259,15 @@
                                 <tr v-for="(cuota, cuotaIndex) in purchase.cuotas" :key="cuotaIndex">
                                   <td>{{ cuotaIndex + 1 }}</td>
                                   <td>{{ formatDate(cuota.date) }}</td>
-                                  <td>{{ formatDate(cuota.paymentDate) || 'Sin pago' }}</td>
+                                  <td>
+                                    {{ 
+                                      cuota.paymentDate 
+                                        ? formatDate(cuota.paymentDate) 
+                                        : (cuota.paidAt 
+                                          ? formatDate(new Date(cuota.paidAt).toISOString().split('T')[0]) 
+                                          : null) 
+                                    }}
+                                  </td>
                                   <td>${{ cuota.amount.toFixed(2) }}</td>
                                   <td>
                                     <span :class="cuota.paid ? 'text-success' : 'text-danger'">

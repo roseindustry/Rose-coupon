@@ -171,6 +171,16 @@ const router = createRouter({
 			name: 'Terminos y Condiciones',
 			component: () => import('../views/TermsAndConditions.vue')
 		},
+		{
+			path: '/delete-account-info',
+			name: 'AccountDeletionInfo',
+			component: () => import('../views/AccountDeletionInfo.vue')
+		},
+		{
+			path: '/privacy-policy',
+			name: 'Privacy Policy',
+			component: () => import('../views/PrivacyPolicy.vue')
+		},		  
 
 		// {
 		// 	path: '/analytics',

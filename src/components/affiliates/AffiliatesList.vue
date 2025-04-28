@@ -85,6 +85,7 @@
                                 <!-- Info -->
                                 <div class="affiliate-details">
                                     <h5 class="affiliate-name">{{ affiliate.companyName }}</h5>
+                                    <!-- {{ affiliate.id }} -->
                                     <div class="affiliate-location">
                                         <i class="fas fa-map-marker-alt me-2"></i>
                                         {{ affiliate.state }}, {{ affiliate.municipio }}

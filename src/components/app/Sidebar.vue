@@ -313,24 +313,35 @@ const installPWA = async () => {
 					<sidebar-nav v-else :menu="menu"></sidebar-nav>
 				</template>
 			</div>
+			<!-- New Bottom Navigation Button -->
+			<div class="sidebar-bottom-nav">
+				<div class="bottom-nav-links">
+					<a class="btn btn-outline-theme btn-sm mb-2" id="app-button" v-if="showInstallButton"
+						@click="installPWA">
+						<i class="fas fa-life-ring me-2"></i>
+						Descarga la App
+					</a>
+
+					<div class="legal-links mt-3">
+						<router-link to="/terms-and-conditions" class="legal-link" target="_blank">
+							<i class="fas fa-file-alt me-2"></i>
+							Términos y Condiciones
+						</router-link>
+						<router-link to="/privacy-policy" class="legal-link" target="_blank">
+							<i class="fas fa-shield-alt me-2"></i>
+							Política de Privacidad
+						</router-link>
+						<router-link to="/delete-account-info" class="legal-link" target="_blank">
+							<i class="fas fa-user-times me-2"></i>
+							Información de Cierre de Cuenta
+						</router-link>
+					</div>
+				</div>
+			</div>
 		</perfect-scrollbar>
 		<button class="app-sidebar-mobile-backdrop" @click="appSidebarMobileToggled"></button>
-		
-		<!-- New Bottom Navigation Button -->
-		<div class="sidebar-bottom-nav">
-			<div class="bottom-nav-links">
-				<a class="btn btn-outline-theme btn-sm mb-2" 
-                   id="app-button" 
-                   v-if="showInstallButton" 
-                   @click="installPWA">
-					<i class="fas fa-life-ring me-2"></i>
-					Descarga la App
-				</a>
-				<router-link to="/terms-and-conditions" target="_blank">
-					Términos y Condiciones
-				</router-link>
-			</div>
-		</div>
+
+
 	</div>
 </template>
 
@@ -350,6 +361,40 @@ const installPWA = async () => {
 	flex-direction: column;
 	align-items: center;
 	width: 80%;
+	gap: 1rem;
+}
+
+.legal-links {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: 100%;
+	gap: 0.5rem;
+}
+
+.legal-link {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	padding: 8px 12px;
+	text-decoration: none;
+	color: #6c757d;
+	font-size: 0.85rem;
+	border-radius: 20px;
+	transition: all 0.3s ease;
+	background-color: rgba(108, 117, 125, 0.1);
+}
+
+.legal-link:hover {
+	color: #b800c2;
+	background-color: rgba(184, 0, 194, 0.1);
+	transform: translateY(-2px);
+}
+
+.legal-link i {
+	margin-right: 0.5rem;
+	color: #b800c2;
 }
 
 .sidebar-bottom-nav .btn {
@@ -365,22 +410,26 @@ const installPWA = async () => {
 
 .sidebar-bottom-nav .btn:hover {
 	transform: translateY(-3px);
-	box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-
-.sidebar-bottom-nav .btn:last-child {
-	margin-bottom: 0;
+	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 @media (max-width: 768px) {
 	.sidebar-bottom-nav {
 		bottom: 10px;
 	}
-	
-	.sidebar-bottom-nav .btn {
+
+	.bottom-nav-links {
 		width: 90%;
+	}
+
+	.sidebar-bottom-nav .btn {
 		padding: 8px;
 		font-size: 0.9rem;
+	}
+
+	.legal-link {
+		font-size: 0.8rem;
+		padding: 6px 10px;
 	}
 }
 </style>

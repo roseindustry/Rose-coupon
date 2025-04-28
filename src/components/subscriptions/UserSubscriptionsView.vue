@@ -129,7 +129,7 @@ export default {
     },
     sortedPlans() {
       if (!this.plans) return [];
-      return [...this.plans].sort((a, b) => a.order - b.order);
+      return [...this.plans].sort((a, b) => a.order - b.order).filter((plan) => plan.isHidden !== true);
     },
     formattedDesc() {
       return this.sortedPlans.map((plan) => ({

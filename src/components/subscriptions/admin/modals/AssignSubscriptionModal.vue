@@ -148,6 +148,9 @@
                         @click="selectPlan(plan.name)">
                         <span>{{ plan.name.toUpperCase() }}</span>
                         <small>${{ plan.price }}/mes</small>
+                        <div class="popular-badge" v-if="plan.isHidden">
+                          Oculto
+                        </div>
                         <div class="popular-badge" v-if="plan.isPopular">
                           <i class="fa-solid fa-star fa-3xs me-1"></i>Popular
                         </div>
@@ -242,6 +245,7 @@ export default {
         order: 0,
         requestLimit: 0,
         isPopular: false,
+        isHidden: false,
         icon: "",
       },
       editAffiliatePlanData: {
@@ -251,6 +255,7 @@ export default {
         desc: "",
         order: 0,
         isPopular: false,
+        isHidden: false
       },
       loading: false
     };
@@ -657,7 +662,7 @@ export default {
       }
     },
     resetModalData() {
-      this.internalSelectedUser = null;
+        this.internalSelectedUser = null;
       this.selectedPlan = null;
       this.isPaid = false;
       this.searchQuery = "";
@@ -689,6 +694,7 @@ export default {
           order: Number(planData.order) || 0,
           requestLimit: Number(planData.requestLimit) || 0,
           isPopular: Boolean(planData.isPopular),
+          isHidden: Boolean(planData.isHidden),
           icon: planData.icon || "",
         };
       } else {
@@ -699,6 +705,7 @@ export default {
           desc: planData.desc || "",
           order: Number(planData.order) || 0,
           isPopular: Boolean(planData.isPopular),
+          isHidden: Boolean(planData.isHidden),
         };
       }
 

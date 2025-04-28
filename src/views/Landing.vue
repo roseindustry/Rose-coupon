@@ -206,24 +206,37 @@ export default defineComponent({
     </div>
 
     <!-- Footer Section -->
-    <div class="text-white py-3">
+    <div class="text-white py-3 footer-section">
         <div class="container-fluid">
             <div class="row justify-content-center justify-content-md-between align-items-center">
                 <div class="col-12 col-md-6 text-center text-md-start my-2">
                     Copyright © 2024 All Rights Reserved by Rose Coupon
                 </div>
                 <div class="col-12 col-md-6 text-center text-md-end my-2">
-                    <a href="#" class="social-icon" aria-label="Facebook">
-                        <i class="fa fa-facebook"></i>
-                    </a>
-                    <a href="#" class="social-icon" aria-label="Twitter">
-                        <i class="fa fa-twitter"></i>
-                    </a>
-                    <a href="#" class="social-icon" aria-label="Instagram">
-                        <i class="fa fa-instagram"></i>
-                    </a>
-                    <router-link to="/terms-and-conditions" target="_blank">Términos y Condiciones
-                    </router-link>
+                    <div class="footer-links">
+                        <div class="social-icons-container">
+                            <a href="https://www.facebook.com/rosecoupon" class="social-icon" aria-label="Facebook" target="_blank">
+                                <i class="fa fa-facebook"></i>
+                            </a>
+                            <a href="https://www.twitter.com/rosecoupon" class="social-icon" aria-label="Twitter" target="_blank">
+                                <i class="fa fa-twitter"></i>
+                            </a>
+                            <a href="https://www.instagram.com/rosecoupon" class="social-icon" aria-label="Instagram" target="_blank">
+                                <i class="fa fa-instagram"></i>
+                            </a>
+                        </div>
+                        <div class="legal-links">
+                            <router-link to="/terms-and-conditions" class="legal-link" target="_blank">
+                                <i class="fas fa-file-alt me-1"></i>Términos y Condiciones
+                            </router-link>
+                            <router-link to="/privacy-policy" class="legal-link" target="_blank">
+                                <i class="fas fa-shield-alt me-1"></i>Política de Privacidad
+                            </router-link>
+                            <router-link to="/account-deletion-info" class="legal-link" target="_blank">
+                                <i class="fas fa-user-times me-1"></i>Eliminación de Cuenta
+                            </router-link>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -657,5 +670,87 @@ ul li {
 .feature-item:hover {
     transform: translateY(-10px);
     box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+/* Footer Links Styling */
+.footer-section {
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 1rem 0;
+}
+
+.footer-links {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1rem;
+}
+
+.social-icons-container {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.legal-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+.social-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: #cccfd7;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    background-color: transparent;
+}
+
+.social-icon:hover {
+    color: #b800c2;
+    transform: scale(1.1);
+    background-color: rgba(184, 0, 194, 0.1);
+}
+
+.legal-link {
+    color: #cccfd7;
+    text-decoration: none;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.legal-link i {
+    margin-right: 0.5rem;
+    color: #b800c2;
+}
+
+.legal-link:hover {
+    color: #b800c2;
+    transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+    .footer-links {
+        align-items: center;
+    }
+
+    .social-icons-container {
+        justify-content: center;
+    }
+
+    .legal-links {
+        justify-content: center;
+        flex-direction: column;
+        align-items: center;
+    }
 }
 </style>

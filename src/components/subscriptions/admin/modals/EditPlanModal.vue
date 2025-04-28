@@ -45,6 +45,19 @@
                             </label>
                         </div>
                     </div>
+                    <div class="form-group mb-3">
+                        <div class="form-check">
+                            <input 
+                                type="checkbox" 
+                                class="form-check-input" 
+                                v-model="localClientData.isHidden"
+                                id="hidePlan"
+                            >
+                            <label class="form-check-label" for="hidePlan">
+                                Ocultar
+                            </label>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
@@ -93,6 +106,19 @@
                             </label>
                         </div>
                     </div>
+                    <div class="form-group mb-3">
+                        <div class="form-check">
+                            <input 
+                                type="checkbox" 
+                                class="form-check-input" 
+                                v-model="localAffiliateData.isHidden"
+                                id="hideAffiliatePlan"
+                            >
+                            <label class="form-check-label" for="hideAffiliatePlan">
+                                Ocultar
+                            </label>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
@@ -130,6 +156,7 @@ export default {
                 order: 0,
                 requestLimit: 0,
                 isPopular: false,
+                isHidden: false,
                 icon: ''
             })
         },
@@ -142,7 +169,8 @@ export default {
                 price: 0,
                 desc: '',
                 order: 0,
-                isPopular: false
+                isPopular: false,
+                isHidden: false
             })
         }
     },

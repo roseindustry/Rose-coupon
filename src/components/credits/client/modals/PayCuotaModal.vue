@@ -498,6 +498,17 @@ export default {
     },
 
     async submitPayment() {
+      const clientName = await this.getClientName(this.purchase.client_id);
+
+      if (!this.paymentFile) {
+        this.errorMessage = 'Por favor seleccione una imagen de comprobante de pago';
+        return;
+      }
+
+      if (!confirm('¿Subir captura de pago?')) {
+        return;
+      }
+
       try {
         this.loading = true;
         this.errorMessage = '';
@@ -505,7 +516,7 @@ export default {
         const formattedDate = new Date().toISOString();        
 
         // Upload payment proof
-        const fileName = `cuota-payments/${this.purchase.client_id}-${this.purchase.clientName ? this.purchase.clientName  : getClientName(this.purchase.client_id)}/${formattedDate.split('T')[0]}`;
+        const fileName = `cuota-payments/${this.purchase.client_id}-${clientName}/${formattedDate.split('T')[0]}`;
         const fileRef = storageRef(storage, fileName);
         await uploadBytes(fileRef, this.paymentFile);
         const downloadURL = await getDownloadURL(fileRef);        

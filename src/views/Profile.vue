@@ -2,7 +2,7 @@
 import { defineComponent, computed } from "vue";
 import { useUserStore } from "@/stores/user-role";
 import { auth, db, storage, functions } from "../firebase/init";
-import { ref as dbRef, update, get, set } from "firebase/database";
+import { ref as dbRef, update, get, set, child } from "firebase/database";
 import {
   ref as storageRef,
   uploadBytes,
@@ -168,6 +168,7 @@ export default defineComponent({
       },
       editingEmail: false,
       editingPhone: false,
+      isRequestPending: false,
     };
   },
   async mounted() {
@@ -184,16 +185,10 @@ export default defineComponent({
     // console.log('userId: ', userId);
 
     // Fetch user data first
-    await this.fetchUserData(userId);
+    this.fetchUserData(userId);
 
     // Only set up verification for clients
     if (role === 'cliente') {
-      if (isVerified) {
-        console.log("Usuario verificado");
-      } else {
-        console.log("No verificado");
-      }
-
       await this.fetchClientPlan();
       this.fetchVerificationStatus();
     } else if (role === 'afiliado') {
@@ -223,18 +218,22 @@ export default defineComponent({
 
     // Load location data if needed
     if (this.state) {
-      await this.displayMunicipios(this.state);
+      this.displayMunicipios(this.state);
       if (this.municipio) {
-        await this.displayParroquias(this.municipio);
+        this.displayParroquias(this.municipio);
       }
     }
 
-    // In mounted() or created() hook, after fetching user data
     this.originalData = {
       email: this.email,
       phoneNumber: this.phoneNumber,
       // Copy other editable fields
     };
+
+    const snapshot = await get(child(dbRef(db, `deletionRequests/${this.userId}`)));
+    if (snapshot.exists() && snapshot.val().status === 'pending') {
+      this.isRequestPending = true;
+    }
   },
   beforeUnmount() {
     if (this.recaptchaVerifier) {
@@ -592,10 +591,10 @@ export default defineComponent({
           to: "roseindustry11@gmail.com",
           message: {
             subject: "Usuario solicitó verificación",
-            text: `Hola administrador, el usuario ${this.userName} ha solicitado verificación de identidad en Roseapp.
+            text: `Hola administrador, el usuario ${this.userName} ha solicitado verificación de identidad en Rose Coupon.
                         Para verificar el usuario, abre la app en el siguiente enlace: ${appUrl}`,
             html: `<p>Hola administrador,</p>
-						<p>El usuario <strong>${this.userName}</strong> ha solicitado verificación de identidad en Roseapp.</p>
+						<p>El usuario <strong>${this.userName}</strong> ha solicitado verificación de identidad en Rose Coupon.</p>
 						<p>Para verificar el usuario, por favor <a href="${appUrl}" target="_blank">abre la app</a>.</p>`,
           },
         };
@@ -895,9 +894,83 @@ export default defineComponent({
         this.isSubmitting = false;
       }
     },
-    async requestDeleteAccount(userId){
-      if (confirm("¿Seguro que desea eliminar su cuenta?")) {
-        
+    async requestDeleteAccount() {
+      if (!confirm("¿Seguro que desea eliminar su cuenta?")) {
+        return;
+      }
+
+      this.isRequestPending = true;
+
+      try {
+        const requestRef = dbRef(db, `deletionRequests/${this.userId}`);
+        await set(requestRef, {
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        });
+
+        // Send an email notification to the admin through Firebase Cloud Functions
+        const appUrl = "https://app.rosecoupon.com/clientes";
+        const emailPayload = {
+          to: "joselinq38@gmail.com", // Admin email
+          message: {
+            subject: "Usuario solicitó eliminación de cuenta",
+            text: `Hola administrador, el usuario ${this.userName} ha solicitado la eliminación de su cuenta en Rose Coupon.
+                        Para verificar el usuario, abre la app en el siguiente enlace: ${appUrl}`,
+            html: `<html>
+                    <head>
+                      <style>
+                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+                        .container { background-color: #f4f4f4; border-radius: 10px; padding: 20px; }
+                        .header { background-color: #29122f; color: white; text-align: center; padding: 15px; border-radius: 5px 5px 0 0; }
+                        .content { background-color: white; padding: 20px; border-radius: 0 0 5px 5px; }
+                        .footer { text-align: center; color: #666; margin-top: 20px; font-size: 0.8em; }
+                        a { color: #6f42c1; text-decoration: none; }
+                        a:hover { text-decoration: underline; }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="container">
+                        <div class="header">
+                          <h1>Solicitud de Eliminación de Cuenta</h1>
+                        </div>
+                        <div class="content">
+                          <p>Hola administrador,</p>
+                          <p>El usuario <strong>${this.userName}</strong> ha solicitado la eliminación de su cuenta en Rose Coupon.</p>
+                          
+                          <h3>Detalles de la Solicitud:</h3>
+                          <ul>
+                            <li><strong>Nombre de Usuario:</strong> ${this.userName}</li>
+                            <li><strong>Cédula:</strong> ${this.userIdentification}</li>
+                            <li><strong>Fecha de Solicitud:</strong> ${new Date().toLocaleDateString()}</li>
+                          </ul>
+                          
+                          <p>Para procesar la solicitud, por favor <a href="${appUrl}" target="_blank">acceda al panel de administración</a>.</p>
+                          
+                          <p><em>Nota: Esta solicitud requiere revisión y confirmación manual.</em></p>
+                        </div>
+                        <div class="footer">
+                          <p>© ${new Date().getFullYear()} Rose Coupon. Todos los derechos reservados.</p>
+                        </div>
+                      </div>
+                    </body>
+                  </html>`,
+          },
+        };
+        // Send email via the utility function
+        const result = await sendEmail(emailPayload);
+        if (result.success) {
+          console.log("Verification email sent successfully:", result.message);
+        } else {
+          console.error("Failed to send verification email:", result.error);
+        }
+
+        // Success toast
+        showToast.success("Solicitud enviada para revisión.");
+      } catch (error) {
+        console.error("Error submitting request:", error);
+        showToast.error("Error al enviar la solicitud. Por favor intenta de nuevo.");
+      } finally {
+        this.isRequestPending = false;
       }
     },
 
@@ -1840,9 +1913,12 @@ export default defineComponent({
 
         <!-- Request delete account -->
         <div class="mt-3 d-flex flex-wrap">
-          <button class="btn btn-danger" @click="requestDeleteAccount(this.userId)">
-            Solicitar eliminar cuenta
+          <button class="btn btn-danger" @click="requestDeleteAccount" :disabled="isRequestPending">
+            <span v-if="isRequestPending" class="spinner-border spinner-border-sm" role="status"
+            aria-hidden="true"></span>
+            <span v-else>Solicitar eliminar cuenta</span>
           </button>
+          <!-- <p class="text-danger" v-if="isRequestPending">Tu solicitud ha sido enviada.</p> -->
         </div>
       </div>
     </div>

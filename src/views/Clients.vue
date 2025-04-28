@@ -45,6 +45,7 @@ export default {
             clientCoupons: [],
             clientPreferences: [],
             updateRequests: [],
+            deleteRequests: [],
             currentEditing: null,
             searchQuery: null,
             modalImageUrl: '',
@@ -66,7 +67,7 @@ export default {
     async mounted() {
         await this.fetchClients();
         await this.fetchUpdateRequests();
-
+        await this.fetchDeleteRequests();
     },
     computed: {
         filteredUsers() {
@@ -526,6 +527,46 @@ export default {
                 this.loadingRequests = false;
             }
         },
+        async fetchDeleteRequests() {
+            try {
+                this.loadingRequests = true;
+
+                const deleteRequestsRef = dbRef(db, 'deleteRequests');
+                const deleteRequestsSnapshot = await get(deleteRequestsRef);
+
+                if (!deleteRequestsSnapshot.exists()) {
+                    this.deleteRequests = [];
+                    return;
+                }
+
+                const requests = deleteRequestsSnapshot.val();
+
+                // Transform the requests into a flat array with additional metadata
+                this.deleteRequests = Object.entries(requests).flatMap(([userId, userDeleteRequests]) => {
+                    // Find the corresponding user
+                    const user = this.clients.find(client => client.uid === userId); 
+
+                    // Transform each request for the user
+                    return Object.entries(userDeleteRequests).map(([requestId, requestData]) => ({
+                        id: requestId,
+                        userId: requestId,
+                        userName: user
+                            ? `${user.firstName} ${user.lastName}`
+                            : 'Usuario Desconocido',
+                        userEmail: user ? user.email : 'Email no disponible',
+                        ...requestData
+                    }));
+                }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                .filter(r => r.status === 'pending'); // Sort by most recent first and status pending
+
+            } catch (error) {
+                console.error('Error fetching delete requests:', error);
+                showToast.error('No se pudieron cargar las solicitudes de eliminación');
+                this.deleteRequests = [];
+            } finally {
+                this.loadingRequests = false;
+            }
+        },
 
         async createClient() {
             if (!this.client.firstName || !this.client.lastName || !this.client.identification || !this.client.email) {
@@ -915,16 +956,7 @@ export default {
             window.open(url, '_blank');
         },
 
-        toggleRequests(){
-            if (!this.displayRequests) {
-                this.displayRequests = true;
-                // console.log('true')
-            } else {
-                this.displayRequests = false;
-                // console.log('false')
-            }            
-        },
-        async approve(request){
+        async approveUpdate(request){
             if (confirm('¿Se comunicó con el cliente y ya actualizó sus datos acorde a su solicitud?')) {
                 try {
                     this.isSubmitting = true;
@@ -945,7 +977,67 @@ export default {
                     this.isSubmitting = false;                    
                 }  
             }            
-        }
+        },
+        processDeleteRequest(request) {
+            if (confirm(`¿Estás seguro de que deseas procesar la solicitud de eliminación de cuenta para ${request.userName}?`)) {
+                this.handleDeleteRequest(request);
+            }
+        },
+        async handleDeleteRequest(request) {
+            try {
+                this.isSubmitting = true;
+
+                // Remove the deletion request from the database
+                const requestRef = dbRef(db, `deletionRequests/${request.id}`);
+                await update(requestRef, {
+                    status: 'approved',
+                    approvedAt: new Date().toISOString()
+                });
+
+                const client = this.clients.filter((client) => client.uid === request.id);
+
+                // Send an email to the user about the request processing
+                const emailPayload = {
+                    to: client.email,
+                    message: {
+                        subject: "Solicitud de Eliminación de Cuenta Procesada",
+                        html: `
+                            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
+                                <div style="background-color: #29122f; color: white; text-align: center; padding: 15px; border-radius: 5px 5px 0 0;">
+                                    <h2>Solicitud de Eliminación Aprobada</h2>
+                                </div>
+                                <div style="background-color: white; padding: 20px; border-radius: 0 0 5px 5px;">
+                                    <p>Hola ${client.firstName} ${client.lastName},</p>
+                                    <p>Su solicitud de eliminación de cuenta ha sido revisada y aprobada.</p>
+                                    <p>Lamentamos mucho verte ir. Tus datos han sido eliminados de nuestra web.</p>
+                                    <hr style="border: none; border-top: 1px solid #ddd;">
+                                    <p style="font-size: 0.8em; color: #666;">Si no solicitó esta acción, por favor contacte a nuestro equipo de soporte.</p>
+                                </div>
+                                <div style="text-align: center; color: #666; margin-top: 20px; font-size: 0.8em;">
+                                    © ${new Date().getFullYear()} Rose Coupon. Todos los derechos reservados.
+                                </div>
+                            </div>
+                        `
+                    }
+                };
+
+                // Send notification email
+                await sendEmail(emailPayload);
+
+                // Process delete through cloud function
+                
+
+                // Refresh the delete requests list
+                await this.fetchDeleteRequests();
+
+                showToast.success('Solicitud de eliminación procesada');
+            } catch (error) {
+                console.error('Error processing delete request:', error);
+                showToast.error('Error al procesar la solicitud de eliminación');
+            } finally {
+                this.isSubmitting = false;
+            }
+        },
     }
 }
 </script>
@@ -971,15 +1063,43 @@ export default {
             <div class="search-section p-3">
                 <div class="row justify-content-between align-items-center mb-3">
                     <div class="col-md-4 mt-3 mt-md-0">
-                        <span class="badge bg-dark fs-6 p-2">
-                            {{ clients.length }} Clientes registrados
-                        </span>
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="badge bg-dark fs-6 p-2 d-flex align-items-center">
+                                <i class="fas fa-users me-2"></i>
+                                {{ clients.length }} Clientes
+                            </span>
+                        </div>
                     </div>
-                    <div class="col-md-4 mt-3 mt-md-0 d-flex justify-content-end">
-                        <button class="btn btn-theme fs-6" id="requestsButton" @click="toggleRequests">
-                            {{ updateRequests.length }} Solicitudes
-                            <i class="fa-solid fa-arrow-right ms-2"></i>
-                        </button>
+                    <div class="col-md-8 mt-3 mt-md-0 d-flex justify-content-end gap-3">
+                        <div class="btn-group" role="group" aria-label="Client Requests">
+                            <button 
+                                class="btn btn-sm" 
+                                :class="displayRequests === false ? 'btn-theme' : 'btn-outline-secondary'"
+                                @click="displayRequests = false"
+                            >
+                                <i class="fas fa-list me-2"></i>Clientes
+                            </button>
+                            <button 
+                                class="btn btn-sm" 
+                                :class="displayRequests === 'update' ? 'btn-theme' : 'btn-outline-secondary'"
+                                @click="displayRequests = 'update'"
+                            >
+                                <span class="d-flex align-items-center">
+                                    <i class="fas fa-sync me-2"></i>
+                                    Actualizar ({{ updateRequests.length }})
+                                </span>
+                            </button>
+                            <button 
+                                class="btn btn-sm" 
+                                :class="displayRequests === 'delete' ? 'btn-theme' : 'btn-outline-secondary'"
+                                @click="displayRequests = 'delete'"
+                            >
+                                <span class="d-flex align-items-center">
+                                    <i class="fas fa-trash me-2"></i>
+                                    Eliminar ({{ deleteRequests.length }})
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="row align-items-center">
@@ -1379,18 +1499,19 @@ export default {
                 </nav>
             </div>
         </div>
-        <div v-else class="requests-wrapper">
+        <div v-else-if="displayRequests === 'update'" class="requests-wrapper">
+            <!-- Update Requests List -->
             <div class="search-section p-3">
                 <div class="row justify-content-between align-items-center mb-3">
                     <div class="col-md-4 mt-3 mt-md-0 d-flex">
-                        <button class="btn btn-theme fs-6" id="requestsButton" @click="toggleRequests">
+                        <button class="btn btn-theme fs-6" @click="displayRequests = false">
                             <i class="fa-solid fa-arrow-left me-2"></i>Volver a Clientes
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Requests List -->
+            <!-- Existing update requests list content -->
             <div class="requests-list">
                 <!-- Loading State -->
                 <div v-if="loadingRequests" class="text-center py-5">
@@ -1441,7 +1562,7 @@ export default {
                             </div>
                             <div class="request-actions-group">
                                 <div class="request-actions">
-                                    <button class="btn btn-sm btn-outline-success me-2" @click.stop="approve(request)">
+                                    <button class="btn btn-sm btn-outline-success me-2" @click.stop="approveUpdate(request)">
                                         <i class="fa-solid fa-check"></i>
                                     </button>
                                 </div>
@@ -1449,22 +1570,73 @@ export default {
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+        <div v-else-if="displayRequests === 'delete'" class="requests-wrapper">
+            <!-- Delete Requests List -->
+            <div class="search-section p-3">
+                <div class="row justify-content-between align-items-center mb-3">
+                    <div class="col-md-4 mt-3 mt-md-0 d-flex">
+                        <button class="btn btn-theme fs-6" @click="displayRequests = false">
+                            <i class="fa-solid fa-arrow-left me-2"></i>Volver a Clientes
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-                <!-- Pagination
-                <nav v-if="totalPages > 1" class="mt-4 p-2" aria-label="Page navigation">
-                    <ul class="pagination justify-content-center">
-                        <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                            <button class="page-link" @click="goToPage(currentPage - 1)">Anterior</button>
-                        </li>
-                        <li class="page-item" v-for="page in visiblePages" :key="page"
-                            :class="{ active: page === currentPage }">
-                            <button class="page-link" @click="goToPage(page)">{{ page }}</button>
-                        </li>
-                        <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                            <button class="page-link" @click="goToPage(currentPage + 1)">Siguiente</button>
-                        </li>
-                    </ul>
-                </nav> -->
+            <!-- Add delete requests list content here -->
+            <div class="requests-list">
+                <!-- Loading State -->
+                <div v-if="loadingRequests" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden"></span>
+                    </div>
+                    <p class="mt-2 text-secondary">Cargando lista de Solicitudes...</p>
+                </div>
+
+                <!-- Empty State -->
+                <div v-else-if="deleteRequests.length === 0" class="text-center py-5">
+                    <div class="mb-3">
+                        <i class="fa fa-trash text-secondary opacity-25" style="font-size: 5em"></i>
+                    </div>
+                    <h5 class="text-secondary">No hay solicitudes de eliminación de cuenta</h5>
+                </div>
+
+                <!-- Requests Grid -->
+                <div v-else class="request-items">
+                    <div class="request-item" v-for="request in deleteRequests" :key="request.id">
+                        <!-- Header Section -->
+                        <div class="requests-header">
+                            <div class="request-info">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="request-avatar">
+                                        <i class="fa-solid fa-user-times"></i>
+                                    </div>
+                                    <div>
+                                        <div class="d-flex align-items-center">
+                                            <h6 class="mb-0">{{ request.userName }}</h6>
+                                        </div>
+                                        <div class="client-contact">
+                                            <div class="text-secondary small">
+                                                <strong>Email: </strong>{{ request.userEmail }}
+                                            </div>
+                                            <div class="text-secondary small">
+                                                <strong>Solicitado el: </strong>{{ formatDate(request.createdAt) }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="request-actions-group">
+                                <div class="request-actions">
+                                    <button class="btn btn-sm btn-outline-danger" @click.stop="processDeleteRequest(request)">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
