@@ -1623,8 +1623,8 @@ export default defineComponent({
                     <i class="fa-solid fa-envelope text-theme"></i>
                   </button>
                   <!-- Admin direct edit button -->
-                  <button v-if="role === 'admin'" class="btn btn-transparent btn-sm" @click.prevent="updateField(field)"
-                    :title="'Actualizar ' + field.label.toLowerCase()">
+                  <button v-if="role === 'admin' || role === 'afiliado'" class="btn btn-transparent btn-sm"
+                    @click.prevent="updateField(field)" :title="'Actualizar ' + field.label.toLowerCase()">
                     <i class="fas fa-save text-theme"></i>
                   </button>
                 </div>
@@ -1910,16 +1910,6 @@ export default defineComponent({
             </div>
           </div>
         </div>
-
-        <!-- Request delete account -->
-        <div class="mt-3 d-flex flex-wrap">
-          <button class="btn btn-danger" @click="requestDeleteAccount" :disabled="isRequestPending">
-            <span v-if="isRequestPending" class="spinner-border spinner-border-sm" role="status"
-            aria-hidden="true"></span>
-            <span v-else>Solicitar eliminar cuenta</span>
-          </button>
-          <!-- <p class="text-danger" v-if="isRequestPending">Tu solicitud ha sido enviada.</p> -->
-        </div>
       </div>
     </div>
 
@@ -1978,6 +1968,15 @@ export default defineComponent({
                 placeholder="@usuario">
             </div>
           </div>
+
+          <!-- Save button -->
+          <div class="d-flex">
+            <button class="btn btn-theme-success" :disabled="isSubmitting" @click.prevent="updateSocialMedia">
+              <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+                aria-hidden="true"></span>
+              <span v-else>Guardar</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -2015,10 +2014,29 @@ export default defineComponent({
           <div class="col-md-6 mb-3">
             <label class="form-label">Documento de Identidad</label>
             <input type="text" class="form-control bg-dark text-light border-secondary"
-              v-model="paymentDetails.documentId" placeholder="V-XXXXXXXX">
+              v-model="paymentDetails.identification" placeholder="V-XXXXXXXX">
           </div>
+
+          <!-- save button -->
+          <div class="d-flex">
+            <button class="btn btn-theme-success" :disabled="isSubmitting" @click.prevent="updatePaymentDetails">
+              <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+                aria-hidden="true"></span>
+              <span v-else>Guardar</span>
+            </button>
+          </div>
+
         </div>
       </div>
+    </div>
+
+    <!-- Request delete account -->
+    <div class="mt-3 d-flex flex-wrap">
+      <button class="btn btn-danger" @click="requestDeleteAccount" :disabled="isRequestPending">
+        <span v-if="isRequestPending" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        <span v-else>Solicitar eliminar cuenta</span>
+      </button>
+      <!-- <p class="text-danger" v-if="isRequestPending">Tu solicitud ha sido enviada.</p> -->
     </div>
 
     <!-- Verification Modal -->

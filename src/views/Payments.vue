@@ -574,6 +574,31 @@ export default {
         const cuotaData = cuotaSnap.val();
         const cuotaAmountUSD = Number(cuotaData.amount); // This is the USD amount to use for credit updates
 
+        // Calculate points based on payment timing
+        let pointsToAdd = 10; // Default points
+        const paymentDate = new Date(payment.date);
+        const cuotaDueDate = new Date(cuotaData.date);
+        
+        // Calculate days before due date
+        const timeDiff = cuotaDueDate.getTime() - paymentDate.getTime();
+        const daysDifference = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+        // Add 5 extra points if paid 3 or more days before due date
+        if (daysDifference >= 3) {
+          pointsToAdd = 15;
+        }
+
+        // Update client's points
+        const clientPointsRef = dbRef(
+          db,
+          `Users/${payment.client_id}/credit/main/points`
+        );
+        const pointsSnap = await get(clientPointsRef);
+        const currentPoints = pointsSnap.exists() ? pointsSnap.val() : 0;
+        const newPoints = currentPoints + pointsToAdd;
+
+        await set(clientPointsRef, newPoints);
+
         // Update client's cuota status
         await update(cuotaRef, {
           paid: true,
@@ -599,7 +624,7 @@ export default {
 
         if (clientCreditSnap.exists()) {
           const currentCredit = clientCreditSnap.val().availableCredit || 0;
-          const newCredit = (currentCredit + cuotaAmountUSD) / Number(purchaseData.terms);
+          const newCredit = currentCredit + cuotaAmountUSD;
           await update(clientCreditRef, { availableCredit: newCredit });
         }
 
@@ -612,7 +637,7 @@ export default {
 
         if (affiliateCreditSnap.exists()) {
           const currentCredit = affiliateCreditSnap.val().availableCredit || 0;
-          const newCredit = (currentCredit + cuotaAmountUSD) / Number(purchaseData.terms);
+          const newCredit = currentCredit + cuotaAmountUSD;
           await update(affiliateCreditRef, { availableCredit: newCredit });
         }
 
@@ -644,6 +669,8 @@ export default {
                   <li>Monto pagado: ${payment.amount} VES</li>
                   <li>Cuota: ${Number(cuotaAmountUSD).toFixed(2)} USD</li>
                   <li>Fecha de pago: ${payment.date.split("T")[0]}</li>
+                  <li>Puntos ganados: ${pointsToAdd} puntos</li>
+                  ${daysDifference >= 3 ? '<li><strong>¡Bonus!</strong> Puntos extra por pago anticipado</li>' : ''}
                 </ul>
                 <p>Gracias por usar Rose App.</p>
               </div>
@@ -1146,7 +1173,7 @@ export default {
                             <span class="info-label">Fecha:</span>
                             <span class="info-value">{{
                               formatDate(payment.date)
-                            }}</span>
+                              }}</span>
                           </div>
                         </div>
                       </div>
@@ -1252,7 +1279,7 @@ export default {
                               <span class="info-label">Fecha:</span>
                               <span class="info-value">{{
                                 formatDate(payment.date)
-                              }}</span>
+                                }}</span>
                             </div>
                           </div>
                         </div>
@@ -1345,7 +1372,8 @@ export default {
                             {{ getClient(payment.client_id).firstName }}
                             {{ getClient(payment.client_id).lastName }}
                           </h5>
-                          <span v-if="payment.isLatePayment" class="badge rounded-pill bg-danger w-auto">Pago Atrasado</span>
+                          <span v-if="payment.isLatePayment" class="badge rounded-pill bg-danger w-auto">Pago
+                            Atrasado</span>
                         </div>
                       </div>
 
@@ -1431,13 +1459,13 @@ export default {
                             <span class="info-label">Fecha límite de Pago:</span>
                             <span class="info-value">{{
                               formatDate(getCuotaData(payment).date)
-                            }}</span>
+                              }}</span>
                           </div>
                           <div class="info-item">
                             <span class="info-label">Fecha de Pago:</span>
                             <span class="info-value">{{
                               formatDate(payment.date)
-                            }}</span>
+                              }}</span>
                           </div>
                         </div>
                       </div>
@@ -1627,6 +1655,9 @@ export default {
                             : getClient(payment.client_id).identification
                         }}
                       </small>
+                      <!-- <small>
+                        {{ payment.client_id }}
+                      </small> -->
                       <div class="payment-status mt-2">
                         <span class="badge bg-success">Aprobado</span>
                       </div>
@@ -1650,7 +1681,7 @@ export default {
                           <span class="info-label">Producto:</span>
                           <span class="info-value">{{
                             payment.purchaseData?.productName
-                          }}</span>
+                            }}</span>
                         </div>
                         <div class="info-item">
                           <span class="info-label">Cuota:</span>
@@ -1673,7 +1704,7 @@ export default {
                           <span class="info-label">Monto en USD:</span>
                           <span class="info-value">${{
                             getSubscriptionData(payment.subscription_id).price
-                            }}</span>
+                          }}</span>
                         </div>
                       </div>
 
@@ -1687,7 +1718,7 @@ export default {
                           <span class="info-label">Fecha:</span>
                           <span class="info-value">{{
                             formatDate(payment.date)
-                          }}</span>
+                            }}</span>
                         </div>
                       </div>
                     </div>
