@@ -643,9 +643,12 @@ export default {
                     const userRef = dbRef(db, `Users/${clientId}`);
                     await update(userRef, updateData);
 
+                    const userSnapshot = await get(userRef);
+                    const userEmail = userSnapshot.val().email;
+
                     // Update email via Cloud Function if the email is changed
                     const newEmail = client.email;
-                    if (newEmail && client.email !== newEmail) {
+                    if (newEmail && userEmail !== newEmail) {
                         // Call the Cloud Function for updating the email
                         const data = {
                             uid: clientId,
