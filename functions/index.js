@@ -446,8 +446,8 @@ exports.sendVerificationCode = onRequest(
             lastAttempt: now,
           });
         } else {
-          // Check max attempts (5 per 24h)
-          if (attempts >= 5) {
+          // Check max attempts (15 per 24h)
+          if (attempts >= 15) {
             return res.status(429).json({
               success: false,
               message:
@@ -532,10 +532,10 @@ exports.sendVerificationCode = onRequest(
         // Return success response
         return res.status(200).json({
           success: true,
-          message: "Código enviado exitosamente. Tienes 5 minutos para usarlo.",
+          message: "Código enviado al correo electrónico. Tiene 5 minutos para usarlo.",
           rateLimit: {
             remainingAttempts:
-              5 -
+              15 -
               (rateLimitSnapshot.exists()
                 ? rateLimitSnapshot.val().attempts
                 : 0),

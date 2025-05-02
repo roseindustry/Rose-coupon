@@ -29,6 +29,7 @@ export default {
       clients: [],
       affiliates: [],
       subscriptions: [],
+      affiliateSubscriptions: [],
       payments: [],
       approvedClientPayments: [],
       pendingClientPayments: [],
@@ -136,7 +137,10 @@ export default {
     async fetchSubscriptions() {
       try {
         const subscriptionRef = dbRef(db, `Suscriptions`);
+        const affiliateSubRef = dbRef(db, `Affiliate_suscriptions`);
+
         const subscriptionSnapshot = await get(subscriptionRef);
+        const affiliateSubSnapshot = await get(affiliateSubRef);
 
         if (subscriptionSnapshot.exists()) {
           const subscriptions = subscriptionSnapshot.val();
@@ -149,6 +153,19 @@ export default {
             return subData;
           });
           this.subscriptions = await Promise.all(subPromises);
+        }
+
+        if (affiliateSubSnapshot.exists()) {
+          const affSubscriptions = affiliateSubSnapshot.val();
+
+          const promises = Object.keys(affSubscriptions).map(async (key) => {
+            const subData = {
+              id: key,
+              ...affSubscriptions[key],
+            };
+            return subData;
+          });
+          this.affiliateSubscriptions = await Promise.all(promises);
         }
       } catch (error) {
         console.error("Error fetching subscription:", error);
@@ -306,14 +323,9 @@ export default {
           this.approvedInstallments = approvedWithData.filter(
             (p) => p.type === "credit-cuota"
           );
-          this.approvedClientPayments = approvedWithData.filter(
-            (p) => p.type === "subscription" && p.client_id
-          );
-          this.approvedAffiliatePayments = approvedWithData.filter(
-            (p) => p.type === "subscription" && p.affiliate_id
-          );
 
           // Handle pending payments based on type
+          // Installment payments are only made by 'cliente' users
           if (type === "credit-cuota") {
             this.pendingInstallments = await Promise.all(
               pendingPayments
@@ -331,12 +343,43 @@ export default {
                 })
             );
           } else {
-            this.pendingClientPayments = pendingPayments.filter(
-              (p) => p.type === "subscription" && p.client_id
-            );
-            this.pendingAffiliatePayments = pendingPayments.filter(
-              (p) => p.type === "subscription" && p.affiliate_id
-            );
+            // Fetch and filter subscription payments by role (cliente and afiliado)
+            this.pendingClientPayments = await Promise.all(
+              pendingPayments
+                .filter((p) => p.type === "subscription" && p.client_id)
+                .map(async (payment) => {
+                  const role = await this.getRole(payment.client_id);
+                  return role === 'cliente' ? payment : null;
+                })
+            ).then(payments => payments.filter(p => p !== null));
+
+            this.pendingAffiliatePayments = await Promise.all(
+              pendingPayments
+                .filter((p) => p.type === "subscription" && p.client_id)
+                .map(async (payment) => {
+                  const role = await this.getRole(payment.client_id ? payment.client_id : payment.affiliate_id);
+                  return role === 'afiliado' ? payment : null;
+                })
+            ).then(payments => payments.filter(p => p !== null));
+
+            // Update approved payments to filter by role as well
+            this.approvedClientPayments = await Promise.all(
+              approvedWithData
+                .filter((p) => p.type === "subscription")
+                .map(async (payment) => {
+                  const role = await this.getRole(payment.client_id);
+                  return role === 'cliente' ? payment : null;
+                })
+            ).then(payments => payments.filter(p => p !== null));
+
+            this.approvedAffiliatePayments = await Promise.all(
+              approvedWithData
+                .filter((p) => p.type === "subscription")
+                .map(async (payment) => {
+                  const role = await this.getRole(payment.client_id ? payment.client_id : payment.affiliate_id);
+                  return role === 'afiliado' ? payment : null;
+                })
+            ).then(payments => payments.filter(p => p !== null));
           }
 
           // Initialize filtered lists based on current filter
@@ -345,15 +388,40 @@ export default {
             this.filteredAffiliatePayments = [];
           } else {
             this.filteredClientPayments = [...this.approvedClientPayments];
-            this.filteredAffiliatePayments = [
-              ...this.approvedAffiliatePayments,
-            ];
+            this.filteredAffiliatePayments = [...this.approvedAffiliatePayments];
           }
         }
       } catch (error) {
         console.error("Error fetching payments:", error);
       } finally {
         this.isLoading = false;
+      }
+    },
+
+    async getRole(userId) {
+      if (!userId) return null;
+
+      try {
+        const userRef = dbRef(db, `Users/${userId}/role`);
+        const roleSnapshot = await get(userRef);
+
+        if (roleSnapshot.exists()) {
+          const role = roleSnapshot.val();
+
+          // Validate role is a non-empty string and is either 'cliente' or 'afiliado'
+          if (typeof role === 'string' && ['cliente', 'afiliado'].includes(role)) {
+            return role;
+          }
+
+          console.warn(`Invalid role for user ${userId}: ${role}`);
+          return null;
+        } else {
+          console.warn(`No role found for user ${userId}. Maybe the user has been deleted.`);
+          return null;
+        }
+      } catch (error) {
+        console.error(`Error fetching role for user ${userId}:`, error);
+        return null;
       }
     },
 
@@ -450,59 +518,84 @@ export default {
       new Modal(document.getElementById("idImgModal")).show();
     },
 
-    async validateSubscriptionPayment(userId) {
-      const user = this.clients.find((client) => client.id === userId);
+    async validateSubscriptionPayment(paymentId, userId) {
+      // Check both clients and affiliates
+      let user = this.clients.find((client) => client.id === userId);
+      if (!user) {
+        user = this.affiliates.find((affiliate) => affiliate.id === userId);
+      }
+
+      if (!user) {
+        showToast.error("Usuario no encontrado");
+        return;
+      }
+
+      // Determine user details based on role
+      let userName, userEmail, subscriptionRef;
+      if (user.role === "cliente") {
+        userName = `${user.firstName} ${user.lastName}`;
+        userEmail = user.email;
+        subscriptionRef = dbRef(db, `Suscriptions/${user.subscription.subscription_id}`);
+      } else if (user.role === "afiliado") {
+        userName = user.companyName;
+        userEmail = user.email;
+        subscriptionRef = dbRef(db, `Affiliate_suscriptions/${user.subscription.subscription_id}`);
+      } else {
+        showToast.error("Rol de usuario no válido");
+        return;
+      }
+
+      const paymentDate = this.formatDate(user.subscription.lastPaymentDate);
+
+      // debbug logs
+      console.log("Validating subscription payment for user:", userName, userId);
+      console.log("Payment ID:", paymentId);
+      console.log("Payment date:", paymentDate);
+      console.log("User role: ", user.role);
 
       if (!confirm("¿Está seguro de que desea aprobar este pago?")) {
         return;
       }
 
-      let userName;
-      if (user.role === "cliente") {
-        userName = `${user.firstName} ${user.lastName}`;
-      } else if (user.role === "afiliado") {
-        userName = `${user.companyName}`;
-      }
-
-      const paymentDate = this.formatDate(user.subscription.lastPaymentDate);
-
       try {
         // Show the loader
         this.isSubmitting = true;
 
-        // Mark client's subscription as paid and active
-        const userRef = dbRef(db, `Users/${user.id}/subscription`);
-        await update(userRef, {
+        // Mark user's subscription as paid and active
+        const userSubscriptionRef = dbRef(db, `Users/${user.id}/subscription`);
+        await update(userSubscriptionRef, {
           isPaid: true,
           paymentVerified: true,
           status: true,
         });
 
-        // Mark Payment as approved for bookeeping
-        const paymentRef = dbRef(db, `Payments`);
-        const paymentSnapshot = await get(paymentRef);
-        if (paymentSnapshot.exists()) {
-          const payments = paymentSnapshot.val();
+        // Get subscription details
+        const subscriptionSnapshot = await get(userSubscriptionRef);
+        const subscriptionData = subscriptionSnapshot.exists() ? subscriptionSnapshot.val() : null;
 
-          // Find and update the relevant payment
-          Object.entries(payments).forEach(async ([paymentId, payment]) => {
-            const clientId = paymentId.split("-")[0];
-            const date = payment.date.split("T")[0];
-            const comparableDate = payment.date.split("T")[0];
+        // Mark Payment as approved for bookkeeping
+        const paymentRef = dbRef(db, `Payments/${paymentId}`);
+        await update(paymentRef, { approved: true });
 
-            if (clientId === user.id && date === comparableDate) {
-              const specificPaymentRef = dbRef(db, `Payments/${paymentId}`);
-              await update(specificPaymentRef, { approved: true });
-            }
-          });
-        }
-
-        // Send an email notification to the user through Firebase Cloud Functions
+        // Send an email notification
         const emailPayload = {
-          to: user.email,
+          to: userEmail,
           message: {
             subject: "Su pago de Suscripción ha sido aprobado en Rose App",
-            text: `Hola ${userName}, tu pago del día ${paymentDate} ha sido aprobado.`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                <h2 style="color: #6f42c1;">Pago de Suscripción Aprobado</h2>
+                <p>Hola ${userName},</p>
+                <p>Tu pago de suscripción del día ${paymentDate} ha sido aprobado.</p>
+                <p>Detalles de la suscripción:</p>
+                <ul>
+                  <li><strong>Plan:</strong> ${subscriptionData?.name || 'Plan no especificado'}</li>
+                  <li><strong>Fecha de Pago:</strong> ${paymentDate}</li>
+                  <li><strong>Monto:</strong> $${subscriptionData?.price || 'N/A'}</li>
+                </ul>
+                <p>Gracias por usar Rose App.</p>
+              </div>
+            `
           },
         };
 
@@ -515,16 +608,20 @@ export default {
           console.error("Failed to send email:", result.error);
         }
 
-        showToast("Pago aprobado. Se ha notificado al cliente.");
-        //Close Payment modal after approval
+        showToast("Pago aprobado. Se ha notificado al usuario.");
+
+        // Close Payment modal after approval
         const modal = Modal.getOrCreateInstance(
           document.getElementById("idImgModal")
         );
         modal.hide();
-        this.fetchClients();
-        this.fetchAffiliates();
+
+        // Refresh both clients and affiliates
+        await this.fetchClients();
+        await this.fetchAffiliates();
       } catch (error) {
-        console.error("Error approving ID:", error);
+        console.error("Error approving subscription payment:", error);
+        showToast.error("Error al aprobar el pago");
       } finally {
         // Hide the loader
         this.isSubmitting = false;
@@ -578,7 +675,7 @@ export default {
         let pointsToAdd = 10; // Default points
         const paymentDate = new Date(payment.date);
         const cuotaDueDate = new Date(cuotaData.date);
-        
+
         // Calculate days before due date
         const timeDiff = cuotaDueDate.getTime() - paymentDate.getTime();
         const daysDifference = Math.ceil(timeDiff / (1000 * 3600 * 24));
@@ -588,7 +685,7 @@ export default {
           pointsToAdd = 15;
         }
 
-        // Update client's points
+        // Update client's points and check for points Level update
         const clientPointsRef = dbRef(
           db,
           `Users/${payment.client_id}/credit/main/points`
@@ -713,6 +810,11 @@ export default {
         return;
       }
 
+      // debbug logs
+      console.log("Disapproving cuota payment for user:", user.id);
+      console.log("Cuota ID:", user.selectedCuotaId);
+      console.log("Purchase ID:", user.selectedPurchaseId);
+
       if (confirm("¿Está seguro de que desea desaprobar este pago?")) {
         try {
           this.isSubmitting = true;
@@ -766,35 +868,44 @@ export default {
     },
 
     // Match data
-    getClient(clientId) {
-      if (!clientId || !this.clients) {
-        return { firstName: "Cliente", lastName: "No Disponible", id: null };
+    getClient(userId) {
+      if (!userId || (!this.clients && !this.affiliates)) {
+        return { name: "No Encontrado", identification: "No Encontrado", email: "No Encontrado", id: userId };
       }
-      const client = this.clients.find((client) => client.id === clientId);
-      return (
-        client || {
-          firstName: "Cliente",
-          lastName: "No Encontrado",
-          id: clientId,
-        }
-      );
-    },
-    getAffiliate(affiliateId) {
-      if (!affiliateId || !this.affiliates) {
-        return { companyName: "Comercio no disponible", id: null };
+
+      const allUsers = [...this.clients, ...this.affiliates];
+
+      let user = allUsers.find((user) => user.id === userId);
+
+      if (!user) {
+        return { name: "No Encontrado", identification: "No Encontrado", email: "No Encontrado", id: userId };
       }
-      const affiliate = this.affiliates.find(
-        (affiliate) => affiliate.id === affiliateId
-      );
-      return (
-        affiliate || { companyName: "Comercio no encontrado", id: affiliateId }
-      );
+
+      if (user.role === 'afiliado') {
+        return {
+          name: user.companyName,
+          identification: user.rif,
+          email: user.email,
+          id: user.id,
+          ...user
+        };
+      } else {
+        return {
+          name: `${user.firstName} ${user.lastName}`,
+          identification: user.identification,
+          email: user.email,
+          id: user.id,
+          ...user
+        };
+      }
     },
-    getSubscriptionData(subscription_id) {
-      if (!subscription_id || !this.subscriptions) {
+    getSubscriptionData(subscription_id, userType) {
+      const subscriptions = userType === 'clients' ? this.subscriptions : this.affiliateSubscriptions;
+
+      if (!subscription_id || !subscriptions) {
         return { name: "No disponible", price: 0 };
       }
-      const subscription = this.subscriptions.find(
+      const subscription = subscriptions.find(
         (subscription) => subscription.id === subscription_id
       );
       return subscription || { name: "Suscripción no encontrada", price: 0 };
@@ -900,7 +1011,11 @@ export default {
       if (this.historyFilter === "credit-cuota") {
         filteredPayments = [...this.approvedInstallments];
       } else {
-        filteredPayments = [...this.approvedClientPayments];
+        if (this.userType === "clients") {
+          filteredPayments = [...this.approvedClientPayments];
+        } else {
+          filteredPayments = [...this.approvedAffiliatePayments];
+        }
       }
 
       // Apply date filter if exists
@@ -960,7 +1075,7 @@ export default {
           filteredAffiliatePayments = filteredAffiliatePayments.filter(
             (payment) => {
               const affiliate = this.affiliates.find(
-                (a) => a.id === payment.affiliate_id
+                (a) => a.id === payment.affiliate_id ? payment.affiliate_id : payment.client_id
               );
               if (!affiliate) return false;
 
@@ -1134,8 +1249,7 @@ export default {
                           <i class="fas fa-handshake"></i>
                         </div>
                         <h5 class="card-title mb-1">
-                          {{ getClient(payment.client_id).firstName }}
-                          {{ getClient(payment.client_id).lastName }}
+                          {{ getClient(payment.client_id).name.charAt(0).toUpperCase() + getClient(payment.client_id).name.slice(1) }}
                         </h5>
                         <div class="payment-status" v-if="payment.approved">
                           <span class="badge bg-success">Aprobado</span>
@@ -1149,15 +1263,13 @@ export default {
                           <div class="info-item">
                             <span class="info-label">Suscripción:</span>
                             <span class="info-value">{{
-                              getSubscriptionData(
-                                payment.subscription_id
-                              ).name.toUpperCase()
+                              getSubscriptionData(payment.subscription_id, 'clients').name.toUpperCase()
                             }}</span>
                           </div>
                           <div class="info-item">
                             <span class="info-label">Monto en USD:</span>
                             <span class="info-value">${{
-                              getSubscriptionData(payment.subscription_id)
+                              getSubscriptionData(payment.subscription_id, 'clients')
                                 .price
                             }}</span>
                           </div>
@@ -1173,7 +1285,7 @@ export default {
                             <span class="info-label">Fecha:</span>
                             <span class="info-value">{{
                               formatDate(payment.date)
-                              }}</span>
+                            }}</span>
                           </div>
                         </div>
                       </div>
@@ -1198,11 +1310,8 @@ export default {
                       </div>
                       <div v-else class="payment-actions mt-auto pt-3">
                         <div class="d-flex justify-content-center gap-2">
-                          <button class="btn btn-sm btn-outline-success" @click="
-                            validateSubscriptionPayment(
-                              getClient(payment.client_id)
-                            )
-                            ">
+                          <button class="btn btn-sm btn-outline-success" 
+                          @click="validateSubscriptionPayment(payment.id, payment.client_id)">
                             <i class="fas fa-check me-2"></i>
                             Aprobar
                           </button>
@@ -1241,7 +1350,7 @@ export default {
                             <i class="fas fa-handshake"></i>
                           </div>
                           <h5 class="card-title mb-1">
-                            {{ getAffiliate(payment.affiliate_id).companyName }}
+                            {{ getClient(payment.client_id).name }}
                           </h5>
                           <div class="payment-status" v-if="payment.approved">
                             <span class="badge bg-success">Aprobado</span>
@@ -1250,20 +1359,20 @@ export default {
 
                         <!-- Payment Details Section -->
                         <div class="payment-details">
-                          <!-- Credit Cuota Specific Info -->
-                          <div v-if="payment.type === 'credit-cuota'" class="info-group">
+                          <!-- Subscription Specific Info -->
+                          <div v-if="payment.type === 'subscription'" class="info-group">
                             <div class="info-item">
                               <span class="info-label">Suscripción:</span>
                               <span class="info-value">{{
                                 getSubscriptionData(
-                                  payment.subscription_id
+                                  payment.subscription_id, 'affiliates'
                                 ).name.toUpperCase()
                               }}</span>
                             </div>
                             <div class="info-item">
                               <span class="info-label">Monto en USD:</span>
                               <span class="info-value">${{
-                                getSubscriptionData(payment.subscription_id)
+                                getSubscriptionData(payment.subscription_id, 'affiliates')
                                   .price
                               }}</span>
                             </div>
@@ -1369,8 +1478,7 @@ export default {
                         </div>
                         <div class="d-flex justify-content-between">
                           <h5 class="card-title mb-1">
-                            {{ getClient(payment.client_id).firstName }}
-                            {{ getClient(payment.client_id).lastName }}
+                            {{ getClient(payment?.client_id).name.charAt(0).toUpperCase() + getClient(payment?.client_id).name.slice(1) }}
                           </h5>
                           <span v-if="payment.isLatePayment" class="badge rounded-pill bg-danger w-auto">Pago
                             Atrasado</span>
@@ -1384,8 +1492,8 @@ export default {
                           <div class="info-item">
                             <span class="info-label">Comercio:</span>
                             <span class="info-value">{{
-                              getAffiliate(payment.purchaseData?.affiliate_id)
-                                .companyName || "N/A"
+                              getClient(payment?.purchaseData?.affiliate_id)
+                                .name || "N/A"
                             }}</span>
                           </div>
                           <div class="info-item">
@@ -1459,13 +1567,13 @@ export default {
                             <span class="info-label">Fecha límite de Pago:</span>
                             <span class="info-value">{{
                               formatDate(getCuotaData(payment).date)
-                              }}</span>
+                            }}</span>
                           </div>
                           <div class="info-item">
                             <span class="info-label">Fecha de Pago:</span>
                             <span class="info-value">{{
                               formatDate(payment.date)
-                              }}</span>
+                            }}</span>
                           </div>
                         </div>
                       </div>
@@ -1642,18 +1750,10 @@ export default {
                           "></i>
                       </div>
                       <h5 class="card-title mb-1">
-                        {{
-                          payment.affiliate_id
-                            ? getAffiliate(payment.affiliate_id).companyName
-                            : `${getClient(payment.client_id).firstName} ${getClient(payment.client_id).lastName}`
-                        }}
+                        {{ getClient(payment?.client_id).name.charAt(0).toUpperCase() + getClient(payment?.client_id).name.slice(1) }}
                       </h5>
                       <small class="text-muted mb-2">
-                        V-{{
-                          payment.affiliate_id
-                            ? getAffiliate(payment.affiliate_id).rif
-                            : getClient(payment.client_id).identification
-                        }}
+                        {{ getClient(payment?.client_id).identification }}
                       </small>
                       <!-- <small>
                         {{ payment.client_id }}
@@ -1673,15 +1773,15 @@ export default {
                         <div class="info-item">
                           <span class="info-label">Comercio:</span>
                           <span class="info-value">{{
-                            getAffiliate(payment.purchaseData?.affiliate_id)
-                              .companyName
+                            getClient(payment?.purchaseData?.affiliate_id)
+                              .name
                           }}</span>
                         </div>
                         <div class="info-item">
                           <span class="info-label">Producto:</span>
                           <span class="info-value">{{
                             payment.purchaseData?.productName
-                            }}</span>
+                          }}</span>
                         </div>
                         <div class="info-item">
                           <span class="info-label">Cuota:</span>
@@ -1694,17 +1794,11 @@ export default {
                       <div v-if="payment.type === 'subscription'" class="info-group">
                         <div class="info-item">
                           <span class="info-label">Suscripción:</span>
-                          <span class="info-value">{{
-                            getSubscriptionData(
-                              payment.subscription_id
-                            ).name.toUpperCase()
-                          }}</span>
+                          <span class="info-value">{{ getSubscriptionData(payment.subscription_id, userType).name.toUpperCase() }}</span>
                         </div>
                         <div class="info-item">
                           <span class="info-label">Monto en USD:</span>
-                          <span class="info-value">${{
-                            getSubscriptionData(payment.subscription_id).price
-                          }}</span>
+                          <span class="info-value">${{ getSubscriptionData(payment.subscription_id, userType).price }}</span>
                         </div>
                       </div>
 
@@ -1718,7 +1812,7 @@ export default {
                           <span class="info-label">Fecha:</span>
                           <span class="info-value">{{
                             formatDate(payment.date)
-                            }}</span>
+                          }}</span>
                         </div>
                       </div>
                     </div>
@@ -1773,7 +1867,7 @@ export default {
           <!-- Subscription payment buttons -->
           <div v-if="paymentType === 'subscription'" class="d-flex gap-2 justify-content-end w-100">
             <button class="btn btn-outline-success btn-sm"
-              @click.prevent="validateSubscriptionPayment(paymentModalData.client_id)" :disabled="isSubmitting">
+              @click.prevent="validateSubscriptionPayment(paymentModalData.id, paymentModalData.client_id)" :disabled="isSubmitting">
               <span v-if="isSubmitting">
                 <i class="fas fa-spinner fa-spin me-2"></i>
               </span>

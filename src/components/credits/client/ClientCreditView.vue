@@ -13,7 +13,8 @@
         </div>
         <div class="alert-content">
           <h5 class="alert-heading mb-1">¡Atención! Tienes cuotas vencidas</h5>
-          <p class="mb-1">Tienes {{ expiredCuotasCount }} cuota{{ expiredCuotasCount > 1 ? 's' : '' }} sin pagar que {{ expiredCuotasCount > 1 ? 'han' : 'ha' }} vencido.</p>
+          <p class="mb-1">Tienes {{ expiredCuotasCount }} cuota{{ expiredCuotasCount > 1 ? 's' : '' }} sin pagar que {{
+            expiredCuotasCount > 1 ? 'han' : 'ha' }} vencido.</p>
           <p class="mb-0">No podrás realizar nuevas compras a crédito hasta que regularices tus pagos pendientes.</p>
           <!-- <button class="btn btn-sm btn-warning mt-2" @click="showExpiredCuotas">
             <i class="fas fa-eye me-1"></i> Ver cuotas vencidas
@@ -25,9 +26,10 @@
         <div>
           <h4 class="mb-0 fw-500 text-theme">
             <i class="fas fa-credit-card me-2"></i>
-            Mi Crédito</h4>
+            Mi Crédito
+          </h4>
           <small class="text-light">
-            Nivel: {{ currentClient?.level?.name || 'Sin nivel' }} 
+            Nivel: {{ currentClient?.level?.name || 'Sin nivel' }}
             ({{ currentClient?.points || 0 }} puntos)
           </small>
         </div>
@@ -37,49 +39,22 @@
         </button>
       </div>
 
-      <ClientCreditStats
-        :main-credit="currentClient?.credit?.mainCredit"
-        :available-credit="currentClient?.credit?.availableMainCredit"
-        :plus-credit="currentClient?.credit?.plusCredit"
-        :available-plus-credit="currentClient?.credit?.availablePlusCredit"
-      />
+      <ClientCreditStats :main-credit="currentClient?.credit?.mainCredit"
+        :available-credit="currentClient?.credit?.availableMainCredit" :plus-credit="currentClient?.credit?.plusCredit"
+        :available-plus-credit="currentClient?.credit?.availablePlusCredit" />
 
-      <ClientPurchaseHistory
-        :purchases="paginatedPurchases"
-        :affiliates="affiliates"
-        :filter-options="filterOptions"
-        :sort-options="sortOptions"
-        :total-pages="totalPages"
-        :current-page="currentPage"
-        :date-filter="dateFilter"
-        @filter-change="handleFilterChange"
-        @sort-change="handleSortChange"
-        @page-change="handlePageChange"
-        @date-filter-change="handleDateFilterChange"
-        @clear-filters="clearFilters"
-        @view-quotas="showQuotas"
-      />
+      <ClientPurchaseHistory :purchases="paginatedPurchases" :affiliates="affiliates" :filter-options="filterOptions"
+        :sort-options="sortOptions" :total-pages="totalPages" :current-page="currentPage" :date-filter="dateFilter"
+        @filter-change="handleFilterChange" @sort-change="handleSortChange" @page-change="handlePageChange"
+        @date-filter-change="handleDateFilterChange" @clear-filters="clearFilters" @view-quotas="showQuotas" />
 
       <!-- Modals -->
-      <QuotasModal
-        v-if="selectedPurchase"        
-        :purchase="selectedPurchase"
-        ref="quotasModal"
-        @pay-quota="payCuota"
-      />
-      
-      <PayCuotaModal
-        v-if="selectedPurchase"
-        ref="payCuotaModal"
-        :purchase="selectedPurchase"
-        :selected-cuota-id="selectedCuotaId"
-        @payment-success="handlePaymentSuccess"
-      />
-      
-      <PointsSystemModal
-        :current-client="currentClient"
-        :levels="levels"
-      />
+      <QuotasModal v-if="selectedPurchase" :purchase="selectedPurchase" ref="quotasModal" @pay-quota="payCuota" />
+
+      <PayCuotaModal v-if="selectedPurchase" ref="payCuotaModal" :purchase="selectedPurchase"
+        :selected-cuota-id="selectedCuotaId" @payment-success="handlePaymentSuccess" />
+
+      <PointsSystemModal :current-client="currentClient" :levels="levels" />
     </div>
   </div>
 </template>
@@ -169,7 +144,7 @@ export default {
   computed: {
     filteredPurchases() {
       if (!this.currentClient?.credit?.mainPurchases) return [];
-      
+
       let purchases = [...this.currentClient.credit.mainPurchases];
 
       // Apply date filter
@@ -192,7 +167,7 @@ export default {
             case 'Pendiente':
               return !isPaid;
             case 'Atrasado':
-              return purchase.cuotas?.some(cuota => 
+              return purchase.cuotas?.some(cuota =>
                 !cuota.paid && new Date(cuota.date) < new Date()
               );
             default:
@@ -262,7 +237,7 @@ export default {
       this.$nextTick(() => {
         // Hide quotas modal first
         this.hideQuotasModal();
-        
+
         // Then show payment modal
         if (this.$refs.payCuotaModal) {
           this.$refs.payCuotaModal.show();
@@ -270,6 +245,14 @@ export default {
       });
     },
     handlePaymentSuccess() {
+      // Hide payment modal
+      if (this.$refs.payCuotaModal) {
+        this.$refs.payCuotaModal.hide();
+      }
+
+      // Reload the window to refresh the data
+      window.location.reload();
+
       // Show quotas modal again to reflect changes
       this.$nextTick(() => {
         this.showQuotas(this.selectedPurchase);
@@ -298,7 +281,7 @@ export default {
       };
       this.activeSort = 'date-desc';
       this.currentPage = 1;
-      
+
       // Reset date filter to show all dates
       const today = new Date();
       this.dateFilter = {
@@ -308,7 +291,7 @@ export default {
     },
     setDefaultDateFilter() {
       const today = new Date();
-      
+
       this.dateFilter = {
         startDate: '',
         endDate: today.toISOString().split('T')[0]
@@ -316,13 +299,13 @@ export default {
     },
     checkForExpiredCuotas() {
       if (!this.currentClient?.credit?.mainPurchases) return;
-      
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       this.expiredPurchases = [];
       let expiredCount = 0;
-      
+
       // Check each purchase for expired unpaid cuotas
       this.currentClient.credit.mainPurchases.forEach(purchase => {
         if (!purchase.deleted && purchase.cuotas) {
@@ -330,7 +313,7 @@ export default {
             const cuotaDate = new Date(cuota.date);
             return !cuota.paid && !cuota.paymentUpload && cuotaDate < today;
           });
-          
+
           if (expiredCuotas.length > 0) {
             this.expiredPurchases.push({
               ...purchase,
@@ -340,7 +323,7 @@ export default {
           }
         }
       });
-      
+
       this.expiredCuotasCount = expiredCount;
     },
     showExpiredCuotas() {
@@ -361,7 +344,7 @@ export default {
       immediate: true,
       handler(newValue) {
         if (newValue?.credit?.mainPurchases) {
-          newValue.credit.mainPurchases.sort((a, b) => 
+          newValue.credit.mainPurchases.sort((a, b) =>
             new Date(b.date) - new Date(a.date)
           );
           this.$nextTick(() => {
@@ -418,4 +401,4 @@ h4 {
   background-color: #e0a800;
   border-color: #d39e00;
 }
-</style> 
+</style>

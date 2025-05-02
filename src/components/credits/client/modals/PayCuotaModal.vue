@@ -6,21 +6,17 @@
           <h5 class="modal-title text-light">
             Pagar Cuota
           </h5>
-          <button
-            type="button"
-            class="btn-close btn-close-white"
-            data-bs-dismiss="modal"
-          ></button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          
+
           <!-- Loading Section -->
           <div v-if="loading" class="text-center py-4">
             <div class="spinner-border text-purple" role="status">
               <span class="visually-hidden">Loading...</span>
             </div>
           </div>
-          
+
           <!-- Purchase Details -->
           <div class="purchase-details mb-4">
             <div class="purchase-header d-flex justify-content-center align-items-center mb-3">
@@ -40,7 +36,7 @@
                 <span class="label">Fecha de pago:</span>
                 <span class="value">{{ formattedCuotaDate }}</span>
               </div>
-              
+
               <!-- Late Payment Fee Section -->
               <div v-if="isLatePayment" class="detail-item late-payment mt-2">
                 <span class="label text-warning">Cargo por pago tardío:</span>
@@ -52,7 +48,8 @@
               </div>
               <div v-if="isLatePayment" class="late-payment-notice mt-2 p-2 border border-warning rounded">
                 <i class="fas fa-exclamation-triangle text-warning me-2"></i>
-                <small class="text-warning">El pago está retrasado por {{ daysLate }} días. Se ha aplicado un cargo adicional de $4.00 por pago tardío.</small>
+                <small class="text-warning">El pago está retrasado por {{ daysLate }} días. Se ha aplicado un cargo
+                  adicional de $4.00 por pago tardío.</small>
               </div>
             </div>
           </div>
@@ -61,18 +58,12 @@
           <div class="amount-to-pay mb-4">
             <h5 class="text-center mb-3">
               <i class="purchase-icon fas fa-money-bill-wave me-2"></i>
-              Monto a Pagar en Bs.</h5>
+              Monto a Pagar en Bs.
+            </h5>
             <div class="input-group">
               <span class="input-group-text text-light border-secondary">Bs.</span>
-              <input 
-                type="number" 
-                class="form-control text-light border-secondary" 
-                v-model.number="amountPaid"
-                :min="0"
-                :step="0.01"
-                :value="cuotaInBs"
-                readonly
-                required />
+              <input type="number" class="form-control text-light border-secondary" v-model.number="amountPaid" :min="0"
+                :step="0.01" :value="cuotaInBs" readonly required />
             </div>
             <small class="text-secondary mt-1 d-block">
               Tasa de cambio: {{ exchangeRate }} Bs.
@@ -85,30 +76,31 @@
               <i class="purchase-icon fas fa-money-bill-transfer me-2"></i>
               {{ isLatePayment ? 'Métodos de Pago de Rose App' : 'Métodos de Pago del Comercio' }}
             </h5>
-            
+
             <!-- Regular payment methods (from affiliate) -->
             <div v-if="!isLatePayment && affiliate && affiliate.paymentMethods && affiliate.paymentMethods.length > 0">
               <div v-for="(method, index) in affiliate.paymentMethods" :key="index" class="method-details">
                 <div class="d-flex align-items-center">
-                  <i :class="method.type === 'bank' ? 'fas fa-university' : 'fas fa-mobile-alt'" class="me-2 text-purple"></i>
+                  <i :class="method.type === 'bank' ? 'fas fa-university' : 'fas fa-mobile-alt'"
+                    class="me-2 text-purple"></i>
                   <strong>{{ method.type === 'bank' ? 'Transferencia Bancaria' : 'Pago Móvil' }}</strong>
                 </div>
                 <div class="ms-4">
                   <div v-if="method.type === 'bank'">
                     <div class="d-flex align-items-center">
                       <div>Titular: <span class="text-light">{{ method.holder }}</span></div>
-                      
+
                     </div>
                     <div class="d-flex align-items-center">
                       <div>Banco: <span class="text-light">{{ method.bank }}</span></div>
-                      
+
                     </div>
                     <div class="d-flex align-items-center">
                       <div>Cuenta: <span class="text-light">{{ method.account }}</span></div>
                       <button class="btn btn-copy" @click="handleCopy(method.account)" title="Copiar">
                         <i class="fas fa-copy"></i>
                       </button>
-                    </div>                    
+                    </div>
                     <div v-if="method.identification" class="d-flex align-items-center">
                       <div>Identificación: <span class="text-light">{{ method.identification }}</span></div>
                       <button class="btn btn-copy" @click="handleCopy(method.identification)" title="Copiar">
@@ -119,7 +111,7 @@
                   <div v-else-if="method.type === 'mobile'">
                     <div class="d-flex align-items-center">
                       <div>Titular: <span class="text-light">{{ method.holder }}</span></div>
-                      
+
                     </div>
                     <div class="d-flex align-items-center">
                       <div>Número: <span class="text-light">{{ method.phoneNumber }}</span></div>
@@ -127,15 +119,15 @@
                         <i class="fas fa-copy"></i>
                       </button>
                     </div>
-                    
+
                   </div>
                 </div>
               </div>
             </div>
-            
+
             <!-- Alternative payment methods for late payments -->
             <div v-if="isLatePayment" class="alternative-methods">
-              
+
               <!-- Mobile Payment -->
               <div class="method-details">
                 <div class="d-flex align-items-center">
@@ -145,11 +137,11 @@
                 <div class="ms-4">
                   <div class="d-flex align-items-center">
                     <div><span class="fw-bold">Titular:</span> Rose Industry C.A.</div>
-                    
+
                   </div>
                   <div class="d-flex align-items-center">
                     <div><span class="fw-bold">Banco:</span> Banco Provincial</div>
-                    
+
                   </div>
                   <div class="d-flex align-items-center">
                     <div><span class="fw-bold">Teléfono:</span> 0424-6003370</div>
@@ -163,13 +155,15 @@
                       <i class="fas fa-copy"></i>
                     </button>
                   </div>
-                  
+
                 </div>
               </div>
             </div>
-            
+
             <!-- No payment methods message -->
-            <div v-if="!isLatePayment && (!affiliate || !affiliate.paymentMethods || affiliate.paymentMethods.length === 0)" class="text-center text-muted py-3">
+            <div
+              v-if="!isLatePayment && (!affiliate || !affiliate.paymentMethods || affiliate.paymentMethods.length === 0)"
+              class="text-center text-muted py-3">
               <i class="fas fa-exclamation-circle me-2"></i>
               El comercio no ha configurado métodos de pago.
             </div>
@@ -181,14 +175,10 @@
               <i class="purchase-icon fas fa-file-invoice-dollar me-2"></i>
               Comprobante de Pago
             </h5>
-            <input 
-              type="file" 
-              class="form-control text-light border-secondary"
-              accept="image/*"
-              @change="handleFileUpload"
-              required />
+            <input type="file" class="form-control text-light border-secondary" accept="image/*"
+              @change="handleFileUpload" required />
 
-              <!-- Payment Preview Section -->
+            <!-- Payment Preview Section -->
             <div v-if="paymentPreview" class="mb-3 mt-3">
               <img :src="paymentPreview" class="img-fluid rounded" alt="Preview" />
             </div>
@@ -204,18 +194,14 @@
           <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
             <i class="fas fa-times me-2"></i>Cerrar
           </button>
-          <button 
-            type="button" 
-            class="btn btn-theme" 
-            @click="submitPayment"
-            :disabled="!isValid || loading">
+          <button type="button" class="btn btn-theme" @click="submitPayment" :disabled="!isValid || loading">
             <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status"></span>
             <i v-else class="fas fa-upload me-2"></i>
             {{ loading ? "Subiendo..." : "Pagar" }}
           </button>
         </div>
       </div>
-    </div>    
+    </div>
   </div>
 </template>
 
@@ -226,6 +212,8 @@ import { db, storage } from '@/firebase/init'
 import copyToClipboard from '@/utils/copyToClipboard'
 import { Modal } from 'bootstrap'
 import { showToast } from '@/utils/toast'
+import Swal from 'sweetalert2'
+import 'sweetalert2/src/sweetalert2.scss'
 
 export default {
   name: 'PayCuotaModal',
@@ -259,39 +247,39 @@ export default {
   },
   computed: {
     isValid() {
-      return this.amountPaid > 0 && 
-             this.paymentFile
+      return this.amountPaid > 0 &&
+        this.paymentFile
     },
     cuotaInBs() {
       // Make sure we have valid values before calculating
       if (!this.currentCuota || !this.exchangeRate) return 0;
-      
+
       // Use totalAmountWithLateFee which already handles both normal and late payments
       const usdAmount = this.totalAmountWithLateFee;
       const bsAmount = usdAmount * this.exchangeRate;
-      
+
       // Set the amountPaid value whenever this is recalculated
       this.$nextTick(() => {
         this.amountPaid = Number(bsAmount.toFixed(2));
       });
-      
+
       return Number(bsAmount.toFixed(2));
     },
     selectedCuota() {
       // If a specific cuota ID is provided, use that
       if (this.selectedCuotaId !== null && this.purchase.cuotas) {
         // Always treat cuotas as an object with IDs as keys
-        const cuotas = typeof this.purchase.cuotas === 'object' && !Array.isArray(this.purchase.cuotas) 
-          ? this.purchase.cuotas 
+        const cuotas = typeof this.purchase.cuotas === 'object' && !Array.isArray(this.purchase.cuotas)
+          ? this.purchase.cuotas
           : Object.fromEntries(this.purchase.cuotas.map((cuota, index) => [index.toString(), cuota]));
 
         const selectedCuota = cuotas[this.selectedCuotaId];
         return selectedCuota ? { ...selectedCuota, id: this.selectedCuotaId } : null;
       }
-      
+
       // Fallback to finding next unpaid cuota
       if (!this.purchase.cuotas) return null;
-      
+
       // Convert to entries for consistent handling
       const cuotasEntries = typeof this.purchase.cuotas === 'object' && !Array.isArray(this.purchase.cuotas)
         ? Object.entries(this.purchase.cuotas)
@@ -308,31 +296,31 @@ export default {
     },
     isLatePayment() {
       if (!this.currentCuota || !this.currentCuota.date) return false;
-      
+
       // Get the due date from the cuota
       const dueDate = new Date(this.currentCuota.date);
       dueDate.setDate(dueDate.getDate() + 1); // Adjust for timezone
-      
+
       // Get current date (without time)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       // Calculate days difference
       const diffTime = today.getTime() - dueDate.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      // Return true if payment is 2 or more days late
-      return diffDays >= 2;
+
+      // Return true if payment is 3 or more days late
+      return diffDays >= 3;
     },
     daysLate() {
       if (!this.currentCuota || !this.currentCuota.date) return 0;
-      
+
       const dueDate = new Date(this.currentCuota.date);
       dueDate.setDate(dueDate.getDate() + 1); // Adjust for timezone
-      
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       const diffTime = today.getTime() - dueDate.getTime();
       return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     },
@@ -391,12 +379,12 @@ export default {
       try {
         const exchangeRef = dbRef(db, 'Exchange');
         const snapshot = await get(exchangeRef);
-        
+
         if (snapshot.exists()) {
           // Make sure we get a valid number for the exchange rate
           const rateData = snapshot.val();
           this.exchangeRate = rateData.rate || rateData.value || 0;
-          
+
           if (this.exchangeRate <= 0) {
             this.errorMessage = 'Tasa de cambio inválida';
             console.error('Invalid exchange rate:', this.exchangeRate);
@@ -417,20 +405,20 @@ export default {
           console.warn('No affiliate ID found in purchase data');
           return;
         }
-        
+
         const affiliateRef = dbRef(db, `Users/${this.purchase.affiliate_id}`);
         const affiliateSnapshot = await get(affiliateRef);
-        
+
         if (affiliateSnapshot.exists()) {
           const affiliateData = affiliateSnapshot.val();
-          
+
           // Set basic affiliate data
           this.affiliate = {
             id: this.purchase.affiliate_id,
             companyName: affiliateData.companyName || 'Comercio',
             paymentMethods: []
           };
-          
+
           // Check if paymentDetails exists
           if (affiliateData.paymentDetails) {
             // Create payment methods from the paymentDetails object
@@ -443,7 +431,7 @@ export default {
                 identification: affiliateData.paymentDetails.identification || ''
               });
             }
-            
+
             if (affiliateData.paymentDetails.phoneNumber) {
               this.affiliate.paymentMethods.push({
                 type: 'mobile',
@@ -466,25 +454,25 @@ export default {
       if (clientSnapshot.exists()) {
         const clientData = clientSnapshot.val();
         clientName = clientData.firstName + ' ' + clientData.lastName;
-      } 
+      }
       return clientName;
     },
     handleFileUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
-      
+
       // Validate file type
       if (!file.type.match('image.*')) {
         this.errorMessage = 'Por favor seleccione una imagen';
         return;
       }
-      
+
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         this.errorMessage = 'La imagen no debe exceder 5MB';
         return;
       }
-      
+
       this.paymentFile = file;
       this.createPreview(file);
       this.errorMessage = '';
@@ -513,13 +501,13 @@ export default {
         this.loading = true;
         this.errorMessage = '';
         // Get current date for payment record
-        const formattedDate = new Date().toISOString();        
+        const formattedDate = new Date().toISOString();
 
         // Upload payment proof
         const fileName = `cuota-payments/${this.purchase.client_id}-${clientName}/${formattedDate.split('T')[0]}`;
         const fileRef = storageRef(storage, fileName);
         await uploadBytes(fileRef, this.paymentFile);
-        const downloadURL = await getDownloadURL(fileRef);        
+        const downloadURL = await getDownloadURL(fileRef);
 
         // Setup Payment data for the Payments collection
         const paymentDetails = {
@@ -561,27 +549,24 @@ export default {
         this.paymentFile = null;
         this.paymentPreview = null;
 
-        // Hide this modal
-        const modal = Modal.getInstance(document.getElementById('payCuotaModal'));
-        if (modal) {
-          modal.hide();
-        }
+        Swal.fire({
+          title: 'Comprobante enviado!',
+          text: 'Nuestro equipo pronto evaluara tu pago.',
+          icon: 'success',
+          confirmButtonText: 'OK'
+        })
 
-        // Emit success event for parent components to handle UI updates
-        this.$emit('payment-success', {
-          purchaseId: this.purchase.id,
-          cuotaId: this.selectedCuotaId,
-          paymentDate: formattedDate,
-          isLatePayment: this.isLatePayment || null,
-          lateFee: this.isLatePayment ? this.lateFee : 0,
-          totalAmount: this.totalAmountWithLateFee
-        });
+        this.$emit('payment-success');
 
-        showToast('Comprobante subido exitosamente', 'success');
       } catch (error) {
         console.error('Error submitting payment:', error);
         this.errorMessage = 'Error al procesar el pago. Por favor intente nuevamente.';
-        showToast('Error al procesar el pago', 'error');
+        Swal.fire({
+          title: 'Error al procesar el pago',
+          text: 'Error al procesar el pago. Por favor intente nuevamente.',
+          icon: 'error',
+          confirmButtonText: 'OK'
+        })
       } finally {
         this.loading = false;
       }
@@ -608,7 +593,7 @@ export default {
       this.fetchAffiliateDetails(),
       this.fetchExchangeRate()
     ]);
-    
+
     this.currentCuota = this.selectedCuota;
   },
   unmounted() {
@@ -683,17 +668,20 @@ export default {
   padding: 1.5rem;
   margin-bottom: 1.5rem;
 }
+
 .payment-methods {
   background-color: #2d2d2d;
   border: 1px solid #444;
   border-radius: 0.5rem;
   padding: 1.5rem;
 }
+
 .method-type {
   color: #6f42c1;
   margin-bottom: 1rem;
   font-weight: 600;
 }
+
 .method-details {
   background-color: #333;
   border-radius: 0.5rem;
@@ -741,6 +729,7 @@ export default {
 .btn-theme:disabled {
   opacity: 0.65;
 }
+
 .btn-outline-light {
   border-color: #444;
   color: #fff;
@@ -817,17 +806,17 @@ export default {
   margin-bottom: 0.2rem;
 }
 
-.d-flex.align-items-center > div {
+.d-flex.align-items-center>div {
   flex-grow: 1;
   font-size: 0.9rem;
 }
 
-.d-flex.align-items-center > button {
+.d-flex.align-items-center>button {
   flex-shrink: 0;
 }
 
 /* Add this to make the payment method headers more compact */
-.method-details > div:first-child {
+.method-details>div:first-child {
   margin-bottom: 0.5rem;
 }
 
@@ -840,4 +829,4 @@ export default {
 .method-details .fw-bold {
   font-size: 0.9rem;
 }
-</style> 
+</style>

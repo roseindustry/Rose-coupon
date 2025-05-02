@@ -1161,6 +1161,7 @@ export default {
                                     <div>
                                         <div class="d-flex align-items-center">
                                             <h6 class="mb-0">{{ client.firstName }} {{ client.lastName }}</h6>
+                                            <!-- <h6>{{ client.uid }}</h6> -->
                                             <span v-if="client.isVerified" class="ms-2 badge bg-success"
                                                 title="Cliente verificado">
                                                 <i class="fas fa-check-circle"></i>

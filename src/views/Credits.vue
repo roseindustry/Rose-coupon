@@ -1678,6 +1678,7 @@ export default {
             :levels="levels"
             :affiliates="allAffiliates"
             @submit-payment="submitPayment"
+            @refresh-data="fetchCredit"
         />
 
         <!-- Affiliate View -->

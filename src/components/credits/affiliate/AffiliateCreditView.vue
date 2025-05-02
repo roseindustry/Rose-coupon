@@ -98,7 +98,7 @@
                         <h5 class="mb-1">Cliente con pagos pendientes</h5>
                         <p class="mb-1">Este cliente tiene {{ selectedClient.unpaidCuotasCount }} cuota{{
                           selectedClient.unpaidCuotasCount
-                          !== 1 ? 's' : '' }} vencida{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} sin pagar.
+                            !== 1 ? 's' : '' }} vencida{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} sin pagar.
                         </p>
                         <p v-if="selectedClient.unpaidCuotasCount > 2" class="mb-0 fw-bold">
                           No se puede proceder con la compra hasta que el cliente regularice sus pagos.
@@ -268,6 +268,12 @@
                 <div class="text-end mt-4">
                   <!-- Rate Limit Info -->
                   <div v-if="shouldShowVerificationMessages" class="text-start mb-3">
+                    <div v-if="successMessage" class="alert alert-success mb-3">
+                      <div class="alert-content">
+                        <h5 class="alert-heading mb-1">¡Código Enviado!</h5>
+                        <p class="mb-1">{{ successMessage }}</p>
+                      </div>                      
+                    </div>
                     <div v-if="hasExceededAttempts" class="d-flex align-items-center text-danger">
                       <i class="fas fa-ban me-2"></i>
                       <small>Cliente superó los intentos permitidos para hoy</small>
@@ -574,7 +580,8 @@ export default {
       subscriptions: [],
       includeFee: true, // Default to true to include the fee
       rateLimitData: reactive({}),
-      isSubmitting: false
+      isSubmitting: false,
+      successMessage: ''
     }
   },
   computed: {
@@ -694,7 +701,7 @@ export default {
       if (!this.selectedClient || !this.rateLimitData[this.selectedClient.id]) return '';
 
       const attempts = this.rateLimitData[this.selectedClient.id].attempts || 0;
-      const remaining = 5 - attempts;
+      const remaining = 15 - attempts;
 
       if (remaining <= 0) return 'Sin';
 
@@ -781,7 +788,7 @@ export default {
       }
 
       // Check if attempts have exceeded the limit
-      return this.rateLimitData[this.selectedClient.id].attempts >= 5;
+      return this.rateLimitData[this.selectedClient.id].attempts >= 15;
     },
     shouldShowVerificationMessages() {
       if (!this.selectedClient) return false;
@@ -1052,8 +1059,9 @@ export default {
 
         if (result && result.success) {
           this.verificationRequested = true;
+          this.successMessage = result.message;
 
-          toast.success(result.message);
+          // toast.success(result.message);
 
           // Update remaining attempts display if provided
           if (result.rateLimit?.remainingAttempts) {
@@ -1305,6 +1313,7 @@ export default {
       // Clear verification
       this.verificationRequested = false;
       this.verificationCode = '';
+      this.successMessage = '';
     },
 
     async handlePurchase() {

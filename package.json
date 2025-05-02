@@ -79,6 +79,7 @@
         "pinia": "^2.1.7",
         "survey-vue": "^1.9.132",
         "survey-vue3-ui": "^1.9.131",
+        "sweetalert2": "^11.19.1",
         "toastify-js": "^1.12.0",
         "venezuela": "^2.0.0",
         "vue": "^3.3.8",
