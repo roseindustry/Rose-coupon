@@ -22,6 +22,8 @@ import { Modal } from "bootstrap";
 import { showToast } from "@/utils/toast";
 import { sendEmail } from "@/utils/emailService";
 import "toastify-js/src/toastify.css";
+import Swal from 'sweetalert2';
+import 'sweetalert2/src/sweetalert2.scss';
 
 export default {
   data() {
@@ -794,71 +796,136 @@ export default {
         this.isSubmitting = false;
       }
     },
-    async disapproveCuotaPayment(user) {
-      const selectedPurchase =
-        user.credit.main.purchases[user.selectedPurchaseId];
-      if (!selectedPurchase) {
-        console.error("Purchase not found for ID:", user.selectedPurchaseId);
+    async disapproveCuotaPayment(payment) {
+      const userId = payment.client_id;
+      const user = this.clients.find(c => c.id === userId);
+
+      const selectedPurchaseId = payment.purchase_id;
+      if (!selectedPurchaseId) {
+        console.error("Purchase not found for ID:", payment.purchase_id);
         return;
       }
 
-      const selectedCuota = selectedPurchase.cuotas.find(
-        (cuota) => cuota.cuote == user.selectedCuotaId
-      );
-      if (!selectedCuota) {
-        console.error("Cuota not found for ID:", user.selectedCuotaId);
+      const selectedCuotaId = payment.cuota_id;
+      if (!selectedCuotaId) {
+        console.error("Cuota not found for ID:", payment.cuota_id);
         return;
       }
 
       // debbug logs
-      console.log("Disapproving cuota payment for user:", user.id);
-      console.log("Cuota ID:", user.selectedCuotaId);
-      console.log("Purchase ID:", user.selectedPurchaseId);
+      console.log("Disapproving cuota payment for user:", userId);
+      console.log("Cuota ID:", selectedCuotaId);
+      console.log("Purchase ID:", selectedPurchaseId);
 
-      if (confirm("¿Está seguro de que desea desaprobar este pago?")) {
+      if (confirm("¿Está seguro?")) {
         try {
           this.isSubmitting = true;
 
           // Mark payment as disapproved in the client's cuotas
           const cuotaRef = dbRef(
             db,
-            `Users/${user.id}/credit/main/purchases/${selectedPurchase.purchaseId}/cuotas/${selectedCuota.cuotaId}`
+            `Users/${userId}/credit/main/purchases/${selectedPurchaseId}/cuotas/${selectedCuotaId}`
           );
-          await update(cuotaRef, { paid: false });
+          await update(cuotaRef, {
+            paid: false,
+            paymentUpload: null,
+            paymentDate: null,
+            paymentUrl: null,
+            totalAmount: null,
+            lateFee: null
+          });
 
-          // Mark payment as disapproved in the affiliate's cuotas
-          const AffiliateCuotaRef = dbRef(
-            db,
-            `Users/${selectedPurchase.affiliate_id}/credit/sales/${selectedPurchase.purchaseId}/cuotas/${selectedCuota.cuotaId}`
-          );
-          await update(AffiliateCuotaRef, { paid: false, disapproved: true });
+          // Delete payment from collection
+          const paymentRef = dbRef(db, `Payments/${payment.id}`);
+          await remove(paymentRef);
 
-          // Optional: You may want to send a notification or email to the client
+          // Send a notification to the client
           const emailPayload = {
             to: user.email,
             message: {
-              subject: `El pago de su cuota ha sido negado`,
-              text: `Hola ${user.firstName}, lamentamos informarte que tu pago del ${selectedCuota.paidAt.split("T")[0]} ha sido desaprobado. Vuelve a subir tu captura de pago en la app.`,
+              subject: `Pago de Cuota No Verificado - Rose App`,
+              text: `Hola ${user.firstName},
+
+                Lamentamos informarte que el comprobante de pago correspondiente a la cuota del ${payment.date.split("T")[0]} no ha podido ser verificado.
+
+                Próximos Pasos:
+                - Revisa tu comprobante de pago
+                - Asegúrate de que sea legible y completo
+                - Vuelve a subir tu comprobante en la aplicación
+
+                Si tienes alguna duda, no dudes en contactar a nuestro equipo de soporte.
+
+                Puedes ingresar a la aplicación en: https://app.rosecoupon.com/
+
+                © ${new Date().getFullYear()} Rose Coupon. Todos los derechos reservados.`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f4f4f4; border-radius: 10px;">
+                  <div style="background-color: #6f42c1; color: white; padding: 20px; text-align: center; border-top-left-radius: 10px; border-top-right-radius: 10px;">
+                    <h1 style="margin: 0; font-size: 24px;">Verificación de Pago Pendiente</h1>
+                  </div>
+                  <div style="background-color: white; padding: 30px; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;">
+                    <p style="color: #333; line-height: 1.6;">Hola ${user.firstName},</p>
+                    
+                    <p style="color: #333; line-height: 1.6;">
+                      Lamentamos informarte que el comprobante de pago correspondiente a la cuota del 
+                      <strong>${payment.date.split("T")[0]}</strong> no ha podido ser verificado.
+                    </p>
+                    
+                    <div style="background-color: #f9f3ff; border-left: 4px solid #6f42c1; padding: 15px; margin: 20px 0;">
+                      <p style="margin: 0; color: #333;">
+                        <strong>Próximos Pasos:</strong>
+                        <ul style="color: #333; padding-left: 20px;">
+                          <li>Revisa tu comprobante de pago</li>
+                          <li>Asegúrate de que sea legible y completo</li>
+                          <li>Vuelve a subir tu comprobante en la aplicación</li>
+                        </ul>
+                      </p>
+                    </div>
+                    
+                    <p style="color: #666; font-size: 14px; margin-top: 20px;">
+                      Si tienes alguna duda, no dudes en contactar a nuestro equipo de soporte.
+                    </p>
+                    
+                    <div style="text-align: center; margin-top: 30px;">
+                      <a href="https://app.rosecoupon.com/" style="
+                        background-color: #6f42c1; 
+                        color: white; 
+                        padding: 12px 24px; 
+                        text-decoration: none; 
+                        border-radius: 5px; 
+                        display: inline-block;
+                        font-weight: bold;
+                      ">
+                        Ir a Rose Coupon
+                      </a>
+                    </div>
+                  </div>
+                  
+                  <div style="text-align: center; color: #888; font-size: 12px; margin-top: 20px;">
+                    <p>© ${new Date().getFullYear()} Rose Coupon. Todos los derechos reservados.</p>
+                  </div>
+                </div>
+              `
             },
           };
           // Send email via the utility function
-          const result = await sendEmail(emailPayload);
+          await sendEmail(emailPayload);
 
-          if (result.success) {
-            console.log("Email sent successfully:", result.message);
-          } else {
-            console.error("Failed to send email:", result.error);
-          }
+          // Success message
+          Swal.fire({
+            title: 'Se borró el pago. Se notificará al Cliente.',
+            icon: 'success',
+            confirmButtonText: 'OK'
+          });
 
-          showToast("Pago desaprobado. Se ha notificado al cliente.");
+          // Hide Modal
           const modal = Modal.getOrCreateInstance(
             document.getElementById("idImgModal")
           );
           modal.hide();
 
-          // Optionally refresh data
-          this.fetchClients();
-          this.fetchAffiliates();
+          // Refresh data
+          await this.fetchPayments('credit-cuota');
         } catch (error) {
           console.error("Error disapproving cuota payment:", error);
         } finally {
@@ -1249,7 +1316,8 @@ export default {
                           <i class="fas fa-handshake"></i>
                         </div>
                         <h5 class="card-title mb-1">
-                          {{ getClient(payment.client_id).name.charAt(0).toUpperCase() + getClient(payment.client_id).name.slice(1) }}
+                          {{ getClient(payment.client_id).name.charAt(0).toUpperCase() +
+                            getClient(payment.client_id).name.slice(1) }}
                         </h5>
                         <div class="payment-status" v-if="payment.approved">
                           <span class="badge bg-success">Aprobado</span>
@@ -1310,8 +1378,8 @@ export default {
                       </div>
                       <div v-else class="payment-actions mt-auto pt-3">
                         <div class="d-flex justify-content-center gap-2">
-                          <button class="btn btn-sm btn-outline-success" 
-                          @click="validateSubscriptionPayment(payment.id, payment.client_id)">
+                          <button class="btn btn-sm btn-outline-success"
+                            @click="validateSubscriptionPayment(payment.id, payment.client_id)">
                             <i class="fas fa-check me-2"></i>
                             Aprobar
                           </button>
@@ -1478,7 +1546,8 @@ export default {
                         </div>
                         <div class="d-flex justify-content-between">
                           <h5 class="card-title mb-1">
-                            {{ getClient(payment?.client_id).name.charAt(0).toUpperCase() + getClient(payment?.client_id).name.slice(1) }}
+                            {{ getClient(payment?.client_id).name.charAt(0).toUpperCase() +
+                              getClient(payment?.client_id).name.slice(1) }}
                           </h5>
                           <span v-if="payment.isLatePayment" class="badge rounded-pill bg-danger w-auto">Pago
                             Atrasado</span>
@@ -1750,7 +1819,8 @@ export default {
                           "></i>
                       </div>
                       <h5 class="card-title mb-1">
-                        {{ getClient(payment?.client_id).name.charAt(0).toUpperCase() + getClient(payment?.client_id).name.slice(1) }}
+                        {{ getClient(payment?.client_id).name.charAt(0).toUpperCase() +
+                          getClient(payment?.client_id).name.slice(1) }}
                       </h5>
                       <small class="text-muted mb-2">
                         {{ getClient(payment?.client_id).identification }}
@@ -1794,11 +1864,13 @@ export default {
                       <div v-if="payment.type === 'subscription'" class="info-group">
                         <div class="info-item">
                           <span class="info-label">Suscripción:</span>
-                          <span class="info-value">{{ getSubscriptionData(payment.subscription_id, userType).name.toUpperCase() }}</span>
+                          <span class="info-value">{{ getSubscriptionData(payment.subscription_id,
+                            userType).name.toUpperCase() }}</span>
                         </div>
                         <div class="info-item">
                           <span class="info-label">Monto en USD:</span>
-                          <span class="info-value">${{ getSubscriptionData(payment.subscription_id, userType).price }}</span>
+                          <span class="info-value">${{ getSubscriptionData(payment.subscription_id, userType).price
+                          }}</span>
                         </div>
                       </div>
 
@@ -1867,7 +1939,8 @@ export default {
           <!-- Subscription payment buttons -->
           <div v-if="paymentType === 'subscription'" class="d-flex gap-2 justify-content-end w-100">
             <button class="btn btn-outline-success btn-sm"
-              @click.prevent="validateSubscriptionPayment(paymentModalData.id, paymentModalData.client_id)" :disabled="isSubmitting">
+              @click.prevent="validateSubscriptionPayment(paymentModalData.id, paymentModalData.client_id)"
+              :disabled="isSubmitting">
               <span v-if="isSubmitting">
                 <i class="fas fa-spinner fa-spin me-2"></i>
               </span>

@@ -130,7 +130,7 @@
                           </div>
                           <div class="purchase-details-right">
                             <span class="purchase-date badge bg-primary">{{ formatDate(sale.purchaseDate) }}</span>
-                            <span class="purchase-amount">${{ sale.productPrice.toFixed(2) }}</span>
+                            <span class="purchase-amount">${{ sale?.productPrice?.toFixed(2) }}</span>
                             <span class="purchase-status" :class="sale.paid ? 'text-success' : 'text-warning'">
                               {{ sale.paid ? 'Completado' : 'En Proceso' }}
                             </span>
@@ -159,11 +159,11 @@
                             </div>
                             <div class="detail-item">
                               <span class="label me-2">Inicial:</span>
-                              <span class="value">${{ sale.purchaseAmount.toFixed(2) }}</span>
+                              <span class="value">${{ sale?.purchaseAmount?.toFixed(2) }}</span>
                             </div>
                             <div class="detail-item">
                               <span class="label me-2">Préstamo:</span>
-                              <span class="value">${{ sale.loanAmount.toFixed(2) }}</span>
+                              <span class="value">${{ sale?.loanAmount?.toFixed(2) }}</span>
                             </div>
                           </div>
                           <div class="installments-table" v-if="sale.cuotas">
@@ -181,7 +181,7 @@
                                 <tr v-for="(cuota, cuotaIndex) in sale.cuotas" :key="cuotaIndex">
                                   <td>{{ cuotaIndex + 1 }}</td>
                                   <td>{{ formatDate(cuota.date) }}</td>
-                                  <td>${{ cuota.amount.toFixed(2) }}</td>
+                                  <td>${{ cuota?.amount?.toFixed(2) }}</td>
                                   <td>
                                     <span :class="cuota.paid ? 'text-success' : 'text-danger'">
                                       {{ cuota.paid ? 'Pagado' : 'Pendiente' }}

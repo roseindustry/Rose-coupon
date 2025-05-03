@@ -211,7 +211,6 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage
 import { db, storage } from '@/firebase/init'
 import copyToClipboard from '@/utils/copyToClipboard'
 import { Modal } from 'bootstrap'
-import { showToast } from '@/utils/toast'
 import Swal from 'sweetalert2'
 import 'sweetalert2/src/sweetalert2.scss'
 
@@ -550,7 +549,7 @@ export default {
         this.paymentPreview = null;
 
         Swal.fire({
-          title: 'Comprobante enviado!',
+          title: '¡Comprobante enviado!',
           text: 'Nuestro equipo pronto evaluara tu pago.',
           icon: 'success',
           confirmButtonText: 'OK'

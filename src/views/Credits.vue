@@ -8,6 +8,8 @@ import { ref as storageRef, uploadBytes, getDownloadURL, listAll } from 'firebas
 // Third party imports
 import { Modal } from 'bootstrap';
 import 'toastify-js/src/toastify.css';
+import Swal from 'sweetalert2';
+import 'sweetalert2/src/sweetalert2.scss';
 
 // Utilities
 import { toast } from '@/utils/toast';
@@ -235,11 +237,11 @@ export default {
                 const identification = item.identification?.toString() || item.rif?.toString();
                 if (type === 'client') {
                     return item.firstName?.toLowerCase().includes(query) ||
-                           item.lastName?.toLowerCase().includes(query) ||
-                           identification.toLowerCase().includes(query);
+                        item.lastName?.toLowerCase().includes(query) ||
+                        identification.toLowerCase().includes(query);
                 } else if (type === 'affiliate') {
                     return item.companyName?.toLowerCase().includes(query) ||
-                           identification.toLowerCase().includes(query);
+                        identification.toLowerCase().includes(query);
                 }
             });
         },
@@ -480,6 +482,23 @@ export default {
                 this.allAffiliates = [];
             }
         },
+        async handleDataRefetch(userId){
+            const creditData = await this.fetchCredit(userId);
+            if (creditData) {
+                this.currentClient = {
+                    credit: {
+                        mainCredit: creditData.mainCredit,
+                        availableMainCredit: creditData.availableMainCredit,
+                        mainPurchases: creditData.mainPurchases || [],
+                        plusCredit: creditData.plusCredit,
+                        availablePlusCredit: creditData.availablePlusCredit,
+                        plusPurchases: creditData.plusPurchases || []
+                    },
+                    level: await this.fetchUserLevel(this.userId),
+                    points: creditData.mainPoints + creditData.plusPoints
+                };
+            }
+        },
         async fetchCredit(userId) {
             try {
                 const clientCreditRef = dbRef(db, `Users/${userId}/credit`);
@@ -511,7 +530,7 @@ export default {
 
                     // Only return the user credit if either credit line is assigned
                     if (mainCredit > 0 || plusCredit > 0 || mainPurchases.length || plusPurchases.length) {
-                        return {
+                        const creditResult = {
                             mainCredit,
                             availableMainCredit,
                             mainPurchases,
@@ -523,12 +542,14 @@ export default {
                             plusPoints,
                             plusLevel
                         };
+
+                        return creditResult;
                     }
                 }
+
                 return null;
             } catch (error) {
                 console.error('Error fetching users credit:', error);
-                return null;
             }
         },
         async fetchAffiliateCreditData(affiliateId) {
@@ -543,7 +564,7 @@ export default {
                     const mainCredit = creditData.main.totalCredit || 0;
                     const availableMainCredit = creditData.main.availableCredit || 0;
                     const sales = creditData.sales || {};
-                    
+
                     // Extract client names from sales and map the sales object
                     const mappedSales = {};
                     for (const [id, sale] of Object.entries(sales)) {
@@ -725,9 +746,9 @@ export default {
                 await update(creditRef, {
                     value: amount
                 });
-                
+
                 // Update local state based on type
-                switch(type) {
+                switch (type) {
                     case 'main':
                         this.totalMainCapital = amount;
                         break;
@@ -1318,62 +1339,25 @@ export default {
                     toast.error(`Error: ${err}`);
                 });
         },
-        
-        async submitPayment(paymentData) {
-            try {
-                this.loading = true;
-                const formattedDate = new Date().toISOString();
-                const purchaseId = paymentData.purchaseId;
 
-                // Upload payment details
-                const paymentDetails = {
-                    purchase_id: purchaseId,
-                    client_id: this.userId,
-                    amount: paymentData.amount,
-                    date: formattedDate,
-                    method: paymentData.paymentMethod,
-                    proofUrl: paymentData.proofUrl,
-                    approved: false,
-                    type: 'credit-cuota'
-                }
-
-                // Save the payment to the payments collection
-                const paymentRef = dbRef(db, `Payments/${this.userId}-${formattedDate.split('T')[0]}`);
-                await set(paymentRef, paymentDetails);
-
-                showToast('Comprobante subido!', 'success');
-
-                // Hide the modal after submission
-                const modal = Modal.getInstance(document.getElementById('payCuotaModal'));
-                modal.hide();
-
-                // Refresh client data
-                this.currentClient = await this.fetchCredit(this.userId);
-            } catch (error) {
-                console.error('Error during payment:', error);
-                showToast('Error al procesar el pago', 'error');
-            } finally {
-                this.loading = false;
-            }
-        },
         async fetchUserLevel(userId) {
             try {
                 const creditRef = dbRef(db, `Users/${userId}/credit/main`);
                 const creditSnapshot = await get(creditRef);
-                
+
                 if (creditSnapshot.exists()) {
                     const { level_id } = creditSnapshot.val();
-                    
+
                     if (level_id) {
                         const levelRef = dbRef(db, `Levels/${level_id}`);
                         const levelSnapshot = await get(levelRef);
-                        
+
                         if (levelSnapshot.exists()) {
                             return levelSnapshot.val();
                         }
                     }
                 }
-                
+
                 return { name: 'Sin nivel', minPoints: 0 };
             } catch (error) {
                 console.error('Error fetching user level:', error);
@@ -1406,13 +1390,13 @@ export default {
             }
         },
         async registerPurchaseAsync(purchaseData) {
-            try {                
+            try {
                 // First verify the purchase code
                 const verificationResult = await this.verifyCode(
-                    purchaseData.clientId, 
+                    purchaseData.clientId,
                     purchaseData.verificationCode
                 );
-                
+
                 if (!verificationResult.success) {
                     throw new Error(verificationResult.message || 'Error al verificar el código');
                 }
@@ -1438,7 +1422,7 @@ export default {
                     cuotas: purchaseData.cuotas,
                 };
 
-                // Update client's credit
+                // Get client's credit
                 const clientCreditRef = dbRef(db, `Users/${purchaseData.clientId}/credit/main`);
                 const clientCreditSnapshot = await get(clientCreditRef);
                 const clientCredit = clientCreditSnapshot.val() || {};
@@ -1451,7 +1435,7 @@ export default {
                 // Calculate new available credits
                 const newClientAvailableCredit = (clientCredit.availableCredit || 0) - purchaseData.loanAmount;
                 const newAffiliateAvailableCredit = (affiliateCredit.availableCredit || 0) - purchaseData.loanAmount;
-                
+
                 if (newClientAvailableCredit < 0) {
                     throw new Error('El restante de la compra supera el monto de crédito disponible del cliente.');
                 }
@@ -1471,15 +1455,24 @@ export default {
                 await update(dbRef(db), updates);
 
                 // success toast
-                toast.success('Venta registrada!');
-                
+                Swal.fire({
+                    title: '¡Venta registrada!',
+                    icon: 'success',
+                    confirmButtonText: 'OK'
+                });
+
                 // Return true to indicate successful sale registration
                 return true;
-                
+
             } catch (error) {
                 console.error('Error registering purchase:', error);
-                toast.error(error.message || 'Error al registrar la venta');
-                return false;                
+                Swal.fire({
+                    title: 'Error al registrar la venta 😕',
+                    text: 'Por favor, recargue la página e intente nuevamente.',
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+                return false;
             }
         },
         async verifyCode(clientId, code) {
@@ -1491,7 +1484,7 @@ export default {
 
                 // Call the cloud function using fetch
                 const baseUrl = 'https://us-central1-rose-app-e062e.cloudfunctions.net/verifyCode';
-                
+
                 // Send data in the request body
                 const response = await fetch(baseUrl, {
                     method: 'POST',
@@ -1613,127 +1606,66 @@ export default {
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h4 class="mb-0 fw-500 text-theme">
                     <i class="fas fa-credit-card me-2"></i>
-                    Administración de Créditos</h4>
-                <a href="#" 
-                    class="btn btn-sm btn-theme w-auto" @click="openLevelsModal">
+                    Administración de Créditos
+                </h4>
+                <a href="#" class="btn btn-sm btn-theme w-auto" @click="openLevelsModal">
                     <i class="fa-solid fa-layer-group me-1"></i>
                     Administrar Niveles
                 </a>
             </div>
 
-            <AppCreditStats
-                :main-capital="Number(totalMainCapital)"
-                :plus-capital="Number(totalPlusCapital)"
-                :affiliate-capital="Number(totalAffiliateMainCapital)"
-                :alkosto-capital="Number(totalAlkostoCapital)"
-                @manage="openAppCreditModal"
-            />
+            <AppCreditStats :main-capital="Number(totalMainCapital)" :plus-capital="Number(totalPlusCapital)"
+                :affiliate-capital="Number(totalAffiliateMainCapital)" :alkosto-capital="Number(totalAlkostoCapital)"
+                @manage="openAppCreditModal" />
 
-            <CreditBreakdown
-                :main-credit-used="mainCreditUsed"
-                :main-credit-available="mainCreditAvailable"
-                :main-assigned-capital="mainAssignedCapital"
-                :main-available-to-assign="mainAvailableToAssign"
-                :plus-credit-used="plusCreditUsed"
-                :plus-credit-available="plusCreditAvailable"
-                :plus-assigned-capital="plusAssignedCapital"
-                :plus-available-to-assign="plusAvailableToAssign"
-                :aff-main-credit-used="affMainCreditUsed"
-                :aff-main-credit-available="affMainCreditAvailable"
+            <CreditBreakdown :main-credit-used="mainCreditUsed" :main-credit-available="mainCreditAvailable"
+                :main-assigned-capital="mainAssignedCapital" :main-available-to-assign="mainAvailableToAssign"
+                :plus-credit-used="plusCreditUsed" :plus-credit-available="plusCreditAvailable"
+                :plus-assigned-capital="plusAssignedCapital" :plus-available-to-assign="plusAvailableToAssign"
+                :aff-main-credit-used="affMainCreditUsed" :aff-main-credit-available="affMainCreditAvailable"
                 :aff-main-assigned-capital="affMainAssignedCapital"
-                :aff-main-available-to-assign="affMainAvailableToAssign"
-            />
+                :aff-main-available-to-assign="affMainAvailableToAssign" />
 
-            <ClientCreditList
-                :clients="paginatedClients"
-                :current-page="currentPage.clients"
-                :total-pages="totalPages.clients"
-                :filter-clients="filterClients"
-                @update:filter-clients="handleFilterChange"
-                @assign-credit="(type) => openCreditModal('client')"
-                @edit-credit="editCredit"
-                @remove-credit="removeCreditLine"
-                @view-details="showUserDetails"
-                @page-change="handleClientPageChange"
-            />
+            <ClientCreditList :clients="paginatedClients" :current-page="currentPage.clients"
+                :total-pages="totalPages.clients" :filter-clients="filterClients"
+                @update:filter-clients="handleFilterChange" @assign-credit="(type) => openCreditModal('client')"
+                @edit-credit="editCredit" @remove-credit="removeCreditLine" @view-details="showUserDetails"
+                @page-change="handleClientPageChange" />
 
-            <AffiliateCreditList                            
-                :affiliates="paginatedAffiliates"
-                :current-page="currentPage.affiliates"
-                :total-pages="totalPages.affiliates"
-                @assign-credit="(type) => openCreditModal('affiliate')"
-                @edit-credit="editCredit"
-                @remove-credit="removeCreditLine"
-                @view-details="showUserDetails"
-                @page-change="handleAffiliatePageChange"
-                :filter-affiliates="filterAffiliates"
-                @update:filter-affiliates="handleFilterAffiliates"                
-            />
+            <AffiliateCreditList :affiliates="paginatedAffiliates" :current-page="currentPage.affiliates"
+                :total-pages="totalPages.affiliates" @assign-credit="(type) => openCreditModal('affiliate')"
+                @edit-credit="editCredit" @remove-credit="removeCreditLine" @view-details="showUserDetails"
+                @page-change="handleAffiliatePageChange" :filter-affiliates="filterAffiliates"
+                @update:filter-affiliates="handleFilterAffiliates" />
         </template>
 
         <!-- Client View -->
-        <ClientCreditView
-            v-else-if="role === 'cliente'"
-            :current-client="currentClient"
-            :levels="levels"
-            :affiliates="allAffiliates"
-            @submit-payment="submitPayment"
-            @refresh-data="fetchCredit"
-        />
+        <ClientCreditView v-else-if="role === 'cliente'" :current-client="currentClient" :levels="levels"
+            :affiliates="allAffiliates" @reload-client-data="handleDataRefetch" />
 
         <!-- Affiliate View -->
-        <AffiliateCreditView
-            v-else-if="role === 'afiliado'"
-            :current-affiliate="currentAffiliate || {}"
-            :clients="clients"
-            @register-purchase="registerPurchase"
-            @refresh-data="refreshAffiliateData"
-            @view-details="showUserDetails"
-        />
+        <AffiliateCreditView v-else-if="role === 'afiliado'" :current-affiliate="currentAffiliate || {}"
+            :clients="clients" @register-purchase="registerPurchase" @refresh-data="refreshAffiliateData"
+            @view-details="showUserDetails" />
 
         <!-- Modals -->
-        <LevelsModal 
-            :levels="levels"
-            @levelCreated="handleLevelCreated"
-            @levelUpdated="handleLevelUpdated"
-            @levelDeleted="handleLevelDeleted"
-        />
+        <LevelsModal :levels="levels" @levelCreated="handleLevelCreated" @levelUpdated="handleLevelUpdated"
+            @levelDeleted="handleLevelDeleted" />
 
-        <AppCreditModal
-            :credit-type="appCreditType"
-            :main-capital="Number(totalMainCapital)"
-            :plus-capital="Number(totalPlusCapital)"
-            :affiliate-capital="Number(totalAffiliateMainCapital)"
-            :alkosto-capital="Number(totalAlkostoCapital)"
-            @assign="assignAppCredit"
-        />
+        <AppCreditModal :credit-type="appCreditType" :main-capital="Number(totalMainCapital)"
+            :plus-capital="Number(totalPlusCapital)" :affiliate-capital="Number(totalAffiliateMainCapital)"
+            :alkosto-capital="Number(totalAlkostoCapital)" @assign="assignAppCredit" />
 
-        <SetCreditModal
-            id="set-credit-modal"
-            :credit-type="creditType"
-            :search-results="searchEntityResults"
-            :selected-entities="selectedEntities"
-            @search="searchEntities"
-            @select="selectEntity"
-            @deselect="deselectEntity"
-            @assign="assignCredit"
-        />
+        <SetCreditModal id="set-credit-modal" :credit-type="creditType" :search-results="searchEntityResults"
+            :selected-entities="selectedEntities" @search="searchEntities" @select="selectEntity"
+            @deselect="deselectEntity" @assign="assignCredit" />
 
-        <EditCreditModal
-            :user-data="editUserData"
-            :user-type="creditType"
-            :credit-line="creditLine"
-            @update="updateCredit"
-        />
+        <EditCreditModal :user-data="editUserData" :user-type="creditType" :credit-line="creditLine"
+            @update="updateCredit" />
 
-        <CreditDetailsModal
-            :adminId="userId"
-            :user-data="selectedUser"
-            :is-client="!selectedUser?.firstName || !selectedUser?.lastName"
-            :is-affiliate="!!selectedUser?.companyName"
-            :purchases="selectedUser?.credit?.mainPurchases || []"
-            :sales="selectedUser?.credit?.sales || {}"
-        />
+        <CreditDetailsModal :adminId="userId" :user-data="selectedUser"
+            :is-client="!selectedUser?.firstName || !selectedUser?.lastName" :is-affiliate="!!selectedUser?.companyName"
+            :purchases="selectedUser?.credit?.mainPurchases || []" :sales="selectedUser?.credit?.sales || {}" />
 
         <!-- Add this section to the client selection area -->
         <div v-if="selectedClient && selectedClient.hasUnpaidCuotas" class="alert alert-danger mt-3">
@@ -1741,7 +1673,10 @@ export default {
                 <i class="fas fa-exclamation-circle fa-2x me-2 text-danger"></i>
                 <div>
                     <h5 class="mb-1">Cliente con pagos pendientes</h5>
-                    <p class="mb-1">Este cliente tiene {{ selectedClient.unpaidCuotasCount }} cuota{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} vencida{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} sin pagar.</p>
+                    <p class="mb-1">Este cliente tiene {{ selectedClient.unpaidCuotasCount }} cuota{{
+                        selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} vencida{{ selectedClient.unpaidCuotasCount
+                        !== 1 ?
+                        's' : '' }} sin pagar.</p>
                     <p v-if="selectedClient.unpaidCuotasCount > 2" class="mb-0 fw-bold">
                         No se puede proceder con la compra hasta que el cliente regularice sus pagos.
                     </p>
@@ -1753,10 +1688,12 @@ export default {
         </div>
 
         <!-- Update the verification code section -->
-        <div v-if="selectedClient && (!selectedClient.hasUnpaidCuotas || selectedClient.unpaidCuotasCount <= 2)" class="mb-3">
+        <div v-if="selectedClient && (!selectedClient.hasUnpaidCuotas || selectedClient.unpaidCuotasCount <= 2)"
+            class="mb-3">
             <!-- Existing verification code section -->
         </div>
-        <div v-else-if="selectedClient && selectedClient.hasUnpaidCuotas && selectedClient.unpaidCuotasCount > 2" class="alert alert-warning">
+        <div v-else-if="selectedClient && selectedClient.hasUnpaidCuotas && selectedClient.unpaidCuotasCount > 2"
+            class="alert alert-warning">
             <i class="fas fa-lock me-2"></i>
             Verificación bloqueada: El cliente debe regularizar sus pagos pendientes antes de realizar nuevas compras.
         </div>
@@ -1774,15 +1711,17 @@ h4 {
 }
 
 /* Button Styles */
-.btn-outline-theme, .btn-theme {
+.btn-outline-theme,
+.btn-theme {
     border-radius: 20px;
     font-size: 0.85rem;
     padding: 0.375rem 0.75rem;
     transition: all 0.2s ease;
 }
 
-.btn-outline-danger, .btn-outline-success { 
-  border-radius: 20px;
+.btn-outline-danger,
+.btn-outline-success {
+    border-radius: 20px;
 }
 
 .btn-outline-theme {
@@ -1793,7 +1732,7 @@ h4 {
 .btn-outline-theme:hover {
     background-color: purple;
     color: white;
-    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+    box-shadow: 0 2px 5px rgba(128, 0, 128, 0.3);
 }
 
 .btn-theme {
@@ -1805,7 +1744,7 @@ h4 {
 .btn-theme:hover {
     background-color: #8a2be2;
     border-color: #8a2be2;
-    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
+    box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
 }
 
 .text-theme {
@@ -1813,14 +1752,14 @@ h4 {
 }
 
 /* Add some spacing between sections */
-.row + .row {
+.row+.row {
     margin-top: 2rem;
 }
 
 /* Consistent card styling */
 .card {
     border: none;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     background-color: #2d2d2d;
 }
 
@@ -1831,12 +1770,14 @@ h4 {
 }
 
 /* Consistent text sizes */
-.h5, h5 {
+.h5,
+h5 {
     font-size: 1.1rem;
     color: #fff;
 }
 
-.h6, h6 {
+.h6,
+h6 {
     font-size: 0.9rem;
     color: #fff;
 }

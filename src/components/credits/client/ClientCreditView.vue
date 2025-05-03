@@ -69,6 +69,7 @@ import PayCuotaModal from './modals/PayCuotaModal.vue'
 import PointsSystemModal from './modals/PointsSystemModal.vue'
 import QuotasModal from './modals/QuotasModal.vue'
 import { Modal } from 'bootstrap'
+import { useUserStore } from "@/stores/user-role";
 
 export default {
   name: 'ClientCreditView',
@@ -244,19 +245,23 @@ export default {
         }
       });
     },
-    handlePaymentSuccess() {
-      // Hide payment modal
-      if (this.$refs.payCuotaModal) {
-        this.$refs.payCuotaModal.hide();
+    async handlePaymentSuccess() {
+      try {
+        // Hide payment modal first
+        if (this.$refs.payCuotaModal) {
+          this.$refs.payCuotaModal.hide();
+        }
+
+        // Refetch data
+        const userStore = useUserStore();
+        await userStore.fetchUser();
+        const userId = userStore.userId;        
+
+        // Emit reload event
+        this.$emit('reload-client-data', userId);
+      } catch (error) {
+        console.error('Error in handlePaymentSuccess:', error);
       }
-
-      // Reload the window to refresh the data
-      window.location.reload();
-
-      // Show quotas modal again to reflect changes
-      this.$nextTick(() => {
-        this.showQuotas(this.selectedPurchase);
-      });
     },
     handleFilterChange(filters) {
       this.activeFilters = { ...filters };
