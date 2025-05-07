@@ -28,10 +28,25 @@
                             <input v-model.number="localClientData.price" type="number" class="form-control" required />
                         </div>
                     </div>
-                    <div class="form-group mb-3">
-                        <label class="form-label">Límite de Solicitudes de Cupones</label>
-                        <input v-model="localClientData.requestLimit" type="number" class="form-control" required />
+                    <div class="row">
+                        <div class="col-12 col-lg-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Solicitudes de Cupones</label>
+                                <input v-model="localClientData.requestLimit" type="number" class="form-control" />
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Aumento en pago de cuotas</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input v-model="localClientData.cuotaAddOn" type="number" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- Checkboxes -->
                     <div class="form-group mb-3">
                         <div class="form-check">
                             <input 
@@ -93,6 +108,8 @@
                             <input v-model.number="localAffiliateData.price" type="number" class="form-control" required />
                         </div>
                     </div>
+
+                    <!-- Checkboxes -->
                     <div class="form-group mb-3">
                         <div class="form-check">
                             <input 
@@ -155,6 +172,7 @@ export default {
                 desc: '',
                 order: 0,
                 requestLimit: 0,
+                cuotaAddOn: 0,
                 isPopular: false,
                 isHidden: false,
                 icon: ''

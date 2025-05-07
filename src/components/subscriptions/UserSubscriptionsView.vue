@@ -4,21 +4,13 @@
       <div class="subscriptions-wrapper">
         <!-- Loading State -->
         <div v-if="loading" class="text-center py-5">
-          <span
-            class="spinner-border spinner-border-sm"
-            role="status"
-            aria-hidden="true"
-          ></span>
+          <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
           <span class="ms-2">Cargando planes...</span>
         </div>
 
         <!-- Subscription List -->
         <div v-else class="subscription-list">
-          <div
-            class="subscription-item"
-            v-for="(plan, index) in sortedPlans"
-            :key="plan.id"
-          >
+          <div class="subscription-item" v-for="(plan, index) in sortedPlans" :key="plan.id">
             <div class="subscription-header">
               <div class="subscription-info">
                 <div class="subscription-icon">
@@ -37,16 +29,10 @@
                 </div>
               </div>
               <div class="subscription-status d-flex align-items-center gap-2">
-                <span
-                  v-if="plan.id === currentSub"
-                  class="status-badge active me-2"
-                >
+                <span v-if="plan.id === currentSub" class="status-badge active me-2">
                   Suscripción actual
                 </span>
-                <span
-                  v-if="plan.isPopular"
-                  class="status-badge popular"
-                >
+                <span v-if="plan.isPopular" class="status-badge popular">
                   <i class="fa-solid fa-star me-1"></i>Popular
                 </span>
               </div>
@@ -54,18 +40,23 @@
 
             <div class="subscription-body">
               <div class="features-list">
-                <ul
-                  class="plan-features"
-                  v-html="formattedDesc[index].desc"
-                ></ul>
+                <ul class="plan-features" v-html="formattedDesc[index].desc"></ul>
               </div>
             </div>
 
             <div class="subscription-actions">
-              <button
-                class="btn btn-theme"
-                @click="handleContractPlan(plan)"
-              >
+              <div v-if="currentSub && hasapplicablePurchase" class="subscription-info-alert">
+                <div class="alert alert-warning d-flex align-items-center p-2 mt-2">
+                  <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
+                  <div class="d-flex flex-column align-items-start w-100">
+                    <div class="mb-1 me-sm-2">
+                      <small class="d-block fw-bold text-warning">Cambio de Plan Restringido</small>
+                      <small class="text-black">Usted tiene una compra a credito activa. Debe completarla antes de poder cambiar su suscripcion. Contacte a soporte si el cambio de suscripcion es necesario.</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button v-else class="btn btn-theme" @click="handleContractPlan(plan)">
                 <i class="fas fa-check-circle me-2"></i>
                 {{ isAffiliate ? 'Contratar Plan' : 'Seleccionar Plan' }}
               </button>
@@ -76,18 +67,15 @@
     </div>
 
     <!-- Payment Modal -->
-    <NotifyPaymentModal
-      :selected-plan="selectedPlan"
-      :exchange="exchange"
-      :role="userType"
-      @submit-payment="handlePaymentSubmit"
-      @file-upload="handleFileUpload"
-    />
+    <NotifyPaymentModal :selected-plan="selectedPlan" :exchange="exchange" :role="userType"
+      @submit-payment="handlePaymentSubmit" @file-upload="handleFileUpload" />
   </div>
 </template>
 
 <script>
 import NotifyPaymentModal from './userModals/NotifyPaymentModal.vue';
+import { db } from "@/firebase/init";
+import { ref as dbRef, get } from "firebase/database";
 
 export default {
   name: "UserSubscriptionsView",
@@ -103,6 +91,11 @@ export default {
     plans: {
       type: Array,
       default: () => []
+    },
+    currentUserId: {
+      type: String,
+      required: true,
+      validator: (value) => value && value.trim() !== ''
     },
     currentSub: {
       type: String,
@@ -120,7 +113,79 @@ export default {
   },
   data() {
     return {
-      selectedPlan: null
+      selectedPlan: null,
+      hasapplicablePurchase: false,
+      purchasesLoading: true,
+      loadingError: null
+    }
+  },
+  watch: {
+    // Watch for changes in currentUserId to reload purchases
+    currentUserId: {
+      immediate: true,
+      handler(newUserId) {
+        if (newUserId) {
+          this.loadUserPurchases();
+        }
+      }
+    }
+  },
+  methods: {
+    async loadUserPurchases() {
+      // Validate user ID before attempting to load
+      if (!this.currentUserId) {
+        console.warn('No user ID provided for loading purchases');
+        this.hasapplicablePurchase = false;
+        this.purchasesLoading = false;
+        return;
+      }
+
+      try {
+        // Reset flags before checking
+        this.hasapplicablePurchase = false;
+        this.loadingError = null;
+        this.purchasesLoading = true;
+
+        // Check credit purchase payments for the current month
+        const purchasesRef = dbRef(db, `Users/${this.currentUserId}/credit/main/purchases`);
+        const purchasesSnapshot = await get(purchasesRef);
+
+        if (purchasesSnapshot.exists()) {
+          const purchases = purchasesSnapshot.val();
+
+          // Find first applicable ongoing purchase
+          const applicablePurchase = Object.values(purchases).find(purchase => {
+            // Check if purchase is ongoing (not all cuotas are paid)
+            const isPurchaseOngoing = purchase.cuotas && 
+              Object.values(purchase.cuotas).some(cuota => !cuota.paid);
+
+            // Check for purchases with subscription maintenance add-on
+            return purchase.includeCuotaAddOn && isPurchaseOngoing;
+          });
+
+          // Set flag based on finding an applicable purchase
+          this.hasapplicablePurchase = !!applicablePurchase;
+        } else {
+          // No purchases found
+          this.hasapplicablePurchase = false;
+        }
+      } catch (error) {
+        console.error('Error loading user purchases:', error);
+        this.hasapplicablePurchase = false;
+        this.loadingError = error;
+      } finally {
+        this.purchasesLoading = false;
+      }
+    },
+    handleContractPlan(plan) {
+      this.selectedPlan = plan;
+      this.$emit('contract-plan', plan);
+    },
+    handlePaymentSubmit(paymentData) {
+      this.$emit('payment-submitted', paymentData);
+    },
+    handleFileUpload(fileData) {
+      this.$emit('file-uploaded', fileData);
     }
   },
   computed: {
@@ -140,20 +205,6 @@ export default {
           .map((sentence) => `<li>${sentence.trim()}</li>`)
           .join("") || "",
       }));
-    }
-  },
-  methods: {
-    handleContractPlan(plan) {
-      this.selectedPlan = plan;
-      this.$emit('contract-plan', plan);
-    },
-
-    handlePaymentSubmit(paymentData) {
-      this.$emit('payment-submitted', paymentData);
-    },
-
-    handleFileUpload(fileData) {
-      this.$emit('file-uploaded', fileData);
     }
   }
 };
@@ -325,4 +376,4 @@ export default {
     width: 100%;
   }
 }
-</style> 
+</style>

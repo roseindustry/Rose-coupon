@@ -98,28 +98,37 @@
               <div class="row g-3 mb-3">
                 <div class="col-6 col-md-3">
                   <small class="text-secondary d-block">Precio Total</small>
-                  <span class="text-light">${{ purchase.productPrice.toLocaleString() }}</span>
+                  <span class="text-light">${{ Number(purchase.includeCuotaAddOn ? (purchase.purchaseAmount + purchase.loanAmountWithAddOn) : purchase.productPrice).toFixed(2) }}</span>
                 </div>
                 <div class="col-6 col-md-3">
                   <small class="text-secondary d-block">Cuota Inicial</small>
-                  <span class="text-light">${{ purchase.purchaseAmount.toLocaleString() }}</span>
+                  <span class="text-light">${{ Number(purchase.purchaseAmount).toFixed(2) }}</span>
                 </div>
                 <div class="col-6 col-md-3">
                   <small class="text-secondary d-block">Monto Préstamo</small>
-                  <span class="text-light">${{ purchase.loanAmount.toLocaleString() }}</span>
+                  <span class="text-light">${{ Number(purchase.includeCuotaAddOn ? purchase.loanAmountWithAddOn : purchase.loanAmount).toFixed(2) }}</span>
                 </div>
                 <div class="col-6 col-md-3">
                   <small class="text-secondary d-block">Cuotas</small>
                   <span class="text-light">{{ purchase.cuotas.length }}</span>
                 </div>  
               </div>
+
+              <div class="d-flex justify-content-center">
+                <div v-if="purchase.includeCuotaAddOn && purchase.maintenancePeriod" class="alert alert-info mt-3 alert-div" role="alert">
+                  <i class="fa-solid fa-info-circle me-2"></i>
+                  Mantener al día las cuotas de esta compra mantendrá activa tu suscripción de forma automática por <strong>{{ purchase.maintenancePeriod }} meses.</strong>
+                </div>
+              </div>
               
-              <button 
-                class="btn btn-sm btn-theme"
-                @click="$emit('view-quotas', purchase)"
-                :disabled="purchase.paid">
-                Ver Cuotas
-              </button>
+              <div>
+                <button 
+                  class="btn btn-sm btn-theme"
+                  @click="$emit('view-quotas', purchase)"
+                  :disabled="purchase.paid">
+                  Ver Cuotas
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -246,6 +255,11 @@ export default {
 </script>
 
 <style scoped>
+.alert-div {
+  width: auto;
+  display: inline-block;
+  max-width: 100%;
+}
 .badge {
   padding: 0.5em 1em;
   border: 1px solid;

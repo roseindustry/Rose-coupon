@@ -18,9 +18,11 @@ import {
   RecaptchaVerifier,
 } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
-import { toast as showToast } from "@/utils/toast";
 import { sendEmail } from "@/utils/emailService";
+import { toast as showToast } from "@/utils/toast";
 import "toastify-js/src/toastify.css";
+import Swal from 'sweetalert2';
+import 'sweetalert2/src/sweetalert2.scss';
 import { Modal } from "bootstrap";
 import moment from "moment";
 import venezuela from "venezuela";
@@ -169,6 +171,8 @@ export default defineComponent({
       editingEmail: false,
       editingPhone: false,
       isRequestPending: false,
+      hasapplicablePurchase: false,
+      hasCurrentMonthPayment: false
     };
   },
   async mounted() {
@@ -725,25 +729,84 @@ export default defineComponent({
       const snapshot = await get(userRef);
 
       if (snapshot.exists()) {
-        const subscriptionData = snapshot.val();
-        const lastPaymentDate = new Date(
-          subscriptionData.lastPaymentDate || null
-        );
-        const payDay = new Date(subscriptionData.payDay); // Assuming payDay is a stored date
+        const subscriptionData = snapshot.val();        
+        const payDay = new Date(subscriptionData.payDay);
         const currentDate = new Date();
 
-        // Reset if the current date is past the payDay and payment was not uploaded for this month
-        if (
-          currentDate >= payDay &&
-          lastPaymentDate.getMonth() !== currentDate.getMonth()
-        ) {
-          await update(userRef, {
-            isPaid: false, // Reset to mark unpaid month
-            status: false,
-            paymentUploaded: false,
-          });
+        // Check both subscription payment and credit purchase payments
+        try {
+          // Check subscription payment
+          const isSubscriptionPaid = subscriptionData.isPaid || subscriptionData.paymentVerified;
 
-          showToast.error("Debes subir tu comprobante de pago para este mes.");
+          // Check credit purchase payments for the current month
+          const purchasesRef = dbRef(db, `Users/${this.userId}/credit/main/purchases`);
+          const purchasesSnapshot = await get(purchasesRef);
+
+          if (purchasesSnapshot.exists()) {
+            const purchases = purchasesSnapshot.val();
+            
+            // Reset flags before checking
+            this.hasapplicablePurchase = false;
+            this.hasCurrentMonthPayment = false;
+
+            // Iterate through purchases to find ongoing purchases
+            Object.values(purchases).forEach(purchase => {
+              // Check if purchase is ongoing (not all cuotas are paid)
+              const isPurchaseOngoing = purchase.cuotas && Object.values(purchase.cuotas).some(cuota => !cuota.paid);
+
+              // Check for purchases with subscription maintenance add-on
+              if (purchase.includeCuotaAddOn && isPurchaseOngoing) {
+                this.hasapplicablePurchase = true;
+
+                // Check for current month payment in ongoing purchases
+                if (purchase.cuotas) {
+                  Object.values(purchase.cuotas).forEach(cuota => {
+                    if (cuota.paid) {
+                      const cuotaDate = new Date(cuota.paymentDate);
+                      if (cuotaDate.getMonth() === currentDate.getMonth() &&
+                          cuotaDate.getFullYear() === currentDate.getFullYear()) {
+                        this.hasCurrentMonthPayment = true;
+                      }
+                    }
+                  });
+                }
+              }
+            });
+          }
+
+          // Reset if no payment was made this month (either subscription or credit purchase)
+          if (currentDate >= payDay && 
+            (!isSubscriptionPaid || 
+            (this.hasapplicablePurchase && !this.hasCurrentMonthPayment))) 
+          {
+            await update(userRef, {
+              isPaid: false, // Reset to mark unpaid month
+              status: false,
+              paymentUploaded: false,
+              paymentVerified: false,
+              paymentUrl: null,
+            });
+
+            Swal.fire({
+              title: 'Debes ponerte al día con el pago de tu suscripción.',
+              text: 'Recuerda estar solvente con el pago de tu suscripción para poder optar por compras a crédito.',
+              icon: 'info',
+              confirmButtonText: 'OK'
+            });
+          }
+
+          console.log(this.hasapplicablePurchase, this.hasCurrentMonthPayment);
+
+          // if (this.applicablePurchase) {
+          //   console.log('Este usuario tiene una compra a credito activa');
+          // } else if (this.applicablePurchase && this.hasCurrentMonthPayment) {
+          //   console.log('Este usuario tiene una compra a credito activa Y pagó este mes');
+          // } else {
+          //   console.log('Usuario sin compra aplicable.');
+          // }
+          
+        } catch (error) {
+          console.error('Error checking payment status:', error);
         }
       }
     },
@@ -1049,9 +1112,9 @@ export default defineComponent({
         }
 
         // Reset captcha if there was an error
-        if (window.recaptchaWidgetId) {
-          grecaptcha.reset(window.recaptchaWidgetId);
-        }
+        // if (window.recaptchaWidgetId) {
+        //   grecaptcha.reset(window.recaptchaWidgetId);
+        // }
       } finally {
         this.phoneVerificationLoading = false;
       }
@@ -1272,48 +1335,6 @@ export default defineComponent({
         showToast('Error al inicializar reCAPTCHA. Por favor, recargue la página.', 'error');
       }
     },
-    // initRecaptcha() {
-    //   try {
-    //     // Clear any existing reCAPTCHA
-    //     if (this.recaptchaVerifier) {
-    //       this.recaptchaVerifier.clear();
-    //       this.recaptchaVerifier = null;
-    //     }
-
-    //     // Make sure the container exists
-    //     const recaptchaContainer = document.getElementById('recaptcha-container');
-    //     if (!recaptchaContainer) {
-    //       console.error('reCAPTCHA container not found');
-    //       return;
-    //     }
-
-    //     // Create a new reCAPTCHA verifier
-    //     this.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-    //       'size': 'normal',
-    //       'callback': (response) => {
-    //         this.captchaVerified = true;
-    //         console.log('reCAPTCHA verified');
-    //       },
-    //       'expired-callback': () => {
-    //         this.captchaVerified = false;
-    //         console.log('reCAPTCHA expired');
-    //         showToast.warning('El captcha ha expirado. Por favor, inténtelo de nuevo.');
-    //       }
-    //     });
-
-    //     // Render the reCAPTCHA
-    //     this.recaptchaVerifier.render().then((widgetId) => {
-    //       this.recaptchaWidgetId = widgetId;
-    //       this.recaptchaVisible = true;
-    //       console.log('reCAPTCHA rendered with ID:', widgetId);
-    //     }).catch(error => {
-    //       console.error('Error rendering reCAPTCHA:', error);
-    //     });
-    //   } catch (error) {
-    //     console.error('Error initializing reCAPTCHA:', error);
-    //     showToast.error('Error al inicializar reCAPTCHA. Por favor, recargue la página.');
-    //   }
-    // },
 
     // Check verification status
     async fetchVerificationStatus() {
@@ -1404,17 +1425,6 @@ export default defineComponent({
         this.editingEmail = true;
       } else if (field === 'phone') {
         this.editingPhone = true;
-
-        // Initialize reCAPTCHA when starting to edit phone
-        this.$nextTick(() => {
-          console.log('Initializing reCAPTCHA for phone editing');
-          // Force re-initialization of reCAPTCHA
-          if (this.recaptchaVerifier) {
-            this.recaptchaVerifier.clear();
-            this.recaptchaVerifier = null;
-          }
-          this.initRecaptcha();
-        });
       }
     },
     cancelEditing(field) {
@@ -1852,7 +1862,7 @@ export default defineComponent({
               <i class="fas fa-handshake me-2"></i>
               Suscripción
             </h4>
-            <div v-if="subscriptionPlan" class="row">
+            <div v-if="subscriptionPlan && !hasapplicablePurchase" class="row">
               <div class="col-md-6">
                 <div class="d-flex align-items-center gap-2 mb-3">
                   <p class="mb-0">
@@ -1905,6 +1915,37 @@ export default defineComponent({
                   <router-link to="/suscripciones" class="btn btn-theme-info">
                     <i class="fas fa-arrow-up me-2"></i>Cambiar Plan
                   </router-link>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="hasapplicablePurchase && hasCurrentMonthPayment" class="row">
+              <div class="col-12">
+                <div class="alert alert-success d-flex align-items-center">
+                  <i class="fas fa-check-circle me-3 fa-2x"></i>
+                  <div>
+                    <h5 class="mb-1">Suscripción Activa</h5>
+                    <p class="mb-0">Estás al día con el pago de cuotas de tu compra más reciente. Tu suscripción está activa.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="row">
+              <div class="col-12">
+                <div class="alert alert-warning d-flex align-items-center">
+                  <i class="fas fa-exclamation-triangle me-3 fa-2x"></i>
+                  <div>
+                    <h5 class="mb-1">Suscripción Pendiente</h5>
+                    <p class="mb-0">
+                      Para mantener tu suscripción activa, asegúrate de estar al día con los pagos de tus cuotas. 
+                      Cada pago puntual de tus compras a crédito ayuda a mantener tu suscripción vigente.
+                    </p>
+                    <div class="mt-2">
+                      <router-link to="/creditos" class="btn btn-sm btn-outline-warning">
+                        <i class="fas fa-credit-card me-1"></i>
+                        Ver Mis Compras recientes
+                      </router-link>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

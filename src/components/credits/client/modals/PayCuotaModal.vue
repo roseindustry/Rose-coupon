@@ -74,11 +74,11 @@
           <div class="payment-methods mb-4">
             <h5 class="text-center mb-3">
               <i class="purchase-icon fas fa-money-bill-transfer me-2"></i>
-              {{ isLatePayment ? 'Métodos de Pago de Rose App' : 'Métodos de Pago del Comercio' }}
+              {{ affiliate && affiliate.paymentMethods && affiliate.paymentMethods.length > 0 ? `Métodos de Pago de ${affiliate.companyName}` : 'Métodos de Pago de Rose App' }}
             </h5>
 
             <!-- Regular payment methods (from affiliate) -->
-            <div v-if="!isLatePayment && affiliate && affiliate.paymentMethods && affiliate.paymentMethods.length > 0">
+            <div v-if="affiliate && affiliate.paymentMethods && affiliate.paymentMethods.length > 0">
               <div v-for="(method, index) in affiliate.paymentMethods" :key="index" class="method-details">
                 <div class="d-flex align-items-center">
                   <i :class="method.type === 'bank' ? 'fas fa-university' : 'fas fa-mobile-alt'"
@@ -89,11 +89,9 @@
                   <div v-if="method.type === 'bank'">
                     <div class="d-flex align-items-center">
                       <div>Titular: <span class="text-light">{{ method.holder }}</span></div>
-
                     </div>
                     <div class="d-flex align-items-center">
                       <div>Banco: <span class="text-light">{{ method.bank }}</span></div>
-
                     </div>
                     <div class="d-flex align-items-center">
                       <div>Cuenta: <span class="text-light">{{ method.account }}</span></div>
@@ -111,7 +109,6 @@
                   <div v-else-if="method.type === 'mobile'">
                     <div class="d-flex align-items-center">
                       <div>Titular: <span class="text-light">{{ method.holder }}</span></div>
-
                     </div>
                     <div class="d-flex align-items-center">
                       <div>Número: <span class="text-light">{{ method.phoneNumber }}</span></div>
@@ -119,16 +116,13 @@
                         <i class="fas fa-copy"></i>
                       </button>
                     </div>
-
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Alternative payment methods for late payments -->
-            <div v-if="isLatePayment" class="alternative-methods">
-
-              <!-- Mobile Payment -->
+            <!-- Fallback to Rose App payment methods -->
+            <div v-else class="alternative-methods">
               <div class="method-details">
                 <div class="d-flex align-items-center">
                   <i class="fas fa-mobile-alt me-2 text-purple"></i>
@@ -137,11 +131,9 @@
                 <div class="ms-4">
                   <div class="d-flex align-items-center">
                     <div><span class="fw-bold">Titular:</span> Rose Industry C.A.</div>
-
                   </div>
                   <div class="d-flex align-items-center">
                     <div><span class="fw-bold">Banco:</span> Banco Provincial</div>
-
                   </div>
                   <div class="d-flex align-items-center">
                     <div><span class="fw-bold">Teléfono:</span> 0424-6003370</div>
@@ -155,17 +147,8 @@
                       <i class="fas fa-copy"></i>
                     </button>
                   </div>
-
                 </div>
               </div>
-            </div>
-
-            <!-- No payment methods message -->
-            <div
-              v-if="!isLatePayment && (!affiliate || !affiliate.paymentMethods || affiliate.paymentMethods.length === 0)"
-              class="text-center text-muted py-3">
-              <i class="fas fa-exclamation-circle me-2"></i>
-              El comercio no ha configurado métodos de pago.
             </div>
           </div>
 

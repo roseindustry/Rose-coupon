@@ -285,8 +285,8 @@ export default defineComponent({
                             </div>
                             <div class="status-info">
                                 <div class="status-name">{{ subscriptionPlan.name.toUpperCase() }}</div>
-                                <small class="status-hint">
-                                    {{ subscriptionPlan.isPaid ? 'Suscripción activa' : 'Pago pendiente' }}
+                                <small class="status-hint fw-bold" :class="subscriptionPlan.isPaid ? 'text-success' : 'text-warning'">
+                                    {{ subscriptionPlan.isPaid ? 'Suscripción activa' : 'Pago pendiente. Recuerde estar al día' }}
                                 </small>
                             </div>
                         </div>

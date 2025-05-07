@@ -382,8 +382,6 @@ export default {
                                     ...subData,
                                     id: subId // Include the subscription ID
                                 };
-                            } else {
-                                client.subscription = null; // Handle case where subscription data is not found
                             }
                         } else {
                             client.subscription = null; // Client does not have a subscription
@@ -482,7 +480,7 @@ export default {
                 this.allAffiliates = [];
             }
         },
-        async handleDataRefetch(userId){
+        async handleDataRefetch(userId) {
             const creditData = await this.fetchCredit(userId);
             if (creditData) {
                 this.currentClient = {
@@ -1407,15 +1405,23 @@ export default {
                 // Create the purchase object
                 const purchase = {
                     id: purchaseId,
+
                     clientName: purchaseData.clientName,
                     client_id: purchaseData.clientId,
                     affiliate_id: this.userId,
+
                     productName: purchaseData.productName,
                     productPrice: purchaseData.productPrice,
+
                     purchaseAmount: purchaseData.purchaseAmount,
                     remainingAmount: purchaseData.remainingAmount,
                     loanAmount: purchaseData.loanAmount,
+                    loanAmountWithAddOn: purchaseData.loanAmountWithAddOn,
+
                     includeFee: purchaseData.includeFee,
+                    includeCuotaAddOn: purchaseData.includeCuotaAddOn,
+                    maintenancePeriod: purchaseData.includeCuotaAddOn ? purchaseData.maintenancePeriod : null,
+
                     terms: purchaseData.terms,
                     frequency: purchaseData.frequency,
                     purchaseDate: new Date(purchaseData.purchaseDate).toISOString().split('T')[0],
@@ -1432,9 +1438,11 @@ export default {
                 const affiliateCreditSnapshot = await get(affiliateCreditRef);
                 const affiliateCredit = affiliateCreditSnapshot.val() || {};
 
+                const purchaseLoan = purchaseData.includeCuotaAddOn ? purchaseData.loanAmountWithAddOn : purchaseData.loanAmount;
+
                 // Calculate new available credits
-                const newClientAvailableCredit = (clientCredit.availableCredit || 0) - purchaseData.loanAmount;
-                const newAffiliateAvailableCredit = (affiliateCredit.availableCredit || 0) - purchaseData.loanAmount;
+                const newClientAvailableCredit = (clientCredit.availableCredit || 0) - purchaseLoan;
+                const newAffiliateAvailableCredit = (affiliateCredit.availableCredit || 0) - purchaseLoan;
 
                 if (newClientAvailableCredit < 0) {
                     throw new Error('El restante de la compra supera el monto de crédito disponible del cliente.');
@@ -1468,7 +1476,7 @@ export default {
                 console.error('Error registering purchase:', error);
                 Swal.fire({
                     title: 'Error al registrar la venta 😕',
-                    text: 'Por favor, recargue la página e intente nuevamente.',
+                    text: error,
                     icon: 'error',
                     confirmButtonText: 'OK'
                 });
@@ -1675,8 +1683,8 @@ export default {
                     <h5 class="mb-1">Cliente con pagos pendientes</h5>
                     <p class="mb-1">Este cliente tiene {{ selectedClient.unpaidCuotasCount }} cuota{{
                         selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} vencida{{ selectedClient.unpaidCuotasCount
-                        !== 1 ?
-                        's' : '' }} sin pagar.</p>
+                            !== 1 ?
+                            's' : '' }} sin pagar.</p>
                     <p v-if="selectedClient.unpaidCuotasCount > 2" class="mb-0 fw-bold">
                         No se puede proceder con la compra hasta que el cliente regularice sus pagos.
                     </p>

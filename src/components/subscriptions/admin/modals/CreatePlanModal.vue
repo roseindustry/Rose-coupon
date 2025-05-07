@@ -26,9 +26,22 @@
                             <input v-model="clientPlan.price" type="number" class="form-control" required />
                         </div>
                     </div>
-                    <div class="form-group mb-3">
-                        <label class="form-label">Límite de Solicitudes <span class="text-danger">*</span></label>
-                        <input v-model="clientPlan.requestLimit" type="number" class="form-control" required />
+                    <div class="row">
+                        <div class="col-12 col-lg-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Solicitudes de Cupones</label>
+                                <input v-model="clientPlan.requestLimit" type="number" class="form-control" />
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Aumento en pago de cuotas</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input v-model="clientPlan.cuotaAddOn" type="number" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group mb-4">
                         <label class="form-label">Icono <span class="text-danger">*</span></label>
@@ -122,6 +135,7 @@ export default {
                 desc: '',
                 price: 0,
                 requestLimit: 0,
+                cuotaAddOn: 0,
                 icon: ''
             },
             affiliatePlan: {
@@ -149,6 +163,7 @@ export default {
                         desc: this.clientPlan.desc,
                         price: this.clientPlan.price,
                         requestLimit: this.clientPlan.requestLimit || null,
+                        cuotaAddOn: this.clientPlan.cuotaAddOn || null,
                         icon: this.clientPlan.icon,
                     };
                     const plansRef = dbRef(db, 'Suscriptions');
@@ -195,6 +210,7 @@ export default {
                     desc: '',
                     price: 0,
                     requestLimit: 0,
+                    cuotaAddOn: 0,
                     icon: ''
                 };
                 this.inputIcon = false;

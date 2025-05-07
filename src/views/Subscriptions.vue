@@ -69,6 +69,7 @@ export default {
         desc: "",
         price: 0,
         requestLimit: 0,
+        cuotaAddOn: 0,
         icon: "",
       },
       editClientPlanData: {
@@ -78,6 +79,7 @@ export default {
         desc: "",
         price: 0,
         requestLimit: 0,
+        cuotaAddOn: 0,
         icon: "",
       },
       affiliatePlan: {
@@ -1040,7 +1042,7 @@ export default {
       @page-changed="handlePageChange" @plans-updated="fetchPlans" @exchange-updated="handleExchangeUpdated" />
 
     <!-- Client/Affiliate View -->
-    <UserSubscriptionsView v-else :loading="loadingPlans" :plans="sortedPlans" :current-sub="currentSub"
+    <UserSubscriptionsView v-else :loading="loadingPlans" :currentUserId="userId" :plans="sortedPlans" :current-sub="currentSub"
       :user-type="role || 'cliente'" :exchange="exchange" @contract-plan="contractPlan"
       @payment-submitted="notifyPayment" @file-uploaded="handleFileUpload" />
 

@@ -130,7 +130,7 @@
                           </div>
                           <div class="purchase-details-right">
                             <span class="purchase-date badge bg-primary">{{ formatDate(sale.purchaseDate) }}</span>
-                            <span class="purchase-amount">${{ sale?.productPrice?.toFixed(2) }}</span>
+                            <span class="purchase-amount">${{ Number(sale?.includeCuotaAddOn ? (sale?.loanAmountWithAddOn + sale?.purchaseAmount) : sale?.productPrice).toFixed(2) || 0 }}</span>
                             <span class="purchase-status" :class="sale.paid ? 'text-success' : 'text-warning'">
                               {{ sale.paid ? 'Completado' : 'En Proceso' }}
                             </span>
@@ -163,7 +163,7 @@
                             </div>
                             <div class="detail-item">
                               <span class="label me-2">Préstamo:</span>
-                              <span class="value">${{ sale?.loanAmount?.toFixed(2) }}</span>
+                              <span class="value">${{ Number(sale?.includeCuotaAddOn ? sale?.loanAmountWithAddOn : sale?.loanAmount).toFixed(2) }}</span>
                             </div>
                           </div>
                           <div class="installments-table" v-if="sale.cuotas">
@@ -212,7 +212,7 @@
                           </div>
                           <div class="purchase-details-right">
                             <span class="purchase-date">{{ formatDate(purchase.purchaseDate) }}</span>
-                            <span class="purchase-amount">${{ purchase.productPrice.toFixed(2) }}</span>
+                            <span class="purchase-amount">${{ Number(purchase.includeCuotaAddOn ? (purchase.purchaseAmount + purchase.loanAmountWithAddOn) : purchase.productPrice).toFixed(2) }}</span>
                             <span class="purchase-status" :class="purchase.paid ? 'text-success' : 'text-warning'">{{ purchase.paid ? 'Completado' : 'En Proceso' }}</span>
                           </div>
                         </div>
@@ -233,7 +233,7 @@
                             </div>
                             <div class="detail-item">
                               <span class="label me-2">Préstamo:</span>
-                              <span class="value">${{ purchase.loanAmount.toFixed(2) }}</span>
+                              <span class="value">${{ Number(purchase.includeCuotaAddOn ? purchase.loanAmountWithAddOn : purchase.loanAmount).toFixed(2) }}</span>
                             </div>
                             <div class="detail-item">
                               <span class="label me-2">Plazo:</span>

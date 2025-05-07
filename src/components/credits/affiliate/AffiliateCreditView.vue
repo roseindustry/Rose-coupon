@@ -8,23 +8,125 @@
     </div>
 
     <div v-else>
-      <!-- Header with Credit Stats -->
+      <!-- Header -->
       <div class="mb-4">
-        <h2 class="mb-3 fw-500 text-center text-primary">Panel de Crédito del Comercio</h2>
-        <div class="row g-3">
-          <div class="col-md-6">
-            <div class="card h-100">
-              <div class="card-body text-center">
-                <h6 class="text-secondary mb-2">Crédito Total</h6>
-                <h4 class="text-light">${{ creditData?.mainCredit?.toLocaleString() || 0 }}</h4>
+        <div class="credit-panel">
+          <div class="credit-header mb-4">
+            <h2 class="credit-title">Panel de Crédito del Comercio</h2>
+            <button class="btn-history-toggle" @click="toggleSalesHistory"
+              :title="showHistory ? 'Ocultar historial de ventas' : 'Mostrar historial de ventas'">
+              <i class="fas" :class="showHistory ? 'fa-times' : 'fa-solid fa-clock-rotate-left'"></i>
+            </button>
+          </div>
+          <!-- Credit Stats -->
+          <div class="row g-4">
+            <div class="col-md-4">
+              <div class="credit-summary-card">
+                <div class="credit-summary-icon">
+                  <i class="fas fa-wallet"></i>
+                </div>
+                <div class="credit-summary-content">
+                  <h6 class="credit-summary-label">Crédito Total</h6>
+                  <div class="credit-summary-value">
+                    ${{ creditData?.mainCredit?.toLocaleString() || 0 }}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="credit-summary-card">
+                <div class="credit-summary-icon">
+                  <i class="fas fa-credit-card"></i>
+                </div>
+                <div class="credit-summary-content">
+                  <h6 class="credit-summary-label">Crédito Disponible</h6>
+                  <div class="credit-summary-value">
+                    ${{ creditData?.availableMainCredit?.toLocaleString() || 0 }}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="credit-summary-card">
+                <div class="credit-summary-icon">
+                  <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="credit-summary-content">
+                  <h6 class="credit-summary-label">Tasa de Uso</h6>
+                  <div class="credit-summary-value">
+                    {{ creditData?.mainCredit ?
+                      ((creditData.mainCredit - creditData.availableMainCredit) / creditData.mainCredit * 100).toFixed(1)
+                      : 0 }}%
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          <div class="col-md-6">
-            <div class="card h-100">
-              <div class="card-body text-center">
-                <h6 class="text-secondary mb-2">Crédito Disponible</h6>
-                <h4 class="text-light">${{ creditData?.availableMainCredit?.toLocaleString() || 0 }}</h4>
+          <!-- Recent activity -->
+          <div class="row g-4 mt-3">
+            <div class="col-md-6">
+              <div class="sales-card">
+                <div class="sales-card-header">
+                  <h5 class="sales-card-title">Ventas Recientes</h5>
+                  <span class="sales-card-badge">Últimas 5</span>
+                </div>
+                <div class="sales-card-body">
+                  <div v-if="recentSales.length > 0" class="sales-list">
+                    <div v-for="sale in recentSales" :key="sale.id" class="sales-item">
+                      <div class="sales-item-info">
+                        <div class="sales-item-client">{{ sale.clientName }}</div>
+                        <div class="sales-item-date">{{ formatDate(sale.purchaseDate) }}</div>
+                      </div>
+                      <div class="sales-item-details d-flex justify-content-between align-items-center">
+                        <div class="sales-item-amount me-3">${{ Number(sale.productPrice).toFixed(2) === 'NaN' ? '0.00'
+                          : Number(sale.productPrice).toFixed(2) }}</div>
+                        <div class="sales-item-status" :class="{
+                          'status-completed': sale.paid,
+                          'status-pending': !sale.paid
+                        }">
+                          {{ sale.paid ? 'Completado' : 'Pendiente' }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="sales-empty-state">
+                    <i class="fas fa-shopping-cart"></i>
+                    <p>No hay ventas registradas</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="payment-status-card">
+                <div class="payment-status-header">
+                  <h5 class="payment-status-title">Estado de Pagos</h5>
+                </div>
+                <div class="payment-status-body">
+                  <div class="row g-3">
+                    <div class="col-6">
+                      <div class="payment-status-item payment-status-pending">
+                        <div class="payment-status-icon">
+                          <i class="fas fa-hourglass-half"></i>
+                        </div>
+                        <div class="payment-status-content">
+                          <h6>Pendientes</h6>
+                          <div class="payment-status-count">{{ pendingPayments.length }}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="payment-status-item payment-status-completed">
+                        <div class="payment-status-icon">
+                          <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="payment-status-content">
+                          <h6>Completados</h6>
+                          <div class="payment-status-count">{{ paidPurchases.length }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -34,10 +136,13 @@
       <!-- Main Content Area -->
       <div class="row g-4">
         <!-- Left Column: New Purchase Form -->
-        <div class="col-lg-7">
+        <div v-if="!showHistory" class="col-lg-7">
           <div class="card">
-            <div class="card-header">
-              <h5 class="text-black mb-0">Nueva Venta</h5>
+            <div class="purchase-summary-header">
+              <h5 class="purchase-summary-title">
+                <i class="fa-solid fa-plus me-2"></i>
+                Nueva Venta
+              </h5>
             </div>
             <div class="card-body">
               <form @submit.prevent="handlePurchase">
@@ -57,56 +162,6 @@
                           </div>
                         </template>
                       </SearchInput>
-                    </div>
-                  </div>
-
-                  <!-- Selected Client Info -->
-                  <div v-if="selectedClient" class="selected-client-info p-3 border rounded bg-dark">
-                    <div class="d-flex justify-content-between align-items-start">
-                      <div>
-                        <h6 class="text-light mb-2">{{ selectedClient.firstName }} {{ selectedClient.lastName }}</h6>
-                        <p class="text-secondary mb-2">V{{ selectedClient.identification }}</p>
-                      </div>
-                      <div class="text-end">
-                        <p class="text-light mb-1">Crédito Disponible</p>
-                        <h5 class="text-success">${{ selectedClient.credit?.availableMainCredit?.toLocaleString() || 0
-                          }}</h5>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Warning for unverified user -->
-                  <div v-if="selectedClient && (!selectedClient.emailVerified || !selectedClient.phoneVerified)"
-                    class="alert alert-danger mt-3">
-                    <div class="d-flex align-items-start">
-                      <i class="fas fa-exclamation-circle fa-2x me-2 text-danger"></i>
-                      <div>
-                        <h5 class="mb-1">Cliente no verificado</h5>
-                        <p class="mb-0">El cliente no ha verificado su correo electrónico o número de teléfono.</p>
-                        <p class="mb-0">No se puede proceder con la compra hasta que el cliente verifique su cuenta.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Warning for unpaid cuotas -->
-                  <div v-if="selectedClient && selectedClient.hasUnpaidCuotas" class="mt-3"
-                    :class="selectedClient.unpaidCuotasCount > 2 ? 'alert alert-danger' : 'alert alert-warning'">
-                    <div class="d-flex align-items-start">
-                      <i
-                        :class="selectedClient.unpaidCuotasCount > 2 ? 'fas fa-exclamation-circle fa-2x me-2 text-danger' : 'fas fa-exclamation-triangle fa-2x me-2 text-warning'"></i>
-                      <div>
-                        <h5 class="mb-1">Cliente con pagos pendientes</h5>
-                        <p class="mb-1">Este cliente tiene {{ selectedClient.unpaidCuotasCount }} cuota{{
-                          selectedClient.unpaidCuotasCount
-                            !== 1 ? 's' : '' }} vencida{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} sin pagar.
-                        </p>
-                        <p v-if="selectedClient.unpaidCuotasCount > 2" class="mb-0 fw-bold">
-                          No se puede proceder con la compra hasta que el cliente regularice sus pagos.
-                        </p>
-                        <p v-else class="mb-0">
-                          El cliente puede proceder con la compra, pero se recomienda regularizar los pagos pendientes.
-                        </p>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -149,11 +204,23 @@
                     </div>
                   </div>
                   <div class="mb-3">
-                    <div class="form-check">
-                      <input type="checkbox" class="form-check-input" id="includeFee" v-model="includeFee">
-                      <label class="form-check-label" for="includeFee">
-                        Incluir cargo por gestión ($1)
-                      </label>
+                    <div class="row">
+                      <div class="col-12 col-lg-6">
+                        <div class="form-check">
+                          <input type="checkbox" class="form-check-input" id="includeFee" v-model="includeFee">
+                          <label class="form-check-label" for="includeFee">
+                            Incluir cargo por gestión ($1)
+                          </label>
+                        </div>
+                      </div>
+                      <div class="col-12 col-lg-6">
+                        <div class="form-check">
+                          <input type="checkbox" class="form-check-input" id="includeCuotaAddOn" v-model="includeCuotaAddOn">
+                          <label class="form-check-label" for="includeCuotaAddOn">
+                            Incluir Mantenimiento de Suscripción
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -200,25 +267,32 @@
                     <div class="col-12 mb-4">
                       <div class="payment-summary p-3 border rounded bg-dark">
                         <div class="row">
-                          <div class="col-md-3">
+                          <div class="col-md-4">
                             <label class="text-secondary">Inicial</label>
-                            <h5 class="text-light">${{ purchaseAmount.toLocaleString() }}</h5>
+                            <h5 class="text-light">${{ purchaseAmount.toFixed(2) }}</h5>
                             <small class="text-secondary" v-if="includeFee">
                               Incluye cargo de $1 por gestión
                             </small>
                           </div>
                           <div class="col-md-4">
                             <label class="text-secondary">Préstamo</label>
-                            <h5 class="text-light">${{ loanAmount.toLocaleString() }}</h5>
+                            <h5 class="text-light">${{ loanAmount.toFixed(2) }}</h5>
                           </div>
-                          <div class="col-md-2 mt-2 mt-md-0">
+                          <div v-if="includeCuotaAddOn" class="col-md-4">
+                            <label class="text-secondary">Préstamo</label>
+                            <h5 class="text-light">${{ Number(loanAmountWithAddOn).toFixed(2) }}</h5>
+                            <small>Con aumento por cargo de mantenimiento</small>
+                          </div>                          
+                        </div>
+                        <div class="row d-flex justify-content-center mt-3">
+                          <div class="col-md-3 mt-2 mt-md-0">
                             <label class="text-secondary">Cuotas</label>
                             <select v-model="newPurchase.terms" @change="calcs(selectedClient)"
                               class="form-select bg-dark text-light border-secondary">
-                              <option v-for="n in 5" :key="n" :value="n">{{ n }}</option>
+                              <option v-for="n in 12" :key="n" :value="n">{{ n }}</option>
                             </select>
                           </div>
-                          <div class="col-md-3 mt-2 mt-md-0">
+                          <div class="col-md-4 mt-2 mt-md-0">
                             <label class="text-secondary">Frecuencia</label>
                             <select v-model="frequency" @change="calcs(selectedClient)"
                               class="form-select bg-dark text-light border-secondary">
@@ -238,14 +312,18 @@
                             <tr>
                               <th>Cuota</th>
                               <th>Fecha</th>
-                              <th class="text-end">Monto</th>
+                              <th class="text-end">
+                                Monto <small>{{ includeCuotaAddOn ? `(+$${selectedClient.subscription.cuotaAddOn}) cargo de mantenimiento` :  '' }}</small>
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
                             <tr v-for="(amount, index) in quotesAmount" :key="index">
                               <td>Cuota {{ index + 1 }}</td>
                               <td>{{ formatDate(cuotaDates[index]) }}</td>
-                              <td class="text-end">${{ amount.toFixed(2) }}</td>
+                              <td class="text-end">
+                                ${{ amount.toFixed(2) }}                                
+                              </td>
                             </tr>
                           </tbody>
                         </table>
@@ -272,7 +350,7 @@
                       <div class="alert-content">
                         <h5 class="alert-heading mb-1">¡Código Enviado!</h5>
                         <p class="mb-1">{{ successMessage }}</p>
-                      </div>                      
+                      </div>
                     </div>
                     <div v-if="hasExceededAttempts" class="d-flex align-items-center text-danger">
                       <i class="fas fa-ban me-2"></i>
@@ -345,64 +423,209 @@
           </div>
         </div>
 
-        <!-- Right Column: Recent Activity -->
-        <div class="col-lg-5">
-          <!-- Recent Sales Summary -->
-          <div class="card mb-2">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="text-black mb-0">Ventas Recientes</h5>
-              <span class="badge bg-secondary text-black">Últimas 5</span>
+        <!-- Right Column: New Purchase Summary -->
+        <div v-if="!showHistory" class="col-lg-5">
+          <div class="purchase-summary-card">
+            <div class="purchase-summary-header">
+              <h5 class="purchase-summary-title">
+                <i class="fas fa-file-invoice me-2"></i>
+                Resumen de Venta
+              </h5>
             </div>
-            <div class="card-body p-0">
-              <div v-if="recentSales.length > 0" class="list-group list-group-flush">
-                <div v-for="sale in recentSales" :key="sale.id" class="list-group-item bg-dark border-secondary">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                      <h6 class="mb-1 text-light text-truncate" style="max-width: 100px;">{{ sale.clientName }}</h6>
-                      <small class="text-secondary">{{ formatDate(sale.purchaseDate) }}</small>
-                    </div>
 
-                    <div class="text-light">${{ Number(sale.productPrice).toFixed(2) }}</div>
-                    <div class="text-end">
-                      <span :class="['badge', sale.paid ? 'text-success' : 'text-warning']">
-                        {{ sale.paid ? 'Completado' : 'Pendiente' }}
-                      </span>
-                    </div>
+            <div class="purchase-summary-body">
+              <!-- Client Section -->
+              <div class="summary-section">
+                <h6 class="summary-section-title">
+                  <i class="fas fa-user me-2"></i>
+                  Cliente
+                </h6>
+                <div v-if="selectedClient" class="summary-section-content">
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Nombre:</span>
+                    <span class="summary-value">
+                      {{ selectedClient.firstName }} {{ selectedClient.lastName }}
+                    </span>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Identificación:</span>
+                    <span class="summary-value">
+                      V{{ selectedClient.identification }}
+                    </span>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Crédito Disponible:</span>
+                    <span class="summary-value">
+                      ${{ selectedClient.credit?.availableMainCredit?.toLocaleString() || 0 }}
+                    </span>
                   </div>
                 </div>
+                <div v-else class="summary-section-empty">
+                  <i class="fas fa-user-plus"></i>
+                  <p>Seleccione un cliente</p>
+                </div>
               </div>
-              <div v-else>
-                <p class="text-center fw-bold py-4">No hay ventas registradas</p>
-              </div>
-            </div>
-          </div>
 
-          <!-- Payment Status Summary -->
-          <div class="card">
-            <div class="card-header">
-              <h5 class="text-black mb-0">Estado de Pagos</h5>
-            </div>
-            <div class="card-body">
-              <div class="row g-3">
-                <div class="col-6">
-                  <div class="p-3 border border-warning rounded text-center">
-                    <h6 class="text-warning mb-1">Pendientes</h6>
-                    <h4 class="mb-0">{{ pendingPayments.length }}</h4>
-                  </div>
-                </div>
-                <div class="col-6">
-                  <div class="p-3 border border-success rounded text-center">
-                    <h6 class="text-success mb-1">Completados</h6>
-                    <h4 class="mb-0">{{ paidPurchases.length }}</h4>
+              <!-- Warning for unverified user -->
+              <div v-if="selectedClient && (!selectedClient.emailVerified || !selectedClient.phoneVerified)"
+                class="alert alert-danger mt-3">
+                <div class="d-flex align-items-start">
+                  <i class="fas fa-exclamation-circle fa-2x me-2 text-danger"></i>
+                  <div>
+                    <h5 class="mb-1">Cliente no verificado</h5>
+                    <p class="mb-0">El cliente no ha verificado su correo electrónico o número de teléfono.</p>
+                    <p class="mb-0">No se puede proceder con la compra hasta que el cliente verifique su cuenta.</p>
                   </div>
                 </div>
               </div>
+
+              <!-- Warning for unpaid cuotas -->
+              <div v-if="selectedClient && selectedClient.hasUnpaidCuotas" class="mt-3"
+                :class="selectedClient.unpaidCuotasCount > 2 ? 'alert alert-danger' : 'alert alert-warning'">
+                <div class="d-flex align-items-start">
+                  <i
+                    :class="selectedClient.unpaidCuotasCount > 2 ? 'fas fa-exclamation-circle fa-2x me-2 text-danger' : 'fas fa-exclamation-triangle fa-2x me-2 text-warning'"></i>
+                  <div>
+                    <h5 class="mb-1">Cliente con pagos pendientes</h5>
+                    <p class="mb-1">Este cliente tiene {{ selectedClient.unpaidCuotasCount }} cuota{{
+                      selectedClient.unpaidCuotasCount
+                        !== 1 ? 's' : '' }} vencida{{ selectedClient.unpaidCuotasCount !== 1 ? 's' : '' }} sin pagar.
+                    </p>
+                    <p v-if="selectedClient.unpaidCuotasCount > 2" class="mb-0 fw-bold">
+                      No se puede proceder con la compra hasta que el cliente regularice sus pagos.
+                    </p>
+                    <p v-else class="mb-0">
+                      El cliente puede proceder con la compra, pero se recomienda regularizar los pagos pendientes.
+                    </p>
+                  </div>
+                </div>
+              </div>              
+
+              <!-- Product Section -->
+              <div class="summary-section">
+                <h6 class="summary-section-title">
+                  <i class="fas fa-box me-2"></i>
+                  Producto
+                </h6>
+                <div v-if="newPurchase.productName && newPurchase.productPrice" class="summary-section-content">
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Nombre:</span>
+                    <span class="summary-value">
+                      {{ newPurchase.productName }}
+                    </span>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Precio de Contado:</span>
+                    <span class="summary-value">
+                      ${{ Number(newPurchase.productPrice).toFixed(2) }}
+                    </span>
+                  </div>
+                </div>
+                <div v-else class="summary-section-empty">
+                  <i class="fas fa-shopping-bag"></i>
+                  <p>Ingrese detalles del producto</p>
+                </div>
+              </div>
+
+              <!-- Payment Plan Section -->
+              <div class="summary-section">
+                <h6 class="summary-section-title">
+                  <i class="fas fa-credit-card me-2"></i>
+                  Plan de Pagos
+                </h6>
+                <div v-if="calc" class="summary-section-content">
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Pago Inicial:</span>
+                    <span class="summary-value">
+                      ${{ purchaseAmount.toFixed(2) }}
+                      <small v-if="includeFee" class="text-muted ms-1">(+$1.00 gestión)</small>
+                    </span>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Préstamo:</span>
+                    <span class="summary-value">
+                      ${{ loanAmount.toFixed(2) }}
+                    </span>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Número de Cuotas:</span>
+                    <span class="summary-value">
+                      {{ newPurchase.terms }} {{ newPurchase.terms > 1 ? 'cuotas' : 'cuota' }}
+                    </span>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Frecuencia:</span>
+                    <span class="summary-value">
+                      {{ frequency === 2 ? 'Quincenal' : 'Mensual' }}
+                    </span>
+                  </div>
+                </div>
+                <div v-else class="summary-section-empty">
+                  <i class="fas fa-calculator"></i>
+                  <p>Calcule el plan de pagos</p>
+                </div>
+              </div>
+
+              <!-- Total Summary -->
+              <div class="summary-section summary-total">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="summary-total-label">Total:</span>
+                  <span class="summary-total-value">
+                    ${{ (Number(purchaseAmount) + Number(loanAmount)).toFixed(2) }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Charge by Subscription Section -->
+              <div v-if="includeCuotaAddOn" class="summary-section">
+                <h6 class="summary-section-title">
+                  <i class="fas fa-handshake me-2"></i>
+                  Con Mantenimiento de Suscripción
+                </h6>
+                <div class="summary-section-content">
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Plan:</span>
+                    <span class="summary-value">
+                      {{ selectedClient.subscription.name.toUpperCase() }}
+                    </span>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Aumento de Cuota por Suscripción:</span>
+                    <span class="summary-value">
+                      ${{ Number(selectedClient.subscription.cuotaAddOn).toFixed(2) }}
+                    </span>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Prestamo Total:</span>
+                    <span class="summary-value">
+                      ${{ Number(loanAmountWithAddOn).toFixed(2) }}
+                    </span>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Período de Mantenimiento:</span>
+                    <span class="summary-value">
+                      {{ subscriptionMaintenancePeriod }} 
+                      {{ subscriptionMaintenancePeriod > 1 ? 'meses' : 'mes' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Total with subscription addOn -->
+              <div v-if="includeCuotaAddOn" class="summary-section summary-total">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="summary-total-label">Total con Cargo por Mantenimiento:</span>
+                  <span class="summary-total-value">
+                    ${{ Number(purchaseAmount + loanAmountWithAddOn).toFixed(2) }}
+                  </span>
+                </div>
+              </div>              
             </div>
           </div>
         </div>
 
         <!-- Full Width Sales History -->
-        <div class="col-12">
+        <div v-if="showHistory" class="col-12">
           <div class="card">
             <!-- Card Header with Filters -->
             <div class="card-header">
@@ -471,8 +694,8 @@
                       <td>{{ formatDate(sale.purchaseDate) }}</td>
                       <td>{{ sale.clientName }}</td>
                       <td>{{ sale.productName || 'N/A' }}</td>
-                      <td>${{ (sale.productPrice || 0).toLocaleString() }}</td>
-                      <td>${{ (sale.loanAmount || 0).toLocaleString() }}</td>
+                      <td>${{ Number(sale?.includeCuotaAddOn ? (sale.purchaseAmount + sale.loanAmountWithAddOn) : sale.productPrice || 0).toFixed(2) }}</td>
+                      <td>${{ Number(sale?.includeCuotaAddOn ? sale?.loanAmountWithAddOn : sale?.loanAmount || 0).toFixed(2) }}</td>
                       <td>
                         <span :class="['badge', sale.paid ? 'text-success' : 'text-warning']">
                           {{ sale.paid ? 'Completado' : 'Pendiente' }}
@@ -506,12 +729,12 @@
 import SearchInput from '@/components/app/SearchInput.vue'
 import { toast } from '@/utils/toast.js'
 import { ref as dbRef, get, push, update, set } from 'firebase/database'
-import { db } from '@/firebase/init'
+import { db, auth } from '@/firebase/init'
 import 'toastify-js/src/toastify.css'
 import PurchaseDetailsModal from './modals/PurchaseDetailsModal.vue'
 import { sendEmail } from '@/utils/emailService.js'
-import { auth } from '@/firebase/init'
 import { reactive } from 'vue'
+import Swal from 'sweetalert2'
 
 export default {
   name: 'AffiliateCreditView',
@@ -564,24 +787,34 @@ export default {
         terms: 2 // Default to 2 terms
       },
       calc: false,
+
+      includeFee: true, // Default to true to include the fee
+      includeCuotaAddOn: false,
+
       initialPercentage: "50",
       customInitial: 0,
       frequency: 2, // Default to bi-weekly (2)
       cuotaDates: [],
       quotesAmount: [],
+
+      purchaseAmount: 0,
       loanAmount: 0,
       remainingAmount: 0,
+      loanAmountWithAddOn: 0,
+      subscriptionMaintenancePeriod: 0,
+
       purchaseDate: new Date().toISOString(),
-      purchaseAmount: 0,
       clientVerifications: {}, // Track verification attempts per client
       selectedSale: null,
       countdownTimer: null,
+
       salesData: [],
-      subscriptions: [],
-      includeFee: true, // Default to true to include the fee
+      subscriptions: [],      
+
       rateLimitData: reactive({}),
       isSubmitting: false,
-      successMessage: ''
+      successMessage: '',
+      showHistory: false,
     }
   },
   computed: {
@@ -842,26 +1075,24 @@ export default {
         // Recalculate with the new fee setting
         this.calcs(this.selectedClient);
       }
+    },    
+    'newPurchase.terms'(newVal) {
+      if (newVal > 2) {
+        this.includeCuotaAddOn = true;
+
+        alert('Se activó la opción de mantenimiento de suscripción. Puede desactivarla si lo desea.');
+      } else {
+        this.includeCuotaAddOn = false;
+      }
     },
-    // verificationRequested(newVal, oldVal) {
-    //   console.log(`verificationRequested changed from ${oldVal} to ${newVal}`);
-    // }
+    includeCuotaAddOn(newValue) {
+      if (this.calculationsPerformed) {
+        // Recalculate with the new fee setting
+        this.calcs(this.selectedClient);
+      }
+    },
   },
   methods: {
-    // async applyCredit(userId) {
-    //   try {
-    //     const userPath = `Users/${userId}/credit/main`;
-
-    //     await update(dbRef(db, userPath), {
-    //       totalCredit: 100,
-    //       availableCredit: 100,
-    //     });
-
-    //     console.log('Credit assigned to: ', userId);
-    //   } catch (error) {
-    //     console.error('Error assigning credit:', error);
-    //   }
-    // },
     formatDate(date) {
       const dateObj = new Date(date);
       dateObj.setDate(dateObj.getDate() + 1); // Adjust for timezone
@@ -1143,13 +1374,6 @@ export default {
           // Calculate and update the actual initial percentage
           const actualPercentage = ((initialPayment / totalPrice) * 100).toFixed(1);
 
-          // Show info to user about the adjusted amounts
-          // toast.info(
-          //     `Basado en el crédito disponible ($${availableCredit}), ` +
-          //     `se requiere un pago inicial de $${initialPayment.toFixed(2)} (${actualPercentage}%)`,
-          //     { duration: 5000 }
-          // );
-
           // Update the UI to show the new percentage
           if (this.initialPercentage !== 'custom') {
             this.initialPercentage = 'custom';
@@ -1179,6 +1403,34 @@ export default {
         // Calculate quote amounts
         const quoteAmount = this.loanAmount / this.newPurchase.terms;
         this.quotesAmount = Array(this.newPurchase.terms).fill(quoteAmount);
+
+        // Subscription Maintenance Add-On Logic
+        if (this.includeCuotaAddOn && client?.subscription?.cuotaAddOn) {
+          const addonAmount = client.subscription.cuotaAddOn;
+          
+          // Dynamically calculate maintenance period based on frequency and terms
+          let maintenancePeriod;
+          if (this.frequency === 2) {  // Bi-weekly
+            // 12 terms bi-weekly = 6 months maintenance
+            maintenancePeriod = this.newPurchase.terms === 12 ? 6 : Math.floor(this.newPurchase.terms / 2);
+          } else {  // Monthly
+            // 12 terms monthly = 12 months maintenance
+            maintenancePeriod = this.newPurchase.terms;
+          }
+
+          // Validate maintenance period against subscription
+          const maxSubscriptionMonths = 12;
+          maintenancePeriod = Math.min(maintenancePeriod, maxSubscriptionMonths);
+
+          // Add subscription addon to each quote
+          this.quotesAmount = this.quotesAmount.map(quote => quote + addonAmount);
+
+          // Calculate total loan amount with add-on
+          this.loanAmountWithAddOn = this.loanAmount + (addonAmount * this.newPurchase.terms);
+
+          // Optional: You might want to store the maintenance period for future reference
+          this.subscriptionMaintenancePeriod = maintenancePeriod;
+        }
 
         this.calculationsPerformed = true;
         this.calc = true;
@@ -1330,29 +1582,38 @@ export default {
         const purchaseData = {
           clientId: this.selectedClient.uid || this.selectedClient.id,
           clientName: `${this.selectedClient.firstName} ${this.selectedClient.lastName}`,
+          
+          includeFee: this.includeFee, // Valor booleano si aplica Cuota adicional de mantenimiento por uso de aplicacion
+          includeCuotaAddOn: this.includeCuotaAddOn, // Valor booleano si aplica aumento en cada cuota por mantenimiento de suscripción
+          maintenancePeriod: this.includeCuotaAddOn ? this.subscriptionMaintenancePeriod : null, // Numero de meses de mantenimiento de suscripcion incluido con el plan de pago
+
           productName: this.newPurchase.productName,
           productPrice: this.newPurchase.productPrice,
-          purchaseAmount: this.purchaseAmount,
-          remainingAmount: this.remainingAmount,
-          loanAmount: this.loanAmount,
-          includeFee: this.includeFee,
-          terms: this.cuotaDates.length,
-          frequency: this.frequency,
-          purchaseDate: this.formattedDate,
-          verificationCode: this.verificationCode,
+          
+          purchaseAmount: this.purchaseAmount, // Pago de Inicial
+          remainingAmount: this.remainingAmount, // Restante
+          loanAmount: this.loanAmount, // Prestamo
+          loanAmountWithAddOn: this.loanAmountWithAddOn, // Prestamo con adicional de mantenimiento de suscripción
+          
+          terms: this.cuotaDates.length, // numero de cuotas
+          frequency: this.frequency, // frecuencia de pago
           cuotas: this.cuotaDates.map((date, index) => ({
             amount: this.quotesAmount[index],
             date: date,
             paymentDate: null
-          }))
+          })),
+
+          purchaseDate: this.formattedDate,
+          verificationCode: this.verificationCode,
         };
 
         this.$emit('register-purchase', purchaseData, (success) => {
-          this.isSubmitting = false; // Stop loading
-
           if (success) {
             this.resetForm(); // Reset form if successful
-          }
+            this.isSubmitting = false; // Stop loading           
+          } else {
+            this.isSubmitting = false; // Stop loading
+          }          
         });
 
       } catch (error) {
@@ -1453,14 +1714,19 @@ export default {
       this.verificationCode = '';
       this.searchClient = '';
       this.calc = false;
+
       this.initialPercentage = "50";
       this.customInitial = 0;
+
       this.frequency = 2;
       this.cuotaDates = [];
       this.quotesAmount = [];
+
+      this.purchaseAmount = 0;
       this.loanAmount = 0;
       this.remainingAmount = 0;
-      this.purchaseAmount = 0;
+      this.loanAmountWithAddOn = 0;
+      this.subscriptionMaintenancePeriod = 0;
 
       this.$emit('refresh-data');
 
@@ -1561,42 +1827,9 @@ export default {
       }
     },
 
-    // currently not used
-    // getTierFee(tier) {
-    //   // Convert tier to number since it might come as a string
-    //   const tierNumber = Number(tier);
-
-    //   switch(tierNumber) {
-    //     case 1: // Free tier
-    //       return 0; // Just return 0 for display purposes
-    //     case 2: // bronce tier
-    //       return 3;  // $3 increment
-    //     case 3: // silver tier
-    //       return 1;  // $1 increment
-    //     case 4: // Gold tier
-    //       return 0;  // No increment
-    //     default:
-    //       return 0; // Default to 0 for invalid tiers
-    //   }
-    // },
-    // async getSubscriptionDetails(subId) {
-    //   try {
-    //     const subRef = dbRef(db, `Suscriptions/${subId}`);
-    //     const snapshot = await get(subRef);
-
-    //     if (snapshot.exists()) {
-    //       const subscription = snapshot.val();
-    //       return {
-    //         name: subscription.name,
-    //         order: subscription.order
-    //       };
-    //     }
-    //     return null;
-    //   } catch (error) {
-    //     console.error('Error fetching subscription:', error);
-    //     return null;
-    //   }
-    // },
+    toggleSalesHistory() {
+      this.showHistory = !this.showHistory;
+    },   
   },
   async mounted() {
     await this.$nextTick();
@@ -1635,6 +1868,8 @@ export default {
 }
 
 .card-body {
+  background: #212837;
+
   input[type="date"] {
     @media (max-width: 575.98px) {
       width: 100%;
@@ -1701,6 +1936,411 @@ export default {
 
   .form-check-label {
     font-size: 0.875rem;
+  }
+}
+
+/* Credit Panel Styles */
+.credit-panel {
+  background: linear-gradient(145deg, #2d1433 0%, #29122f 100%);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.credit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+}
+
+.btn-history-toggle {
+  background-color: rgba(111, 66, 193, 0.15);
+  color: #6f42c1;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  outline: none;
+}
+
+.btn-history-toggle:hover {
+  background-color: rgba(111, 66, 193, 0.25);
+  transform: scale(1.1);
+}
+
+.btn-history-toggle:focus {
+  box-shadow: 0 0 0 3px rgba(111, 66, 193, 0.3);
+}
+
+.btn-history-toggle i {
+  font-size: 1rem;
+}
+
+.credit-title {
+  color: #6f42c1;
+  font-weight: 600;
+  font-size: 1.75rem;
+  position: relative;
+  display: inline-block;
+}
+
+.credit-title::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 3px;
+  background-color: #6f42c1;
+  border-radius: 2px;
+}
+
+.credit-summary-card {
+  background: #212837;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  transition: transform 0.3s ease;
+}
+
+.credit-summary-card:hover {
+  transform: translateY(-5px);
+}
+
+.credit-summary-icon {
+  background: rgba(111, 66, 193, 0.15);
+  color: #6f42c1;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+  font-size: 1.5rem;
+}
+
+.credit-summary-content {
+  flex-grow: 1;
+}
+
+.credit-summary-label {
+  color: #b8b8b8;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.credit-summary-value {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.sales-card,
+.payment-status-card {
+  background: #212837;
+  border-radius: 12px;
+  overflow: hidden;
+  height: 100%;
+}
+
+.sales-card-header,
+.payment-status-header {
+  background: rgba(111, 66, 193, 0.1);
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sales-card-title,
+.payment-status-title {
+  color: white;
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.sales-card-badge {
+  background-color: #6f42c1;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+}
+
+.sales-card-body,
+.payment-status-body {
+  padding: 16px;
+}
+
+.sales-list {
+  max-height: 160px;
+  /* Approximately 2 items height */
+  overflow-y: auto;
+  border-radius: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(111, 66, 193, 0.3) transparent;
+}
+
+.sales-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sales-list::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 8px;
+}
+
+.sales-list::-webkit-scrollbar-thumb {
+  background-color: rgba(111, 66, 193, 0.3);
+  border-radius: 8px;
+}
+
+.sales-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(111, 66, 193, 0.5);
+}
+
+.sales-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sales-item:last-child {
+  border-bottom: none;
+}
+
+.sales-item-client {
+  color: white;
+  font-weight: 500;
+}
+
+.sales-item-date {
+  color: #b8b8b8;
+  font-size: 0.875rem;
+}
+
+.sales-item-amount {
+  color: white;
+  font-weight: 600;
+}
+
+.sales-item-status {
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.status-completed {
+  background-color: rgba(40, 167, 69, 0.2);
+  color: #28a745;
+}
+
+.status-pending {
+  background-color: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.sales-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #b8b8b8;
+}
+
+.sales-empty-state i {
+  font-size: 3rem;
+  margin-bottom: 16px;
+  color: #6f42c1;
+}
+
+.payment-status-item {
+  display: flex;
+  align-items: center;
+  background: rgba(111, 66, 193, 0.05);
+  border-radius: 8px;
+  padding: 16px;
+  height: 100%;
+}
+
+.payment-status-icon {
+  background: rgba(111, 66, 193, 0.15);
+  color: #6f42c1;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+  font-size: 1.25rem;
+}
+
+.payment-status-content h6 {
+  color: #b8b8b8;
+  margin-bottom: 8px;
+}
+
+.payment-status-count {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.payment-status-pending .payment-status-icon {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.payment-status-completed .payment-status-icon {
+  background: rgba(40, 167, 69, 0.2);
+  color: #28a745;
+}
+
+@media (max-width: 768px) {
+  .credit-panel {
+    padding: 16px;
+  }
+
+  .credit-title {
+    font-size: 1.5rem;
+  }
+
+  .credit-summary-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .credit-summary-icon {
+    margin-right: 0;
+    margin-bottom: 12px;
+  }
+}
+
+.purchase-summary-card {
+  background: #212837;
+  border-radius: 12px;
+  overflow: hidden;
+  height: 100%;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.purchase-summary-header,
+.card-header {
+  background: rgba(111, 66, 193, 0.1);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+}
+
+.purchase-summary-title {
+  color: white;
+  margin: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+}
+
+.purchase-summary-title i {
+  margin-right: 10px;
+  color: #6f42c1;
+}
+
+.purchase-summary-body {
+  padding: 16px;
+}
+
+.summary-section {
+  margin-bottom: 16px;
+  background: #29122f;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.summary-section:last-child {
+  margin-bottom: 0;
+}
+
+.summary-section-title {
+  color: #b8b8b8;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.summary-section-title i {
+  margin-right: 10px;
+  color: #6f42c1;
+}
+
+.summary-section-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summary-label {
+  color: #b8b8b8;
+  font-weight: 500;
+}
+
+.summary-value {
+  color: white;
+  font-weight: 600;
+  text-align: right;
+}
+
+.summary-section-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+  color: #b8b8b8;
+  text-align: center;
+}
+
+.summary-section-empty i {
+  font-size: 2rem;
+  margin-bottom: 10px;
+  color: #6f42c1;
+  opacity: 0.6;
+}
+
+.summary-total {
+  background: rgba(111, 66, 193, 0.1) !important;
+  margin-top: 16px;
+}
+
+.summary-total-label {
+  color: white;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.summary-total-value {
+  color: #6f42c1;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+@media (max-width: 991.98px) {
+  .purchase-summary-card {
+    margin-top: 16px;
   }
 }
 </style>

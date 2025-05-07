@@ -48,26 +48,33 @@
                 </h6>
             </div>
             <div class="card-body payment-details">              
-              <div class="row g-3">
+              <div class="row">
                 <div class="col-md-3">
                   <p class="text-secondary mb-1">Suscripción</p>
                   <h6 class="text-light">{{ (sale.clientSubscription?.name || 'NO DISPONIBLE').toUpperCase() }}</h6>
                 </div>
                 <div class="col-md-3">
                   <p class="text-secondary mb-1">Precio Total</p>
-                  <h6 class="text-light">${{ Number(sale.productPrice).toFixed(2) }}</h6>
+                  <h6 class="text-light">${{ Number(sale?.includeCuotaAddOn ? (sale.purchaseAmount + sale.loanAmountWithAddOn) : sale.productPrice || 0).toFixed(2) }}</h6>
                 </div>
                 <div class="col-md-3">
                   <p class="text-secondary mb-1">Inicial</p>
                   <h6 class="text-light">${{ Number(sale.purchaseAmount).toFixed(2) }}</h6>
-                </div>
-                <div class="col-md-3">
-                  <p class="text-secondary mb-1">Monto Financiado</p>
-                  <h6 class="text-light">${{ Number(sale.loanAmount).toFixed(2) }}</h6>
                   <small class="text-secondary" v-if="sale.includeFee">
                     Incremento de $1 por gestión de la compra
                   </small>
-                </div>                  
+                </div>
+                <div class="col-md-3">
+                  <p class="text-secondary mb-1">Monto Financiado</p>
+                  <h6 class="text-light">${{ sale.includeCuotaAddOn ? Number(sale.loanAmountWithAddOn).toFixed(2) : Number(sale.loanAmount).toFixed(2) }}</h6>
+                  <small class="text-secondary" v-if="sale.includeCuotaAddOn">
+                    El monto incluye mantenimiento de Suscripción
+                  </small>
+                </div>
+                <div v-if="sale.maintenancePeriod" class="col-md-3">
+                  <p class="text-secondary mb-1">Mantenimiento de Suscripción</p>
+                  <h6 class="text-light">{{ sale.maintenancePeriod }} {{ sale.maintenancePeriod > 1 ? 'meses' : 'Mes' }}</h6>
+                </div>               
               </div>
             </div>
           </div>

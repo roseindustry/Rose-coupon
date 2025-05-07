@@ -629,13 +629,161 @@ export default {
         this.isSubmitting = false;
       }
     },
-    async deletePayment(paymentId) {
-      if (!confirm("¿Está seguro de que desea eliminar este pago?")) {
+    async deleteSubscriptionPayment(paymentId) {
+      // Validate input
+      if (!paymentId) {
+        showToast.error('ID de pago no válido');
         return;
       }
-      const paymentRef = dbRef(db, `Payments/${paymentId}`);
-      await remove(paymentRef);
-      await this.fetchPayments(this.historyFilter);
+
+      try {
+        // SweetAlert for a more user-friendly confirmation
+        const result = await Swal.fire({
+          title: '¿Está seguro?',
+          text: 'Esta acción eliminará permanentemente el comprobante de pago.',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#6f42c1',
+          cancelButtonColor: '#d33',
+          confirmButtonText: 'Sí, eliminar',
+          cancelButtonText: 'Cancelar'
+        });
+
+        // Check if user confirmed
+        if (!result.isConfirmed) {
+          return;
+        }
+
+        // Show loading state
+        Swal.fire({
+          title: 'Eliminando...',
+          text: 'Por favor, espere',
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
+        // Find the payment to get additional context before deletion
+        const paymentRef = dbRef(db, `Payments/${paymentId}`);
+        const paymentSnapshot = await get(paymentRef);
+        
+        if (!paymentSnapshot.exists()) {
+          throw new Error('El pago no existe');
+        }
+
+        const paymentData = paymentSnapshot.val();
+        const userId = paymentData.client_id;
+        const userRef = dbRef(db, `Users/${userId}/subscription`);
+
+        // Remove the payment
+        await remove(paymentRef);
+
+        // Remove payment reference from user's subscription
+        const userSnapshot = await get(userRef);
+        if (userSnapshot.exists()) {
+          const userData = userSnapshot.val();
+          
+          // Update user's subscription status if needed
+          if (userData.subscription) {
+            await update(userRef, {
+              lastPaymentDate: null,
+              paymentUploaded: null,
+              paymentVerified: null,
+              paymentUrl: null,
+              amountPaid: null,
+            });
+          }
+        }
+
+        // Refresh payments
+        await this.fetchPayments('subscriptions');
+
+        // Success notification
+        Swal.fire({
+          title: 'Eliminado',
+          text: 'El comprobante de pago ha sido eliminado exitosamente.',
+          icon: 'success',
+          confirmButtonColor: '#6f42c1'
+        });
+
+        // Optional: Send notification email
+        if (userData && userData.email) {
+          const emailPayload = {
+            to: userData.email,
+            message: {
+              subject: 'El Pago de su Suscripción no pudo ser verificado',
+              text: `Hola ${userData.firstName || 'Usuario'},
+
+                Su comprobante de pago ha sido eliminado de nuestro sistema ya que no pudo se verificado.
+
+                Si esto fue un error, por favor, suba un nuevo comprobante en la aplicación.
+
+                Atentamente,
+                Equipo de Rose Coupon`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f4f4f4; border-radius: 10px;">
+                  <div style="background-color: #6f42c1; color: white; padding: 20px; text-align: center; border-top-left-radius: 10px; border-top-right-radius: 10px;">
+                    <h1 style="margin: 0; font-size: 24px;">Comprobante Eliminado</h1>
+                  </div>
+                  <div style="background-color: white; padding: 30px; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;">
+                    <p style="color: #333; line-height: 1.6;">Hola ${userData.firstName || 'Usuario'},</p>
+                    
+                    <p style="color: #333; line-height: 1.6;">
+                      Su comprobante de pago ha sido eliminado de nuestro sistema ya que no pudo se verificado.
+                    </p>
+                    
+                    <div style="background-color: #f9f3ff; border-left: 4px solid #6f42c1; padding: 15px; margin: 20px 0;">
+                      <p style="margin: 0; color: #333;">
+                        <strong>Próximos Pasos:</strong>
+                        <ul style="color: #333; padding-left: 20px;">
+                          <li>Si esto fue un error, por favor suba un nuevo comprobante</li>
+                          <li>Verifique su método de pago</li>
+                          <li>Contacte a soporte si necesita ayuda</li>
+                        </ul>
+                      </p>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 30px;">
+                      <a href="https://app.rosecoupon.com/" style="
+                        background-color: #6f42c1; 
+                        color: white; 
+                        padding: 12px 24px; 
+                        text-decoration: none; 
+                        border-radius: 5px; 
+                        display: inline-block;
+                        font-weight: bold;
+                      ">
+                        Ir a Rose Coupon
+                      </a>
+                    </div>
+                  </div>
+                  
+                  <div style="text-align: center; color: #888; font-size: 12px; margin-top: 20px;">
+                    <p>© ${new Date().getFullYear()} Rose Coupon. Todos los derechos reservados.</p>
+                  </div>
+                </div>
+              `
+            }
+          };
+          
+          try {
+            await sendEmail(emailPayload);
+          } catch (emailError) {
+            console.error('Error sending deletion notification email:', emailError);
+          }
+        }
+
+      } catch (error) {
+        console.error('Error deleting payment:', error);
+        
+        // Error notification
+        Swal.fire({
+          title: 'Error',
+          text: `No se pudo eliminar el pago: ${error.message}`,
+          icon: 'error',
+          confirmButtonColor: '#6f42c1'
+        });
+      }
     },
 
     async validateCuotaPayment(payment) {
@@ -1383,7 +1531,7 @@ export default {
                             <i class="fas fa-check me-2"></i>
                             Aprobar
                           </button>
-                          <button class="btn btn-sm btn-outline-danger" @click="deletePayment(payment.id)">
+                          <button class="btn btn-sm btn-outline-danger" @click="deleteSubscriptionPayment(payment.id)">
                             <i class="fas fa-times me-2"></i>
                             Cancelar
                           </button>
