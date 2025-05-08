@@ -23,7 +23,7 @@
                       Precio a consultar
                     </template>
                     <template v-else>
-                      ${{ plan.price }} <small>/ Mensual</small>
+                      ${{ plan.isYearly ? plan.yearlyPrice : plan.price }} <small>{{ plan.isYearly ? 'Anual' : 'Mensual' }}</small>
                     </template>
                   </span>
                 </div>

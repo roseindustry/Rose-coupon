@@ -21,11 +21,26 @@
                         <label class="form-label">Descripción</label>
                         <textarea v-model="localClientData.desc" class="form-control" rows="4" required></textarea>
                     </div>
-                    <div class="form-group mb-3">
-                        <label class="form-label">Precio</label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input v-model.number="localClientData.price" type="number" class="form-control" required />
+                    <div class="row">
+                        <div class="col-12 col-lg-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Precio</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input v-model.number="localClientData.price" type="number" class="form-control"
+                                        required />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Precio Anual</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input v-model.number="localClientData.yearlyPrice" type="number" class="form-control"
+                                        required />
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="row">
@@ -49,12 +64,8 @@
                     <!-- Checkboxes -->
                     <div class="form-group mb-3">
                         <div class="form-check">
-                            <input 
-                                type="checkbox" 
-                                class="form-check-input" 
-                                v-model="localClientData.isPopular"
-                                id="clientIsPopular"
-                            >
+                            <input type="checkbox" class="form-check-input" v-model="localClientData.isPopular"
+                                id="clientIsPopular">
                             <label class="form-check-label" for="clientIsPopular">
                                 Marcar como Popular
                             </label>
@@ -62,14 +73,19 @@
                     </div>
                     <div class="form-group mb-3">
                         <div class="form-check">
-                            <input 
-                                type="checkbox" 
-                                class="form-check-input" 
-                                v-model="localClientData.isHidden"
-                                id="hidePlan"
-                            >
+                            <input type="checkbox" class="form-check-input" v-model="localClientData.isHidden"
+                                id="hidePlan">
                             <label class="form-check-label" for="hidePlan">
                                 Ocultar
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" v-model="localClientData.isYearly"
+                                id="yearlyClientPlan">
+                            <label class="form-check-label" for="yearlyClientPlan">
+                                Mostrar precio Anual
                             </label>
                         </div>
                     </div>
@@ -101,23 +117,34 @@
                         <label class="form-label">Descripción</label>
                         <textarea v-model="localAffiliateData.desc" class="form-control" rows="4" required></textarea>
                     </div>
-                    <div class="form-group mb-3">
-                        <label class="form-label">Precio</label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input v-model.number="localAffiliateData.price" type="number" class="form-control" required />
+                    <div class="row">
+                        <div class="col-12 col-lg-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Precio</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input v-model.number="localAffiliateData.price" type="number" class="form-control"
+                                        required />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Precio Anual</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input v-model.number="localAffiliateData.yearlyPrice" type="number" class="form-control"
+                                        required />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Checkboxes -->
                     <div class="form-group mb-3">
                         <div class="form-check">
-                            <input 
-                                type="checkbox" 
-                                class="form-check-input" 
-                                v-model="localAffiliateData.isPopular"
-                                id="affiliateIsPopular"
-                            >
+                            <input type="checkbox" class="form-check-input" v-model="localAffiliateData.isPopular"
+                                id="affiliateIsPopular">
                             <label class="form-check-label" for="affiliateIsPopular">
                                 Marcar como Popular
                             </label>
@@ -125,14 +152,19 @@
                     </div>
                     <div class="form-group mb-3">
                         <div class="form-check">
-                            <input 
-                                type="checkbox" 
-                                class="form-check-input" 
-                                v-model="localAffiliateData.isHidden"
-                                id="hideAffiliatePlan"
-                            >
+                            <input type="checkbox" class="form-check-input" v-model="localAffiliateData.isHidden"
+                                id="hideAffiliatePlan">
                             <label class="form-check-label" for="hideAffiliatePlan">
                                 Ocultar
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" v-model="localAffiliateData.isYearly"
+                                id="yearlyAffiliatePlan">
+                            <label class="form-check-label" for="yearlyAffiliatePlan">
+                                Mostrar precio Anual
                             </label>
                         </div>
                     </div>
@@ -169,12 +201,14 @@ export default {
                 id: null,
                 name: '',
                 price: 0,
+                yearlyPrice: 0,
                 desc: '',
                 order: 0,
                 requestLimit: 0,
                 cuotaAddOn: 0,
                 isPopular: false,
                 isHidden: false,
+                isYearly: false,
                 icon: ''
             })
         },
@@ -185,10 +219,12 @@ export default {
                 id: null,
                 name: '',
                 price: 0,
+                yearlyPrice: 0,
                 desc: '',
                 order: 0,
                 isPopular: false,
-                isHidden: false
+                isHidden: false,
+                isYearly: false,
             })
         }
     },
@@ -217,8 +253,8 @@ export default {
     methods: {
         async updatePlan() {
             try {
-                const planData = this.activeTab === 'clients' ? 
-                    { ...this.localClientData } : 
+                const planData = this.activeTab === 'clients' ?
+                    { ...this.localClientData } :
                     { ...this.localAffiliateData };
 
                 if (!planData.id) {
@@ -228,14 +264,14 @@ export default {
                 const { id, ...updateData } = planData;
 
                 const planRef = dbRef(
-                    db, 
+                    db,
                     `${this.activeTab === 'clients' ? 'Suscriptions' : 'Affiliate_suscriptions'}/${id}`
                 );
 
                 await update(planRef, updateData);
-                
+
                 showToast('Plan actualizado exitosamente');
-                
+
                 const editModal = Modal.getInstance(document.getElementById('editPlanModal'));
                 editModal.hide();
 
@@ -267,13 +303,15 @@ export default {
     border-top-color: #444;
 }
 
-.form-control, .form-select {
+.form-control,
+.form-select {
     background-color: #2d2d2d;
     border-color: #444;
     color: #fff;
 }
 
-.form-control:focus, .form-select:focus {
+.form-control:focus,
+.form-select:focus {
     background-color: #2d2d2d;
     border-color: #6f42c1;
     color: #fff;
@@ -300,4 +338,4 @@ export default {
 .btn-close-white {
     filter: invert(1) grayscale(100%) brightness(200%);
 }
-</style> 
+</style>

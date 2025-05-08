@@ -4,7 +4,8 @@
             <div v-if="activeTab === 'clients'" class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Nuevo Plan de Suscripción - Clientes</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="form-group mb-3">
@@ -19,13 +20,27 @@
                         <label class="form-label">Descripción <span class="text-danger">*</span></label>
                         <textarea v-model="clientPlan.desc" class="form-control" rows="4" required></textarea>
                     </div>
-                    <div class="form-group mb-3">
-                        <label class="form-label">Precio <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input v-model="clientPlan.price" type="number" class="form-control" required />
+                    <div class="row">
+                        <div class="col-12 col-lg-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Precio <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input v-model="clientPlan.price" type="number" class="form-control" required />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Precio Anual</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input v-model="clientPlan.yearlyPrice" type="number" class="form-control" />
+                                </div>
+                            </div>
                         </div>
                     </div>
+
                     <div class="row">
                         <div class="col-12 col-lg-6">
                             <div class="form-group mb-3">
@@ -61,7 +76,8 @@
                             </ul>
                         </div>
                         <div class="form-check mt-3">
-                            <input type="checkbox" class="form-check-input" id="uploadImageCheckbox" v-model="inputIcon">
+                            <input type="checkbox" class="form-check-input" id="uploadImageCheckbox"
+                                v-model="inputIcon">
                             <label class="form-check-label" for="uploadImageCheckbox">
                                 Ingresar código de Icono
                             </label>
@@ -69,6 +85,7 @@
                         <input v-if="inputIcon" v-model="clientPlan.icon" type="text" class="form-control mt-2"
                             placeholder="fa-solid fa-icon-name" />
                     </div>
+                    <p>(<span class="text-danger">*</span>) Campos requeridos.</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
@@ -80,7 +97,8 @@
             <div v-else class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Nuevo Plan de Suscripción - Comercios</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="form-group mb-3">
@@ -95,13 +113,27 @@
                         <label class="form-label">Descripción <span class="text-danger">*</span></label>
                         <textarea v-model="affiliatePlan.desc" class="form-control" rows="4" required></textarea>
                     </div>
-                    <div class="form-group mb-3">
-                        <label class="form-label">Precio <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input v-model="affiliatePlan.price" type="number" class="form-control" required />
+                    <div class="row">
+                        <div class="col-12 col-lg-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Precio <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input v-model="affiliatePlan.price" type="number" class="form-control" required />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Precio Anual</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input v-model="affiliatePlan.yearlyPrice" type="number" class="form-control" />
+                                </div>
+                            </div>
                         </div>
                     </div>
+                    <p>(<span class="text-danger">*</span>) Campos requeridos.</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
@@ -134,6 +166,7 @@ export default {
                 name: '',
                 desc: '',
                 price: 0,
+                yearlyPrice: 0,
                 requestLimit: 0,
                 cuotaAddOn: 0,
                 icon: ''
@@ -143,6 +176,7 @@ export default {
                 name: '',
                 desc: '',
                 price: 0,
+                yearlyPrice: 0,
             },
             inputIcon: false,
             selectedIconLabel: '',
@@ -162,6 +196,7 @@ export default {
                         name: this.clientPlan.name,
                         desc: this.clientPlan.desc,
                         price: this.clientPlan.price,
+                        yearlyPrice: this.clientPlan.yearlyPrice || null,
                         requestLimit: this.clientPlan.requestLimit || null,
                         cuotaAddOn: this.clientPlan.cuotaAddOn || null,
                         icon: this.clientPlan.icon,
@@ -186,6 +221,7 @@ export default {
                         name: this.affiliatePlan.name,
                         desc: this.affiliatePlan.desc,
                         price: this.affiliatePlan.price,
+                        yearlyPrice: this.affiliatePlan.yearlyPrice || null,
                     };
                     const plansRef = dbRef(db, 'Affiliate_suscriptions');
                     const newPlanRef = push(plansRef);
@@ -209,6 +245,7 @@ export default {
                     name: '',
                     desc: '',
                     price: 0,
+                    yearlyPrice: 0,
                     requestLimit: 0,
                     cuotaAddOn: 0,
                     icon: ''
@@ -221,6 +258,7 @@ export default {
                     name: '',
                     desc: '',
                     price: 0,
+                    yearlyPrice: 0,
                 };
             }
         },
@@ -252,13 +290,15 @@ export default {
     border-top-color: #444;
 }
 
-.form-control, .form-select {
+.form-control,
+.form-select {
     background-color: #2d2d2d;
     border-color: #444;
     color: #fff;
 }
 
-.form-control:focus, .form-select:focus {
+.form-control:focus,
+.form-select:focus {
     background-color: #2d2d2d;
     border-color: #6f42c1;
     color: #fff;
@@ -299,4 +339,4 @@ export default {
 .btn-close-white {
     filter: invert(1) grayscale(100%) brightness(200%);
 }
-</style> 
+</style>

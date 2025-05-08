@@ -1428,7 +1428,6 @@ export default {
           // Calculate total loan amount with add-on
           this.loanAmountWithAddOn = this.loanAmount + (addonAmount * this.newPurchase.terms);
 
-          // Optional: You might want to store the maintenance period for future reference
           this.subscriptionMaintenancePeriod = maintenancePeriod;
         }
 
@@ -1438,55 +1437,6 @@ export default {
       } catch (error) {
         console.error('Error en cálculos:', error);
         toast.error('Error al realizar los cálculos');
-        this.cancelCalcs();
-      }
-    },
-    async updateInitial(client) {
-      if (!client) return;
-
-      try {
-        const percentage = this.initialPercentage === 'custom'
-          ? this.customInitial
-          : Number(this.initialPercentage);
-
-        if (percentage <= 0 || percentage >= 100) {
-          throw new Error('El porcentaje inicial debe estar entre 0 y 100');
-        }
-
-        // Calculate base amounts
-        this.purchaseAmount = (this.newPurchase.productPrice * percentage) / 100;
-        this.loanAmount = this.newPurchase.productPrice - this.purchaseAmount;
-        this.remainingAmount = this.loanAmount;
-
-        // Update initial amount with included fee if applicable
-        if (this.includeFee) {
-          const additionalAmount = this.includeFee ? 1 : 0;
-          this.purchaseAmount += additionalAmount;
-          this.remainingAmount = this.loanAmount;
-        }
-
-        if (this.loanAmount > client.credit?.availableMainCredit) {
-          throw new Error('El monto del préstamo excede el crédito disponible del cliente');
-        }
-
-        this.calculateQuotes();
-      } catch (error) {
-        console.error('Error al actualizar inicial:', error);
-        toast.error(error.message);
-        this.cancelCalcs();
-      }
-    },
-
-    calculateQuotes() {
-      try {
-        const quoteAmount = this.loanAmount / this.newPurchase.terms;
-        if (isNaN(quoteAmount) || quoteAmount <= 0) {
-          throw new Error('Error al calcular el monto de las cuotas');
-        }
-        this.quotesAmount = Array(this.newPurchase.terms).fill(quoteAmount);
-      } catch (error) {
-        console.error('Error al calcular cuotas:', error);
-        toast.error(error.message);
         this.cancelCalcs();
       }
     },
@@ -1530,6 +1480,30 @@ export default {
         console.error('Error al calcular fechas:', error);
         this.cancelCalcs();
         return [];
+      }
+    },
+    async updateInitial(client) {
+      if (!client) return;
+
+      try {
+        const percentage = this.initialPercentage === 'custom'
+          ? this.customInitial
+          : Number(this.initialPercentage);
+
+        if (percentage <= 0 || percentage >= 100) {
+          throw new Error('El porcentaje inicial debe estar entre 0 y 100');
+        }
+
+        // Perfom calculations again
+        this.calcs(client);
+
+        if (this.loanAmount > client.credit?.availableMainCredit) {
+          throw new Error('El monto del préstamo excede el crédito disponible del cliente');
+        }
+      } catch (error) {
+        console.error('Error al actualizar inicial:', error);
+        toast.error(error.message);
+        this.cancelCalcs();
       }
     },
 

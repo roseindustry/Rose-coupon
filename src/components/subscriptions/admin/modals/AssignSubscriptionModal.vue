@@ -241,22 +241,26 @@ export default {
         id: null,
         name: "",
         price: 0,
+        yearlyPrice: 0,
         desc: "",
         order: 0,
         requestLimit: 0,
         cuotaAddOn: 0,
         isPopular: false,
         isHidden: false,
+        isYearly: false,
         icon: "",
       },
       editAffiliatePlanData: {
         id: null,
         name: "",
         price: 0,
+        yearlyPrice: 0,
         desc: "",
         order: 0,
         isPopular: false,
-        isHidden: false
+        isHidden: false,
+        isYearly: false,
       },
       loading: false
     };
@@ -691,12 +695,14 @@ export default {
           id: planData.id,
           name: planData.name || "",
           price: Number(planData.price) || 0,
+          yearlyPrice: Number(planData.yearlyPrice) || 0,
           desc: planData.desc || "",
           order: Number(planData.order) || 0,
           requestLimit: Number(planData.requestLimit) || 0,
           cuotaAddOn: Number(planData.cuotaAddOn) || 0,
           isPopular: Boolean(planData.isPopular),
           isHidden: Boolean(planData.isHidden),
+          isYearly: Boolean(planData.isYearly),
           icon: planData.icon || "",
         };
       } else {
@@ -704,10 +710,12 @@ export default {
           id: planData.id,
           name: planData.name || "",
           price: Number(planData.price) || 0,
+          yearlyPrice: Number(planData.yearlyPrice) || 0,
           desc: planData.desc || "",
           order: Number(planData.order) || 0,
           isPopular: Boolean(planData.isPopular),
           isHidden: Boolean(planData.isHidden),
+          isYearly: Boolean(planData.isYearly),
         };
       }
 
