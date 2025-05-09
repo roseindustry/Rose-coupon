@@ -52,7 +52,7 @@ export default {
             paymentUrl: null,
             isSubmitting: false,
             loading: false,
-            loadingRequests:false,
+            loadingRequests: false,
 
             currentPage: 1,
             itemsPerPage: 10,
@@ -517,7 +517,7 @@ export default {
                         ...requestData
                     }));
                 }).sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt))
-                .filter(r => r.status === 'pending'); // Sort by most recent first and status pending
+                    .filter(r => r.status === 'pending'); // Sort by most recent first and status pending
 
             } catch (error) {
                 console.error('Error fetching update requests:', error);
@@ -531,7 +531,7 @@ export default {
             try {
                 this.loadingRequests = true;
 
-                const deleteRequestsRef = dbRef(db, 'deleteRequests');
+                const deleteRequestsRef = dbRef(db, 'deletionRequests');
                 const deleteRequestsSnapshot = await get(deleteRequestsRef);
 
                 if (!deleteRequestsSnapshot.exists()) {
@@ -541,23 +541,20 @@ export default {
 
                 const requests = deleteRequestsSnapshot.val();
 
-                // Transform the requests into a flat array with additional metadata
-                this.deleteRequests = Object.entries(requests).flatMap(([userId, userDeleteRequests]) => {
-                    // Find the corresponding user
-                    const user = this.clients.find(client => client.uid === userId); 
+                this.deleteRequests = Object.entries(requests).map(([userId, requestData]) => {
+                    const user = this.clients.find(client => client.uid === userId);
 
-                    // Transform each request for the user
-                    return Object.entries(userDeleteRequests).map(([requestId, requestData]) => ({
-                        id: requestId,
-                        userId: requestId,
+                    return {
+                        id: userId, // Using userId as ID since there is no requestId
+                        userId,
                         userName: user
                             ? `${user.firstName} ${user.lastName}`
                             : 'Usuario Desconocido',
                         userEmail: user ? user.email : 'Email no disponible',
                         ...requestData
-                    }));
+                    };
                 }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-                .filter(r => r.status === 'pending'); // Sort by most recent first and status pending
+                    .filter(r => r.status === 'pending');
 
             } catch (error) {
                 console.error('Error fetching delete requests:', error);
@@ -959,7 +956,8 @@ export default {
             window.open(url, '_blank');
         },
 
-        async approveUpdate(request){
+        // Requests for approval
+        async approveUpdate(request) {
             if (confirm('¿Se comunicó con el cliente y ya actualizó sus datos acorde a su solicitud?')) {
                 try {
                     this.isSubmitting = true;
@@ -977,12 +975,16 @@ export default {
                 } catch (error) {
                     console.error('Error approving request:', error);
                 } finally {
-                    this.isSubmitting = false;                    
-                }  
-            }            
+                    this.isSubmitting = false;
+                }
+            }
         },
         processDeleteRequest(request) {
+            console.log(request)
             if (confirm(`¿Estás seguro de que deseas procesar la solicitud de eliminación de cuenta para ${request.userName}?`)) {
+                // Perform client's collection check of their credit and subscription's payments
+
+                // Proceed with request if clear
                 this.handleDeleteRequest(request);
             }
         },
@@ -999,39 +1001,40 @@ export default {
 
                 const client = this.clients.filter((client) => client.uid === request.id);
 
-                // Send an email to the user about the request processing
-                const emailPayload = {
-                    to: client.email,
-                    message: {
-                        subject: "Solicitud de Eliminación de Cuenta Procesada",
-                        html: `
-                            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
-                                <div style="background-color: #29122f; color: white; text-align: center; padding: 15px; border-radius: 5px 5px 0 0;">
-                                    <h2>Solicitud de Eliminación Aprobada</h2>
-                                </div>
-                                <div style="background-color: white; padding: 20px; border-radius: 0 0 5px 5px;">
-                                    <p>Hola ${client.firstName} ${client.lastName},</p>
-                                    <p>Su solicitud de eliminación de cuenta ha sido revisada y aprobada.</p>
-                                    <p>Lamentamos mucho verte ir. Tus datos han sido eliminados de nuestra web.</p>
-                                    <hr style="border: none; border-top: 1px solid #ddd;">
-                                    <p style="font-size: 0.8em; color: #666;">Si no solicitó esta acción, por favor contacte a nuestro equipo de soporte.</p>
-                                </div>
-                                <div style="text-align: center; color: #666; margin-top: 20px; font-size: 0.8em;">
-                                    © ${new Date().getFullYear()} Rose Coupon. Todos los derechos reservados.
-                                </div>
-                            </div>
-                        `
-                    }
-                };
+                // // Send an email to the user about the request processing
+                // const emailPayload = {
+                //     to: client.email,
+                //     message: {
+                //         subject: "Solicitud de Eliminación de Cuenta Procesada",
+                //         html: `
+                //             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
+                //                 <div style="background-color: #29122f; color: white; text-align: center; padding: 15px; border-radius: 5px 5px 0 0;">
+                //                     <h2>Solicitud de Eliminación Aprobada</h2>
+                //                 </div>
+                //                 <div style="background-color: white; padding: 20px; border-radius: 0 0 5px 5px;">
+                //                     <p>Hola ${client.firstName} ${client.lastName},</p>
+                //                     <p>Su solicitud de eliminación de cuenta ha sido revisada y aprobada.</p>
+                //                     <p>Lamentamos mucho verte ir. Tus datos han sido eliminados de nuestra web.</p>
+                //                     <hr style="border: none; border-top: 1px solid #ddd;">
+                //                     <p style="font-size: 0.8em; color: #666;">Si no solicitó esta acción, por favor contacte a nuestro equipo de soporte.</p>
+                //                 </div>
+                //                 <div style="text-align: center; color: #666; margin-top: 20px; font-size: 0.8em;">
+                //                     © ${new Date().getFullYear()} Rose Coupon. Todos los derechos reservados.
+                //                 </div>
+                //             </div>
+                //         `
+                //     }
+                // };
 
-                // Send notification email
-                await sendEmail(emailPayload);
+                // // Send notification email
+                // await sendEmail(emailPayload);
 
                 // Process delete through cloud function
-                
+
 
                 // Refresh the delete requests list
                 await this.fetchDeleteRequests();
+                await this.fetchClients();
 
                 showToast.success('Solicitud de eliminación procesada');
             } catch (error) {
@@ -1040,6 +1043,10 @@ export default {
             } finally {
                 this.isSubmitting = false;
             }
+        },
+        checkUserDetails(request) {
+            // Implement the logic to check user details
+            console.log('Checking user details for:', request.userName);
         },
     }
 }
@@ -1062,7 +1069,7 @@ export default {
             </div>
         </div>
 
-        <div v-if="!displayRequests" class="clients-wrapper">
+        <div class="clients-wrapper">
             <div class="search-section p-3">
                 <div class="row justify-content-between align-items-center mb-3">
                     <div class="col-md-4 mt-3 mt-md-0">
@@ -1073,30 +1080,25 @@ export default {
                             </span>
                         </div>
                     </div>
+                    <!-- Client's requests buttons -->
                     <div class="col-md-8 mt-3 mt-md-0 d-flex justify-content-end gap-3">
                         <div class="btn-group" role="group" aria-label="Client Requests">
-                            <button 
-                                class="btn btn-sm" 
+                            <button class="btn btn-sm"
                                 :class="displayRequests === false ? 'btn-theme' : 'btn-outline-secondary'"
-                                @click="displayRequests = false"
-                            >
+                                @click="displayRequests = false">
                                 <i class="fas fa-list me-2"></i>Clientes
                             </button>
-                            <button 
-                                class="btn btn-sm" 
+                            <button class="btn btn-sm"
                                 :class="displayRequests === 'update' ? 'btn-theme' : 'btn-outline-secondary'"
-                                @click="displayRequests = 'update'"
-                            >
+                                @click="displayRequests = 'update'">
                                 <span class="d-flex align-items-center">
                                     <i class="fas fa-sync me-2"></i>
                                     Actualizar ({{ updateRequests.length }})
                                 </span>
                             </button>
-                            <button 
-                                class="btn btn-sm" 
+                            <button class="btn btn-sm"
                                 :class="displayRequests === 'delete' ? 'btn-theme' : 'btn-outline-secondary'"
-                                @click="displayRequests = 'delete'"
-                            >
+                                @click="displayRequests = 'delete'">
                                 <span class="d-flex align-items-center">
                                     <i class="fas fa-trash me-2"></i>
                                     Eliminar ({{ deleteRequests.length }})
@@ -1134,7 +1136,7 @@ export default {
             </div>
 
             <!-- Clients List -->
-            <div class="clients-list">
+            <div v-if="!displayRequests" class="clients-list">
                 <!-- Loading State -->
                 <div v-if="loading" class="text-center py-5">
                     <div class="spinner-border text-primary" role="status">
@@ -1317,7 +1319,7 @@ export default {
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span>Rose Credit:</span>
                                                         <span class="text-success">${{ client.credit.mainCredit
-                                                            }}</span>
+                                                        }}</span>
                                                     </div>
                                                     <div class="progress" style="height: 6px;">
                                                         <div class="progress-bar bg-success"
@@ -1332,7 +1334,7 @@ export default {
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span>Rose Credit Plus:</span>
                                                         <span class="text-primary">${{ client.credit.plusCredit
-                                                            }}</span>
+                                                        }}</span>
                                                     </div>
                                                     <div class="progress" style="height: 6px;">
                                                         <div class="progress-bar bg-primary"
@@ -1368,7 +1370,7 @@ export default {
                                                 <div class="d-flex justify-content-start gap-2 align-items-center mb-2">
                                                     <span class="fw-bold">Nivel:</span>
                                                     <span>{{ client.subscription?.name?.toUpperCase() || 'Básico'
-                                                        }}</span>
+                                                    }}</span>
                                                 </div>
                                                 <div class="d-flex justify-content-start gap-2 align-items-center mb-2">
                                                     <span class="fw-bold">Estado:</span>
@@ -1487,7 +1489,7 @@ export default {
                 </div>
 
                 <!-- Pagination -->
-                <nav v-if="totalPages > 1" class="mt-4 p-2" aria-label="Page navigation">
+                <nav v-if="totalPages > 1 && !displayRequests" class="mt-4 p-2" aria-label="Page navigation">
                     <ul class="pagination justify-content-center">
                         <li class="page-item" :class="{ disabled: currentPage === 1 }">
                             <button class="page-link" @click="goToPage(currentPage - 1)">Anterior</button>
@@ -1502,140 +1504,123 @@ export default {
                     </ul>
                 </nav>
             </div>
-        </div>
-        <div v-else-if="displayRequests === 'update'" class="requests-wrapper">
-            <!-- Update Requests List -->
-            <div class="search-section p-3">
-                <div class="row justify-content-between align-items-center mb-3">
-                    <div class="col-md-4 mt-3 mt-md-0 d-flex">
-                        <button class="btn btn-theme fs-6" @click="displayRequests = false">
-                            <i class="fa-solid fa-arrow-left me-2"></i>Volver a Clientes
-                        </button>
+            <div v-else-if="displayRequests === 'update'" class="requests-wrapper">
+                <!-- Existing update requests list content -->
+                <div class="requests-list">
+                    <!-- Loading State -->
+                    <div v-if="loadingRequests" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden"></span>
+                        </div>
+                        <p class="mt-2 text-secondary">Cargando lista de Solicitudes...</p>
                     </div>
-                </div>
-            </div>
 
-            <!-- Existing update requests list content -->
-            <div class="requests-list">
-                <!-- Loading State -->
-                <div v-if="loadingRequests" class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden"></span>
+                    <!-- Empty State -->
+                    <div v-else-if="updateRequests.length === 0" class="text-center py-5">
+                        <div class="mb-3">
+                            <i class="fa fa-users text-secondary opacity-25" style="font-size: 5em"></i>
+                        </div>
+                        <h5 class="text-secondary">No se encontraron clientes</h5>
                     </div>
-                    <p class="mt-2 text-secondary">Cargando lista de Solicitudes...</p>
-                </div>
 
-                <!-- Empty State -->
-                <div v-else-if="updateRequests.length === 0" class="text-center py-5">
-                    <div class="mb-3">
-                        <i class="fa fa-users text-secondary opacity-25" style="font-size: 5em"></i>
-                    </div>
-                    <h5 class="text-secondary">No se encontraron clientes</h5>
-                </div>
-
-                <!-- Requests Grid -->
-                <div v-else class="request-items">
-                    <div class="request-item" v-for="request in updateRequests" :key="request.id">
-                        <!-- Header Section -->
-                        <div class="requests-header">
-                            <div class="request-info">
-                                <div class="d-flex align-items-center gap-3">
-                                    <div class="request-avatar">
-                                        <i class="fa-solid fa-bell"></i>
-                                    </div>
-                                    <div>
-                                        <div class="d-flex align-items-center">
-                                            <h6 class="mb-0">{{ request.userName }}</h6>
+                    <!-- Requests Grid -->
+                    <div v-else class="request-items">
+                        <div class="request-item" v-for="request in updateRequests" :key="request.id">
+                            <!-- Header Section -->
+                            <div class="requests-header">
+                                <div class="request-info">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="request-avatar">
+                                            <i class="fa-solid fa-bell"></i>
                                         </div>
-                                        <div class="client-contact">
-                                            <div class="text-secondary fs-5">
-                                                {{ request.fieldLabel }}
+                                        <div>
+                                            <div class="d-flex align-items-center">
+                                                <h6 class="mb-0">{{ request.userName }}</h6>
                                             </div>
-                                            <div class="text-secondary small">
-                                                <strong>Valor actual: </strong>{{ request.currentValue }}
-                                            </div>
-                                            <div class="text-secondary small">
-                                                <strong>Valor solicitado: </strong>{{ request.newValue }}
-                                            </div>
-                                            <div class="text-secondary small">
-                                                <strong>Solicitado el dia: </strong>{{ formatDate(request.requestedAt) }}
+                                            <div class="client-contact">
+                                                <div class="text-secondary fs-5">
+                                                    {{ request.fieldLabel }}
+                                                </div>
+                                                <div class="text-secondary small">
+                                                    <strong>Valor actual: </strong>{{ request.currentValue }}
+                                                </div>
+                                                <div class="text-secondary small">
+                                                    <strong>Valor solicitado: </strong>{{ request.newValue }}
+                                                </div>
+                                                <div class="text-secondary small">
+                                                    <strong>Solicitado el dia: </strong>{{
+                                                        formatDate(request.requestedAt)
+                                                    }}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="request-actions-group">
-                                <div class="request-actions">
-                                    <button class="btn btn-sm btn-outline-success me-2" @click.stop="approveUpdate(request)">
-                                        <i class="fa-solid fa-check"></i>
-                                    </button>
+                                <div class="request-actions-group">
+                                    <div class="request-actions">
+                                        <button class="btn btn-sm btn-outline-success me-2"
+                                            @click.stop="approveUpdate(request)">
+                                            <i class="fa-solid fa-check"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <div v-else-if="displayRequests === 'delete'" class="requests-wrapper">
-            <!-- Delete Requests List -->
-            <div class="search-section p-3">
-                <div class="row justify-content-between align-items-center mb-3">
-                    <div class="col-md-4 mt-3 mt-md-0 d-flex">
-                        <button class="btn btn-theme fs-6" @click="displayRequests = false">
-                            <i class="fa-solid fa-arrow-left me-2"></i>Volver a Clientes
-                        </button>
+            <div v-else-if="displayRequests === 'delete'" class="requests-wrapper">
+                <div class="requests-list">
+                    <!-- Loading State -->
+                    <div v-if="loadingRequests" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden"></span>
+                        </div>
+                        <p class="mt-2 text-secondary">Cargando lista de Solicitudes...</p>
                     </div>
-                </div>
-            </div>
 
-            <!-- Add delete requests list content here -->
-            <div class="requests-list">
-                <!-- Loading State -->
-                <div v-if="loadingRequests" class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden"></span>
+                    <!-- Empty State -->
+                    <div v-else-if="deleteRequests.length === 0" class="text-center py-5">
+                        <div class="mb-3">
+                            <i class="fa fa-trash text-secondary opacity-25" style="font-size: 5em"></i>
+                        </div>
+                        <h5 class="text-secondary">No hay solicitudes de eliminación de cuenta</h5>
                     </div>
-                    <p class="mt-2 text-secondary">Cargando lista de Solicitudes...</p>
-                </div>
 
-                <!-- Empty State -->
-                <div v-else-if="deleteRequests.length === 0" class="text-center py-5">
-                    <div class="mb-3">
-                        <i class="fa fa-trash text-secondary opacity-25" style="font-size: 5em"></i>
-                    </div>
-                    <h5 class="text-secondary">No hay solicitudes de eliminación de cuenta</h5>
-                </div>
-
-                <!-- Requests Grid -->
-                <div v-else class="request-items">
-                    <div class="request-item" v-for="request in deleteRequests" :key="request.id">
-                        <!-- Header Section -->
-                        <div class="requests-header">
-                            <div class="request-info">
-                                <div class="d-flex align-items-center gap-3">
-                                    <div class="request-avatar">
-                                        <i class="fa-solid fa-user-times"></i>
-                                    </div>
-                                    <div>
-                                        <div class="d-flex align-items-center">
-                                            <h6 class="mb-0">{{ request.userName }}</h6>
+                    <!-- Requests Grid -->
+                    <div v-else class="request-items">
+                        <div class="request-item" v-for="request in deleteRequests" :key="request.id">
+                            <!-- Header Section -->
+                            <div class="requests-header">
+                                <div class="request-info">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="request-avatar">
+                                            <i class="fa-solid fa-user-times"></i>
                                         </div>
-                                        <div class="client-contact">
-                                            <div class="text-secondary small">
-                                                <strong>Email: </strong>{{ request.userEmail }}
+                                        <div>
+                                            <div class="d-flex align-items-center">
+                                                <h6 class="mb-0">{{ request.userName }}</h6>
                                             </div>
-                                            <div class="text-secondary small">
-                                                <strong>Solicitado el: </strong>{{ formatDate(request.createdAt) }}
+                                            <div class="client-contact">
+                                                <div class="text-secondary small">
+                                                    <strong>Email: </strong>{{ request.userEmail }}
+                                                </div>
+                                                <div class="text-secondary small">
+                                                    <strong>Solicitado el: </strong>{{ formatDate(request.createdAt) }}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="request-actions-group">
-                                <div class="request-actions">
-                                    <button class="btn btn-sm btn-outline-danger" @click.stop="processDeleteRequest(request)">
-                                        <i class="fa-solid fa-trash"></i>
-                                    </button>
+                                <div class="request-actions-group">
+                                    <div class="request-actions">
+                                        <button class="btn btn-sm btn-outline-info me-2" @click.stop="checkUserDetails(request)" title="Chequear Usuario">
+                                            <i class="fa-solid fa-user-check"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @click.stop="processDeleteRequest(request)">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1799,7 +1784,8 @@ export default {
     </div>
 </template>
 <style scoped>
-.clients-wrapper, .requests-wrapper {
+.clients-wrapper,
+.requests-wrapper {
     background: #29122f;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -1809,17 +1795,20 @@ export default {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.client-item, .request-item {
+.client-item,
+.request-item {
     padding: 1.5rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     transition: background-color 0.2s ease;
 }
 
-.client-item:hover, .request-item:hover {
+.client-item:hover,
+.request-item:hover {
     background-color: rgba(255, 255, 255, 0.05);
 }
 
-.client-item:last-child, .request-item:last-child {
+.client-item:last-child,
+.request-item:last-child {
     border-bottom: none;
 }
 
@@ -1860,7 +1849,8 @@ export default {
     color: #155724;
 }
 
-.client-header, .requests-header {
+.client-header,
+.requests-header {
     cursor: pointer;
     user-select: none;
     display: flex;
@@ -1869,13 +1859,15 @@ export default {
     gap: 1rem;
 }
 
-.client-actions-group, .request-actions-group {
+.client-actions-group,
+.request-actions-group {
     display: flex;
     align-items: flex-start;
     gap: 1rem;
 }
 
-.client-actions, .request-actions {
+.client-actions,
+.request-actions {
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;
@@ -2203,5 +2195,92 @@ export default {
     font-size: 0.875rem;
     color: #ddd;
     font-weight: 500;
+}
+
+/* Delete Requests Styles */
+.request-items {
+    background-color: rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.request-item {
+    transition: background-color 0.3s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.request-item:last-child {
+    border-bottom: none;
+}
+
+.request-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.request-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: rgba(255, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ff6b6b;
+    font-size: 1.5rem;
+}
+
+.request-actions-group {
+    display: flex;
+    align-items: center;
+}
+
+.request-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.request-actions .btn-sm {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 35px;
+    height: 35px;
+    padding: 0;
+}
+
+.request-actions .btn-outline-info {
+    color: #17a2b8;
+    border-color: #17a2b8;
+}
+
+.request-actions .btn-outline-info:hover {
+    background-color: rgba(23, 162, 184, 0.1);
+}
+
+.request-actions .btn-outline-danger {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.request-actions .btn-outline-danger:hover {
+    background-color: rgba(220, 53, 69, 0.1);
+}
+
+/* Empty State Improvements */
+.requests-wrapper .text-center {
+    background-color: rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    padding: 3rem;
+}
+
+.requests-wrapper .text-center i {
+    color: rgba(255, 255, 255, 0.1);
+    margin-bottom: 1rem;
+}
+
+.requests-wrapper .text-center h5 {
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 300;
 }
 </style>

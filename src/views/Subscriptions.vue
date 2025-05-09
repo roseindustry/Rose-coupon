@@ -23,6 +23,8 @@ import "toastify-js/src/toastify.css";
 import SearchInput from "@/components/app/SearchInput.vue";
 import moment from "moment";
 import { Modal } from "bootstrap";
+import Swal from 'sweetalert2'
+import 'sweetalert2/src/sweetalert2.scss'
 import { useUserStore } from "@/stores/user-role";
 import {
   CreatePlanModal,
@@ -746,13 +748,18 @@ export default {
           let user;
           let userType = "";
           let userName = "";
+          let payDay = null;
 
           const currentUserRef = dbRef(db, `Users/${userId}`);
           const userSnapshot = await get(currentUserRef);
           user = userSnapshot.exists() ? userSnapshot.val() : null;
 
-          // Calculate payDay (one month from today)
-          const payDay = moment().add(1, "month").toISOString();
+          // Calculate payDay
+          if (plan.isYearly) {
+            payDay = moment().add(1, "year").toISOString();
+          } else {
+            payDay = moment().add(1, "month").toISOString();
+          }
 
           // Prepare subscription details
           const subscriptionData = {
@@ -782,6 +789,7 @@ export default {
 
           const paymentDetails = {
             subscription_id: plan.planId,
+            isYearly: plan.isYearly || false,
             client_id: userId,
             amount: plan.amountPaid,
             date: plan.paymentDate,
@@ -826,8 +834,13 @@ export default {
           };
           await this.sendNotificationEmail(adminEmailPayload);
 
-          //Success toast
-          showToast("Archivo subido!", "success");
+          //Success alert
+          Swal.fire({
+            title: '¡Comprobante enviado!',
+            text: 'Nuestro equipo pronto evaluará tu pago.',
+            icon: 'success',
+            confirmButtonText: 'OK'
+          })
 
           //reset the image previews
           this.paymentPreview = null;
@@ -1050,8 +1063,8 @@ export default {
       @page-changed="handlePageChange" @plans-updated="fetchPlans" @exchange-updated="handleExchangeUpdated" />
 
     <!-- Client/Affiliate View -->
-    <UserSubscriptionsView v-else :loading="loadingPlans" :currentUserId="userId" :plans="sortedPlans" :current-sub="currentSub"
-      :user-type="role || 'cliente'" :exchange="exchange" @contract-plan="contractPlan"
+    <UserSubscriptionsView v-else :loading="loadingPlans" :currentUserId="userId" :plans="sortedPlans"
+      :current-sub="currentSub" :user-type="role || 'cliente'" :exchange="exchange" @contract-plan="contractPlan"
       @payment-submitted="notifyPayment" @file-uploaded="handleFileUpload" />
 
   </div>

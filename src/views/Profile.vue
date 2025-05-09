@@ -286,14 +286,15 @@ export default defineComponent({
 
                 this.subscriptionPlan = {
                   name: userSuscription.name || "Sin suscripcion",
-                  price: userSuscription.price || "No Price",
+                  price: userSuscription.isYearly ? userSuscription.yearlyPrice : userSuscription.price || "No Price",
                   payDay: subscriptionData.payDay || "No PayDay",
                   lastPaymentDate: subscriptionData.lastPaymentDate || null,
                   isPaid: subscriptionData.isPaid || false,
+                  isYearly: userSuscription.isYearly || false,
                   paymentUploaded: subscriptionData.paymentUploaded || null,
                   paymentVerified: subscriptionData.paymentVerified || null,
                   paymentUrl: subscriptionData.paymentUrl || null,
-                  icon: userSuscription.icon || "fa fa-times",
+                  icon: userSuscription.icon || "fa fa-handshake",
                 };
                 // console.log('Plan details: ', this.subscriptionPlan)
               } else {
@@ -649,10 +650,15 @@ export default defineComponent({
 
       if (confirm("¿Seguro que desea subir el pago?")) {
         try {
-          const { amountPaid, paymentFile, planId, planName, exchange } = paymentData;
+          const { amountPaid, paymentFile, planId, planName, exchange, isYearly } = paymentData;
+          let payDay = null;
 
-          // Calculate payDay (one month from today)
-          const payDay = moment().add(1, "month").toISOString();
+          // Calculate payDay
+          if (paymentData.isYearly) {
+            payDay = moment().add(1, "year").toISOString();
+          } else {
+            payDay = moment().add(1, "month").toISOString();
+          }
 
           if (!paymentFile) {
             showToast.error("Por favor seleccione una captura de pago");
@@ -686,6 +692,7 @@ export default defineComponent({
           // Save the payment to the payments collection
           const paymentDetails = {
             subscription_id: this.userSubscriptionId,
+            isYearly: paymentData.isYearly || false,
             client_id: this.userId,
             amount: amountPaid,
             date: paymentDate,
@@ -702,13 +709,25 @@ export default defineComponent({
 
           // Close modal and show success message
           this.$refs.paymentModal.closeModal();
-          showToast.success("Pago notificado exitosamente");
+          
+          //Success alert
+          Swal.fire({
+            title: '¡Comprobante enviado!',
+            text: 'Nuestro equipo pronto evaluará tu pago.',
+            icon: 'success',
+            confirmButtonText: 'OK'
+          })
 
           // Refresh subscription data
           await this.fetchClientPlan();
         } catch (error) {
           console.error("Error notifying payment:", error);
-          showToast.error("Error al notificar el pago");
+          Swal.fire({
+            title: 'Error al subir el comprobante 😕',
+            text: 'Ocurrió un error al subir tu comprobante de pago. Intenta de Nuevo.',
+            icon: 'error',
+            confirmButtonText: 'OK'
+          })
         }
       }
     },
@@ -729,7 +748,7 @@ export default defineComponent({
       const snapshot = await get(userRef);
 
       if (snapshot.exists()) {
-        const subscriptionData = snapshot.val();        
+        const subscriptionData = snapshot.val();
         const payDay = new Date(subscriptionData.payDay);
         const currentDate = new Date();
 
@@ -744,7 +763,7 @@ export default defineComponent({
 
           if (purchasesSnapshot.exists()) {
             const purchases = purchasesSnapshot.val();
-            
+
             // Reset flags before checking
             this.hasapplicablePurchase = false;
             this.hasCurrentMonthPayment = false;
@@ -764,7 +783,7 @@ export default defineComponent({
                     if (cuota.paid) {
                       const cuotaDate = new Date(cuota.paymentDate);
                       if (cuotaDate.getMonth() === currentDate.getMonth() &&
-                          cuotaDate.getFullYear() === currentDate.getFullYear()) {
+                        cuotaDate.getFullYear() === currentDate.getFullYear()) {
                         this.hasCurrentMonthPayment = true;
                       }
                     }
@@ -775,10 +794,9 @@ export default defineComponent({
           }
 
           // Reset if no payment was made this month (either subscription or credit purchase)
-          if (currentDate >= payDay && 
-            (!isSubscriptionPaid || 
-            (this.hasapplicablePurchase && !this.hasCurrentMonthPayment))) 
-          {
+          if (currentDate >= payDay &&
+            (!isSubscriptionPaid ||
+              (this.hasapplicablePurchase && !this.hasCurrentMonthPayment))) {
             await update(userRef, {
               isPaid: false, // Reset to mark unpaid month
               status: false,
@@ -804,7 +822,7 @@ export default defineComponent({
           // } else {
           //   console.log('Usuario sin compra aplicable.');
           // }
-          
+
         } catch (error) {
           console.error('Error checking payment status:', error);
         }
@@ -1623,7 +1641,7 @@ export default defineComponent({
               )" :key="field.name" class="col-md-6 mb-3">
                 <label :for="field.name" class="form-label">{{
                   field.label
-                }}</label>
+                  }}</label>
                 <div class="d-flex align-items-center gap-2">
                   <input :type="field.name.includes('password') ? 'password' : 'text'" :id="field.name"
                     v-model="field.value" class="form-control" :disabled="role === 'cliente'" />
@@ -1771,7 +1789,7 @@ export default defineComponent({
               )" :key="field.name" class="col-md-4 mb-3">
                 <label :for="field.name" class="form-label">{{
                   field.label
-                }}</label>
+                  }}</label>
                 <div class="d-flex align-items-center gap-2">
                   <select v-if="field.name === 'state'" class="form-control" v-model="state"
                     :disabled="!editStates.state" @change="displayMunicipios($event.target.value)">
@@ -1894,7 +1912,7 @@ export default defineComponent({
                     }}
                   </span>
                 </div>
-                <p><strong>Precio:</strong> ${{ subscriptionPlan.price }}</p>
+                <p><strong>Precio:</strong> ${{ subscriptionPlan.price }} / <small>{{ subscriptionPlan.isYearly ? 'Anual' : 'Mensual' }}</small></p>
                 <p>
                   <strong>Fecha de Corte:</strong>
                   {{ formatDate(subscriptionPlan.payDay) }}
@@ -1924,7 +1942,9 @@ export default defineComponent({
                   <i class="fas fa-check-circle me-3 fa-2x"></i>
                   <div>
                     <h5 class="mb-1">Suscripción Activa</h5>
-                    <p class="mb-0">Estás al día con el pago de cuotas de tu compra más reciente. Tu suscripción está activa.</p>
+                    <p class="mb-0">Estás al día con el pago de cuotas de tu compra más reciente. Tu suscripción está
+                      activa.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1936,7 +1956,7 @@ export default defineComponent({
                   <div>
                     <h5 class="mb-1">Suscripción Pendiente</h5>
                     <p class="mb-0">
-                      Para mantener tu suscripción activa, asegúrate de estar al día con los pagos de tus cuotas. 
+                      Para mantener tu suscripción activa, asegúrate de estar al día con los pagos de tus cuotas.
                       Cada pago puntual de tus compras a crédito ayuda a mantener tu suscripción vigente.
                     </p>
                     <div class="mt-2">

@@ -610,7 +610,12 @@ export default {
           console.error("Failed to send email:", result.error);
         }
 
-        showToast("Pago aprobado. Se ha notificado al usuario.");
+        Swal.fire({
+          title: 'Pago aprobado',
+          text: 'Se ha notificado al usuario.',
+          icon: 'success',
+          confirmButtonColor: '#6f42c1'
+        });
 
         // Close Payment modal after approval
         const modal = Modal.getOrCreateInstance(
@@ -618,12 +623,20 @@ export default {
         );
         modal.hide();
 
-        // Refresh both clients and affiliates
+        // Refresh both clients and affiliates and payments
+        await this.fetchPayments();
         await this.fetchClients();
         await this.fetchAffiliates();
       } catch (error) {
         console.error("Error approving subscription payment:", error);
-        showToast.error("Error al aprobar el pago");
+
+        // Error notification
+        Swal.fire({
+          title: 'Error',
+          text: `Error al aprobar este Pago: ${error.message}`,
+          icon: 'error',
+          confirmButtonColor: '#6f42c1'
+        });
       } finally {
         // Hide the loader
         this.isSubmitting = false;
@@ -666,7 +679,7 @@ export default {
         // Find the payment to get additional context before deletion
         const paymentRef = dbRef(db, `Payments/${paymentId}`);
         const paymentSnapshot = await get(paymentRef);
-        
+
         if (!paymentSnapshot.exists()) {
           throw new Error('El pago no existe');
         }
@@ -682,7 +695,7 @@ export default {
         const userSnapshot = await get(userRef);
         if (userSnapshot.exists()) {
           const userData = userSnapshot.val();
-          
+
           // Update user's subscription status if needed
           if (userData.subscription) {
             await update(userRef, {
@@ -765,7 +778,7 @@ export default {
               `
             }
           };
-          
+
           try {
             await sendEmail(emailPayload);
           } catch (emailError) {
@@ -775,7 +788,7 @@ export default {
 
       } catch (error) {
         console.error('Error deleting payment:', error);
-        
+
         // Error notification
         Swal.fire({
           title: 'Error',
@@ -1463,12 +1476,14 @@ export default {
                         <div class="icon-wrapper mb-2">
                           <i class="fas fa-handshake"></i>
                         </div>
-                        <h5 class="card-title mb-1">
-                          {{ getClient(payment.client_id).name.charAt(0).toUpperCase() +
-                            getClient(payment.client_id).name.slice(1) }}
-                        </h5>
-                        <div class="payment-status" v-if="payment.approved">
-                          <span class="badge bg-success">Aprobado</span>
+                        <div class="d-flex justify-content-between align-items-center">
+                          <h5 class="card-title mb-0 me-2">
+                            {{ getClient(payment.client_id).name.charAt(0).toUpperCase() +
+                              getClient(payment.client_id).name.slice(1) }}
+                          </h5>
+                          <div class="payment-status">
+                            <span class="badge bg-success">Pago {{ payment.isYearly ? 'Anual' : 'Mensual' }}</span>
+                          </div>
                         </div>
                       </div>
 
@@ -1480,7 +1495,7 @@ export default {
                             <span class="info-label">Suscripción:</span>
                             <span class="info-value">{{
                               getSubscriptionData(payment.subscription_id, 'clients').name.toUpperCase()
-                            }}</span>
+                              }}</span>
                           </div>
                           <div class="info-item">
                             <span class="info-label">Monto en USD:</span>
@@ -1501,7 +1516,7 @@ export default {
                             <span class="info-label">Fecha:</span>
                             <span class="info-value">{{
                               formatDate(payment.date)
-                            }}</span>
+                              }}</span>
                           </div>
                         </div>
                       </div>
@@ -1604,7 +1619,7 @@ export default {
                               <span class="info-label">Fecha:</span>
                               <span class="info-value">{{
                                 formatDate(payment.date)
-                                }}</span>
+                              }}</span>
                             </div>
                           </div>
                         </div>
@@ -1784,13 +1799,13 @@ export default {
                             <span class="info-label">Fecha límite de Pago:</span>
                             <span class="info-value">{{
                               formatDate(getCuotaData(payment).date)
-                            }}</span>
+                              }}</span>
                           </div>
                           <div class="info-item">
                             <span class="info-label">Fecha de Pago:</span>
                             <span class="info-value">{{
                               formatDate(payment.date)
-                            }}</span>
+                              }}</span>
                           </div>
                         </div>
                       </div>
@@ -1966,40 +1981,37 @@ export default {
                           : 'fa-handshake'
                           "></i>
                       </div>
-                      <h5 class="card-title mb-1">
-                        {{ getClient(payment?.client_id).name.charAt(0).toUpperCase() +
-                          getClient(payment?.client_id).name.slice(1) }}
-                      </h5>
-                      <small class="text-muted mb-2">
-                        {{ getClient(payment?.client_id).identification }}
-                      </small>
-                      <!-- <small>
-                        {{ payment.client_id }}
-                      </small> -->
-                      <div class="payment-status mt-2">
-                        <span class="badge bg-success">Aprobado</span>
+                      <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                          <h5 class="card-title mb-1">
+                            {{ getClient(payment?.client_id).name.charAt(0).toUpperCase() +
+                              getClient(payment?.client_id).name.slice(1) }}
+                          </h5>
+                          <small class="text-muted mb-2">
+                            {{ getClient(payment?.client_id).identification }}
+                          </small>
+                        </div>
+                        <!-- <small>
+                          {{ payment.client_id }}
+                        </small> -->
+                        <div class="payment-status mt-2">
+                          <span class="badge bg-success">Pago {{ payment.isYearly ? 'Anual' : 'Mensual' }}</span>
+                        </div>
                       </div>
                     </div>
 
                     <!-- Payment Details Section -->
                     <div class="payment-details">
+                      <!-- <p>{{ payment.client_id }}</p> -->
                       <!-- Credit-cuota specific info -->
-                      <div v-if="
-                        payment.type === 'credit-cuota' &&
-                        payment.purchaseData
-                      " class="info-group">
+                      <div v-if="payment.type === 'credit-cuota' && payment.purchaseData" class="info-group">
                         <div class="info-item">
                           <span class="info-label">Comercio:</span>
-                          <span class="info-value">{{
-                            getClient(payment?.purchaseData?.affiliate_id)
-                              .name
-                          }}</span>
+                          <span class="info-value">{{ getClient(payment?.purchaseData?.affiliate_id).name }}</span>
                         </div>
                         <div class="info-item">
                           <span class="info-label">Producto:</span>
-                          <span class="info-value">{{
-                            payment.purchaseData?.productName
-                          }}</span>
+                          <span class="info-value">{{ payment.purchaseData?.productName }}</span>
                         </div>
                         <div class="info-item">
                           <span class="info-label">Cuota:</span>
@@ -2012,13 +2024,11 @@ export default {
                       <div v-if="payment.type === 'subscription'" class="info-group">
                         <div class="info-item">
                           <span class="info-label">Suscripción:</span>
-                          <span class="info-value">{{ getSubscriptionData(payment.subscription_id,
-                            userType).name.toUpperCase() }}</span>
+                          <span class="info-value">{{ getSubscriptionData(payment.subscription_id, userType).name.toUpperCase() }}</span>
                         </div>
                         <div class="info-item">
                           <span class="info-label">Monto en USD:</span>
-                          <span class="info-value">${{ getSubscriptionData(payment.subscription_id, userType).price
-                          }}</span>
+                          <span class="info-value">${{ getSubscriptionData(payment.subscription_id, userType).price }}</span>
                         </div>
                       </div>
 
@@ -2030,9 +2040,7 @@ export default {
                         </div>
                         <div class="info-item">
                           <span class="info-label">Fecha:</span>
-                          <span class="info-value">{{
-                            formatDate(payment.date)
-                          }}</span>
+                          <span class="info-value">{{ formatDate(payment.date) }}</span>
                         </div>
                       </div>
                     </div>

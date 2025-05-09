@@ -29,7 +29,7 @@
             <div class="price-details">
               <div class="plan-price">
                 <span class="label">Precio:</span>
-                <span class="value">${{ selectedPlan.price }}</span>
+                <span class="value">${{ selectedPlan.isYearly ? selectedPlan.yearlyPrice : selectedPlan.price }} / {{ selectedPlan.isYearly ? 'Anual' : 'Mensual' }}</span>
               </div>
               <div class="exchange-rate">
                 <span class="label">Tasa:</span>
@@ -41,7 +41,7 @@
                   {{
                     selectedPlan.price == 0 && role === "afiliado"
                       ? "Consultar precio"
-                      : `${((selectedPlan.price || 0).toFixed(2) * (exchange || 0)).toFixed(2)} Bs`
+                      : `${((selectedPlan.isYearly ? selectedPlan.yearlyPrice : selectedPlan.price || 0).toFixed(2) * (exchange || 0)).toFixed(2)} Bs`
                   }}
                 </span>
               </div>
@@ -219,7 +219,7 @@ export default {
       immediate: true,
       handler(newPlan) {
         if (newPlan && this.exchange) {
-          this.amountPaid = Number((newPlan.price * this.exchange).toFixed(2));
+          this.amountPaid = Number(((newPlan.isYearly ? newPlan.yearlyPrice : newPlan.price) * this.exchange).toFixed(2));
         }
       }
     },
@@ -227,7 +227,7 @@ export default {
       immediate: true,
       handler(newExchange) {
         if (this.selectedPlan && newExchange) {
-          this.amountPaid = Number((this.selectedPlan.price * newExchange).toFixed(2));
+          this.amountPaid = Number(((this.selectedPlan.isYearly ? this.selectedPlan.yearlyPrice : this.selectedPlan.price) * newExchange).toFixed(2));
         }
       }
     }
@@ -275,6 +275,7 @@ export default {
         exchange: this.exchange,
         planId: this.selectedPlan.id,
         planName: this.selectedPlan.name,
+        isYearly: this.selectedPlan.isYearly || false,
         amountPaid: this.amountPaid,
         paymentFile: this.paymentFile
       });

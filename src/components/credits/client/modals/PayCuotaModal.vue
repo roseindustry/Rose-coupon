@@ -533,7 +533,7 @@ export default {
 
         Swal.fire({
           title: '¡Comprobante enviado!',
-          text: 'Nuestro equipo pronto evaluara tu pago.',
+          text: 'Nuestro equipo pronto evaluará tu pago.',
           icon: 'success',
           confirmButtonText: 'OK'
         })
