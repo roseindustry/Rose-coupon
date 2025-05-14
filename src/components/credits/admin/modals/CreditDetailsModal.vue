@@ -30,7 +30,7 @@
                   </div> -->
                   <div class="info-item">
                     <strong>{{ isAffiliate ? 'Empresa:' : 'Nombre:' }}</strong>
-                    <span>{{ isAffiliate ? userData.companyName.charAt(0).toUpperCase() + userData.companyName.slice(1) : `${userData.firstName.charAt(0).toUpperCase() + userData.firstName.slice(1)} ${userData.lastName.charAt(0).toUpperCase() + userData.lastName.slice(1)}` }}</span>
+                    <span>{{ userData.name || (isAffiliate ? userData.companyName.charAt(0).toUpperCase() + userData.companyName.slice(1) : `${userData.firstName.charAt(0).toUpperCase() + userData.firstName.slice(1)} ${userData.lastName.charAt(0).toUpperCase() + userData.lastName.slice(1)}`) }}</span>
                   </div>
                   <div class="info-item">
                     <strong>{{ isAffiliate ? 'RIF:' : 'CI:' }}</strong>
@@ -174,7 +174,7 @@
                                   <th>Fecha</th>
                                   <th>Monto</th>
                                   <th>Estado</th>
-                                  <th>Acciones</th>
+                                  <!-- <th>Acciones</th> -->
                                 </tr>
                               </thead>
                               <tbody>
@@ -187,11 +187,11 @@
                                       {{ cuota.paid ? 'Pagado' : 'Pendiente' }}
                                     </span>
                                   </td>
-                                  <td>
+                                  <!-- <td>
                                     <button class="btn btn-sm btn-outline-success" @click.stop="downloadReport(sale, cuota, cuotaIndex, userData)">
                                       <i class="fas fa-download me-2"></i>Informe
                                     </button>
-                                  </td>
+                                  </td> -->
                                 </tr>
                               </tbody>
                             </table>
@@ -349,9 +349,9 @@ import { Modal } from 'bootstrap';
 import { db } from '@/firebase/init';
 import { ref as dbRef, get, update } from 'firebase/database';
 import { toast as showToast } from '@/utils/toast';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import autoTable from 'jspdf-autotable';
+// import jsPDF from 'jspdf';
+// import 'jspdf-autotable';
+// import autoTable from 'jspdf-autotable';
 
 export default {
   name: 'CreditDetailsModal',
@@ -605,109 +605,109 @@ export default {
 
       return paymentDate;
     },
-    downloadReport(purchase, cuota, cuotaIndex, affiliate) {
-      // Ensure we have a cuota and the purchase details
-      if (!cuota || !purchase) {
-        showToast.error('No se encontraron detalles.');
-        return;
-      }
+    // downloadReport(purchase, cuota, cuotaIndex, affiliate) {
+    //   // Ensure we have a cuota and the purchase details
+    //   if (!cuota || !purchase) {
+    //     showToast.error('No se encontraron detalles.');
+    //     return;
+    //   }
 
-      // Create a new jsPDF instance
-      const doc = new jsPDF();
+    //   // Create a new jsPDF instance
+    //   const doc = new jsPDF();
 
-      // Set document properties
-      doc.setFontSize(12);
+    //   // Set document properties
+    //   doc.setFontSize(12);
 
-      // Add logo (you'll replace this with your actual logo path)
-      // doc.addImage('/path/to/logo.png', 'PNG', 10, 10, 50, 20);
+    //   // Add logo (you'll replace this with your actual logo path)
+    //   // doc.addImage('/path/to/logo.png', 'PNG', 10, 10, 50, 20);
 
-      // Title
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('INFORME DE PAGO', 105, 30, { align: 'center' });
+    //   // Title
+    //   doc.setFontSize(18);
+    //   doc.setFont('helvetica', 'bold');
+    //   doc.text('INFORME DE PAGO', 105, 30, { align: 'center' });
       
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Rose Coupon', 105, 38, { align: 'center' });
+    //   doc.setFontSize(12);
+    //   doc.setFont('helvetica', 'normal');
+    //   doc.text('Rose Coupon', 105, 38, { align: 'center' });
 
-      // Prepare payment date (10 workable days after limit date)
-      const paymentDate = this.calculatePaymentDate(cuota.date);
-      const formattedPaymentDate = paymentDate.toLocaleDateString('es-VE');
-      const generationDate = new Date().toLocaleDateString('es-VE');
+    //   // Prepare payment date (10 workable days after limit date)
+    //   const paymentDate = this.calculatePaymentDate(cuota.date);
+    //   const formattedPaymentDate = paymentDate.toLocaleDateString('es-VE');
+    //   const generationDate = new Date().toLocaleDateString('es-VE');
 
-      // Invoice Details
-      doc.setFontSize(10);
-      doc.text(`Fecha de Generación: ${generationDate}`, 10, 50);
-      doc.text(`Fecha de Pago: ${formattedPaymentDate}`, 10, 56);
+    //   // Invoice Details
+    //   doc.setFontSize(10);
+    //   doc.text(`Fecha de Generación: ${generationDate}`, 10, 50);
+    //   doc.text(`Fecha de Pago: ${formattedPaymentDate}`, 10, 56);
 
-      // Prepare table data
-      const tableColumn = ['Detalle', 'Información'];
-      const tableRows = [
-        ['Comercio', `${affiliate.companyName} - ${affiliate.rif}` || 'N/A'],
-        ['Cliente', `${purchase.clientName} - ${purchase.clientCedula}` || 'N/A'],
-        ['Producto', purchase.productName],
-        ['Cuota N°', cuotaIndex + 1],
-        ['Fecha Límite', this.formatDate(cuota.date)],
-        ['Fecha de Pago', formattedPaymentDate],
-        ['Monto de Cuota', `$${cuota.amount.toFixed(2)}`]
-      ];
+    //   // Prepare table data
+    //   const tableColumn = ['Detalle', 'Información'];
+    //   const tableRows = [
+    //     ['Comercio', `${affiliate.companyName} - ${affiliate.rif}` || 'N/A'],
+    //     ['Cliente', `${purchase.clientName} - ${purchase.clientCedula}` || 'N/A'],
+    //     ['Producto', purchase.productName],
+    //     ['Cuota N°', cuotaIndex + 1],
+    //     ['Fecha Límite', this.formatDate(cuota.date)],
+    //     ['Fecha de Pago', formattedPaymentDate],
+    //     ['Monto de Cuota', `$${cuota.amount.toFixed(2)}`]
+    //   ];
 
-      // Add table using autoTable function
-      const tableConfig = {
-        startY: 70,
-        head: [tableColumn],
-        body: tableRows,
-        theme: 'grid',
-        styles: {
-          fontSize: 10,
-          cellPadding: 3,
-          valign: 'middle',
-          halign: 'left'
-        },
-        headStyles: {
-          fillColor: [41, 18, 47], // Dark purple background
-          textColor: [255, 255, 255], // White text
-          fontStyle: 'bold'
-        },
-        columnStyles: {
-          0: { 
-            fontStyle: 'bold', 
-            cellWidth: 50 
-          },
-          1: { 
-            cellWidth: 'auto',
-            halign: 'right' // Right-align the values
-          }
-        }
-      };
+    //   // Add table using autoTable function
+    //   const tableConfig = {
+    //     startY: 70,
+    //     head: [tableColumn],
+    //     body: tableRows,
+    //     theme: 'grid',
+    //     styles: {
+    //       fontSize: 10,
+    //       cellPadding: 3,
+    //       valign: 'middle',
+    //       halign: 'left'
+    //     },
+    //     headStyles: {
+    //       fillColor: [41, 18, 47], // Dark purple background
+    //       textColor: [255, 255, 255], // White text
+    //       fontStyle: 'bold'
+    //     },
+    //     columnStyles: {
+    //       0: { 
+    //         fontStyle: 'bold', 
+    //         cellWidth: 50 
+    //       },
+    //       1: { 
+    //         cellWidth: 'auto',
+    //         halign: 'right' // Right-align the values
+    //       }
+    //     }
+    //   };
 
-      // Safely add the table
-      autoTable(doc, tableConfig);
+    //   // Safely add the table
+    //   autoTable(doc, tableConfig);
 
-      // Get the final Y position
-      let finalY = doc.internal.pageSize.height - 30; // Default fallback position
-      try {
-        if (doc.lastAutoTable && doc.lastAutoTable.finalY) {
-          finalY = doc.lastAutoTable.finalY;
-        }
-      } catch (error) {
-        console.warn('Could not get finalY from autoTable', error);
-      }
+    //   // Get the final Y position
+    //   let finalY = doc.internal.pageSize.height - 30; // Default fallback position
+    //   try {
+    //     if (doc.lastAutoTable && doc.lastAutoTable.finalY) {
+    //       finalY = doc.lastAutoTable.finalY;
+    //     }
+    //   } catch (error) {
+    //     console.warn('Could not get finalY from autoTable', error);
+    //   }
 
-      // Total Amount Section
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('TOTAL A PAGAR', 150, finalY + 10, { align: 'right' });
-      doc.text(`$${cuota.amount.toFixed(2)}`, 190, finalY + 10, { align: 'right' });
+    //   // Total Amount Section
+    //   doc.setFontSize(12);
+    //   doc.setFont('helvetica', 'bold');
+    //   doc.text('TOTAL A PAGAR', 150, finalY + 10, { align: 'right' });
+    //   doc.text(`$${cuota.amount.toFixed(2)}`, 190, finalY + 10, { align: 'right' });
 
-      // Footer
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Informe generado por Rose Coupon', 105, doc.internal.pageSize.height - 15, { align: 'center' });
+    //   // Footer
+    //   doc.setFontSize(8);
+    //   doc.setFont('helvetica', 'normal');
+    //   doc.text('Informe generado por Rose Coupon', 105, doc.internal.pageSize.height - 15, { align: 'center' });
 
-      // Save the PDF
-      doc.save(`Informe_Pago_Cuota_${cuotaIndex + 1}_${purchase.clientName}.pdf`);
-    }
+    //   // Save the PDF
+    //   doc.save(`Informe_Pago_Cuota_${cuotaIndex + 1}_${purchase.clientName}.pdf`);
+    // }
   }
 }
 </script>

@@ -1880,7 +1880,27 @@ export default defineComponent({
               <i class="fas fa-handshake me-2"></i>
               Suscripción
             </h4>
-            <div v-if="subscriptionPlan && !hasapplicablePurchase" class="row">
+            <div v-if="!subscriptionPlan" class="row">
+              <div class="col-12">
+                <div class="alert alert-info d-flex align-items-center">
+                  <i class="fas fa-info-circle me-3 fa-2x"></i>
+                  <div>
+                    <h5 class="text-black mb-1">Sin Suscripción Activa</h5>
+                    <p class="mb-0">
+                      Actualmente no tienes una suscripción activa. Explora nuestros planes para disfrutar de todos los beneficios.
+                    </p>
+                    <div class="mt-2">
+                      <!-- TODO: Update this link to the actual subscription plans page -->
+                      <router-link to="/suscripciones" class="btn btn-sm btn-outline-info">
+                        <i class="fas fa-star me-1"></i>
+                        Ver Planes de Suscripción
+                      </router-link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="subscriptionPlan && !hasapplicablePurchase" class="row">
               <div class="col-md-6">
                 <div class="d-flex align-items-center gap-2 mb-3">
                   <p class="mb-0">

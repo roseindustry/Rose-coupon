@@ -63,6 +63,7 @@ export default {
 				console.error('Error signing out:', error.message);
 			}
 		},
+		
 		toggleAppSidebarMinify() {
 			if (!(this.appOption.appTopNav && this.appOption.appSidebarHide)) {
 				this.appOption.appSidebarMinified = !this.appOption.appSidebarMinified;

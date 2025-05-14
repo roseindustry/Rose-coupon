@@ -313,7 +313,7 @@
                               <th>Cuota</th>
                               <th>Fecha</th>
                               <th class="text-end">
-                                Monto <small>{{ includeCuotaAddOn ? `(+$${selectedClient.subscription.cuotaAddOn}) cargo de mantenimiento` :  '' }}</small>
+                                Monto
                               </th>
                             </tr>
                           </thead>
@@ -586,11 +586,18 @@
                   <div class="d-flex justify-content-between">
                     <span class="summary-label">Plan:</span>
                     <span class="summary-value">
-                      {{ selectedClient.subscription.name.toUpperCase() }}
+                      {{ selectedClient?.subscription?.name.toUpperCase() }}
                     </span>
                   </div>
                   <div class="d-flex justify-content-between">
-                    <span class="summary-label">Aumento de Cuota por Suscripción:</span>
+                    <span class="summary-label">Período de Mantenimiento:</span>
+                    <span class="summary-value">
+                      {{ subscriptionMaintenancePeriod }} 
+                      {{ subscriptionMaintenancePeriod > 1 ? 'meses' : 'mes' }}
+                    </span>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <span class="summary-label">Aumento Mensual por Mantenimiento:</span>
                     <span class="summary-value">
                       ${{ Number(selectedClient.subscription.cuotaAddOn).toFixed(2) }}
                     </span>
@@ -601,13 +608,7 @@
                       ${{ Number(loanAmountWithAddOn).toFixed(2) }}
                     </span>
                   </div>
-                  <div class="d-flex justify-content-between">
-                    <span class="summary-label">Período de Mantenimiento:</span>
-                    <span class="summary-value">
-                      {{ subscriptionMaintenancePeriod }} 
-                      {{ subscriptionMaintenancePeriod > 1 ? 'meses' : 'mes' }}
-                    </span>
-                  </div>
+                  
                 </div>
               </div>
 
@@ -630,7 +631,7 @@
             <!-- Card Header with Filters -->
             <div class="card-header">
               <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-                <h5 class="text-black mb-0">Historial de Ventas</h5>
+                <h5 class="mb-0">Historial de Ventas</h5>
                 <div class="d-flex flex-column flex-sm-row gap-3 align-items-stretch align-items-sm-center">
                   <!-- Status Filter -->
                   <select v-model="salesFilter" class="form-select bg-dark text-light border-secondary">
@@ -791,6 +792,7 @@ export default {
       includeFee: true, // Default to true to include the fee
       includeCuotaAddOn: false,
 
+      initialPercentageWarning: '',
       initialPercentage: "50",
       customInitial: 0,
       frequency: 2, // Default to bi-weekly (2)
@@ -967,7 +969,7 @@ export default {
       if (loanAmount > availableCredit) {
         const requiredInitial = totalPrice - availableCredit;
         const requiredPercentage = ((requiredInitial / totalPrice) * 100).toFixed(1);
-        return `Basado en el crédito disponible ($${availableCredit}), se requiere un pago inicial de $${requiredInitial.toFixed(2)} (${requiredPercentage}%)`;
+        return `Basado en el crédito disponible ($${availableCredit}), se requiere un pago inicial de $${requiredInitial.toFixed(2)} (${requiredPercentage}% de Pago Inicial)`;
       }
 
       return '';
@@ -1085,8 +1087,8 @@ export default {
         this.includeCuotaAddOn = false;
       }
     },
-    includeCuotaAddOn(newValue) {
-      if (this.calculationsPerformed) {
+    includeCuotaAddOn(newValue) {      
+      if (this.selectedClient && this.calculationsPerformed) {
         // Recalculate with the new fee setting
         this.calcs(this.selectedClient);
       }
@@ -1357,11 +1359,6 @@ export default {
           ? this.customInitial
           : Number(this.initialPercentage);
 
-        if (percentage <= 0 || percentage >= 100) {
-          toast.error('El porcentaje inicial debe estar entre 0 y 100');
-          return;
-        }
-
         // Calculate initial amounts
         let initialPayment = (totalPrice * percentage) / 100;
         let loanAmount = totalPrice - initialPayment;
@@ -1410,23 +1407,28 @@ export default {
           
           // Dynamically calculate maintenance period based on frequency and terms
           let maintenancePeriod;
+          let monthlyQuotes;
+
           if (this.frequency === 2) {  // Bi-weekly
-            // 12 terms bi-weekly = 6 months maintenance
-            maintenancePeriod = this.newPurchase.terms === 12 ? 6 : Math.floor(this.newPurchase.terms / 2);
+            // Convert bi-weekly terms to monthly
+            monthlyQuotes = Math.ceil(this.newPurchase.terms / 2);
+            maintenancePeriod = Math.min(monthlyQuotes, 12);
           } else {  // Monthly
-            // 12 terms monthly = 12 months maintenance
-            maintenancePeriod = this.newPurchase.terms;
+            monthlyQuotes = this.newPurchase.terms;
+            maintenancePeriod = Math.min(monthlyQuotes, 12);
           }
 
-          // Validate maintenance period against subscription
-          const maxSubscriptionMonths = 12;
-          maintenancePeriod = Math.min(maintenancePeriod, maxSubscriptionMonths);
+          // Calculate total add-on amount based on maintenance period
+          const totalAddonAmount = addonAmount * maintenancePeriod;
 
-          // Add subscription addon to each quote
-          this.quotesAmount = this.quotesAmount.map(quote => quote + addonAmount);
+          // Calculate the additional amount to be added to each quote
+          const additionalPerQuote = totalAddonAmount / this.newPurchase.terms;
+
+          // Create a new quotes array with the add-on distributed evenly
+          this.quotesAmount = this.quotesAmount.map(quote => quote + additionalPerQuote);
 
           // Calculate total loan amount with add-on
-          this.loanAmountWithAddOn = this.loanAmount + (addonAmount * this.newPurchase.terms);
+          this.loanAmountWithAddOn = this.loanAmount + totalAddonAmount;
 
           this.subscriptionMaintenancePeriod = maintenancePeriod;
         }
@@ -1485,24 +1487,37 @@ export default {
     async updateInitial(client) {
       if (!client) return;
 
+      // Reset warning
+      this.initialPercentageWarning = '';
+
       try {
         const percentage = this.initialPercentage === 'custom'
           ? this.customInitial
           : Number(this.initialPercentage);
 
-        if (percentage <= 0 || percentage >= 100) {
-          throw new Error('El porcentaje inicial debe estar entre 0 y 100');
-        }
-
-        // Perfom calculations again
+        // Perform calculations with the current percentage
         this.calcs(client);
 
-        if (this.loanAmount > client.credit?.availableMainCredit) {
-          throw new Error('El monto del préstamo excede el crédito disponible del cliente');
+        // Check available credit 
+        const availableCredit = client.credit?.availableMainCredit || 0;
+        const totalPrice = this.newPurchase.productPrice;
+
+        // Calculate loan amount based on the current percentage
+        const initialPayment = (totalPrice * percentage) / 100;
+        const loanAmount = totalPrice - initialPayment;
+
+        // Check if loan amount exceeds available credit
+        if (loanAmount > availableCredit) {
+          // Set warning text about credit limitation
+          this.initialPercentageWarning = `
+            El monto del préstamo ($${loanAmount.toFixed(2)}) 
+            excede el crédito disponible ($${availableCredit.toFixed(2)}). 
+            Considere aumentar el porcentaje inicial.
+          `;
         }
       } catch (error) {
         console.error('Error al actualizar inicial:', error);
-        toast.error(error.message);
+        this.initialPercentageWarning = 'Ocurrió un error al calcular el plan de pagos';
         this.cancelCalcs();
       }
     },

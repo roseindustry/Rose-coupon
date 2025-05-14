@@ -5,6 +5,8 @@ import { db, storage, functions } from '@/firebase/init';
 import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
 import { toast as showToast } from '@/utils/toast';
+import Swal from 'sweetalert2';
+import 'sweetalert2/src/sweetalert2.scss';
 import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import * as XLSX from "xlsx";
@@ -62,6 +64,11 @@ export default {
             verificationFilter: 'all',
 
             displayRequests: false,
+            userDetailsModal: {
+                isLoading: false,
+                userData: null,
+                error: null
+            },
         }
     },
     async mounted() {
@@ -685,10 +692,9 @@ export default {
                 this.isSubmitting = false;
             }
         },
-        async deleteClient(client, index) {
-            console.log(client.uid);
+        async deleteClient(client, index = null) {
             // Confirmation dialog
-            if (confirm("¿Desea borrar este cliente?")) {
+            if (confirm(`¿Está seguro de que desea eliminar al cliente ${client.firstName} ${client.lastName}? Esta acción es irreversible y eliminará todos los datos asociados al cliente.`)) {
                 // User clicked "OK"
 
                 try {
@@ -979,58 +985,76 @@ export default {
                 }
             }
         },
-        processDeleteRequest(request) {
-            console.log(request)
-            if (confirm(`¿Estás seguro de que deseas procesar la solicitud de eliminación de cuenta para ${request.userName}?`)) {
-                // Perform client's collection check of their credit and subscription's payments
-
-                // Proceed with request if clear
-                this.handleDeleteRequest(request);
-            }
-        },
-        async handleDeleteRequest(request) {
+        async handleDeleteRequest(requestId) {
             try {
-                this.isSubmitting = true;
+                this.isSubmitting = true;                
 
-                // Remove the deletion request from the database
-                const requestRef = dbRef(db, `deletionRequests/${request.id}`);
+                // Find the client object using the requestId (which is the user's UID)
+                const clientObject = this.clients.find((c) => c.uid === requestId);
+
+                // Check if the client was found in the local list
+                if (!clientObject) {
+                    console.error(`Client with ID ${requestId} not found in local clients list.`);
+                    showToast.error(`Error interno: No se encontró el cliente con ID ${requestId} en la lista local.`);
+                    this.isSubmitting = false; // Reset submitting state
+                    return; // Stop the function execution
+                }
+
+                // Construct the client's full name and get identification
+                const clientName = `${clientObject.firstName || ''} ${clientObject.lastName || ''}`.trim();
+                const clientIdentification = clientObject.identification || 'N/A'; // Handle missing identification
+
+                console.log('Processing deletion for client:', clientObject, 'Name:', clientName, 'ID:', clientIdentification);
+
+                // Update the deletion request in the database
+                const requestRef = dbRef(db, `deletionRequests/${requestId}`);
                 await update(requestRef, {
                     status: 'approved',
-                    approvedAt: new Date().toISOString()
+                    clientId: requestId,
+                    clientName: clientName,
+                    clientIdentification: clientIdentification,
+                    approvedAt: new Date().toISOString() // Timestamp of approval
                 });
 
-                const client = this.clients.filter((client) => client.uid === request.id);
+                // Send an email to the user about the request processing
+                const emailPayload = {
+                    to: client.email,
+                    message: {
+                        subject: "Solicitud de Eliminación de Cuenta Procesada",
+                        html: `
+                            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
+                                <div style="background-color: #29122f; color: white; text-align: center; padding: 15px; border-radius: 5px 5px 0 0;">
+                                    <h2>Solicitud de Eliminación Aprobada</h2>
+                                </div>
+                                <div style="background-color: white; padding: 20px; border-radius: 0 0 5px 5px;">
+                                    <p>Hola ${client.firstName} ${client.lastName},</p>
+                                    <p>Su solicitud de eliminación de cuenta ha sido revisada y aprobada.</p>
+                                    <p>Lamentamos mucho verte ir. Tus datos han sido eliminados de nuestra web.</p>
+                                    <hr style="border: none; border-top: 1px solid #ddd;">
+                                    <p style="font-size: 0.8em; color: #666;">Si no solicitó esta acción, por favor contacte a nuestro equipo de soporte.</p>
+                                </div>
+                                <div style="text-align: center; color: #666; margin-top: 20px; font-size: 0.8em;">
+                                    © ${new Date().getFullYear()} Rose Coupon. Todos los derechos reservados.
+                                </div>
+                            </div>
+                        `
+                    }
+                };
 
-                // // Send an email to the user about the request processing
-                // const emailPayload = {
-                //     to: client.email,
-                //     message: {
-                //         subject: "Solicitud de Eliminación de Cuenta Procesada",
-                //         html: `
-                //             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
-                //                 <div style="background-color: #29122f; color: white; text-align: center; padding: 15px; border-radius: 5px 5px 0 0;">
-                //                     <h2>Solicitud de Eliminación Aprobada</h2>
-                //                 </div>
-                //                 <div style="background-color: white; padding: 20px; border-radius: 0 0 5px 5px;">
-                //                     <p>Hola ${client.firstName} ${client.lastName},</p>
-                //                     <p>Su solicitud de eliminación de cuenta ha sido revisada y aprobada.</p>
-                //                     <p>Lamentamos mucho verte ir. Tus datos han sido eliminados de nuestra web.</p>
-                //                     <hr style="border: none; border-top: 1px solid #ddd;">
-                //                     <p style="font-size: 0.8em; color: #666;">Si no solicitó esta acción, por favor contacte a nuestro equipo de soporte.</p>
-                //                 </div>
-                //                 <div style="text-align: center; color: #666; margin-top: 20px; font-size: 0.8em;">
-                //                     © ${new Date().getFullYear()} Rose Coupon. Todos los derechos reservados.
-                //                 </div>
-                //             </div>
-                //         `
-                //     }
-                // };
+                // Send notification email
+                await sendEmail(emailPayload);
 
-                // // Send notification email
-                // await sendEmail(emailPayload);
+                // Process delete 
+                await this.deleteClient(clientObject);
 
-                // Process delete through cloud function
-
+                // success swal
+                Swal.fire
+                ({
+                    icon: 'success',
+                    title: 'Solicitud Aprobada',
+                    text: 'Usuario eliminado.',
+                    confirmButtonColor: '#29122f'
+                });
 
                 // Refresh the delete requests list
                 await this.fetchDeleteRequests();
@@ -1044,10 +1068,229 @@ export default {
                 this.isSubmitting = false;
             }
         },
-        checkUserDetails(request) {
-            // Implement the logic to check user details
-            console.log('Checking user details for:', request.userName);
+        async processDeleteRequest(request) {
+            // Reset previous modal state
+            this.userDetailsModal.isLoading = true;
+            this.userDetailsModal.userData = null;
+            this.userDetailsModal.error = null;
+
+            try {
+                // Open the modal
+                const modal = new Modal(document.getElementById('userDetailsModal'));
+                modal.show();
+
+                // Fetch user details
+                await this.fetchUserDetailsForDeletion(request);
+            } catch (error) {
+                console.error('Error processing delete request:', error);
+                this.userDetailsModal.error = 'No se pudieron cargar los detalles del usuario';
+            } finally {
+                this.userDetailsModal.isLoading = false;
+            }
         },
+
+        async fetchUserDetailsForDeletion(request) {
+            try {
+                // Find the full client object
+                const client = this.clients.find(c => c.uid === request.id);
+
+                if (!client) {
+                    throw new Error('Cliente no encontrado');
+                }
+
+                // Fetch additional details
+                await Promise.all([
+                    this.fetchClientCredit(client),
+                    this.fetchClientSubscription(client)
+                ]);
+
+                // Check for active purchases and outstanding payments
+                const activePurchasesDetails = await this.checkActivePurchases(client);
+
+                // Prepare user details for modal
+                this.userDetailsModal.userData = {
+                    basicInfo: {
+                        uid: client.uid,
+                        name: `${client.firstName} ${client.lastName}`,
+                        email: client.email,
+                        identification: client.identification,
+                        phoneNumber: client.phoneNumber
+                    },
+                    credit: {
+                        ...client.credit,
+                        activePurchases: activePurchasesDetails.activePurchases,
+                        totalOutstandingPayments: activePurchasesDetails.totalOutstandingPayments,
+                        canBeDeleted: activePurchasesDetails.canBeDeleted
+                    },
+                    subscription: client.subscription || {},
+                    deleteRequest: request
+                };
+            } catch (error) {
+                console.error('Error fetching user details:', error);
+                this.userDetailsModal.error = 'No se pudieron cargar los detalles del usuario';
+            }
+        },
+
+        async checkActivePurchases(client) {
+            try {
+                const purchasesRef = dbRef(db, `Users/${client.uid}/credit/main/purchases`);
+                const snapshot = await get(purchasesRef);
+
+                let activePurchases = [];
+                let totalOutstandingPayments = 0;
+
+                if (snapshot.exists()) {
+                    const purchases = snapshot.val();
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    // Iterate through purchases
+                    Object.entries(purchases).forEach(([purchaseId, purchase]) => {
+                        if (purchase.cuotas) {
+                            const unpaidCuotas = Object.values(purchase.cuotas).filter(cuota => {
+                                const cuotaDate = new Date(cuota.date);
+                                const isUnpaid = !cuota.paid;
+                                const isOverdue = cuotaDate <= today;
+                                return isUnpaid;
+                            });
+
+                            if (unpaidCuotas.length > 0) {
+                                const outstandingAmountForPurchase = unpaidCuotas.reduce((sum, cuota) => sum + cuota.amount, 0);
+                                const purchaseDetails = {
+                                    id: purchaseId,
+                                    productName: purchase.productName,
+                                    totalPrice: purchase.productPrice,
+                                    unpaidCuotasCount: unpaidCuotas.length, // Renamed for clarity
+                                    outstandingAmount: outstandingAmountForPurchase
+                                };
+
+                                activePurchases.push(purchaseDetails);
+                                totalOutstandingPayments += purchaseDetails.outstandingAmount;
+                            }
+                        } else {
+                            console.log(`[checkActivePurchases] Purchase ${purchaseId} has no cuotas field.`);
+                        }
+                    });
+                } else {
+                    console.log('[checkActivePurchases] No purchases found for this client.');
+                }
+
+                const result = {
+                    activePurchases,
+                    totalOutstandingPayments,
+                    canBeDeleted: activePurchases.length === 0 && totalOutstandingPayments === 0 // Ensure both are zero
+                };
+                // console.log('[checkActivePurchases] Final result:', result);
+                return result;
+            } catch (error) {
+                console.error('[checkActivePurchases] Error checking active purchases:', error);
+                return {
+                    activePurchases: [],
+                    totalOutstandingPayments: 0,
+                    canBeDeleted: false // Default to false on error, safer
+                };
+            }
+        },
+        async confirmDeleteUser() {
+            if (!this.userDetailsModal.userData) return;
+
+            const userId = this.userDetailsModal.userData.basicInfo.uid;
+
+            try {
+                // Check if the user can be deleted
+                if (!this.userDetailsModal.userData.credit.canBeDeleted) {
+                    showToast.error('No se puede eliminar el usuario. Tiene compras activas pendientes.');
+                    return;
+                }
+
+                // Show confirmation dialog
+                if (!confirm(`¿Está seguro de que desea eliminar definitivamente la cuenta de ${this.userDetailsModal.userData.basicInfo.name}?`)) {
+                    return;
+                }
+
+                // Perform deletion logic
+                await this.handleDeleteRequest(userId);
+
+                // Close the modal
+                const modal = Modal.getInstance(document.getElementById('userDetailsModal'));
+                modal.hide();
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                showToast.error('No se pudo eliminar el usuario');
+            }
+        },
+
+        // Notify user if request denied
+        async sendNotification(client) {
+            console.log(client);
+            if (!confirm(`¿Está seguro de que desea enviar una notificación por correo electrónico a ${client.basicInfo.name} (${client.basicInfo.email})?`)) {
+                return; // Stop if user cancels
+            }
+            try {
+                const emailPayload = {
+                    to: client.basicInfo.email, // Corrected: Use client.basicInfo.email
+                    message: {
+                        subject: "Su Solicitud de Eliminación de Cuenta No fue aprobada",
+                        text: `
+                            Hola ${client.basicInfo.name},
+
+                            Hemos revisado su solicitud para eliminar su cuenta. Lamentablemente, en este momento no podemos procesarla.
+
+                            Esto se debe a que hemos identificado compras a crédito activas asociadas a su cuenta. Para poder proceder con la eliminación de su cuenta, es necesario que primero complete todos los pagos pendientes y liquide cualquier saldo deudor relacionado con estas compras.
+
+                            Le pedimos amablemente que revise el estado de sus compras y pagos pendientes accediendo a su perfil en nuestra plataforma. Una vez que todas sus obligaciones crediticias hayan sido resueltas, podrá enviar una nueva solicitud de eliminación de cuenta y con gusto la procesaremos.
+
+                            Si tiene alguna pregunta sobre sus compras pendientes o necesita asistencia, por favor, no dude en contactar a nuestro equipo de soporte.
+
+                            ---
+                            Si no solicitó esta acción o si considera que esto es un error, por favor contacte a nuestro equipo de soporte inmediatamente.
+
+                            © ${new Date().getFullYear()} Rose Coupon. Todos los derechos reservados.
+                        `,
+                        html: `
+                            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
+                                <div style="background-color: #29122f; color: white; text-align: center; padding: 15px; border-radius: 5px 5px 0 0;">
+                                    <h2>Su Solicitud de Eliminación de Cuenta No fue aprobada</h2>
+                                </div>
+                                <div style="background-color: white; padding: 20px; border-radius: 0 0 5px 5px;">
+                                    <p>Hola ${client.basicInfo.name},</p>
+                                    <p>Hemos revisado su solicitud para eliminar su cuenta. Lamentablemente, en este momento no podemos procesarla.</p>
+                                    <p>Esto se debe a que hemos identificado compras a crédito activas asociadas a su cuenta. Para poder proceder con la eliminación de su cuenta, es necesario que primero complete todos los pagos pendientes y liquide cualquier saldo deudor relacionado con estas compras.</p>
+                                    <p>Le pedimos amablemente que revise el estado de sus compras y pagos pendientes accediendo a su perfil en nuestra plataforma. Una vez que todas sus obligaciones crediticias hayan sido resueltas, podrá enviar una nueva solicitud de eliminación de cuenta y con gusto la procesaremos.</p>
+                                    <p>Si tiene alguna pregunta sobre sus compras pendientes o necesita asistencia, por favor, no dude en contactar a nuestro equipo de soporte.</p>
+                                    <hr style="border: none; border-top: 1px solid #ddd;">
+                                    <p style="font-size: 0.8em; color: #666;">Si no solicitó esta acción o si considera que esto es un error, por favor contacte a nuestro equipo de soporte inmediatamente.</p>
+                                </div>
+                                <div style="text-align: center; color: #666; margin-top: 20px; font-size: 0.8em;">
+                                    © ${new Date().getFullYear()} Rose Coupon. Todos los derechos reservados.
+                                </div>
+                            </div>
+                        `
+                    }
+                };
+
+                // Send notification email
+                await sendEmail(emailPayload);
+
+                // Show success alert
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Notificación Enviada',
+                    text: `Se ha enviado un correo electrónico a ${client.email} informando sobre el estado de su solicitud.`,
+                    confirmButtonColor: '#29122f'
+                });
+
+            } catch (error) {
+                console.error('Error sending notification:', error);
+                showToast.error('Error al enviar la notificación');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'No se pudo enviar la notificación por correo electrónico.',
+                    confirmButtonColor: '#d33'
+                });
+            }
+        }
     }
 }
 </script>
@@ -1614,11 +1857,9 @@ export default {
                                 </div>
                                 <div class="request-actions-group">
                                     <div class="request-actions">
-                                        <button class="btn btn-sm btn-outline-info me-2" @click.stop="checkUserDetails(request)" title="Chequear Usuario">
-                                            <i class="fa-solid fa-user-check"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger" @click.stop="processDeleteRequest(request)">
-                                            <i class="fa-solid fa-trash"></i>
+                                        <button class="btn btn-outline-info me-2"
+                                            @click.stop="processDeleteRequest(request)" title="Chequear Usuario">
+                                            Chequear Usuario
                                         </button>
                                     </div>
                                 </div>
@@ -1733,6 +1974,202 @@ export default {
                 </div>
             </div>
         </div>
+
+        <!-- Modal for User Details in Delete Requests -->
+        <div class="modal fade" id="userDetailsModal" tabindex="-1" aria-labelledby="userDetailsModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content bg-dark">
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title text-light" id="userDetailsModalLabel">
+                            <i class="fas fa-user-shield me-2"></i>
+                            Detalles del Usuario
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Loading State -->
+                        <div v-if="userDetailsModal.isLoading" class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando...</span>
+                            </div>
+                            <p class="mt-2 text-secondary">Cargando detalles del usuario...</p>
+                        </div>
+
+                        <!-- Error State -->
+                        <div v-else-if="userDetailsModal.error" class="alert alert-danger">
+                            {{ userDetailsModal.error }}
+                        </div>
+
+                        <!-- User Details -->
+                        <div v-else-if="userDetailsModal.userData" class="user-details">
+                            <div class="row g-4">
+                                <!-- Basic Information -->
+                                <div class="col-md-6">
+                                    <div class="info-card">
+                                        <h6 class="text-secondary mb-3">
+                                            <i class="fas fa-user me-2"></i>Información Básica
+                                        </h6>
+                                        <div class="details-list">
+                                            <div class="detail-item">
+                                                <strong>Nombre:</strong>
+                                                {{ userDetailsModal.userData.basicInfo.name }}
+                                            </div>
+                                            <div class="detail-item scrollable-row">
+                                                <strong>Email:</strong>
+                                                {{ userDetailsModal.userData.basicInfo.email }}
+                                            </div>
+                                            <div class="detail-item">
+                                                <strong>Cédula:</strong>
+                                                {{ userDetailsModal.userData.basicInfo.identification }}
+                                            </div>
+                                            <div class="detail-item">
+                                                <strong>Teléfono:</strong>
+                                                {{ userDetailsModal.userData.basicInfo.phoneNumber || 'No disponible' }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Credit Information -->
+                                <div class="col-md-6">
+                                    <div class="info-card">
+                                        <h6 class="text-secondary mb-3">
+                                            <i class="fas fa-credit-card me-2"></i>Información de Crédito
+                                        </h6>
+                                        <div class="details-list">
+                                            <div class="detail-item">
+                                                <strong>Crédito Principal:</strong>
+                                                ${{ userDetailsModal.userData.credit.mainCredit || 0 }}
+                                            </div>
+                                            <div class="detail-item">
+                                                <strong>Crédito Principal Disponible:</strong>
+                                                ${{ userDetailsModal.userData.credit.availableMainCredit || 0 }}
+                                            </div>
+                                            <div class="detail-item">
+                                                <strong>Crédito Plus:</strong>
+                                                ${{ userDetailsModal.userData.credit.plusCredit || 0 }}
+                                            </div>
+                                            <div class="detail-item">
+                                                <strong>Crédito Plus Disponible:</strong>
+                                                ${{ userDetailsModal.userData.credit.availablePlusCredit || 0 }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Active Purchases Section -->
+                                <div class="col-md-12">
+                                    <div class="info-card">
+                                        <h6 class="text-secondary mb-3">
+                                            <i class="fas fa-shopping-cart me-2"></i>Compras Activas
+                                        </h6>
+                                        <div v-if="userDetailsModal.userData.credit.activePurchases.length > 0"
+                                            class="details-list">
+                                            <div v-for="purchase in userDetailsModal.userData.credit.activePurchases"
+                                                :key="purchase.id" class="detail-item">
+                                                <div class="d-flex justify-content-between w-100">
+                                                    <div>
+                                                        <strong>{{ purchase.productName }}</strong>
+                                                        <div class="text-warning small">
+                                                            {{ purchase.unpaidCuotasCount }} cuotas pendientes
+                                                        </div>
+                                                    </div>
+                                                    <div class="text-danger">
+                                                        ${{ purchase.outstandingAmount.toFixed(2) }}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="detail-item total-outstanding">
+                                                <strong>Total Pendiente:</strong>
+                                                <strong class="text-danger">
+                                                    ${{
+                                                        userDetailsModal.userData.credit.totalOutstandingPayments.toFixed(2)
+                                                    }}
+                                                </strong>
+                                            </div>
+                                        </div>
+                                        <div v-else class="text-center text-success">
+                                            <i class="fas fa-check-circle me-2"></i>
+                                            Sin compras activas pendientes
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Subscription Information -->
+                                <div class="col-md-12">
+                                    <div class="info-card">
+                                        <h6 class="text-secondary mb-3">
+                                            <i class="fas fa-clock me-2"></i>Información de Suscripción
+                                        </h6>
+                                        <div class="details-list">
+                                            <div class="detail-item">
+                                                <strong>Nivel de Suscripción:</strong>
+                                                {{ userDetailsModal.userData.subscription.name || 'No disponible' }}
+                                            </div>
+                                            <div class="detail-item">
+                                                <strong>Estado de Pago:</strong>
+                                                <span
+                                                    :class="userDetailsModal.userData.subscription.isPaid ? 'text-success' : 'text-danger'">
+                                                    {{ userDetailsModal.userData.subscription.isPaid ? 'Pagado' :
+                                                        'Pendiente' }}
+                                                </span>
+                                            </div>
+                                            <div v-if="userDetailsModal.userData.subscription.lastPaymentDate"
+                                                class="detail-item">
+                                                <strong>Último Pago:</strong>
+                                                {{ formatDate(userDetailsModal.userData.subscription.lastPaymentDate) }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Delete Request Details -->
+                            <div class="mt-4">
+                                <div class="info-card">
+                                    <h6 class="text-secondary mb-3">
+                                        <i class="fas fa-trash-alt me-2"></i>Detalles de Solicitud de Eliminación
+                                    </h6>
+                                    <div class="details-list">
+                                        <div class="detail-item">
+                                            <strong>Fecha de Solicitud:</strong>
+                                            {{ formatDate(userDetailsModal.userData.deleteRequest.createdAt) }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+                            Cerrar
+                        </button>
+
+                        <button
+                            v-if="!userDetailsModal?.userData?.credit?.canBeDeleted && userDetailsModal?.userData?.basicInfo?.email"
+                            type="button" class="btn btn-info" @click="sendNotification(userDetailsModal.userData)"
+                            title="Notificar Usuario">
+                            <i class="fa-solid fa-paper-plane me-2"></i> Contactar Usuario
+                        </button>
+
+                        <button type="button" class="btn btn-danger" @click="confirmDeleteUser"
+                            :disabled="!userDetailsModal?.userData?.credit?.canBeDeleted">
+                            <span v-if="!userDetailsModal?.userData?.credit?.canBeDeleted">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Tiene pagos pendientes
+                            </span>
+                            <span v-else>
+                                <i class="fas fa-trash-alt me-2"></i>
+                                Procesar Eliminación
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Modal for validating payment -->
         <!-- <div class="modal fade" id="validateModal" tabindex="-1" aria-labelledby="validateModalLabel"
             aria-hidden="true">
@@ -2282,5 +2719,68 @@ export default {
 .requests-wrapper .text-center h5 {
     color: rgba(255, 255, 255, 0.5);
     font-weight: 300;
+}
+
+/* User Details Modal Styles */
+.user-details .info-card {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.user-details .details-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.detail-item.scrollable-row {
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: thin;
+    /* Optional for Firefox */
+}
+
+.detail-item.scrollable-row::-webkit-scrollbar {
+    height: 6px;
+    /* Optional for Chrome */
+}
+
+
+.user-details .detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.user-details .detail-item:last-child {
+    border-bottom: none;
+}
+
+.user-details .detail-item strong {
+    color: #adb5bd;
+    margin-right: 1rem;
+    min-width: 200px;
+}
+
+.user-details .detail-item span {
+    text-align: right;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .user-details .detail-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .user-details .detail-item strong {
+        margin-right: 0;
+        margin-bottom: 0.25rem;
+    }
 }
 </style>

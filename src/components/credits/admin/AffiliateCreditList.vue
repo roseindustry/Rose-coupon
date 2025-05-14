@@ -13,12 +13,21 @@
     <div class="search-wrapper mb-4">
       <div class="search-container">
         <i class="fas fa-search search-icon"></i>
-        <input type="text" 
-               class="form-control search-input" 
-               v-model="filterQuery"
-               placeholder="Buscar afiliado por nombre o RIF..." 
-               @input="handleFilterChange">
+        <input type="text" class="form-control search-input" v-model="filterQuery"
+          placeholder="Buscar afiliado por nombre o RIF..." @input="handleFilterChange">
       </div>
+    </div>
+
+    <!-- New button to show pending payments -->
+    <div class="pending-payments-section mb-3">
+      <button class="btn" :class="{
+        'btn-success': pendingPaymentsClients.length === 0,
+        'btn-warning': pendingPaymentsClients.length > 5 && pendingPaymentsClients.length <= 8,
+        'btn-danger': pendingPaymentsClients.length > 8
+      }" @click="showPendingPaymentsModal" v-if="pendingPaymentsClients.length > 0">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        {{ pendingPaymentsClients.length }} Clientes con Pagos Pendientes
+      </button>      
     </div>
 
     <div class="affiliates-table-wrapper">
@@ -29,9 +38,7 @@
             <span class="affiliate-id">RIF: {{ affiliate.rif }}</span>
           </div>
           <div class="affiliate-status">
-            <span v-if="affiliate.subscription" 
-                  class="status-badge"
-                  :class="{ 'active': affiliate.subscription }">
+            <span v-if="affiliate.subscription" class="status-badge" :class="{ 'active': affiliate.subscription }">
               {{ affiliate.subscription ? 'Activo' : 'Inactivo' }}
             </span>
           </div>
@@ -41,7 +48,7 @@
           <div class="credit-block">
             <div class="credit-type">
               <span class="label">Disponible</span>
-              <div class="amount" :class="{'text-success': affiliate.credit.availableMainCredit}">
+              <div class="amount" :class="{ 'text-success': affiliate.credit.availableMainCredit }">
                 ${{ affiliate.credit.availableMainCredit?.toFixed(2) || '0.00' }}
               </div>
               <div class="available-amount">
@@ -66,7 +73,7 @@
           <div class="credit-block">
             <div class="credit-type">
               <span class="label">Plus</span>
-              <div class="amount" :class="{'text-success': affiliate.credit.plusCredit}">
+              <div class="amount" :class="{ 'text-success': affiliate.credit.plusCredit }">
                 ${{ affiliate.credit.plusCredit?.toFixed(2) || '0.00' }}
               </div>
               <div class="available-amount">
@@ -87,6 +94,10 @@
         <div class="affiliate-actions">
           <button class="btn btn-theme" @click="$emit('view-details', affiliate)">
             <i class="fas fa-eye me-2"></i>Ver Detalles
+          </button>
+          <button class="btn btn-success ms-2" @click="downloadReport(affiliate.credit.sales, affiliate)">
+            <i class="fas fa-file-pdf me-2"></i>
+            Reporte de Ventas
           </button>
         </div>
 
@@ -121,13 +132,12 @@
               </thead>
               <tbody>
                 <template v-if="getAffiliatePayments(affiliate.id).length">
-                  <tr v-for="payment in getAffiliatePayments(affiliate.id)" 
-                      :key="`${payment.saleId}-${payment.cuotaNumber}`"
-                      :class="{'table-danger': getPaymentStatus(payment.date).text === 'Hoy'}">
+                  <tr v-for="payment in getAffiliatePayments(affiliate.id)"
+                    :key="`${payment.saleId}-${payment.cuotaNumber}`"
+                    :class="{ 'table-danger': getPaymentStatus(payment.date).text === 'Hoy' }">
                     <td>{{ formatDate(payment.date) }}</td>
                     <td>
-                      <span class="payment-badge" 
-                            :class="getPaymentStatus(payment.date).class">
+                      <span class="payment-badge" :class="getPaymentStatus(payment.date).class">
                         {{ getPaymentStatus(payment.date).text }}
                       </span>
                     </td>
@@ -163,34 +173,82 @@
     <nav class="my-5" v-if="totalPages > 1" aria-label="Page navigation">
       <ul class="pagination justify-content-center custom-pagination">
         <li class="page-item" :class="{ disabled: currentPage === 1 }">
-          <button class="page-link" 
-                  @click="handlePageChange(currentPage - 1)"
-                  :disabled="currentPage === 1">
+          <button class="page-link" @click="handlePageChange(currentPage - 1)" :disabled="currentPage === 1">
             Anterior
           </button>
         </li>
-        <li class="page-item" 
-            v-for="page in totalPages" 
-            :key="page"
-            :class="{ active: page === currentPage }">
-          <button class="page-link" 
-                  @click="handlePageChange(page)">
+        <li class="page-item" v-for="page in totalPages" :key="page" :class="{ active: page === currentPage }">
+          <button class="page-link" @click="handlePageChange(page)">
             {{ page }}
           </button>
         </li>
         <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-          <button class="page-link" 
-                  @click="handlePageChange(currentPage + 1)"
-                  :disabled="currentPage === totalPages">
+          <button class="page-link" @click="handlePageChange(currentPage + 1)" :disabled="currentPage === totalPages">
             Siguiente
           </button>
         </li>
       </ul>
     </nav>
+
+    <!-- Pending Payments Modal -->
+    <div class="modal fade" id="pendingPaymentsModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Clientes con Pagos Pendientes</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Comercio</th>
+                  <th>Producto</th>
+                  <th>Cuotas Vencidas</th>
+                  <th>Total Vencido</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="client in pendingPaymentsClients" :key="client.clientId">
+                  <td>{{ client.clientName }}</td>
+                  <td>{{ client.affiliateName }}</td>
+                  <td>{{ client.productName }}</td>
+                  <td>
+                    {{ client.pendingCuotasCount }}
+                    <span class="text-danger">(Vencidas)</span>
+                  </td>
+                  <td>
+                    ${{ client.totalPendingAmount.toFixed(2) }}
+                    <div class="text-muted small mt-1">
+                      Última cuota vencida:
+                      {{ formatDate(client.expiredCuotas[0].date) }}
+                    </div>
+                  </td>
+                  <td>
+                    <button class="btn btn-sm btn-info" @click="$emit('view-details', client.clientDetails)">
+                      <i class="fas fa-eye me-1"></i>Detalles
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
+import { Modal } from 'bootstrap';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
+import Swal from 'sweetalert2';
+import 'sweetalert2/src/sweetalert2.scss';
+
 export default {
   name: 'AffiliateCreditList',
   props: {
@@ -228,69 +286,278 @@ export default {
       this.$emit('update:filter-affiliates', this.filterQuery);
     },
     formatDate(dateString) {
-      if (!dateString) return '';
-      const [year, month, day] = dateString.split('-');
-      return `${day}/${month}/${year}`;
+      // Handle different input types
+      if (!dateString) return 'N/A';
+      
+      // If it's already a Date object, convert to string
+      if (dateString instanceof Date) {
+        return dateString.toLocaleDateString('es-VE');
+      }
+      
+      // If it's a timestamp or valid date string
+      try {
+        const date = new Date(dateString);
+        
+        // Check if the date is valid
+        if (isNaN(date.getTime())) {
+          return 'Fecha Inválida';
+        }
+        
+        return date.toLocaleDateString('es-VE');
+      } catch (error) {
+        console.warn('Invalid date format:', dateString);
+        return 'Fecha Inválida';
+      }
     },
     getAffiliatePayments(affiliateId) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-        const affiliatePayments = this.upcomingPayments.filter(payment => 
-            payment.affiliateId === affiliateId
-        );
-        
-        // First sort by date
-        const sortedPayments = affiliatePayments.sort((a, b) => 
-            new Date(a.date) - new Date(b.date)
-        );
+      const affiliatePayments = this.upcomingPayments.filter(payment =>
+        payment.affiliateId === affiliateId
+      );
 
-        // Filter based on selected option
-        const filteredPayments = sortedPayments.filter(payment => {
-            const paymentDate = new Date(payment.date);
-            // Set to noon to avoid timezone issues
-            paymentDate.setHours(12, 0, 0, 0);
-            
-            // Calculate difference in days using getTime for consistency
-            const diffTime = paymentDate.getTime() - today.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
-            // Show payments due within the selected period
-            if (this.paymentFilter === 'all') {
-                return diffDays <= 7; // Show all payments due within 7 days
-            }
-            
-            return diffDays <= parseInt(this.paymentFilter);
-        });
+      // First sort by date
+      const sortedPayments = affiliatePayments.sort((a, b) =>
+        new Date(a.date) - new Date(b.date)
+      );
 
-        // If showing all payments, get 5 closest payments
-        if (this.paymentFilter === 'all') {
-            return filteredPayments.slice(0, 5);
-        }
+      // Filter based on selected option
+      const filteredPayments = sortedPayments.filter(payment => {
+        const paymentDate = new Date(payment.date);
+        // Set to noon to avoid timezone issues
+        paymentDate.setHours(12, 0, 0, 0);
 
-        return filteredPayments;
-    },
-    getPaymentStatus(date) {
-        // Create dates without time component to avoid timezone issues
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        // Parse the date and handle timezone offset
-        const paymentDate = new Date(date);
-        // Adjust for timezone offset to ensure correct date comparison
-        paymentDate.setHours(12, 0, 0, 0); // Set to noon to avoid any timezone issues
-        
-        // Calculate difference in days
+        // Calculate difference in days using getTime for consistency
         const diffTime = paymentDate.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        // Show payments due within the selected period
+        if (this.paymentFilter === 'all') {
+          return diffDays <= 7; // Show all payments due within 7 days
+        }
+
+        return diffDays <= parseInt(this.paymentFilter);
+      });
+
+      // If showing all payments, get 5 closest payments
+      if (this.paymentFilter === 'all') {
+        return filteredPayments.slice(0, 5);
+      }
+
+      return filteredPayments;
+    },
+    getPaymentStatus(date) {
+      // Create dates without time component to avoid timezone issues
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Parse the date and handle timezone offset
+      const paymentDate = new Date(date);
+      // Adjust for timezone offset to ensure correct date comparison
+      paymentDate.setHours(12, 0, 0, 0); // Set to noon to avoid any timezone issues
+
+      // Calculate difference in days
+      const diffTime = paymentDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0) return { text: 'Hoy', class: 'bg-danger text-white' };
+      if (diffDays <= 3) return { text: '≤ 3 días', class: 'bg-warning text-dark' };
+      if (diffDays <= 5) return { text: '≤ 5 días', class: 'bg-info text-white' };
+      if (diffDays <= 7) return { text: '≤ 7 días', class: 'bg-primary text-white' };
+
+      return { text: '', class: '' };
+    },
+    showPendingPaymentsModal() {
+      this.$nextTick(() => {
+        const modalElement = document.getElementById('pendingPaymentsModal');
+        if (modalElement) {
+          const modal = new Modal(modalElement);
+          modal.show();
+        }
+      });
+    },
+    calculateAffiliatePaymentDate(limitDate) {
+      // Convert limit date to Date object
+      const date = new Date(limitDate);
+      let workableDays = 0;
+      let paymentDate = new Date(date);
+
+      while (workableDays < 10) {
+        paymentDate.setDate(paymentDate.getDate() + 1);
         
-        if (diffDays === 0) return { text: 'Hoy', class: 'bg-danger text-white' };
-        if (diffDays <= 3) return { text: '≤ 3 días', class: 'bg-warning text-dark' };
-        if (diffDays <= 5) return { text: '≤ 5 días', class: 'bg-info text-white' };
-        if (diffDays <= 7) return { text: '≤ 7 días', class: 'bg-primary text-white' };
+        // Skip weekends
+        if (paymentDate.getDay() !== 0 && paymentDate.getDay() !== 6) {
+          workableDays++;
+        }
+      }
+
+      return paymentDate;
+    },
+    downloadReport(sales, affiliate) {
+      // Ensure we have sales data
+      if (!sales || Object.keys(sales).length === 0) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Oops...',
+          text: 'No hay ventas para generar el reporte.',
+          confirmButtonText: 'OK'
+        });
+        return;
+      }
+
+      // Create a new jsPDF instance
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Helper function to safely calculate total price
+      const calculateTotalPrice = (sale) => {
+        const purchaseAmount = sale.purchaseAmount || 0;
+        const loanAmount = sale.loanAmount || 0;
+        const totalPrice = purchaseAmount + loanAmount;
         
-        return { text: '', class: '' };
-    }
+        return isNaN(totalPrice) ? '0.00' : totalPrice.toFixed(2);
+      };
+
+      // Set document properties
+      doc.setFontSize(12);
+
+      // Title
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Reporte de Ventas - ${affiliate.companyName}`, 148, 15, { align: 'center' });
+
+      // Affiliate Info
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`RIF: ${affiliate.rif}`, 148, 22, { align: 'center' });
+      doc.text(`Fecha de Generación: ${new Date().toLocaleDateString('es-VE')}`, 148, 28, { align: 'center' });
+
+      // Prepare table data
+      const tableColumns = [
+        'Cliente', 
+        'Producto', 
+        'Precio Total', 
+        'Fecha de Venta', 
+        'Cuota', 
+        'Monto Cuota', 
+        'Fecha Límite', 
+        'Fecha de Pago', 
+        'Estado'
+      ];
+
+      const tableRows = [];
+
+      // Process each sale
+      Object.entries(sales).forEach(([saleId, sale]) => {
+        // Skip deleted sales
+        if (sale.deleted || sale.deletedAt) return;
+
+        // Add a header row for each sale
+        tableRows.push([
+          { content: `Venta: ${saleId}`, colSpan: 9, styles: { 
+            fillColor: [111, 66, 193], 
+            textColor: 255, 
+            halign: 'left', 
+            fontStyle: 'bold' 
+          }}
+        ]);
+
+        // Process cuotas for this sale
+        if (sale.cuotas) {
+          Object.entries(sale.cuotas).forEach(([cuotaId, cuota], index) => {
+            // Calculate affiliate payment date
+            const affiliatePaymentDate = this.calculateAffiliatePaymentDate(cuota.date);
+
+            tableRows.push([
+              index === 0 ? sale.clientName : '',
+              index === 0 ? sale.productName : '',
+              index === 0 ? `$${calculateTotalPrice(sale)}` : '',
+              index === 0 ? this.formatDate(sale.purchaseDate) : '',
+              `Cuota ${index + 1}`,
+              `$${cuota?.amount?.toFixed(2) || '0.00'}`,
+              this.formatDate(cuota.date),
+              this.formatDate(affiliatePaymentDate), // Use calculated payment date
+              cuota.paid ? 'Pagada' : 'Pendiente'
+            ]);
+          });
+        }
+
+        // Add a separator row
+        tableRows.push([{ content: '', colSpan: 9 }]);
+      });
+
+      // Calculate total sales and pending amounts
+      const totalSales = Object.values(sales).reduce((total, sale) => 
+        sale.deleted || sale.deletedAt ? total : total + parseFloat(calculateTotalPrice(sale)), 0);
+      const pendingSales = Object.values(sales).reduce((total, sale) => {
+        if (sale.deleted || sale.deletedAt) return total;
+        const pendingCuotas = Object.values(sale.cuotas || {}).filter(cuota => !cuota.paid);
+        return total + pendingCuotas.reduce((sum, cuota) => sum + (cuota.amount || 0), 0);
+      }, 0);
+
+      // Add table using autoTable function
+      const tableConfig = {
+        startY: 35,
+        head: [tableColumns],
+        body: tableRows,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          valign: 'middle',
+          halign: 'left'
+        },
+        headStyles: {
+          fillColor: [41, 18, 47], // Dark purple background
+          textColor: [255, 255, 255], // White text
+          fontStyle: 'bold'
+        },
+        columnStyles: {
+          0: { cellWidth: 30 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 20 },
+          3: { cellWidth: 25 },
+          4: { cellWidth: 15 },
+          5: { cellWidth: 20 },
+          6: { cellWidth: 25 },
+          7: { cellWidth: 25 },
+          8: { cellWidth: 20 }
+        }
+      };
+
+      // Safely add the table
+      autoTable(doc, tableConfig);
+
+      // Add summary section
+      let finalY = doc.internal.pageSize.height - 30; // Default fallback position
+      try {
+        if (doc.lastAutoTable && doc.lastAutoTable.finalY) {
+          finalY = doc.lastAutoTable.finalY;
+        }
+      } catch (error) {
+        console.warn('Could not get finalY from autoTable', error);
+      }
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Resumen', 15, finalY + 10);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Total de Ventas: $${totalSales.toFixed(2)}`, 15, finalY + 17);
+      doc.text(`Monto Pendiente: $${pendingSales.toFixed(2)}`, 15, finalY + 24);
+
+      // Footer
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Informe generado por Rose Coupon', 148, doc.internal.pageSize.height - 10, { align: 'center' });
+
+      // Save the PDF
+      doc.save(`Reporte_Ventas_${affiliate.companyName}_${new Date().toISOString().split('T')[0]}.pdf`);
+    },
   },
   watch: {
     filterAffiliates: {
@@ -302,47 +569,99 @@ export default {
   },
   computed: {
     upcomingPayments() {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const payments = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const payments = [];
 
-        this.affiliates.forEach(affiliate => {
-            // Skip if no credit or sales
-            if (!affiliate.credit?.sales) return;
+      this.affiliates.forEach(affiliate => {
+        // Skip if no credit or sales
+        if (!affiliate.credit?.sales) return;
 
-            // Get sales as array
-            const sales = Object.entries(affiliate.credit.sales);
-            
-            sales.forEach(([saleId, sale]) => {
-                // Skip if no cuotas
-                if (!sale.cuotas) return;
+        // Get sales as array
+        const sales = Object.entries(affiliate.credit.sales);
 
-                // Get cuotas as array
-                const cuotas = Object.entries(sale.cuotas);
-                
-                cuotas.forEach(([cuotaId, cuota]) => {
-                    const cuotaDate = new Date(cuota.date);
-                    
-                    // Only include unpaid future cuotas
-                    if (!cuota.isPaid && cuotaDate >= today) {
-                        payments.push({
-                            affiliateId: affiliate.id,
-                            clientId: sale.clientId,
-                            clientName: sale.clientName,
-                            saleId: saleId,
-                            productName: sale.productName,
-                            date: cuota.date,
-                            cuotaNumber: cuota.number,
-                            amount: cuota.amount
-                        });
-                    }
-                });
-            });
+        sales.forEach(([saleId, sale]) => {
+          // Skip if no cuotas
+          if (!sale.cuotas) return;
+
+          // Get cuotas as array
+          const cuotas = Object.entries(sale.cuotas);
+
+          cuotas.forEach(([cuotaId, cuota]) => {
+            const cuotaDate = new Date(cuota.date);
+
+            // Only include unpaid future cuotas
+            if (!cuota.isPaid && cuotaDate >= today) {
+              payments.push({
+                affiliateId: affiliate.id,
+                clientId: sale.clientId,
+                clientName: sale.clientName,
+                saleId: saleId,
+                productName: sale.productName,
+                date: cuota.date,
+                cuotaNumber: cuota.number,
+                amount: cuota.amount
+              });
+            }
+          });
         });
+      });
 
-        // Sort by date ascending (closest first)
-        return payments.sort((a, b) => new Date(a.date) - new Date(b.date));
-    }
+      // Sort by date ascending (closest first)
+      return payments.sort((a, b) => new Date(a.date) - new Date(b.date));
+    },
+    pendingPaymentsClients() {
+      const pendingClients = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      this.affiliates.forEach(affiliate => {
+        // Skip if no sales
+        if (!affiliate.credit?.sales) return;
+
+        // Get sales as array
+        const sales = Object.entries(affiliate.credit.sales);
+
+        sales.forEach(([saleId, sale]) => {
+          // Skip if no cuotas
+          if (!sale.cuotas) return;
+
+          // Get cuotas as array
+          const cuotas = Object.entries(sale.cuotas);
+
+          // Filter unpaid and expired cuotas
+          const expiredCuotas = cuotas.filter(([_, cuota]) =>
+            !sale.deleted && !sale.deletedAt && !cuota.paid && new Date(cuota.date) < today
+          );
+
+          if (expiredCuotas.length > 0) {
+            pendingClients.push({
+              clientId: sale.client_id,
+              clientName: sale.clientName || 'Cliente',
+              affiliateName: affiliate.companyName,
+              productName: sale.productName,
+              pendingCuotasCount: expiredCuotas.length,
+              totalPendingAmount: expiredCuotas.reduce((total, [_, cuota]) => total + cuota.amount, 0),
+              expiredCuotas: expiredCuotas.map(([id, cuota]) => ({
+                id,
+                ...cuota
+              })),
+              clientDetails: {
+                id: sale.client_id,
+                name: sale.clientName || 'Cliente',
+                identification: 'N/A',
+                credit: {
+                  mainPurchases: [sale]
+                }
+              }
+            });
+          }
+        });
+      });
+
+      // Sort by total pending amount in descending order
+      return pendingClients.sort((a, b) => b.totalPendingAmount - a.totalPendingAmount);
+    },
   }
 }
 </script>
@@ -483,7 +802,7 @@ export default {
   border: none;
   background: transparent;
   color: #000000;
-  height: 40px;  
+  height: 40px;
 }
 
 .search-input::placeholder {
@@ -530,38 +849,40 @@ export default {
 }
 
 /* Button Styles */
-.btn-outline-theme, .btn-theme {
-    border-radius: 20px;
-    font-size: 0.85rem;
-    padding: 0.375rem 0.75rem;
-    transition: all 0.2s ease;
+.btn-outline-theme,
+.btn-theme {
+  border-radius: 20px;
+  font-size: 0.85rem;
+  padding: 0.375rem 0.75rem;
+  transition: all 0.2s ease;
 }
 
-.btn-outline-danger, .btn-outline-success { 
+.btn-outline-danger,
+.btn-outline-success {
   border-radius: 20px;
 }
 
 .btn-outline-theme {
-    border-color: purple;
-    color: purple;
+  border-color: purple;
+  color: purple;
 }
 
 .btn-outline-theme:hover {
-    background-color: purple;
-    color: white;
-    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+  background-color: purple;
+  color: white;
+  box-shadow: 0 2px 5px rgba(128, 0, 128, 0.3);
 }
 
 .btn-theme {
-    background-color: purple;
-    border-color: purple;
-    color: white;
+  background-color: purple;
+  border-color: purple;
+  color: white;
 }
 
 .btn-theme:hover {
-    background-color: #8a2be2;
-    border-color: #8a2be2;
-    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
+  background-color: #8a2be2;
+  border-color: #8a2be2;
+  box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
 }
 
 .btn-outline-info,
@@ -629,7 +950,7 @@ export default {
   .payments-table-wrapper {
     margin: 0 -1rem;
   }
-  
+
   .payments-table-wrapper table {
     font-size: 0.875rem;
   }
@@ -674,56 +995,96 @@ export default {
 }
 
 .payment-filter {
-    min-width: 140px;
+  min-width: 140px;
 }
 
 .payment-filter .form-select {
-    background-color: #1a1a1a;
-    border-color: #444;
-    color: #fff;
-    font-size: 0.875rem;
-    padding: 0.25rem 2rem 0.25rem 0.5rem;
+  background-color: #1a1a1a;
+  border-color: #444;
+  color: #fff;
+  font-size: 0.875rem;
+  padding: 0.25rem 2rem 0.25rem 0.5rem;
 }
 
 .payment-filter .form-select:focus {
-    border-color: #6f42c1;
-    box-shadow: 0 0 0 0.25rem rgba(111, 66, 193, 0.25);
+  border-color: #6f42c1;
+  box-shadow: 0 0 0 0.25rem rgba(111, 66, 193, 0.25);
 }
 
 .payment-filter .form-select option {
-    background-color: #1a1a1a;
-    color: #fff;
+  background-color: #1a1a1a;
+  color: #fff;
 }
 
 .payments-header {
-    padding-bottom: 1rem;
-    margin-bottom: 1rem;
-    border-bottom: 1px solid #444;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #444;
 }
 
 @media (max-width: 768px) {
-    .payments-header {
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
-    .payment-filter {
-        width: 100%;
-    }
+  .payments-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .payment-filter {
+    width: 100%;
+  }
 }
 
 .empty-payments {
-    padding: 1.5rem;
-    text-align: center;
-    color: #adb5bd;
+  padding: 1.5rem;
+  text-align: center;
+  color: #adb5bd;
 }
 
 .empty-payments i {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .empty-payments p {
-    font-size: 0.875rem;
+  font-size: 0.875rem;
 }
-</style> 
+
+/* Add some styling for the pending payments button */
+.pending-payments-section {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+.btn-warning {
+  background-color: #ffc107;
+  color: #000;
+  border-color: #ffc107;
+}
+
+.btn-warning:hover {
+  background-color: #ffca2c;
+  border-color: #ffc720;
+}
+
+/* Modal styles */
+#pendingPaymentsModal .modal-content {
+  background-color: #2d2d2d;
+  color: #fff;
+}
+
+#pendingPaymentsModal .table {
+  color: #fff;
+}
+
+#pendingPaymentsModal .table thead {
+  background-color: #6f42c1;
+}
+
+#pendingPaymentsModal .table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(111, 66, 193, 0.1);
+}
+
+#pendingPaymentsModal .table-striped tbody tr:nth-of-type(even) {
+  background-color: rgba(111, 66, 193, 0.05);
+}
+</style>
