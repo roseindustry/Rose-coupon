@@ -1,12 +1,13 @@
 <template>
-  <div class="modal fade" id="credit-details-modal" tabindex="-1" aria-labelledby="creditDetailsModalLabel" aria-hidden="true">
+  <div class="modal fade" id="credit-details-modal" tabindex="-1" aria-labelledby="creditDetailsModalLabel"
+    aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
           <div class="d-flex justify-content-between align-items-center w-100">
             <h5 class="modal-title" id="creditDetailsModalLabel">
               Detalles de Crédito
-            </h5>            
+            </h5>
           </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
@@ -16,7 +17,7 @@
           <div class="modal-body">
             <!-- User Info -->
             <div class="user-info-section mb-4">
-              <div class="stat-header">                  
+              <div class="stat-header">
                 <h6 class="card-title">
                   <i class="fas fa-user me-2"></i>
                   {{ isAffiliate ? 'Información del Comercio' : 'Información del Cliente' }}
@@ -30,7 +31,10 @@
                   </div> -->
                   <div class="info-item">
                     <strong>{{ isAffiliate ? 'Empresa:' : 'Nombre:' }}</strong>
-                    <span>{{ userData.name || (isAffiliate ? userData.companyName.charAt(0).toUpperCase() + userData.companyName.slice(1) : `${userData.firstName.charAt(0).toUpperCase() + userData.firstName.slice(1)} ${userData.lastName.charAt(0).toUpperCase() + userData.lastName.slice(1)}`) }}</span>
+                    <span>{{ userData.name || (isAffiliate ? userData.companyName.charAt(0).toUpperCase() +
+                      userData.companyName.slice(1) : `${userData.firstName.charAt(0).toUpperCase() +
+                      userData.firstName.slice(1)} ${userData.lastName.charAt(0).toUpperCase() +
+                      userData.lastName.slice(1)}`) }}</span>
                   </div>
                   <div class="info-item">
                     <strong>{{ isAffiliate ? 'RIF:' : 'CI:' }}</strong>
@@ -47,7 +51,7 @@
             <!-- Credit Stats -->
             <div class="credit-stats-grid mb-4">
               <div class="credit-stat-card" v-if="userData.credit?.mainCredit">
-                <div class="stat-header">                  
+                <div class="stat-header">
                   <h6>
                     <i class="fas fa-wallet me-2"></i>
                     Crédito Principal
@@ -64,7 +68,8 @@
                   </div>
                   <div class="stat-row used">
                     <span class="stat-label">Usado:</span>
-                    <span class="stat-value">${{ (userData.credit.mainCredit - userData.credit.availableMainCredit).toFixed(2) }}</span>
+                    <span class="stat-value">${{ (userData.credit.mainCredit -
+                      userData.credit.availableMainCredit).toFixed(2) }}</span>
                   </div>
                 </div>
               </div>
@@ -85,7 +90,8 @@
                   </div>
                   <div class="stat-row used">
                     <span class="stat-label">Usado:</span>
-                    <span class="stat-value">${{ (userData.credit.plusCredit - userData.credit.availablePlusCredit).toFixed(2) }}</span>
+                    <span class="stat-value">${{ (userData.credit.plusCredit -
+                      userData.credit.availablePlusCredit).toFixed(2) }}</span>
                   </div>
                 </div>
               </div>
@@ -94,7 +100,7 @@
             <!-- History -->
             <div class="purchase-history-section">
               <div class="section-header">
-                <div class="d-flex justify-content-between align-items-center">                  
+                <div class="d-flex justify-content-between align-items-center">
                   <h6 class="mb-0"><i class="fas fa-receipt me-2"></i>
                     {{ isAffiliate ? 'Historial de Ventas' : 'Historial de Compras' }}
                   </h6>
@@ -107,9 +113,8 @@
                       <span class="input-group-text">Hasta</span>
                       <input type="date" class="form-control" v-model="dateRange.to">
                     </div>
-                    <button class="btn btn-sm btn-outline-secondary" 
-                            @click="clearFilters" 
-                            :disabled="!dateRange.from && !dateRange.to">
+                    <button class="btn btn-sm btn-outline-secondary" @click="clearFilters"
+                      :disabled="!dateRange.from && !dateRange.to">
                       <i class="fas fa-times me-1"></i>
                       Limpiar
                     </button>
@@ -120,9 +125,7 @@
                 <div v-if="isAffiliate ? filteredSales.length : filteredPurchases.length" class="purchase-list">
                   <!-- Show affiliate sales -->
                   <template v-if="isAffiliate">
-                    <div v-for="sale in filteredSales" 
-                         :key="sale.id" 
-                         class="purchase-item">
+                    <div v-for="sale in filteredSales" :key="sale.id" class="purchase-item">
                       <div class="purchase-header">
                         <div class="purchase-summary" @click="togglePurchase(sale.id)">
                           <div class="product-info">
@@ -130,22 +133,24 @@
                           </div>
                           <div class="purchase-details-right">
                             <span class="purchase-date badge bg-primary">{{ formatDate(sale.purchaseDate) }}</span>
-                            <span class="purchase-amount">${{ Number(sale?.includeCuotaAddOn ? (sale?.loanAmountWithAddOn + sale?.purchaseAmount) : sale?.productPrice).toFixed(2) || 0 }}</span>
+                            <span class="purchase-amount">${{ Number(sale?.loanAmount + sale?.purchaseAmount).toFixed(2) || 0
+                              }}</span>
                             <span class="purchase-status" :class="sale.paid ? 'text-success' : 'text-warning'">
                               {{ sale.paid ? 'Completado' : 'En Proceso' }}
                             </span>
                           </div>
                         </div>
                         <div v-if="!sale.cuotas?.every(cuota => cuota.paid)" class="purchase-actions">
-                          <button class="btn btn-sm btn-outline-danger" @click.stop="openDeleteModal(sale, 'sale')" title="Eliminar venta">
+                          <button class="btn btn-sm btn-outline-danger" @click.stop="openDeleteModal(sale, 'sale')"
+                            title="Eliminar venta">
                             <i class="fas fa-trash-alt"></i>
                           </button>
-                          <i class="fas" :class="selectedPurchase === sale.id ? 'fa-chevron-up' : 'fa-chevron-down'" @click.stop="togglePurchase(sale.id)"></i>
+                          <i class="fas" :class="selectedPurchase === sale.id ? 'fa-chevron-up' : 'fa-chevron-down'"
+                            @click.stop="togglePurchase(sale.id)"></i>
                         </div>
                       </div>
                       <transition name="slide">
-                        <div class="purchase-details" 
-                             v-if="selectedPurchase === sale.id">
+                        <div class="purchase-details" v-if="selectedPurchase === sale.id">
                           <div class="details-grid">
                             <div class="detail-item">
                               <span class="label me-2">Cliente:</span>
@@ -163,7 +168,7 @@
                             </div>
                             <div class="detail-item">
                               <span class="label me-2">Préstamo:</span>
-                              <span class="value">${{ Number(sale?.includeCuotaAddOn ? sale?.loanAmountWithAddOn : sale?.loanAmount).toFixed(2) }}</span>
+                              <span class="value">${{ Number(sale?.loanAmount).toFixed(2) }}</span>
                             </div>
                           </div>
                           <div class="installments-table" v-if="sale.cuotas">
@@ -202,9 +207,7 @@
                   </template>
                   <!-- Show client purchases -->
                   <template v-else>
-                    <div v-for="purchase in filteredPurchases" 
-                         :key="purchase.id" 
-                         class="purchase-item">
+                    <div v-for="purchase in filteredPurchases" :key="purchase.id" class="purchase-item">
                       <div class="purchase-header">
                         <div class="purchase-summary" @click="togglePurchase(purchase.id)">
                           <div class="product-info">
@@ -212,20 +215,22 @@
                           </div>
                           <div class="purchase-details-right">
                             <span class="purchase-date">{{ formatDate(purchase.purchaseDate) }}</span>
-                            <span class="purchase-amount">${{ Number(purchase.includeCuotaAddOn ? (purchase.purchaseAmount + purchase.loanAmountWithAddOn) : purchase.productPrice).toFixed(2) }}</span>
-                            <span class="purchase-status" :class="purchase.paid ? 'text-success' : 'text-warning'">{{ purchase.paid ? 'Completado' : 'En Proceso' }}</span>
+                            <span class="purchase-amount">${{ Number(purchase.purchaseAmount + purchase.loanAmount).toFixed(2) }}</span>
+                            <span class="purchase-status" :class="purchase.paid ? 'text-success' : 'text-warning'">{{
+                              purchase.paid ? 'Completado' : 'En Proceso' }}</span>
                           </div>
                         </div>
                         <div v-if="!purchase.cuotas?.every(cuota => cuota.paid)" class="purchase-actions">
-                          <button class="btn btn-sm btn-outline-danger" @click.stop="openDeleteModal(purchase, 'purchase')" title="Eliminar compra">
+                          <button class="btn btn-sm btn-outline-danger"
+                            @click.stop="openDeleteModal(purchase, 'purchase')" title="Eliminar compra">
                             <i class="fas fa-trash-alt"></i>
                           </button>
-                          <i class="fas" :class="selectedPurchase === purchase.id ? 'fa-chevron-up' : 'fa-chevron-down'" @click.stop="togglePurchase(purchase.id)"></i>
+                          <i class="fas" :class="selectedPurchase === purchase.id ? 'fa-chevron-up' : 'fa-chevron-down'"
+                            @click.stop="togglePurchase(purchase.id)"></i>
                         </div>
                       </div>
                       <transition name="slide">
-                        <div class="purchase-details" 
-                             v-if="selectedPurchase === purchase.id">
+                        <div class="purchase-details" v-if="selectedPurchase === purchase.id">
                           <div class="details-grid">
                             <div class="detail-item">
                               <span class="label me-2">Inicial:</span>
@@ -233,7 +238,7 @@
                             </div>
                             <div class="detail-item">
                               <span class="label me-2">Préstamo:</span>
-                              <span class="value">${{ Number(purchase.includeCuotaAddOn ? purchase.loanAmountWithAddOn : purchase.loanAmount).toFixed(2) }}</span>
+                              <span class="value">${{ Number(purchase.loanAmount).toFixed(2) }}</span>
                             </div>
                             <div class="detail-item">
                               <span class="label me-2">Plazo:</span>
@@ -260,12 +265,12 @@
                                   <td>{{ cuotaIndex + 1 }}</td>
                                   <td>{{ formatDate(cuota.date) }}</td>
                                   <td>
-                                    {{ 
-                                      cuota.paymentDate 
-                                        ? formatDate(cuota.paymentDate) 
-                                        : (cuota.paidAt 
-                                          ? formatDate(new Date(cuota.paidAt).toISOString().split('T')[0]) 
-                                          : null) 
+                                    {{
+                                      cuota.paymentDate
+                                        ? formatDate(cuota.paymentDate)
+                                        : (cuota.paidAt
+                                          ? formatDate(new Date(cuota.paidAt).toISOString().split('T')[0])
+                                          : null)
                                     }}
                                   </td>
                                   <td>${{ cuota.amount.toFixed(2) }}</td>
@@ -312,14 +317,14 @@
             <i class="fas fa-exclamation-triangle me-2"></i>
             Esta acción eliminará la transacción y reintegrará el crédito al cliente y al afiliado.
           </div>
-          
+
           <div class="purchase-details-summary mb-3">
             <p><strong>Producto:</strong> {{ selectedPurchaseDetails?.productName }}</p>
             <p><strong>Fecha:</strong> {{ formatDate(selectedPurchaseDetails?.purchaseDate) }}</p>
             <p><strong>Monto:</strong> ${{ selectedPurchaseDetails?.productPrice?.toFixed(2) }}</p>
             <p><strong>Préstamo:</strong> ${{ selectedPurchaseDetails?.loanAmount?.toFixed(2) }}</p>
           </div>
-          
+
           <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" v-model="hasFee" id="hasFeeCheck">
             <label class="form-check-label" for="hasFeeCheck">
@@ -403,7 +408,7 @@ export default {
     salesArray() {
       const sales = this.userData?.credit?.sales;
       if (!sales || typeof sales !== 'object') return [];
-      
+
       return Object.values(this.userData.credit.sales)
         .map(sale => ({
           ...sale,
@@ -419,15 +424,15 @@ export default {
     purchasesArray() {
       const purchases = this.purchases;
       if (!purchases || typeof purchases !== 'object') return [];
-      
+
       return this.purchases
-        .map(purchase => ({ 
+        .map(purchase => ({
           ...purchase,
           purchaseDate: purchase.purchaseDate || new Date().toISOString().split('T')[0],
           paid: purchase.cuotas?.every(cuota => cuota.paid) || false
         }))
         .sort((a, b) => {
-          const dateA = new Date(a.purchaseDate); 
+          const dateA = new Date(a.purchaseDate);
           const dateB = new Date(b.purchaseDate);
           return dateB - dateA;
         });
@@ -435,17 +440,17 @@ export default {
     filteredSales() {
       // Make sure salesArray exists and is an array
       if (!this.salesArray || !Array.isArray(this.salesArray) || !this.salesArray.length) return [];
-      
+
       return this.salesArray.filter(sale => {
         // Filter out deleted sales
         if (sale.deleted) return false;
-        
+
         // Apply date filters
         if (!this.dateRange.from && !this.dateRange.to) return true;
         const saleDate = new Date(sale.purchaseDate);
         const fromDate = this.dateRange.from ? new Date(this.dateRange.from) : null;
         const toDate = this.dateRange.to ? new Date(this.dateRange.to) : null;
-        
+
         if (fromDate && toDate) {
           return saleDate >= fromDate && saleDate <= toDate;
         } else if (fromDate) {
@@ -459,17 +464,17 @@ export default {
     filteredPurchases() {
       // Make sure purchasesArray exists and is an array
       if (!this.purchasesArray || !Array.isArray(this.purchasesArray) || !this.purchasesArray.length) return [];
-      
+
       return this.purchasesArray.filter(purchase => {
         // Filter out deleted purchases
         if (purchase.deleted) return false;
-        
+
         // Apply date filters
         if (!this.dateRange.from && !this.dateRange.to) return true;
         const purchaseDate = new Date(purchase.purchaseDate);
         const fromDate = this.dateRange.from ? new Date(this.dateRange.from) : null;
         const toDate = this.dateRange.to ? new Date(this.dateRange.to) : null;
-        
+
         if (fromDate && toDate) {
           return purchaseDate >= fromDate && purchaseDate <= toDate;
         } else if (fromDate) {
@@ -503,14 +508,14 @@ export default {
       this.selectedPurchaseDetails = item;
       this.deleteType = type;
       this.hasFee = false;
-      
+
       if (!this.deleteModal) {
         const deleteModalEl = document.getElementById('delete-purchase-modal');
         if (deleteModalEl) {
           this.deleteModal = new Modal(deleteModalEl);
         }
       }
-      
+
       if (this.deleteModal) {
         this.deleteModal.show();
       }
@@ -519,34 +524,34 @@ export default {
       console.log('selectedPurchaseDetails', this.selectedPurchaseDetails);
       if (confirm('¿Estás seguro de eliminar esta transacción?')) {
         if (!this.selectedPurchaseDetails) return;
-        
+
         this.isDeleting = true;
-        
+
         try {
           // Calculate amount to reintegrate (subtract $1 fee if checked)
-          const reintegrateAmount = this.hasFee 
-            ? this.selectedPurchaseDetails.loanAmount - 1 
+          const reintegrateAmount = this.hasFee
+            ? this.selectedPurchaseDetails.loanAmount - 1
             : this.selectedPurchaseDetails.loanAmount;
-          
+
           // Get references to the transaction and user records
           // transactionRef
           const saleRef = dbRef(db, `Users/${this.selectedPurchaseDetails.affiliate_id}/credit/sales/${this.selectedPurchaseDetails.id}`);
           const purchaseRef = dbRef(db, `Users/${this.selectedPurchaseDetails.client_id}/credit/main/purchases/${this.selectedPurchaseDetails.id}`);
           const clientRef = dbRef(db, `Users/${this.selectedPurchaseDetails.client_id}/credit/main`);
           const affiliateRef = dbRef(db, `Users/${this.selectedPurchaseDetails.affiliate_id}/credit/main`);
-          
+
           // Get current credit values
           const clientSnapshot = await get(clientRef);
           const affiliateSnapshot = await get(affiliateRef);
-          
+
           if (clientSnapshot.exists() && affiliateSnapshot.exists()) {
             const clientCredit = clientSnapshot.val();
             const affiliateCredit = affiliateSnapshot.val();
-            
+
             // Calculate new available credit values
             const newClientAvailableCredit = clientCredit.availableCredit + reintegrateAmount;
-            const newAffiliateAvailableCredit = affiliateCredit.availableCredit + reintegrateAmount;                   
-            
+            const newAffiliateAvailableCredit = affiliateCredit.availableCredit + reintegrateAmount;
+
             // Update client's data
             await update(clientRef, {
               availableCredit: newClientAvailableCredit
@@ -558,7 +563,7 @@ export default {
               deletedBy: this.adminId,
               hasFee: this.hasFee
             });
-            
+
             // Update affiliate's data
             await update(affiliateRef, {
               availableCredit: newAffiliateAvailableCredit
@@ -569,13 +574,13 @@ export default {
               deletedAt: new Date().toISOString(),
               deletedBy: this.adminId,
               hasFee: this.hasFee
-            });  
-            
+            });
+
             // Close modal and show success message
             if (this.deleteModal) {
               this.deleteModal.hide();
             }
-            
+
             showToast.success('Transacción eliminada y crédito reintegrado correctamente');
           } else {
             throw new Error('No se pudo obtener la información de crédito');
@@ -596,7 +601,7 @@ export default {
 
       while (workableDays < 10) {
         paymentDate.setDate(paymentDate.getDate() + 1);
-        
+
         // Skip weekends
         if (paymentDate.getDay() !== 0 && paymentDate.getDay() !== 6) {
           workableDays++;
@@ -625,7 +630,7 @@ export default {
     //   doc.setFontSize(18);
     //   doc.setFont('helvetica', 'bold');
     //   doc.text('INFORME DE PAGO', 105, 30, { align: 'center' });
-      
+
     //   doc.setFontSize(12);
     //   doc.setFont('helvetica', 'normal');
     //   doc.text('Rose Coupon', 105, 38, { align: 'center' });
@@ -826,7 +831,7 @@ export default {
   border-radius: 8px;
   margin-bottom: 1rem;
   overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .purchase-header {
@@ -927,42 +932,42 @@ export default {
   .info-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .credit-stats-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .purchase-summary {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
   }
-  
+
   .product-info {
     width: 100%;
     margin-right: 0;
   }
-  
+
   .purchase-details-right {
     width: 100%;
     justify-content: space-between;
   }
-  
+
   .date-filters {
     flex-direction: column;
     gap: 0.5rem;
     width: 100%;
   }
-  
+
   .date-filters .input-group {
     width: 100%;
   }
-  
+
   .date-filters input[type="date"] {
     width: 100%;
   }
-  
-  .section-header > div {
+
+  .section-header>div {
     flex-direction: column;
     gap: 1rem;
   }
@@ -1019,4 +1024,4 @@ export default {
 .purchase-details-summary p {
   margin-bottom: 0.5rem;
 }
-</style> 
+</style>

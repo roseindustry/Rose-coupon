@@ -132,8 +132,8 @@
               </thead>
               <tbody>
                 <template v-if="getAffiliatePayments(affiliate.id).length">
-                  <tr v-for="payment in getAffiliatePayments(affiliate.id)"
-                    :key="`${payment.saleId}-${payment.cuotaNumber}`"
+                  <tr v-for="payment in getAffiliatePayments(affiliate.id)" 
+                      :key="`${payment.saleId}-${payment.cuotaNumber}`"
                     :class="{ 'table-danger': getPaymentStatus(payment.date).text === 'Hoy' }">
                     <td>{{ formatDate(payment.date) }}</td>
                     <td>
@@ -310,63 +310,63 @@ export default {
       }
     },
     getAffiliatePayments(affiliateId) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-      const affiliatePayments = this.upcomingPayments.filter(payment =>
-        payment.affiliateId === affiliateId
-      );
+        const affiliatePayments = this.upcomingPayments.filter(payment => 
+            payment.affiliateId === affiliateId
+        );
+        
+        // First sort by date
+        const sortedPayments = affiliatePayments.sort((a, b) => 
+            new Date(a.date) - new Date(b.date)
+        );
 
-      // First sort by date
-      const sortedPayments = affiliatePayments.sort((a, b) =>
-        new Date(a.date) - new Date(b.date)
-      );
+        // Filter based on selected option
+        const filteredPayments = sortedPayments.filter(payment => {
+            const paymentDate = new Date(payment.date);
+            // Set to noon to avoid timezone issues
+            paymentDate.setHours(12, 0, 0, 0);
+            
+            // Calculate difference in days using getTime for consistency
+            const diffTime = paymentDate.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            // Show payments due within the selected period
+            if (this.paymentFilter === 'all') {
+                return diffDays <= 7; // Show all payments due within 7 days
+            }
+            
+            return diffDays <= parseInt(this.paymentFilter);
+        });
 
-      // Filter based on selected option
-      const filteredPayments = sortedPayments.filter(payment => {
-        const paymentDate = new Date(payment.date);
-        // Set to noon to avoid timezone issues
-        paymentDate.setHours(12, 0, 0, 0);
-
-        // Calculate difference in days using getTime for consistency
-        const diffTime = paymentDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        // Show payments due within the selected period
+        // If showing all payments, get 5 closest payments
         if (this.paymentFilter === 'all') {
-          return diffDays <= 7; // Show all payments due within 7 days
+            return filteredPayments.slice(0, 5);
         }
 
-        return diffDays <= parseInt(this.paymentFilter);
-      });
-
-      // If showing all payments, get 5 closest payments
-      if (this.paymentFilter === 'all') {
-        return filteredPayments.slice(0, 5);
-      }
-
-      return filteredPayments;
+        return filteredPayments;
     },
     getPaymentStatus(date) {
-      // Create dates without time component to avoid timezone issues
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      // Parse the date and handle timezone offset
-      const paymentDate = new Date(date);
-      // Adjust for timezone offset to ensure correct date comparison
-      paymentDate.setHours(12, 0, 0, 0); // Set to noon to avoid any timezone issues
-
-      // Calculate difference in days
-      const diffTime = paymentDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays === 0) return { text: 'Hoy', class: 'bg-danger text-white' };
-      if (diffDays <= 3) return { text: '≤ 3 días', class: 'bg-warning text-dark' };
-      if (diffDays <= 5) return { text: '≤ 5 días', class: 'bg-info text-white' };
-      if (diffDays <= 7) return { text: '≤ 7 días', class: 'bg-primary text-white' };
-
-      return { text: '', class: '' };
+        // Create dates without time component to avoid timezone issues
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Parse the date and handle timezone offset
+        const paymentDate = new Date(date);
+        // Adjust for timezone offset to ensure correct date comparison
+        paymentDate.setHours(12, 0, 0, 0); // Set to noon to avoid any timezone issues
+        
+        // Calculate difference in days
+        const diffTime = paymentDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 0) return { text: 'Hoy', class: 'bg-danger text-white' };
+        if (diffDays <= 3) return { text: '≤ 3 días', class: 'bg-warning text-dark' };
+        if (diffDays <= 5) return { text: '≤ 5 días', class: 'bg-info text-white' };
+        if (diffDays <= 7) return { text: '≤ 7 días', class: 'bg-primary text-white' };
+        
+        return { text: '', class: '' };
     },
     showPendingPaymentsModal() {
       this.$nextTick(() => {
@@ -569,46 +569,46 @@ export default {
   },
   computed: {
     upcomingPayments() {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const payments = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const payments = [];
 
-      this.affiliates.forEach(affiliate => {
-        // Skip if no credit or sales
-        if (!affiliate.credit?.sales) return;
+        this.affiliates.forEach(affiliate => {
+            // Skip if no credit or sales
+            if (!affiliate.credit?.sales) return;
 
-        // Get sales as array
-        const sales = Object.entries(affiliate.credit.sales);
+            // Get sales as array
+            const sales = Object.entries(affiliate.credit.sales);
+            
+            sales.forEach(([saleId, sale]) => {
+                // Skip if no cuotas
+                if (!sale.cuotas) return;
 
-        sales.forEach(([saleId, sale]) => {
-          // Skip if no cuotas
-          if (!sale.cuotas) return;
-
-          // Get cuotas as array
-          const cuotas = Object.entries(sale.cuotas);
-
-          cuotas.forEach(([cuotaId, cuota]) => {
-            const cuotaDate = new Date(cuota.date);
-
-            // Only include unpaid future cuotas
-            if (!cuota.isPaid && cuotaDate >= today) {
-              payments.push({
-                affiliateId: affiliate.id,
-                clientId: sale.clientId,
-                clientName: sale.clientName,
-                saleId: saleId,
-                productName: sale.productName,
-                date: cuota.date,
-                cuotaNumber: cuota.number,
-                amount: cuota.amount
-              });
-            }
-          });
+                // Get cuotas as array
+                const cuotas = Object.entries(sale.cuotas);
+                
+                cuotas.forEach(([cuotaId, cuota]) => {
+                    const cuotaDate = new Date(cuota.date);
+                    
+                    // Only include unpaid future cuotas
+                    if (!cuota.isPaid && cuotaDate >= today) {
+                        payments.push({
+                            affiliateId: affiliate.id,
+                            clientId: sale.clientId,
+                            clientName: sale.clientName,
+                            saleId: saleId,
+                            productName: sale.productName,
+                            date: cuota.date,
+                            cuotaNumber: cuota.number,
+                            amount: cuota.amount
+                        });
+                    }
+                });
+            });
         });
-      });
 
-      // Sort by date ascending (closest first)
-      return payments.sort((a, b) => new Date(a.date) - new Date(b.date));
+        // Sort by date ascending (closest first)
+        return payments.sort((a, b) => new Date(a.date) - new Date(b.date));
     },
     pendingPaymentsClients() {
       const pendingClients = [];
@@ -802,7 +802,7 @@ export default {
   border: none;
   background: transparent;
   color: #000000;
-  height: 40px;
+  height: 40px;  
 }
 
 .search-input::placeholder {
@@ -851,10 +851,10 @@ export default {
 /* Button Styles */
 .btn-outline-theme,
 .btn-theme {
-  border-radius: 20px;
-  font-size: 0.85rem;
-  padding: 0.375rem 0.75rem;
-  transition: all 0.2s ease;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.2s ease;
 }
 
 .btn-outline-danger,
@@ -863,25 +863,25 @@ export default {
 }
 
 .btn-outline-theme {
-  border-color: purple;
-  color: purple;
+    border-color: purple;
+    color: purple;
 }
 
 .btn-outline-theme:hover {
-  background-color: purple;
-  color: white;
+    background-color: purple;
+    color: white;
   box-shadow: 0 2px 5px rgba(128, 0, 128, 0.3);
 }
 
 .btn-theme {
-  background-color: purple;
-  border-color: purple;
-  color: white;
+    background-color: purple;
+    border-color: purple;
+    color: white;
 }
 
 .btn-theme:hover {
-  background-color: #8a2be2;
-  border-color: #8a2be2;
+    background-color: #8a2be2;
+    border-color: #8a2be2;
   box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
 }
 
@@ -950,7 +950,7 @@ export default {
   .payments-table-wrapper {
     margin: 0 -1rem;
   }
-
+  
   .payments-table-wrapper table {
     font-size: 0.875rem;
   }
@@ -995,57 +995,57 @@ export default {
 }
 
 .payment-filter {
-  min-width: 140px;
+    min-width: 140px;
 }
 
 .payment-filter .form-select {
-  background-color: #1a1a1a;
-  border-color: #444;
-  color: #fff;
-  font-size: 0.875rem;
-  padding: 0.25rem 2rem 0.25rem 0.5rem;
+    background-color: #1a1a1a;
+    border-color: #444;
+    color: #fff;
+    font-size: 0.875rem;
+    padding: 0.25rem 2rem 0.25rem 0.5rem;
 }
 
 .payment-filter .form-select:focus {
-  border-color: #6f42c1;
-  box-shadow: 0 0 0 0.25rem rgba(111, 66, 193, 0.25);
+    border-color: #6f42c1;
+    box-shadow: 0 0 0 0.25rem rgba(111, 66, 193, 0.25);
 }
 
 .payment-filter .form-select option {
-  background-color: #1a1a1a;
-  color: #fff;
+    background-color: #1a1a1a;
+    color: #fff;
 }
 
 .payments-header {
-  padding-bottom: 1rem;
-  margin-bottom: 1rem;
-  border-bottom: 1px solid #444;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #444;
 }
 
 @media (max-width: 768px) {
-  .payments-header {
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .payment-filter {
-    width: 100%;
-  }
+    .payments-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .payment-filter {
+        width: 100%;
+    }
 }
 
 .empty-payments {
-  padding: 1.5rem;
-  text-align: center;
-  color: #adb5bd;
+    padding: 1.5rem;
+    text-align: center;
+    color: #adb5bd;
 }
 
 .empty-payments i {
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
 }
 
 .empty-payments p {
-  font-size: 0.875rem;
+    font-size: 0.875rem;
 }
 
 /* Add some styling for the pending payments button */
@@ -1087,4 +1087,4 @@ export default {
 #pendingPaymentsModal .table-striped tbody tr:nth-of-type(even) {
   background-color: rgba(111, 66, 193, 0.05);
 }
-</style>
+</style> 

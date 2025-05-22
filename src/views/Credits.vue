@@ -1438,7 +1438,7 @@ export default {
                 const affiliateCreditSnapshot = await get(affiliateCreditRef);
                 const affiliateCredit = affiliateCreditSnapshot.val() || {};
 
-                const purchaseLoan = purchaseData.includeCuotaAddOn ? purchaseData.loanAmountWithAddOn : purchaseData.loanAmount;
+                const purchaseLoan = purchaseData.loanAmount;
 
                 // Calculate new available credits
                 const newClientAvailableCredit = (clientCredit.availableCredit || 0) - purchaseLoan;

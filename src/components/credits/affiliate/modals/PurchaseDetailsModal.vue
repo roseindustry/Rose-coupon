@@ -42,12 +42,12 @@
           <!-- Payment Details -->
           <div class="card mb-4">
             <div class="card-header">
-                <h6 class="text-black mb-0">
-                  <i class="fa-solid fa-credit-card me-2"></i>
-                  Detalles del Pago
-                </h6>
+              <h6 class="text-black mb-0">
+                <i class="fa-solid fa-credit-card me-2"></i>
+                Detalles del Pago
+              </h6>
             </div>
-            <div class="card-body payment-details">              
+            <div class="card-body payment-details">
               <div class="row">
                 <div class="col-md-3">
                   <p class="text-secondary mb-1">Suscripción</p>
@@ -55,7 +55,8 @@
                 </div>
                 <div class="col-md-3">
                   <p class="text-secondary mb-1">Precio Total</p>
-                  <h6 class="text-light">${{ Number(sale?.includeCuotaAddOn ? (sale.purchaseAmount + sale.loanAmountWithAddOn) : sale.productPrice || 0).toFixed(2) }}</h6>
+                  <h6 class="text-light">${{ Number(Number(sale.purchaseAmount) + Number(sale.loanAmount)).toFixed(2) }}
+                  </h6>
                 </div>
                 <div class="col-md-3">
                   <p class="text-secondary mb-1">Inicial</p>
@@ -66,15 +67,14 @@
                 </div>
                 <div class="col-md-3">
                   <p class="text-secondary mb-1">Monto Financiado</p>
-                  <h6 class="text-light">${{ sale.includeCuotaAddOn ? Number(sale.loanAmountWithAddOn).toFixed(2) : Number(sale.loanAmount).toFixed(2) }}</h6>
-                  <small class="text-secondary" v-if="sale.includeCuotaAddOn">
-                    El monto incluye mantenimiento de Suscripción
-                  </small>
+                  <h6 class="text-light">${{ Number(sale.loanAmount).toFixed(2) }}</h6>
+
                 </div>
                 <div v-if="sale.maintenancePeriod" class="col-md-3">
                   <p class="text-secondary mb-1">Mantenimiento de Suscripción</p>
-                  <h6 class="text-light">{{ sale.maintenancePeriod }} {{ sale.maintenancePeriod > 1 ? 'meses' : 'Mes' }}</h6>
-                </div>               
+                  <h6 class="text-light">{{ sale.maintenancePeriod }} {{ sale.maintenancePeriod > 1 ? 'meses' : 'Mes' }}
+                  </h6>
+                </div>
               </div>
             </div>
           </div>
@@ -85,9 +85,13 @@
               <h6 class="text-black mb-0">
                 <i class="fa-solid fa-calendar-days me-2"></i>
                 Cuotas
+                <small v-if="sale.includeCuotaAddOn">
+                  (Los montos incluyen mantenimiento de Suscripción)
+                </small>
               </h6>
+
             </div>
-            <div class="card-body installments-table">              
+            <div class="card-body installments-table">
               <div class="table-responsive">
                 <table class="table table-dark table-hover mb-0">
                   <thead>
@@ -149,18 +153,18 @@ export default {
     },
     formatDate(dateString) {
       if (!dateString) return 'N/A';
-      
+
       // Check if it's already in the right format
       if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
         return dateString;
       }
-      
+
       // Simple conversion from YYYY-MM-DD to DD/MM/YYYY
       if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
         const [year, month, day] = dateString.split('-');
         return `${day}/${month}/${year}`;
       }
-      
+
       // Fallback for other formats
       return dateString;
     }
@@ -185,10 +189,11 @@ export default {
   border-color: #ffc107;
 }
 
-.client-info, .payment-details, .installments-table {
+.client-info,
+.payment-details,
+.installments-table {
   background-color: #29122f;
   border-radius: 10px;
   padding: 20px;
 }
-
-</style> 
+</style>

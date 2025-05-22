@@ -695,8 +695,8 @@
                       <td>{{ formatDate(sale.purchaseDate) }}</td>
                       <td>{{ sale.clientName }}</td>
                       <td>{{ sale.productName || 'N/A' }}</td>
-                      <td>${{ Number(sale?.includeCuotaAddOn ? (sale.purchaseAmount + sale.loanAmountWithAddOn) : sale.productPrice || 0).toFixed(2) }}</td>
-                      <td>${{ Number(sale?.includeCuotaAddOn ? sale?.loanAmountWithAddOn : sale?.loanAmount || 0).toFixed(2) }}</td>
+                      <td>${{ Number(sale.purchaseAmount + sale.loanAmount).toFixed(2) }}</td>
+                      <td>${{ Number(sale.loanAmount).toFixed(2) }}</td>
                       <td>
                         <span :class="['badge', sale.paid ? 'text-success' : 'text-warning']">
                           {{ sale.paid ? 'Completado' : 'Pendiente' }}

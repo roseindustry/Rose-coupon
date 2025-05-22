@@ -98,7 +98,7 @@
               <div class="row g-3 mb-3">
                 <div class="col-6 col-md-3">
                   <small class="text-secondary d-block">Precio Total</small>
-                  <span class="text-light">${{ Number(purchase.includeCuotaAddOn ? (purchase.purchaseAmount + purchase.loanAmountWithAddOn) : purchase.productPrice).toFixed(2) }}</span>
+                  <span class="text-light">${{ Number(purchase.purchaseAmount + purchase.loanAmount).toFixed(2) }}</span>
                 </div>
                 <div class="col-6 col-md-3">
                   <small class="text-secondary d-block">Cuota Inicial</small>
@@ -106,7 +106,7 @@
                 </div>
                 <div class="col-6 col-md-3">
                   <small class="text-secondary d-block">Monto Préstamo</small>
-                  <span class="text-light">${{ Number(purchase.includeCuotaAddOn ? purchase.loanAmountWithAddOn : purchase.loanAmount).toFixed(2) }}</span>
+                  <span class="text-light">${{ Number(purchase.loanAmount).toFixed(2) }}</span>
                 </div>
                 <div class="col-6 col-md-3">
                   <small class="text-secondary d-block">Cuotas</small>

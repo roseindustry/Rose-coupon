@@ -3,7 +3,12 @@
     <div class="modal-dialog modal-lg">
       <div class="modal-content bg-dark">
         <div class="modal-header border-secondary">
-          <h5 class="modal-title text-light">Cuotas - {{ purchase?.productName }}</h5>
+          <h5 class="modal-title text-light">
+            Cuotas de la compra: {{ purchase?.productName }}
+            <small class="text-secondary" v-if="purchase.includeCuotaAddOn">
+              (Los montos incluyen mantenimiento de Suscripción)
+            </small>
+          </h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
@@ -27,17 +32,11 @@
                     </span>
                   </td>
                   <td>
-                    <button 
-                      v-if="!cuota.paymentUpload"
-                      class="btn btn-sm btn-theme"
-                      @click="payQuota(id)"
+                    <button v-if="!cuota.paymentUpload" class="btn btn-sm btn-theme" @click="payQuota(id)"
                       :disabled="cuota.paid">
                       Pagar
                     </button>
-                    <button 
-                      v-else
-                      class="btn btn-sm btn-secondary"
-                      @click="viewPaymentProof(cuota.paymentUrl)">
+                    <button v-else class="btn btn-sm btn-secondary" @click="viewPaymentProof(cuota.paymentUrl)">
                       <i class="fas fa-receipt me-1"></i>
                       Ver Comprobante
                     </button>
@@ -181,18 +180,22 @@ export default {
   border: 1px solid;
   background-color: transparent !important;
 }
+
 .badge-success {
   color: #198754;
   border-color: #198754;
 }
+
 .badge-warning {
   color: #ffc107;
   border-color: #ffc107;
 }
+
 .badge-info {
   color: #0dcaf0;
   border-color: #0dcaf0;
 }
+
 .modal-header {
   background-color: #29122f;
   border-color: #29122f;
@@ -206,4 +209,4 @@ export default {
 .modal-backdrop.show:nth-child(3) {
   z-index: 1065;
 }
-</style> 
+</style>

@@ -1,8 +1,9 @@
 <script>
-import { ref as dbRef, query, orderByChild, equalTo, get, push, set, update, remove } from 'firebase/database';
-import { ref as storageRef, listAll, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db, storage, functions } from '@/firebase/init';
-import { httpsCallable } from 'firebase/functions';
+import { ref as dbRef,  get, update, remove } from 'firebase/database';
+import { db } from '@/firebase/init';
+import { useClientManagement } from '@/composables/Clients/useClientManagement';
+import { useClientDetails } from '@/composables/Clients/useClientDetails';
+import { useClientRequests } from '@/composables/Clients/useClientRequests';
 import { Modal } from 'bootstrap';
 import { toast as showToast } from '@/utils/toast';
 import Swal from 'sweetalert2';
@@ -11,6 +12,10 @@ import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import * as XLSX from "xlsx";
 import venezuela from 'venezuela';
+
+const clientDetails = useClientDetails();
+const clientManagement = useClientManagement();
+const clientRequests = useClientRequests();
 
 export default {
     data() {
@@ -44,12 +49,12 @@ export default {
             parroquias: [],
 
             clients: [],
-            clientCoupons: [],
-            clientPreferences: [],
+            clientCoupons: {},
+            clientPreferences: {},
             updateRequests: [],
             deleteRequests: [],
             currentEditing: null,
-            searchQuery: null,
+            searchQuery: '',
             modalImageUrl: '',
             paymentUrl: null,
             isSubmitting: false,
@@ -59,8 +64,6 @@ export default {
             currentPage: 1,
             itemsPerPage: 10,
             paymentClient: '',
-            expandedClients: new Set(),
-            loadingStates: {},
             verificationFilter: 'all',
 
             displayRequests: false,
@@ -71,83 +74,69 @@ export default {
             },
         }
     },
-    async mounted() {
-        await this.fetchClients();
-        await this.fetchUpdateRequests();
-        await this.fetchDeleteRequests();
-    },
     computed: {
         filteredUsers() {
-            // Start with search filter
-            const trimmedSearchQuery = this.searchQuery?.trim().toLowerCase();
-            let filtered = this.clients;
+            const { clients } = clientManagement
+            let filtered = this.clients.length ? this.clients : clients.value
 
+            // Search filter
+            const trimmedSearchQuery = this.searchQuery?.trim().toLowerCase()
             if (trimmedSearchQuery) {
-                filtered = this.clients.filter(client => {
-                    // Basic fields search
-                    const identification = client.identification?.toString().toLowerCase() || '';
-                    const firstName = client.firstName?.toLowerCase() || '';
-                    const lastName = client.lastName?.toLowerCase() || '';
+                filtered = filtered.filter(client => {
+                    const identification = client.identification?.toString().toLowerCase() || ''
+                    const firstName = client.firstName?.toLowerCase() || ''
+                    const lastName = client.lastName?.toLowerCase() || ''
+                    const fullName = `${firstName} ${lastName}`.toLowerCase()
+                    const reversedFullName = `${lastName} ${firstName}`.toLowerCase()
 
-                    // Combined full name (both firstName + lastName)
-                    const fullName = `${firstName} ${lastName}`.toLowerCase();
-                    const reversedFullName = `${lastName} ${firstName}`.toLowerCase();
-
-                    // Search in individual fields and combined names
                     return identification.includes(trimmedSearchQuery) ||
                         firstName.includes(trimmedSearchQuery) ||
                         lastName.includes(trimmedSearchQuery) ||
                         fullName.includes(trimmedSearchQuery) ||
-                        reversedFullName.includes(trimmedSearchQuery);
-                });
+                        reversedFullName.includes(trimmedSearchQuery)
+                })
             }
 
-            // Apply verification filter
+            // Verification filter
             if (this.verificationFilter !== 'all') {
                 filtered = filtered.filter(client => {
                     switch (this.verificationFilter) {
-                        case 'verified':
-                            return client.isVerified === true;
-                        case 'pending':
-                            return client.requestedVerification === true && client.isVerified !== true;
-                        case 'unverified':
-                            return !client.requestedVerification && !client.isVerified;
-                        default:
-                            return true;
+                        case 'verified': return client.isVerified === true
+                        case 'pending': return client.requestedVerification === true && client.isVerified !== true
+                        case 'unverified': return !client.requestedVerification && !client.isVerified
+                        default: return true
                     }
-                });
+                })
             }
 
-            return filtered;
+            return filtered
         },
         paginatedFilteredUsers() {
-            const start = (this.currentPage - 1) * this.itemsPerPage;
-            const end = this.currentPage * this.itemsPerPage;
-            return this.filteredUsers.slice(start, end);
+            const start = (this.currentPage - 1) * this.itemsPerPage
+            const end = this.currentPage * this.itemsPerPage
+            return this.filteredUsers.slice(start, end)
         },
         totalPages() {
-            return Math.ceil(this.filteredUsers.length / this.itemsPerPage);
+            return Math.ceil(this.filteredUsers.length / this.itemsPerPage)
         },
-
         visiblePages() {
-            // Adjust the number of visible page links based on screen width
-            const totalPages = this.totalPages;
-            const currentPage = this.currentPage;
-            const maxPagesToShow = window.innerWidth < 768 ? 3 : 5;
+            const totalPages = this.totalPages
+            const currentPage = this.currentPage
+            const maxPagesToShow = window.innerWidth < 768 ? 3 : 5
 
-            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
-            let endPage = Math.min(totalPages, currentPage + Math.floor(maxPagesToShow / 2));
+            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2))
+            let endPage = Math.min(totalPages, currentPage + Math.floor(maxPagesToShow / 2))
 
             // Adjust the start and end if they go out of bounds
             if (endPage - startPage + 1 < maxPagesToShow) {
                 if (currentPage < totalPages / 2) {
-                    endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+                    endPage = Math.min(totalPages, startPage + maxPagesToShow - 1)
                 } else {
-                    startPage = Math.max(1, endPage - maxPagesToShow + 1);
+                    startPage = Math.max(1, endPage - maxPagesToShow + 1)
                 }
             }
 
-            return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+            return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i)
         },
         verificationCounts() {
             const counts = {
@@ -155,19 +144,25 @@ export default {
                 verified: 0,
                 pending: 0,
                 unverified: 0
-            };
+            }
 
             this.clients.forEach(client => {
                 if (client.isVerified) {
-                    counts.verified++;
+                    counts.verified++
                 } else if (client.requestedVerification) {
-                    counts.pending++;
+                    counts.pending++
                 } else {
-                    counts.unverified++;
+                    counts.unverified++
                 }
-            });
+            })
 
-            return counts;
+            return counts
+        },
+        expandedClients() {
+            return clientDetails.expandedClients.value
+        },
+        loadingStates() {
+            return clientDetails.loadingStates.value
         }
     },
     methods: {
@@ -184,392 +179,53 @@ export default {
         },
 
         async fetchClients() {
-            const role = 'cliente';
-            const clientRef = query(dbRef(db, 'Users'), orderByChild('role'), equalTo(role));
+            const { fetchClients, clients } = clientManagement
+            await fetchClients()
+            this.clients = clients.value
+        },
 
+        async fetchClientDetails(client) {
+            const { fetchingClientDetails } = clientDetails
             try {
-                this.loading = true;
-                const snapshot = await get(clientRef);
-
-                if (!snapshot.exists()) {
-                    this.clients = [];
-                    return;
-                }
-
-                // Only fetch basic information initially
-                this.clients = Object.entries(snapshot.val()).map(([uid, user]) => ({
-                    uid,
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                    identification: user.identification,
-                    email: user.email,
-                    phoneNumber: user.phoneNumber,
-                    state: user.state,
-                    municipio: user.municipio,
-                    parroquia: user.parroquia,
-                    isVerified: user.isVerified || false,
-                    requestedVerification: user.requestedVerification || false,
-                    verificationFiles: user.verificationFiles || null,
-                    _detailsLoaded: false // Flag to track if details are loaded
-                }));
-
+                await fetchingClientDetails(client)
             } catch (error) {
-                console.error('Error fetching clients:', error);
-                this.clients = [];
-            } finally {
-                this.loading = false;
+                console.error('Error fetching client details:', error)
+                // Optionally show a toast or error message
+                showToast.error('No se pudieron cargar los detalles del cliente')
             }
         },
 
-        async toggleClientDetails(client) {
-            // Toggle expanded state
-            if (this.expandedClients.has(client.uid)) {
-                this.expandedClients.delete(client.uid);
-                return;
-            }
-
-            this.expandedClients.add(client.uid);
-
-            // If details are already loaded, don't fetch again
-            if (client._detailsLoaded) return;
-
-            // Set loading state for this client
-            this.loadingStates = {
-                ...this.loadingStates,
-                [client.uid]: true
-            };
-
-            try {
-                // Fetch all details in parallel
-                await Promise.all([
-                    this.fetchClientCredit(client),
-                    this.fetchClientSubscription(client),
-                    this.fetchClientPreferences(client),
-                    this.fetchClientCoupons(client),
-                    this.fetchIdFiles(client)
-                ]);
-
-                // Mark details as loaded
-                client._detailsLoaded = true;
-            } catch (error) {
-                console.error('Error loading client details:', error);
-                showToast.error('Error al cargar los detalles del cliente');
-            } finally {
-                this.loadingStates = {
-                    ...this.loadingStates,
-                    [client.uid]: false
-                };
+        toggleClientDetails(client) {
+            const { togglingClientDetails, fetchingClientDetails } = clientDetails
+            
+            // If the client details are not loaded, fetch them first
+            if (!client._detailsLoaded) {
+                fetchingClientDetails(client).then(() => {
+                    togglingClientDetails(client)
+                }).catch(error => {
+                    console.error('Error fetching client details:', error)
+                    showToast.error('No se pudieron cargar los detalles del cliente')
+                })
+            } else {
+                togglingClientDetails(client)
             }
         },
 
-        async fetchClientCoupons(client) {
-            const couponsRef = dbRef(db, `Users/${client.uid}/coupons`);
-            const couponsSnapshot = await get(couponsRef);
-            this.clientCoupons[client.uid] = couponsSnapshot.exists() ? Object.keys(couponsSnapshot.val()) : [];
-
-            // Further optimize fetching coupon details
-            if (this.clientCoupons[client.uid].length > 0) {
-                const couponPromises = this.clientCoupons[client.uid].map(async couponId => {
-                    const couponRef = dbRef(db, `Coupons/${couponId}`);
-                    const couponDetailsSnapshot = await get(couponRef);
-                    return couponDetailsSnapshot.exists() ? { id: couponId, ...couponDetailsSnapshot.val() } : null;
-                });
-                this.clientCoupons[client.uid] = (await Promise.all(couponPromises)).filter(Boolean);
-            }
-        },
-
-        async fetchClientSubscription(client) {
-            try {
-                const subscriptionRef = dbRef(db, `Users/${client.uid}/subscription`);
-                const subscriptionSnapshot = await get(subscriptionRef);
-
-                if (subscriptionSnapshot.exists()) {
-                    client.subscription = subscriptionSnapshot.val();
-                    const subscriptionId = client.subscription.subscription_id;
-
-                    if (subscriptionId) {
-                        // Query the Suscriptions table to fetch the details
-                        const subscriptionDataRef = dbRef(db, `Suscriptions/${subscriptionId}`);
-                        const userSuscriptionSnapshot = await get(subscriptionDataRef);
-
-                        if (userSuscriptionSnapshot.exists()) {
-                            const userSubscription = userSuscriptionSnapshot.val();
-                            // Merge the userSubscription into the client's subscription object
-                            client.subscription = {
-                                ...client.subscription,
-                                ...userSubscription
-                            };
-                            if (client.subscription.lastPaymentDate) {
-                                // In case the client made a payment
-                                const paymentDate = (client.subscription.lastPaymentDate).split('T')[0];
-                                this.fetchPaymentFiles(client, paymentDate);
-                            }
-                        }
-                    }
-                } else {
-                    // Set a default empty subscription if none exist
-                    client.subscription = null;
-                }
-            } catch (error) {
-                console.error('Error fetching client subscription:', error);
-                client.subscription = null;
-            }
-        },
-
-        async fetchClientCredit(client) {
-            try {
-                const creditRef = dbRef(db, `Users/${client.uid}/credit`);
-                const creditSnapshot = await get(creditRef);
-
-                if (creditSnapshot.exists()) {
-                    const creditData = creditSnapshot.val();
-
-                    // Set default values for missing credit data
-                    client.credit = {
-                        mainCredit: creditData.main?.totalCredit || 0,
-                        availableMainCredit: creditData.main?.availableCredit || 0,
-                        plusCredit: creditData.plus?.totalCredit || 0,
-                        availablePlusCredit: creditData.plus?.availableCredit || 0
-                    };
-                } else {
-                    // Set default empty credit if none exists
-                    client.credit = {
-                        mainCredit: 0,
-                        availableMainCredit: 0,
-                        plusCredit: 0,
-                        availablePlusCredit: 0
-                    };
-                }
-            } catch (error) {
-                console.error('Error fetching client credit:', error);
-                // Set default empty credit on error
-                client.credit = {
-                    mainCredit: 0,
-                    availableMainCredit: 0,
-                    plusCredit: 0,
-                    availablePlusCredit: 0
-                };
-            }
-        },
-
-        async fetchClientPreferences(client) {
-            try {
-                // Initialize the preferences array for each client
-                this.clientPreferences[client.uid] = {};
-
-                // Fetch the preferences from the user's data in Firebase Realtime Database
-                const preferencesRef = dbRef(db, `Users/${client.uid}/preferences`);
-                const prefSnapshot = await get(preferencesRef);
-
-                if (prefSnapshot.exists()) {
-                    const preferences = prefSnapshot.val();
-
-                    // Fetch categories for the selectedCategories
-                    if (preferences.selectedCategories) {
-                        const selectedCategories = preferences.selectedCategories;
-
-                        // Initialize each category in clientPreferences
-                        for (const categoryId of selectedCategories) {
-                            const categoryRef = dbRef(db, `Affiliate_categories/${categoryId}`);
-                            const categoryDetailsSnapshot = await get(categoryRef);
-
-                            if (categoryDetailsSnapshot.exists()) {
-                                const categoryDetails = categoryDetailsSnapshot.val();
-                                // Store the category details in clientPreferences
-                                this.clientPreferences[client.uid][categoryId] = {
-                                    category: categoryDetails.name,
-                                    subcategories: [] // Initialize subcategories
-                                };
-                            }
-                        }
-                    }
-
-                    // Fetch subcategories for the selectedSubcategories
-                    if (preferences.selectedSubcategories) {
-                        const selectedSubcategories = preferences.selectedSubcategories;
-
-                        for (const subcategoryId of selectedSubcategories) {
-                            const subcategoryRef = dbRef(db, `Affiliate_subcategories/${subcategoryId}`);
-                            const subcategoryDetailsSnapshot = await get(subcategoryRef);
-
-                            if (subcategoryDetailsSnapshot.exists()) {
-                                const subcategoryDetails = subcategoryDetailsSnapshot.val();
-                                // Find the category to add the subcategory to
-                                for (const categoryId in this.clientPreferences[client.uid]) {
-                                    // Assuming subcategory is related to its category
-                                    if (subcategoryDetails.category_id === categoryId) {
-                                        this.clientPreferences[client.uid][categoryId].subcategories.push(subcategoryDetails.name);
-                                        break; // Break after adding to the correct category
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    this.clientPreferences[client.uid] = {};
-                }
-
-            } catch (error) {
-                console.error("Error fetching client preferences: ", error);
-                this.clientPreferences[client.uid] = {};  // Ensure empty preferences on error
-            }
-        },
-        async fetchIdFiles(client) {
-            // Skip fetching if client hasn't requested verification
-            if (!client.requestedVerification && !client.verificationFiles) {
-                return;
-            }
-
-            try {
-                // Set loading state
-                this.loadingStates = {
-                    ...this.loadingStates,
-                    [client.uid + '_files']: true
-                };
-
-                // Check if verification files exist in the database
-                const verificationFilesRef = dbRef(db, `Users/${client.uid}/verificationFiles`);
-                const snapshot = await get(verificationFilesRef);
-
-                if (!snapshot.exists()) {
-                    // No verification files found
-                    client.idFiles = [];
-                    return;
-                }
-
-                const verificationFiles = snapshot.val();
-                const idFiles = [];
-
-                // Process each file type
-                for (const [type, path] of Object.entries(verificationFiles)) {
-                    if (path) {
-                        try {
-                            const url = await getDownloadURL(storageRef(storage, path));
-                            idFiles.push({
-                                type,
-                                url
-                            });
-                        } catch (error) {
-                            console.error(`Error fetching ${type} file:`, error);
-                        }
-                    }
-                }
-
-                // Set the ID files on the client object
-                client.idFiles = idFiles;
-            } catch (error) {
-                console.error('Error fetching ID files:', error);
-            } finally {
-                // Clear loading state
-                this.loadingStates = {
-                    ...this.loadingStates,
-                    [client.uid + '_files']: false
-                };
-            }
-        },
         async fetchPaymentFiles(client, date) {
-            try {
-                const userName = `${client.firstName} ${client.lastName}`;
-                const folderRef = storageRef(storage, `payment-captures/${client.role}/${client.uid}-${userName}`);
-
-                // List all files in the client's payment-captures folder
-                const fileList = await listAll(folderRef);
-
-                // Filter files by date (ignoring extension)
-                const matchingFile = fileList.items.find(fileRef => fileRef.name.startsWith(date));
-
-                if (matchingFile) {
-                    // Get the download URL for the matched file
-                    const paymentUrl = await getDownloadURL(matchingFile);
-
-                    // Assign the URL to the client object
-                    client.paymentUrl = paymentUrl;
-                    console.log('Payment file fetched:', paymentUrl);
-                } else {
-                    console.log('No payment file found for the given date');
-                    client.paymentUrl = null;
-                }
-            } catch (error) {
-                console.error('Error fetching payment file:', error.message || error);
-                client.paymentUrl = null;
-            }
+            const { fetchPaymentFiles } = clientDetails
+            await fetchPaymentFiles(client, date)
         },
+
         async fetchUpdateRequests() {
-            try {
-                this.loadingRequests = true;
-
-                const updateRequestsRef = dbRef(db, 'updateRequests');
-                const updateRequestsSnapshot = await get(updateRequestsRef);
-
-                if (!updateRequestsSnapshot.exists()) {
-                    this.updateRequests = [];
-                    return;
-                }
-
-                const requests = updateRequestsSnapshot.val();
-
-                // Transform the requests into a flat array with additional metadata
-                this.updateRequests = Object.entries(requests).flatMap(([userId, userRequests]) => {
-                    // Find the corresponding user
-                    const user = this.clients.find(client => client.uid === userId);
-
-                    // Transform each request for the user
-                    return Object.entries(userRequests).map(([requestId, requestData]) => ({
-                        id: requestId,
-                        userId: userId,
-                        userName: user
-                            ? `${user.firstName} ${user.lastName}`
-                            : 'Usuario Desconocido',
-                        userEmail: user ? user.email : 'Email no disponible',
-                        ...requestData
-                    }));
-                }).sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt))
-                    .filter(r => r.status === 'pending'); // Sort by most recent first and status pending
-
-            } catch (error) {
-                console.error('Error fetching update requests:', error);
-                showToast.error('No se pudieron cargar las solicitudes de actualización');
-                this.updateRequests = [];
-            } finally {
-                this.loadingRequests = false;
-            }
+            const { fetchUpdateRequests, updateRequests } = clientRequests
+            await fetchUpdateRequests(this.clients)
+            this.updateRequests = updateRequests.value
         },
+
         async fetchDeleteRequests() {
-            try {
-                this.loadingRequests = true;
-
-                const deleteRequestsRef = dbRef(db, 'deletionRequests');
-                const deleteRequestsSnapshot = await get(deleteRequestsRef);
-
-                if (!deleteRequestsSnapshot.exists()) {
-                    this.deleteRequests = [];
-                    return;
-                }
-
-                const requests = deleteRequestsSnapshot.val();
-
-                this.deleteRequests = Object.entries(requests).map(([userId, requestData]) => {
-                    const user = this.clients.find(client => client.uid === userId);
-
-                    return {
-                        id: userId, // Using userId as ID since there is no requestId
-                        userId,
-                        userName: user
-                            ? `${user.firstName} ${user.lastName}`
-                            : 'Usuario Desconocido',
-                        userEmail: user ? user.email : 'Email no disponible',
-                        ...requestData
-                    };
-                }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-                    .filter(r => r.status === 'pending');
-
-            } catch (error) {
-                console.error('Error fetching delete requests:', error);
-                showToast.error('No se pudieron cargar las solicitudes de eliminación');
-                this.deleteRequests = [];
-            } finally {
-                this.loadingRequests = false;
-            }
+            const { fetchDeleteRequests, deleteRequests } = clientRequests
+            await fetchDeleteRequests(this.clients)
+            this.deleteRequests = deleteRequests.value
         },
 
         async createClient() {
@@ -987,7 +643,7 @@ export default {
         },
         async handleDeleteRequest(requestId) {
             try {
-                this.isSubmitting = true;                
+                this.isSubmitting = true;
 
                 // Find the client object using the requestId (which is the user's UID)
                 const clientObject = this.clients.find((c) => c.uid === requestId);
@@ -1049,12 +705,12 @@ export default {
 
                 // success swal
                 Swal.fire
-                ({
-                    icon: 'success',
-                    title: 'Solicitud Aprobada',
-                    text: 'Usuario eliminado.',
-                    confirmButtonColor: '#29122f'
-                });
+                    ({
+                        icon: 'success',
+                        title: 'Solicitud Aprobada',
+                        text: 'Usuario eliminado.',
+                        confirmButtonColor: '#29122f'
+                    });
 
                 // Refresh the delete requests list
                 await this.fetchDeleteRequests();
@@ -1290,7 +946,53 @@ export default {
                     confirmButtonColor: '#d33'
                 });
             }
-        }
+        },        
+
+        initializeComposableComputed() {
+            return {
+                filteredUsers() {
+                    // You can keep the existing filtering logic or use the composable's computed
+                    const trimmedQuery = this.searchQuery?.trim().toLowerCase()
+                    let filtered = this.clients
+
+                    if (trimmedQuery) {
+                        filtered = filtered.filter(client => {
+                            const identification = client.identification?.toString().toLowerCase() || ''
+                            const firstName = client.firstName?.toLowerCase() || ''
+                            const lastName = client.lastName?.toLowerCase() || ''
+                            const fullName = `${firstName} ${lastName}`.toLowerCase()
+                            const reversedFullName = `${lastName} ${firstName}`.toLowerCase()
+
+                            return identification.includes(trimmedQuery) ||
+                                firstName.includes(trimmedQuery) ||
+                                lastName.includes(trimmedQuery) ||
+                                fullName.includes(trimmedQuery) ||
+                                reversedFullName.includes(trimmedQuery)
+                        })
+                    }
+
+                    if (this.verificationFilter !== 'all') {
+                        filtered = filtered.filter(client => {
+                            switch (this.verificationFilter) {
+                                case 'verified': return client.isVerified === true
+                                case 'pending': return client.requestedVerification === true && client.isVerified !== true
+                                case 'unverified': return !client.requestedVerification && !client.isVerified
+                                default: return true
+                            }
+                        })
+                    }
+
+                    return filtered
+                }
+            }
+        },
+    },
+    created() {
+        // Initial data fetch
+        this.fetchClients()
+        this.fetchUpdateRequests()
+        this.fetchDeleteRequests()
+        this.initializeComposableComputed()
     }
 }
 </script>
@@ -1562,7 +1264,7 @@ export default {
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span>Rose Credit:</span>
                                                         <span class="text-success">${{ client.credit.mainCredit
-                                                        }}</span>
+                                                            }}</span>
                                                     </div>
                                                     <div class="progress" style="height: 6px;">
                                                         <div class="progress-bar bg-success"
@@ -1577,7 +1279,7 @@ export default {
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span>Rose Credit Plus:</span>
                                                         <span class="text-primary">${{ client.credit.plusCredit
-                                                        }}</span>
+                                                            }}</span>
                                                     </div>
                                                     <div class="progress" style="height: 6px;">
                                                         <div class="progress-bar bg-primary"
@@ -1613,7 +1315,7 @@ export default {
                                                 <div class="d-flex justify-content-start gap-2 align-items-center mb-2">
                                                     <span class="fw-bold">Nivel:</span>
                                                     <span>{{ client.subscription?.name?.toUpperCase() || 'Básico'
-                                                    }}</span>
+                                                        }}</span>
                                                 </div>
                                                 <div class="d-flex justify-content-start gap-2 align-items-center mb-2">
                                                     <span class="fw-bold">Estado:</span>
