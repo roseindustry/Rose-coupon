@@ -71,29 +71,18 @@ exports.createUser = onRequest(
             "Campo obligatorio vacio: Nombre de la empresa, RIF, Email, Estado, Municipio, Parroquia son requeridos.",
         });
       }
-
-      // Validate Payment Details
-      // if (!userData.paymentDetails ||
-      //   !userData.paymentDetails.bank ||
-      //   !userData.paymentDetails.identification ||
-      //   !userData.paymentDetails.phoneNumber ||
-      //   !userData.paymentDetails.bankAccount) {
-      //   return res.status(400).json({
-      //     success: false,
-      //     message: "Todos los datos de pago del afiliado son requeridos.",
-      //   });
-      // }
     } else if (userData.role === "cliente") {
       if (
         !userData.firstName ||
         !userData.lastName ||
         !userData.identification ||
-        !userData.email
+        !userData.email ||
+        !userData.phoneNumber
       ) {
         return res.status(400).json({
           success: false,
           message:
-            "Campo obligatorio vacio: Nombre, Apellido, y Email son requeridos.",
+            "Campo obligatorio vacio: Nombre, Apellido, identificacion, email y telefono son requeridos.",
         });
       }
     } else if (userData.role === "mesero" || userData.role === "promotora") {
@@ -133,6 +122,7 @@ exports.createUser = onRequest(
       // Save additional user info in Realtime Database
       const db = getDatabase();
       let userInfo = {};
+      let subscriptionInfo = {};
 
       if (userData.role === "afiliado") {
         // Fields for 'afiliado'
@@ -179,11 +169,20 @@ exports.createUser = onRequest(
           identification: userData.identification,
           email: userData.email,
           role: userData.role,
-          phoneNumber: userData.phoneNumber || null,
+          phoneNumber: userData.phoneNumber,
         };
+
+        subscriptionInfo = {
+          subscription_id: "-O7kFY6vMetIG_hUPYs6",
+          status: true,
+        }
       }
 
       await db.ref("Users/" + userRecord.uid).set(userInfo);
+
+      if (userData.role === "cliente" && subscriptionInfo && Object.keys(subscriptionInfo).length > 0) {
+        await db.ref("Users/" + userRecord.uid + "/subscription").set(subscriptionInfo);
+      }
 
       // Send email with the temporary password
       const mailOptions = {
@@ -195,7 +194,7 @@ exports.createUser = onRequest(
 
       await transporter.sendMail(mailOptions);
 
-      return res.status(200).json({ success: true });
+      return res.status(200).json({ success: true, userId: userRecord.uid });
     } catch (error) {
       console.error("Error creating client:", error);
       return res.status(500).json({ success: false, message: error.message });
@@ -338,58 +337,78 @@ exports.verifyCode = onRequest(
         });
       }
 
-      // Get stored verification code
-      const verificationRef = admin
-        .database()
-        .ref(`verificationCodes/${clientId}/${type}`);
-      const snapshot = await verificationRef.get();
-
-      if (!snapshot.exists()) {
-        return res.status(404).json({
-          success: false,
-          message: "Código no encontrado o expirado",
+      if (type === "phone") {
+        // Update phone verification status
+        await admin.database().ref(`Users/${clientId}`).update({
+          phoneVerified: true,
         });
-      }
 
-      const verification = snapshot.val();
-      const now = Date.now();
+        return res.status(200).json({
+          success: true,
+          message: "Teléfono verificado correctamente",
+        });
+      } else {
+        // Get stored verification code
+        const verificationRef = admin
+          .database()
+          .ref(`verificationCodes/${clientId}/${type}`);
+        const snapshot = await verificationRef.get();
 
-      // Check if code has expired (5 minutes)
-      if (now - verification.createdAt > 5 * 60 * 1000) {
+        if (!snapshot.exists()) {
+          return res.status(404).json({
+            success: false,
+            message: "Código no encontrado o expirado",
+          });
+        }
+
+        const verification = snapshot.val();
+        const now = Date.now();
+
+        // Check if code has expired (5 minutes)
+        if (now - verification.createdAt > 5 * 60 * 1000) {
+          await verificationRef.remove();
+          return res.status(400).json({
+            success: false,
+            message: "El código ha expirado",
+          });
+        }
+
+        // Verify code
+        // Error response if code is invalid
+        if (verification.code.toString() !== code.toString()) {
+          return res.status(400).json({
+            success: false,
+            message: "Código inválido",
+          });
+        }
+
+        if (type === "email") {
+        // Update user verification status
+          await admin.database().ref(`Users/${clientId}`).update({
+            emailVerified: true,
+          });
+        }
+
+        // Delete used verification code
         await verificationRef.remove();
-        return res.status(400).json({
-          success: false,
-          message: "El código ha expirado",
+
+        // Success response
+        return res.status(200).json({
+          success: true,
+          message: "Código verificado exitosamente",
         });
       }
-
-      // Verify code
-      // Error response if code is invalid
-      if (verification.code.toString() !== code.toString()) {
-        return res.status(400).json({
-          success: false,
-          message: "Código inválido",
-        });
-      }
-
-      // Delete used verification code
-      await verificationRef.remove();
-
-      // Success response
-      return res.status(200).json({
-        success: true,
-        message: "Código verificado exitosamente",
-      });
     } catch (error) {
       console.error("Error in verifyCode:", error);
       return res.status(500).json({
         success: false,
-        message: "Error interno del servidor",
+        message: error.message || "Error interno del servidor",
       });
     }
   }
 );
 
+// For email and purchase verification codes
 exports.sendVerificationCode = onRequest(
   {
     cors: true,
@@ -406,25 +425,30 @@ exports.sendVerificationCode = onRequest(
       type,
       newValue = null,
     } = req.query;
-    const client = { id, email, firstName, lastName, phone };
+
+    const client = {
+      id,
+      email,
+      firstName,
+      lastName,
+      phone,
+      newValue,
+    };
 
     try {
       // Validate request data
-      if (!client || !client.id || !type) {
+      if (!client.id || !type) {
         return res.status(400).json({
           success: false,
           message: "Datos inválidos",
         });
       }
 
-      // Validate contact method based on verification type
-      if (
-        (type === "email" && !newValue.includes("@")) ||
-        (type === "phone" && !/^\d{10}$/.test(newValue))
-      ) {
+      // Validate input format
+      if (type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newValue)) {
         return res.status(400).json({
           success: false,
-          message: `${type === "email" ? "Email" : "Teléfono"} inválido`,
+          message: "Email inválido",
         });
       }
 
@@ -486,80 +510,73 @@ exports.sendVerificationCode = onRequest(
       // Generate verification code
       const verificationCode = Math.floor(100000 + Math.random() * 900000);
 
-      try {
-        // Store the code with its type and new value
-        await admin
-          .database()
-          .ref(`verificationCodes/${client.id}/${type}`)
-          .set({
-            code: verificationCode,
-            newValue: newValue, // Store the new value with the code
-            createdAt: Date.now(),
-          });
+      // Store the code with its type and new value
+      await admin
+        .database()
+        .ref(`verificationCodes/${client.id}/${type}`)
+        .set({
+          code: verificationCode,
+          sentTo: client.newValue || null,
+          createdAt: now,
+        });
 
-        // Send code based on type
-        if (type === "email") {
-          await transporter.sendMail({
-            from: EMAIL_USER,
-            to: newValue, // Send to the new email
-            subject: "Código de Verificación de Email",
-            html: `
+      // Send code based on type
+      if (type === "email") {
+        await transporter.sendMail({
+          from: EMAIL_USER,
+          to: newValue, // Send to the new email
+          subject: "Código de Verificación de Email",
+          html: `
             <h3>Verificación de Email</h3>
             <p>Hola ${client.firstName || ""},</p>
             <p>Tu código de verificación es: <strong>${verificationCode}</strong></p>
             <p>Este código expirará en 5 minutos.</p>
           `,
-          });
-        } else if (type === "phone") {
-          console.log("Coming soon");
-          // Send SMS (implement your SMS service here)
-          // For example, using Twilio or similar service
-          // await sendSMS(newValue, `Tu código de verificación es: ${verificationCode}`);
-        } else if (type === "purchase") {
-          await transporter.sendMail({
-            from: EMAIL_USER,
-            to: client.email,
-            subject: "Código de Verificación de Compra",
-            html: `
+        });
+      } else if (type === "purchase") {
+        await transporter.sendMail({
+          from: EMAIL_USER,
+          to: client.email,
+          subject: "Código de Verificación de Compra",
+          html: `
             <h3>Verificación de Compra</h3>
             <p>Hola ${client.firstName || ""},</p>
             <p>Tu código de verificación para tu compra es: <strong>${verificationCode}</strong></p>
             <p>Este código expirará en 5 minutos.</p>
           `,
-          });
-        }
-
-        // Return success response
-        return res.status(200).json({
-          success: true,
-          message: "Código enviado al correo electrónico. Tiene 5 minutos para usarlo.",
-          rateLimit: {
-            remainingAttempts:
-              15 -
-              (rateLimitSnapshot.exists()
-                ? rateLimitSnapshot.val().attempts
-                : 0),
-            cooldownEnds: now + 2 * 60 * 1000,
-            resetTime:
-              (rateLimitSnapshot.exists()
-                ? rateLimitSnapshot.val().firstAttempt
-                : now) +
-              24 * 60 * 60 * 1000,
-          },
-        });
-      } catch (sendError) {
-        // Clean up stored code if sending fails
-        console.error("Error sending verification code:", sendError);
-        await admin
-          .database()
-          .ref(`verificationCodes/${client.id}/${type}`)
-          .remove();
-
-        return res.status(500).json({
-          success: false,
-          message: `Error al enviar el código por ${type === "email" ? "email" : "SMS"}. Por favor intente nuevamente.`,
         });
       }
+
+      // Return success response
+      return res.status(200).json({
+        success: true,
+        message:
+          "Código enviado al correo electrónico. Tiene 5 minutos para usarlo.",
+        rateLimit: {
+          remainingAttempts:
+            15 -
+            (rateLimitSnapshot.exists() ? rateLimitSnapshot.val().attempts : 0),
+          cooldownEnds: now + 2 * 60 * 1000,
+          resetTime:
+            (rateLimitSnapshot.exists()
+              ? rateLimitSnapshot.val().firstAttempt
+              : now) +
+            24 * 60 * 60 * 1000,
+        },
+      });
+      // } catch (sendError) {
+      //   // Clean up stored code if sending fails
+      //   console.error("Error sending verification code:", sendError);
+      //   await admin
+      //     .database()
+      //     .ref(`verificationCodes/${client.id}/${type}`)
+      //     .remove();
+
+      //   return res.status(500).json({
+      //     success: false,
+      //     message: `Error al enviar el código por ${type === "email" ? "email" : "SMS"}. Por favor intente nuevamente.`,
+      //   });
+      // }
     } catch (error) {
       console.error("Error in sendVerificationCode:", error);
       return res.status(500).json({
@@ -567,6 +584,88 @@ exports.sendVerificationCode = onRequest(
         message: error.message || "Error interno del servidor",
       });
     }
+  }
+);
+
+// For phone verification rate limit check
+exports.sendPhoneRateLimitCheck = onRequest(
+  { cors: true },
+  async (req, res) => {
+    const { id, phone } = req.body;
+
+    if (!id || !phone || !/^\d{10,15}$/.test(phone)) {
+      return res.status(400).json({
+        success: false,
+        message: "Número de teléfono inválido o datos incompletos.",
+      });
+    }
+
+    const now = Date.now();
+    const ref = admin
+      .database()
+      .ref(`rateLimits/verificationCodes/${id}/phone`);
+    const snapshot = await ref.get();
+
+    let attempts = 0;
+    let firstAttempt = now;
+    let lastAttempt = 0;
+
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      attempts = data.attempts || 0;
+      firstAttempt = data.firstAttempt || now;
+      lastAttempt = data.lastAttempt || 0;
+
+      if (now - firstAttempt > 24 * 60 * 60 * 1000) {
+        // Reset if over 24 hours
+        attempts = 1;
+        firstAttempt = now;
+        lastAttempt = now;
+        await ref.set({ attempts, firstAttempt, lastAttempt });
+      } else {
+        if (attempts >= 15) {
+          return res.status(429).json({
+            success: false,
+            message: "Has excedido el límite de intentos. Intenta mañana.",
+            rateLimit: {
+              remainingAttempts: 0,
+              cooldownEnds: lastAttempt + 2 * 60 * 1000,
+              resetTime: firstAttempt + 24 * 60 * 60 * 1000,
+            },
+          });
+        }
+
+        if (now - lastAttempt < 2 * 60 * 1000) {
+          const wait = Math.ceil((2 * 60 * 1000 - (now - lastAttempt)) / 1000);
+          return res.status(429).json({
+            success: false,
+            message: `Espera ${wait} segundos antes de intentar de nuevo.`,
+            rateLimit: {
+              remainingAttempts: 15 - attempts,
+              cooldownEnds: lastAttempt + 2 * 60 * 1000,
+              resetTime: firstAttempt + 24 * 60 * 60 * 1000,
+            },
+          });
+        }
+
+        attempts += 1;
+        lastAttempt = now;
+        await ref.update({ attempts, lastAttempt });
+      }
+    } else {
+      // First attempt
+      await ref.set({ attempts: 1, firstAttempt: now, lastAttempt: now });
+    }
+
+    return res.json({
+      success: true,
+      message: "Verificación permitida.",
+      rateLimit: {
+        remainingAttempts: 15 - attempts,
+        cooldownEnds: lastAttempt + 2 * 60 * 1000,
+        resetTime: firstAttempt + 24 * 60 * 60 * 1000,
+      },
+    });
   }
 );
 
@@ -600,7 +699,7 @@ exports.requestFieldUpdate = onRequest(
 
       // Create email content
       const mailOptions = {
-        from: EMAIL_USER,  
+        from: EMAIL_USER,
         to: EMAIL_USER, // Send to admin email
         subject: "Solicitud de Actualización de Datos de Usuario",
         html: `
@@ -867,13 +966,17 @@ exports.checkUserObligations = onRequest(
       const creditSnapshot = await db.ref(`Users/${userId}/credit`).get();
       if (creditSnapshot.exists()) {
         const creditData = creditSnapshot.val();
-        
+
         // Check main credit pending payments
         if (creditData.main && creditData.main.purchases) {
           // Flatten and check all cuotas across all purchases
-          const pendingPayments = Object.values(creditData.main.purchases).flatMap(purchase => 
-            purchase.cuotas ? 
-              Object.values(purchase.cuotas).filter(cuota => cuota.status === 'pending') 
+          const pendingPayments = Object.values(
+            creditData.main.purchases
+          ).flatMap((purchase) =>
+            purchase.cuotas
+              ? Object.values(purchase.cuotas).filter(
+                  (cuota) => cuota.status === "pending"
+                )
               : []
           );
 
@@ -881,7 +984,7 @@ exports.checkUserObligations = onRequest(
             return res.status(400).json({
               success: false,
               message: `El cliente ${userId} tiene ${pendingPayments.length} cuotas pendientes en su crédito principal`,
-              pendingPayments: pendingPayments
+              pendingPayments: pendingPayments,
             });
           }
         }
@@ -889,9 +992,13 @@ exports.checkUserObligations = onRequest(
         // Check plus credit pending payments
         if (creditData.plus && creditData.plus.purchases) {
           // Flatten and check all cuotas across all purchases for plus credit
-          const pendingPlusPayments = Object.values(creditData.plus.purchases).flatMap(purchase => 
-            purchase.cuotas ? 
-              Object.values(purchase.cuotas).filter(cuota => cuota.status === 'pending') 
+          const pendingPlusPayments = Object.values(
+            creditData.plus.purchases
+          ).flatMap((purchase) =>
+            purchase.cuotas
+              ? Object.values(purchase.cuotas).filter(
+                  (cuota) => cuota.status === "pending"
+                )
               : []
           );
 
@@ -899,17 +1006,19 @@ exports.checkUserObligations = onRequest(
             return res.status(400).json({
               success: false,
               message: `Tienes ${pendingPlusPayments.length} cuotas pendientes en tu crédito Rose Plus`,
-              pendingPayments: pendingPlusPayments
+              pendingPayments: pendingPlusPayments,
             });
           }
         }
       }
 
       // Check subscription status
-      const subscriptionSnapshot = await db.ref(`Users/${userId}/subscription`).get();
+      const subscriptionSnapshot = await db
+        .ref(`Users/${userId}/subscription`)
+        .get();
       if (subscriptionSnapshot.exists()) {
         const subscriptionData = subscriptionSnapshot.val();
-        
+
         // Check if subscription is unpaid
         if (!subscriptionData.isPaid) {
           return res.status(400).json({
@@ -960,13 +1069,19 @@ exports.removeUserAccount = onRequest(
 
       // 2. Remove user's storage files
       const bucket = storage.bucket();
-      const [files] = await bucket.getFiles({ prefix: `verification-files/${userId}` });
-      const deletePromises = files.map(file => file.delete());
+      const [files] = await bucket.getFiles({
+        prefix: `verification-files/${userId}`,
+      });
+      const deletePromises = files.map((file) => file.delete());
       await Promise.all(deletePromises);
 
       // 3. Remove payment capture files
-      const paymentFiles = await bucket.getFiles({ prefix: `payment-captures/${userId}` });
-      const paymentDeletePromises = paymentFiles[0].map(file => file.delete());
+      const paymentFiles = await bucket.getFiles({
+        prefix: `payment-captures/${userId}`,
+      });
+      const paymentDeletePromises = paymentFiles[0].map((file) =>
+        file.delete()
+      );
       await Promise.all(paymentDeletePromises);
 
       // 4. Remove user from Authentication
@@ -977,7 +1092,7 @@ exports.removeUserAccount = onRequest(
         db.ref(`Payments/${userId}`).remove(),
         db.ref(`verificationCodes/${userId}`).remove(),
         db.ref(`deletionRequests/${userId}`).remove(),
-        db.ref(`updateRequests/${userId}`).remove()
+        db.ref(`updateRequests/${userId}`).remove(),
       ]);
 
       // Send confirmation email
@@ -1002,7 +1117,7 @@ exports.removeUserAccount = onRequest(
               <p>Fecha de eliminación: ${new Date().toISOString()}</p>
             </div>
           </div>
-        `
+        `,
       };
 
       await transporter.sendMail(mailOptions);

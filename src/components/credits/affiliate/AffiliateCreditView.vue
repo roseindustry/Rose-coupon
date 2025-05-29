@@ -133,6 +133,15 @@
         </div>
       </div>
 
+      <div class="row">
+        <div class="col-md-12 mb-3">
+          <button class="btn btn-add-client" @click.prevent="openAddClientModal">
+            <i class="fas fa-user-plus"></i>
+            Registrar Cliente Nuevo
+          </button>
+        </div>
+      </div>
+
       <!-- Main Content Area -->
       <div class="row g-4">
         <!-- Left Column: New Purchase Form -->
@@ -151,6 +160,10 @@
                   <h6 class="text-light mb-3">1. Selección del Cliente</h6>
                   <div class="row">
                     <div class="col-md-12 mb-3">
+                      <!-- <button class="btn btn-theme" v-if="addingNewClient" @click.prevent="addingNewClient = false, selectedClient = null">
+                        <i class="fas fa-magnifying-glass"></i>
+                        Buscar Cliente
+                      </button> -->
                       <SearchInput v-model="searchClient" placeholder="Buscar cliente por nombre o cédula..."
                         :results="searchClientResults" @select="selectClient"
                         @blur="() => !selectedClient && clearSearchResults()">
@@ -215,7 +228,8 @@
                       </div>
                       <div class="col-12 col-lg-6">
                         <div class="form-check">
-                          <input type="checkbox" class="form-check-input" id="includeCuotaAddOn" v-model="includeCuotaAddOn">
+                          <input type="checkbox" class="form-check-input" id="includeCuotaAddOn"
+                            v-model="includeCuotaAddOn">
                           <label class="form-check-label" for="includeCuotaAddOn">
                             Incluir Mantenimiento de Suscripción
                           </label>
@@ -282,7 +296,7 @@
                             <label class="text-secondary">Préstamo</label>
                             <h5 class="text-light">${{ Number(loanAmountWithAddOn).toFixed(2) }}</h5>
                             <small>Con aumento por cargo de mantenimiento</small>
-                          </div>                          
+                          </div>
                         </div>
                         <div class="row d-flex justify-content-center mt-3">
                           <div class="col-md-3 mt-2 mt-md-0">
@@ -322,7 +336,7 @@
                               <td>Cuota {{ index + 1 }}</td>
                               <td>{{ formatDate(cuotaDates[index]) }}</td>
                               <td class="text-end">
-                                ${{ amount.toFixed(2) }}                                
+                                ${{ amount.toFixed(2) }}
                               </td>
                             </tr>
                           </tbody>
@@ -499,7 +513,7 @@
                     </p>
                   </div>
                 </div>
-              </div>              
+              </div>
 
               <!-- Product Section -->
               <div class="summary-section">
@@ -592,7 +606,7 @@
                   <div class="d-flex justify-content-between">
                     <span class="summary-label">Período de Mantenimiento:</span>
                     <span class="summary-value">
-                      {{ subscriptionMaintenancePeriod }} 
+                      {{ subscriptionMaintenancePeriod }}
                       {{ subscriptionMaintenancePeriod > 1 ? 'meses' : 'mes' }}
                     </span>
                   </div>
@@ -608,7 +622,7 @@
                       ${{ Number(loanAmountWithAddOn).toFixed(2) }}
                     </span>
                   </div>
-                  
+
                 </div>
               </div>
 
@@ -620,12 +634,12 @@
                     ${{ Number(purchaseAmount + loanAmountWithAddOn).toFixed(2) }}
                   </span>
                 </div>
-              </div>              
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Full Width Sales History -->
+        <!-- Sales History -->
         <div v-if="showHistory" class="col-12">
           <div class="card">
             <!-- Card Header with Filters -->
@@ -723,25 +737,48 @@
     </div>
 
     <PurchaseDetailsModal v-if="selectedSale" :sale="selectedSale" @close="closeModal" ref="purchaseModal" />
+
+    <!-- Add Client Modal Component -->
+    <transition name="slide-left">
+      <AddClientModal v-if="showAddClientModal" ref="addClientModal" @client-created="handleClientCreated" />
+    </transition>
+
+    <!-- Verification Modal Component -->
+    <transition name="slide-left">
+      <VerificationModal v-if="showVerificationModal" ref="verificationModal" :client="newClient"
+        @verification-complete="handleVerificationComplete" @skip-verification="handleSkipVerification"
+        @mounted="handleVerificationModalMounted" />
+    </transition>
+
+    <!-- ID Upload Modal Component -->
+    <transition name="slide-left">
+      <IdUploadModal v-if="showIdUploadModal" ref="idUploadModal" :client="newClient"
+        @upload-complete="handleUploadComplete" @skip-upload="handleSkipUpload" />
+    </transition>
   </div>
 </template>
 
 <script>
 import SearchInput from '@/components/app/SearchInput.vue'
+import AddClientModal from '@/components/clients/AddClientModal.vue'
+import VerificationModal from '@/components/clients/VerificationModal.vue'
+import IdUploadModal from '@/components/clients/IdUploadModal.vue'
 import { toast } from '@/utils/toast.js'
-import { ref as dbRef, get, push, update, set } from 'firebase/database'
-import { db, auth } from '@/firebase/init'
+import { ref as dbRef, get, set } from 'firebase/database'
+import { db } from '@/firebase/init'
 import 'toastify-js/src/toastify.css'
 import PurchaseDetailsModal from './modals/PurchaseDetailsModal.vue'
 import { sendEmail } from '@/utils/emailService.js'
 import { reactive } from 'vue'
-import Swal from 'sweetalert2'
 
 export default {
   name: 'AffiliateCreditView',
   components: {
     SearchInput,
-    PurchaseDetailsModal
+    PurchaseDetailsModal,
+    AddClientModal,
+    VerificationModal,
+    IdUploadModal
   },
   props: {
     currentAffiliate: {
@@ -767,6 +804,7 @@ export default {
     return {
       loading: true,
       waiting: false,
+      addingNewClient: false,
       searchSales: '',
       salesFilter: 'all', // 'all', 'pending', 'completed'
       calculationsPerformed: false,
@@ -811,12 +849,16 @@ export default {
       countdownTimer: null,
 
       salesData: [],
-      subscriptions: [],      
+      subscriptions: [],
 
       rateLimitData: reactive({}),
       isSubmitting: false,
       successMessage: '',
       showHistory: false,
+      newClient: null,
+      showAddClientModal: false,
+      showVerificationModal: false,
+      showIdUploadModal: false,
     }
   },
   computed: {
@@ -1077,7 +1119,7 @@ export default {
         // Recalculate with the new fee setting
         this.calcs(this.selectedClient);
       }
-    },    
+    },
     'newPurchase.terms'(newVal) {
       if (newVal > 2) {
         this.includeCuotaAddOn = true;
@@ -1087,7 +1129,7 @@ export default {
         this.includeCuotaAddOn = false;
       }
     },
-    includeCuotaAddOn(newValue) {      
+    includeCuotaAddOn(newValue) {
       if (this.selectedClient && this.calculationsPerformed) {
         // Recalculate with the new fee setting
         this.calcs(this.selectedClient);
@@ -1404,7 +1446,7 @@ export default {
         // Subscription Maintenance Add-On Logic
         if (this.includeCuotaAddOn && client?.subscription?.cuotaAddOn) {
           const addonAmount = client.subscription.cuotaAddOn;
-          
+
           // Dynamically calculate maintenance period based on frequency and terms
           let maintenancePeriod;
           let monthlyQuotes;
@@ -1571,19 +1613,19 @@ export default {
         const purchaseData = {
           clientId: this.selectedClient.uid || this.selectedClient.id,
           clientName: `${this.selectedClient.firstName} ${this.selectedClient.lastName}`,
-          
+
           includeFee: this.includeFee, // Valor booleano si aplica Cuota adicional de mantenimiento por uso de aplicacion
           includeCuotaAddOn: this.includeCuotaAddOn, // Valor booleano si aplica aumento en cada cuota por mantenimiento de suscripción
           maintenancePeriod: this.includeCuotaAddOn ? this.subscriptionMaintenancePeriod : null, // Numero de meses de mantenimiento de suscripcion incluido con el plan de pago
 
           productName: this.newPurchase.productName,
           productPrice: this.newPurchase.productPrice,
-          
+
           purchaseAmount: this.purchaseAmount, // Pago de Inicial
           remainingAmount: this.remainingAmount, // Restante
           loanAmount: this.loanAmount, // Prestamo
           loanAmountWithAddOn: this.loanAmountWithAddOn, // Prestamo con adicional de mantenimiento de suscripción
-          
+
           terms: this.cuotaDates.length, // numero de cuotas
           frequency: this.frequency, // frecuencia de pago
           cuotas: this.cuotaDates.map((date, index) => ({
@@ -1602,7 +1644,7 @@ export default {
             this.isSubmitting = false; // Stop loading           
           } else {
             this.isSubmitting = false; // Stop loading
-          }          
+          }
         });
 
       } catch (error) {
@@ -1633,6 +1675,16 @@ export default {
     },
     closeModal() {
       this.selectedSale = null;
+    },
+    openAddClientModal() {
+      this.selectedClient = null;
+      this.showAddClientModal = true;
+      this.$nextTick(() => {
+        this.addingNewClient = true;
+        if (this.$refs.addClientModal) {
+          this.$refs.addClientModal.show();
+        }
+      });
     },
     getClientSubscription(clientId) {
       if (!clientId || !this.clients) {
@@ -1818,7 +1870,80 @@ export default {
 
     toggleSalesHistory() {
       this.showHistory = !this.showHistory;
-    },   
+    },
+
+    handleClientCreated(client) {
+      this.newClient = client;
+      this.showAddClientModal = false;
+
+      if (client.continueVerification) {
+        // Wait for the next tick to ensure the first modal is hidden
+        this.$nextTick(() => {
+          // Show verification modal
+          this.showVerificationModal = true;
+          // Wait for the next tick to ensure the verification modal is mounted
+          this.$nextTick(() => {
+            if (this.$refs.verificationModal) {
+              this.$refs.verificationModal.show();
+            }
+          });
+        });
+      } else {
+        this.newClient = null;
+      }
+    },
+
+    handleVerificationComplete(verificationData) {
+      // First hide the verification modal
+      this.showVerificationModal = false;
+
+      // Wait for the verification modal to be hidden
+      this.$nextTick(() => {
+        // Update the client data with verification status
+        this.newClient = {
+          ...this.newClient,
+          ...verificationData
+        };
+
+        // Show the ID upload modal
+        this.showIdUploadModal = true;
+
+        // Wait for the ID upload modal to be mounted
+        this.$nextTick(() => {
+          if (this.$refs.idUploadModal) {
+            this.$refs.idUploadModal.show();
+          }
+        });
+      });
+    },
+
+    handleSkipVerification() {
+      this.showVerificationModal = false;
+      this.$nextTick(() => {
+        this.showIdUploadModal = true;
+        if (this.$refs.idUploadModal) {
+          this.$refs.idUploadModal.show();
+        }
+      });
+    },
+
+    handleUploadComplete() {
+      this.showIdUploadModal = false;
+      this.newClient = null;
+    },
+
+    handleSkipUpload() {
+      this.showIdUploadModal = false;
+      this.newClient = null;
+    },
+
+    handleVerificationModalMounted() {
+      this.$nextTick(() => {
+        if (this.$refs.verificationModal) {
+          this.$refs.verificationModal.initRecaptcha();
+        }
+      });
+    },
   },
   async mounted() {
     await this.$nextTick();
@@ -1943,6 +2068,17 @@ export default {
   position: relative;
 }
 
+.btn-add-client {
+  background-color: rgba(111, 66, 193, 0.15);
+  color: #6f42c1;
+  border: none;
+  width: auto;
+  padding: 10px 20px;
+  border-radius: 20px;
+}
+.btn-add-client:hover {
+  background-color: rgba(111, 66, 193, 0.25);
+}
 .btn-history-toggle {
   background-color: rgba(111, 66, 193, 0.15);
   color: #6f42c1;
@@ -2331,5 +2467,27 @@ export default {
   .purchase-summary-card {
     margin-top: 16px;
   }
+}
+
+/* Modal Transitions */
+.slide-left-enter-active,
+.slide-left-leave-active {
+  transition: all 0.6s ease;
+}
+
+.slide-left-enter-from {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.slide-left-leave-to {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.slide-left-enter-to,
+.slide-left-leave-from {
+  transform: translateX(0);
+  opacity: 1;
 }
 </style>

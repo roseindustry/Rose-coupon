@@ -17,7 +17,6 @@ import {
   signInWithPhoneNumber,
   RecaptchaVerifier,
 } from "firebase/auth";
-import { httpsCallable } from "firebase/functions";
 import { sendEmail } from "@/utils/emailService";
 import { toast as showToast } from "@/utils/toast";
 import "toastify-js/src/toastify.css";
@@ -27,10 +26,97 @@ import { Modal } from "bootstrap";
 import moment from "moment";
 import venezuela from "venezuela";
 import NotifyPaymentModal from "@/components/subscriptions/userModals/NotifyPaymentModal.vue";
+import { useFileUpload } from '@/composables/useFileUpload';
+import { useVerification } from '@/composables/useVerification';
+import { useSubscription } from '@/composables/useSubscription';
+import VerificationModal from '@/components/clients/VerificationModal.vue';
 
 export default defineComponent({
   components: {
     NotifyPaymentModal,
+    VerificationModal
+  },
+  setup() {
+    // File Uploads
+    const { isUploading, errorMessage, processFile, uploadVerificationFiles } = useFileUpload();
+
+    // Id Verification
+    const {
+      emailCode,
+      phoneCode,
+      isEmailSending,
+      isPhoneSending,
+      isVerifying,
+      emailStatus,
+      phoneStatus,
+      isEmailVerified,
+      isPhoneVerified,
+      emailCodeSent,
+      phoneCodeSent,
+      verifyingField,
+      verifyModal,
+      sendEmailCode,
+      sendPhoneCode,
+      verifyEmailCode,
+      verifyPhoneCode
+    } = useVerification();
+
+    const {
+      subscriptionPlan,
+      userSubscriptionId,
+      isLoading: subscriptionLoading,
+      error: subscriptionError,
+      fetchSubscriptionPlan,
+      isFreeSubscription
+    } = useSubscription();
+
+    const verificationCode = computed({
+      get() {
+        return verifyingField.value === "email"
+          ? emailCode.value
+          : phoneCode.value;
+      },
+      set(value) {
+        if (verifyingField.value === "email") {
+          emailCode.value = value;
+        } else {
+          phoneCode.value = value;
+        }
+      },
+    });
+
+    return {
+      isUploading,
+      errorMessage,
+      processFile,
+      uploadVerificationFiles,
+
+      emailCode,
+      phoneCode,
+      isEmailSending,
+      isPhoneSending,
+      isVerifying,
+      emailStatus,
+      phoneStatus,
+      isEmailVerified,
+      isPhoneVerified,
+      emailCodeSent,
+      phoneCodeSent,
+      verifyingField,
+      verifyModal,
+      sendEmailCode,
+      sendPhoneCode,
+      verifyEmailCode,
+      verifyPhoneCode,
+      verificationCode,
+
+      subscriptionPlan,
+      userSubscriptionId,
+      isLoading: subscriptionLoading,
+      error: subscriptionError,
+      fetchSubscriptionPlan,
+      isFreeSubscription
+    };
   },
   data() {
     return {
@@ -140,7 +226,6 @@ export default defineComponent({
 
       paymentDate: null,
       isSubmitting: false,
-      errorMessage: "",
       verificationModal: null,
       paymentModal: null,
       modalImageUrl: null,
@@ -151,22 +236,13 @@ export default defineComponent({
       phoneVerified: false,
       verifyingField: null,
       updatingField: null,
-      emailVerificationCode: "",
-      phoneVerificationCode: "",
       phoneVerificationLoading: false,
-      phoneVerificationRequested: false,
-      recaptchaVisible: false,
-      verificationId: null,
-      showVerificationInput: false,
       verifyModal: null,
       recaptchaVerifier: null,
       exchange: 0,
-      captchaVerified: false,
-      confirmationResult: null,
       originalData: {
         email: '',
         phoneNumber: '',
-        // Add other fields that can be edited
       },
       editingEmail: false,
       editingPhone: false,
@@ -183,25 +259,23 @@ export default defineComponent({
     this.role = role;
     this.userName = userStore.userName;
     this.userIdentification = userStore.userIdentification;
-    const isVerified = userStore.isVerified;
-    this.userVerified = isVerified;
-
-    // console.log('userId: ', userId);
+    this.userVerified = userStore.isVerified;
+    this.emailVerified = userStore.isEmailVerified || false;
+    this.phoneVerified = userStore.isPhoneVerified || false;
 
     // Fetch user data first
     this.fetchUserData(userId);
 
     // Only set up verification for clients
     if (role === 'cliente') {
-      await this.fetchClientPlan();
-      this.fetchVerificationStatus();
+      await this.fetchSubscriptionPlan(this.userId);
     } else if (role === 'afiliado') {
-      await this.fetchAffiliatePlan();
+      this.fetchAffiliatePlan();
     }
 
-    await this.checkPaymentReset();
+    this.checkPaymentReset();
 
-    // Initialize modals after a brief delay to ensure DOM is ready
+    // Initialize modals and reCAPTCHA after DOM is ready
     this.$nextTick(() => {
       // Initialize only if elements exist and user is not admin
       if (this.role === 'cliente') {
@@ -215,9 +289,12 @@ export default defineComponent({
         if (paymentModalEl) {
           this.paymentModal = new Modal(paymentModalEl);
         }
+
+        // Initialize reCAPTCHA with a delay to ensure DOM is ready
+        setTimeout(() => {
+          this.initRecaptcha();
+        }, 1000);
       }
-      // Initialize reCAPTCHA when component is mounted
-      this.initRecaptcha();
     });
 
     // Load location data if needed
@@ -227,6 +304,8 @@ export default defineComponent({
         this.displayParroquias(this.municipio);
       }
     }
+
+    // console.log(this.userId)
 
     this.originalData = {
       email: this.email,
@@ -252,63 +331,6 @@ export default defineComponent({
     },
 
     // Fetch data
-    async fetchClientPlan() {
-      const userId = this.userId;
-
-      if (userId) {
-        const userRef = dbRef(db, `Users/${userId}`);
-        const snapshot = await get(userRef);
-
-        if (snapshot.exists()) {
-          const user = snapshot.val();
-
-          // Check if the user has a subscription plan and it's an object
-          if (user.subscription) {
-            const userSubscriptionRef = dbRef(
-              db,
-              `Users/${this.userId}/subscription`
-            );
-            const subscriptionSnapshot = await get(userSubscriptionRef);
-
-            if (subscriptionSnapshot.exists()) {
-              const subscriptionData = subscriptionSnapshot.val();
-              this.userSubscriptionId = subscriptionData.subscription_id;
-
-              // Query the Suscriptions collection
-              const subscriptionDataRef = dbRef(
-                db,
-                `Suscriptions/${this.userSubscriptionId}`
-              );
-              const userSuscriptionSnapshot = await get(subscriptionDataRef);
-
-              if (userSuscriptionSnapshot.exists()) {
-                const userSuscription = userSuscriptionSnapshot.val();
-
-                this.subscriptionPlan = {
-                  name: userSuscription.name || "Sin suscripcion",
-                  price: userSuscription.isYearly ? userSuscription.yearlyPrice : userSuscription.price || "No Price",
-                  payDay: subscriptionData.payDay || "No PayDay",
-                  lastPaymentDate: subscriptionData.lastPaymentDate || null,
-                  isPaid: subscriptionData.isPaid || false,
-                  isYearly: userSuscription.isYearly || false,
-                  paymentUploaded: subscriptionData.paymentUploaded || null,
-                  paymentVerified: subscriptionData.paymentVerified || null,
-                  paymentUrl: subscriptionData.paymentUrl || null,
-                  icon: userSuscription.icon || "fa fa-handshake",
-                };
-                // console.log('Plan details: ', this.subscriptionPlan)
-              } else {
-                // Handle case where there is no subscription plan
-                this.subscriptionPlan = {
-                  status: "Sin suscripcion",
-                  price: 0,
-                };
-              }
-            }
-          }
-        }
-      }
-    },
     async fetchAffiliatePlan() {
       const userId = this.userId;
 
@@ -379,6 +401,12 @@ export default defineComponent({
                 this[key] = userData[key]; // Update the reactive data fields directly
               }
             }
+
+            // Update originalData after the data is fetched
+            this.originalData = {
+              email: this.email,
+              phoneNumber: this.phoneNumber,
+            };
           } else {
             console.log("No data available");
           }
@@ -506,43 +534,33 @@ export default defineComponent({
     },
 
     //File uploads
-    handleFileUpload(event, type) {
+    async handleFileUpload(event, type) {
       const file = event.target.files[0];
       if (!file) return;
 
-      if (!file.type.startsWith("image/")) {
-        showToast.error("Por favor, selecciona un archivo de imagen válido.");
-        event.target.value = ""; // Clear the invalid file
-        return;
-      }
-
-      // Update the correct file and preview based on the side
-      if (type === "front") {
-        this.idFrontFile = file;
-        this.idFrontPreview = URL.createObjectURL(file);
-      } else if (type === "back") {
-        this.idBackFile = file;
-        this.idBackPreview = URL.createObjectURL(file);
-      } else if (type === "selfie") {
-        this.selfieFile = file;
-        this.selfiePreview = URL.createObjectURL(file);
-      } else if (type === "payment") {
-        this.paymentFile = file;
-        this.paymentPreview = URL.createObjectURL(file);
+      const result = await this.processFile(file, type);
+      if (result) {
+        switch (type) {
+          case 'front':
+            this.idFrontFile = file;
+            this.idFrontPreview = result;
+            break;
+          case 'back':
+            this.idBackFile = file;
+            this.idBackPreview = result;
+            break;
+          case 'selfie':
+            this.selfieFile = file;
+            this.selfiePreview = result;
+            break;
+          case 'payment':
+            this.paymentFile = file;
+            this.paymentPreview = result;
+            break;
+        }
       }
     },
-    async uploadFile(file, type) {
-      // Define storage reference for front or back ID file
-      const fileName = `${type === "selfie" ? "selfie" : `${type}-ID`}.${file.name.split(".").pop()}`;
-      const fileRef = storageRef(
-        storage,
-        `verification-files/${this.userId}-${this.userName}/${fileName}`
-      );
-
-      // Upload the file and get the download URL
-      await uploadBytes(fileRef, file);
-      return getDownloadURL(fileRef);
-    },
+    // for subscription payments file uploads
     async uploadPaymentFile(file, date, role) {
       // Define storage reference for front or back ID file
       const fileName = `${date}-capture.${file.name.split(".").pop()}`;
@@ -559,77 +577,58 @@ export default defineComponent({
     // User verification and subscription payment logic
     async submitVerification() {
       if (!this.idFrontFile || !this.idBackFile || !this.selfieFile) {
-        this.errorMessage =
-          "Todos los archivos de identificación son requeridos.";
+        this.errorMessage = "Todos los archivos de identificación son requeridos.";
         return;
       }
 
       try {
-        // Show the loader
         this.isSubmitting = true;
         this.errorMessage = "";
 
-        // Upload files
-        const frontUrl = await this.uploadFile(this.idFrontFile, "front");
-        const backUrl = await this.uploadFile(this.idBackFile, "back");
-        const selfieUrl = await this.uploadFile(this.selfieFile, "selfie");
-
-        console.log(
-          "Files uploaded successfully:",
-          frontUrl,
-          backUrl,
-          selfieUrl
-        );
-
-        //Update user to set field user.requestedVerification = true
-        const userRef = dbRef(db, `Users/${this.userId}`);
-        await update(userRef, {
-          "verificationFiles/Front-ID": frontUrl,
-          "verificationFiles/Back-ID": backUrl,
-          "verificationFiles/Selfie": selfieUrl,
-          requestedVerification: true,
-        });
-
-        // Send an email notification to the admin through Firebase Cloud Functions				
-        const appUrl = "https://app.rosecoupon.com";
-        const emailPayload = {
-          to: "roseindustry11@gmail.com",
-          message: {
-            subject: "Usuario solicitó verificación",
-            text: `Hola administrador, el usuario ${this.userName} ha solicitado verificación de identidad en Rose Coupon.
-                        Para verificar el usuario, abre la app en el siguiente enlace: ${appUrl}`,
-            html: `<p>Hola administrador,</p>
-						<p>El usuario <strong>${this.userName}</strong> ha solicitado verificación de identidad en Rose Coupon.</p>
-						<p>Para verificar el usuario, por favor <a href="${appUrl}" target="_blank">abre la app</a>.</p>`,
-          },
-        };
-        // Send email via the utility function
-        const result = await sendEmail(emailPayload);
+        const result = await this.uploadVerificationFiles({
+          front: this.idFrontPreview,
+          back: this.idBackPreview,
+          selfie: this.selfiePreview
+        }, this.userId);
 
         if (result.success) {
-          console.log("Verification email sent successfully:", result.message);
-        } else {
-          console.error("Failed to send verification email:", result.error);
+          // Send an email notification to the admin through Firebase Cloud Functions				
+          const appUrl = "https://app.rosecoupon.com";
+          const emailPayload = {
+            to: "roseindustry11@gmail.com",
+            message: {
+              subject: "Usuario solicitó verificación",
+              text: `Hola administrador, el usuario ${this.userName} ha solicitado verificación de identidad en Rose Coupon.
+                      Para verificar el usuario, abre la app en el siguiente enlace: ${appUrl}`,
+              html: `<p>Hola administrador,</p>
+              <p>El usuario <strong>${this.userName}</strong> ha solicitado verificación de identidad en Rose Coupon.</p>
+              <p>Para verificar el usuario, por favor <a href="${appUrl}" target="_blank">abre la app</a>.</p>`,
+            },
+          };
+
+          // Send email via the utility function
+          const emailResult = await sendEmail(emailPayload);
+
+          if (emailResult.success) {
+            console.log("Verification email sent successfully:", emailResult.message);
+          } else {
+            console.error("Failed to send verification email:", emailResult.error);
+          }
+
+          //reset the image previews
+          this.idFrontPreview = null;
+          this.idBackPreview = null;
+          this.selfiePreview = null;
+          this.verificationStatus = "pending";
+          this.requestSent = true;
+
+          // Hide the modal after submission
+          this.verificationModal.hide();
         }
-
-        //Success toast
-        showToast.success("Archivos subidos!");
-
-        //reset the image previews
-        this.idFrontPreview = null;
-        this.idBackPreview = null;
-        this.selfiePreview = null;
-        this.verificationStatus = "pending";
-        this.requestSent = true;
-
-        // Hide the modal after submission
-        this.verificationModal.hide();
       } catch (error) {
         console.error("Error during verification:", error);
-        this.errorMessage =
-          "Error al subir los archivos, por favor intente nuevamente.";
+        this.errorMessage = "Error al subir los archivos, por favor intente nuevamente.";
       } finally {
-        // Hide the loader
         this.isSubmitting = false;
       }
     },
@@ -709,7 +708,7 @@ export default defineComponent({
 
           // Close modal and show success message
           this.$refs.paymentModal.closeModal();
-          
+
           //Success alert
           Swal.fire({
             title: '¡Comprobante enviado!',
@@ -730,18 +729,6 @@ export default defineComponent({
           })
         }
       }
-    },
-    async uploadPaymentFile(file, date, type) {
-      // Define storage reference for front or back ID file
-      const fileName = `${date}-capture.${file.name.split(".").pop()}`;
-      const fileRef = storageRef(
-        storage,
-        `payment-captures/${type}/${this.userId}-${this.userName}/${fileName}`
-      );
-
-      // Upload the file and get the download URL
-      await uploadBytes(fileRef, file);
-      return getDownloadURL(fileRef);
     },
     async checkPaymentReset() {
       const userRef = dbRef(db, `Users/${this.userId}/subscription`);
@@ -813,7 +800,7 @@ export default defineComponent({
             });
           }
 
-          console.log(this.hasapplicablePurchase, this.hasCurrentMonthPayment);
+          // console.log(this.hasapplicablePurchase, this.hasCurrentMonthPayment);
 
           // if (this.applicablePurchase) {
           //   console.log('Este usuario tiene una compra a credito activa');
@@ -829,7 +816,7 @@ export default defineComponent({
       }
     },
 
-    // User payment
+    // User payment modal logic
     openPaymentModal() {
       this.fetchCurrentExchange();
       if (this.$refs.paymentModal) {
@@ -1055,34 +1042,38 @@ export default defineComponent({
       }
     },
 
-    // Handle verification requests
-    handleVerification(fieldName) {
-      this.verifyingField = fieldName;
+    // Email input validation
+    validateEmail(email) {
+      // Validate email in format example@example.com
+      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return re.test(email);
+    },
 
+    // Handle email and phone verification requests
+    handleVerification(fieldName) {
       if (fieldName === "email") {
         // If email has changed, update the original data after verification
         if (this.editingEmail) {
           this.originalData.email = this.email;
           this.emailVerified = false; // Reset verification status
         }
-        this.requestEmailVerification();
+        this.sendEmailCode({
+          id: this.userId,
+          email: this.email,
+          firstName: this.firstName,
+          lastName: this.lastName
+        });
       } else if (fieldName === "phone") {
         // If phone has changed, update the original data after verification
         if (this.editingPhone) {
           this.originalData.phoneNumber = this.phoneNumber;
           this.phoneVerified = false; // Reset verification status
         }
-        this.sendPhoneVerificationCode();
+        this.handleSendPhoneCode();
       }
     },
-
-    // Email verification request
-    requestEmailVerification() {
-      this.sendVerificationCode("email");
-    },
-
-    // Phone verification using Firebase SMS
-    async sendPhoneVerificationCode() {
+    // Phone verification using Firebase
+    async handleSendPhoneCode() {
       try {
         this.phoneVerificationLoading = true;
 
@@ -1093,280 +1084,88 @@ export default defineComponent({
           return;
         }
 
-        // Check if the reCAPTCHA widget is visible and not yet verified
-        if (this.recaptchaVisible && !grecaptcha.getResponse(this.recaptchaWidgetId)) {
-          showToast.error('Por favor complete el captcha antes de solicitar el código de verificación');
-          this.phoneVerificationLoading = false;
-          return;
-        }
-
-        // Format phone number for international format
-        let formattedPhone = this.phoneNumber;
-        if (formattedPhone.startsWith('04')) {
-          formattedPhone = '+58' + formattedPhone;
-        }
-
-        // Send verification code
-        const appVerifier = this.recaptchaVerifier;
-        const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-
-        this.verificationId = confirmationResult.verificationId;
-
-        // Show verification modal
-        this.verifyModal = new Modal(document.getElementById("verifyModal"));
-        this.verifyModal.show();
-
-        showToast.success('Código de verificación enviado. Por favor revise sus mensajes.');
-      } catch (error) {
-        console.error('Error sending phone verification code:', error);
-
-        // Show specific error messages based on error code
-        if (error.code === 'auth/invalid-phone-number') {
-          showToast.error('Número de teléfono inválido. Verifique el formato.');
-        } else if (error.code === 'auth/captcha-check-failed') {
-          showToast.error('Verificación de captcha fallida. Por favor intente nuevamente.');
-        } else {
-          showToast.error('Error al enviar el código de verificación. Intente nuevamente.');
-        }
-
-        // Reset captcha if there was an error
-        // if (window.recaptchaWidgetId) {
-        //   grecaptcha.reset(window.recaptchaWidgetId);
-        // }
-      } finally {
-        this.phoneVerificationLoading = false;
-      }
-    },
-
-    // Verify code (handles both email and phone)
-    async verifyCode(userId, code) {
-      try {
-        // Input validation
-        if (!code || !this.verifyingField) {
-          throw new Error('Código inválido o tipo de verificación no especificado');
-        }
-
-        if (this.verifyingField === 'phone') {
-          if (!this.phoneVerificationCode) {
-            showToast.error('Por favor, ingrese el código de verificación');
-            return;
-          }
-
-          try {
-            this.phoneVerificationLoading = true;
-
-            // Create credential with verification ID and code
-            const credential = PhoneAuthProvider.credential(
-              this.verificationId,
-              code
-            );
-
-            // Mark phone as verified
-            this.phoneVerified = true;
-
-            // Update the database
-            const userRef = dbRef(db, `Users/${this.userId}`);
-            await update(userRef, {
-              phoneNumber: this.formattedPhoneNumber,
-              phoneVerified: true
-            });
-
-            // Reset editing state
-            this.editingPhone = false;
-
-            showToast.success('Número de teléfono verificado correctamente');
-          } catch (error) {
-            console.error('Error verifying code:', error);
-            throw new Error('Código de verificación inválido. Por favor, inténtelo de nuevo.');
-          }
-        } else {
-          // Email verification using cloud function
-          const baseUrl = 'https://us-central1-rose-app-e062e.cloudfunctions.net/verifyCode';
-
-          const response = await fetch(baseUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              clientId: userId,
-              code: code.toString(),
-              type: 'email'
-            })
-          });
-
-          const result = await response.json();
-
-          if (result && result.success) {
-            // Update local state
-            this.emailVerified = true;
-
-            // Update the database and auth if email was changed
-            const userRef = dbRef(db, `Users/${this.userId}`);
-            await update(userRef, {
-              email: this.email,
-              emailVerified: true
-            });
-
-            // If email was edited (changed from original), update auth as well
-            if (this.editingEmail && this.email !== this.originalData.email) {
-              try {
-                // Call the cloud function to update email in Auth
-                const authUpdateResponse = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/updateUserEmail', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    uid: this.userId,
-                    newEmail: this.email
-                  })
-                });
-
-                const authUpdateResult = await authUpdateResponse.json();
-
-                if (authUpdateResult.message) {
-                  console.log("Auth email update:", authUpdateResult.message);
-                }
-              } catch (authError) {
-                console.error("Error updating auth email:", authError);
-                // Continue with the flow even if auth update fails
-              }
-
-              // Reset editing state
-              this.editingEmail = false;
-            }
-
-            showToast.success('Correo electrónico verificado correctamente');
-          } else {
-            throw new Error(result.message || 'Error al verificar el código');
-          }
-        }
-
-        // Close modal and clear codes
-        if (this.verifyModal) {
-          this.verifyModal.hide();
-        }
-
-        this.emailVerificationCode = '';
-        this.phoneVerificationCode = '';
-
-      } catch (error) {
-        console.error('Error verifying code:', error);
-        showToast.error('Código de verificación inválido. Por favor, inténtelo de nuevo.');
-      } finally {
-        this.phoneVerificationLoading = false;
-      }
-    },
-
-    // Email validation
-    validateEmail(email) {
-      // Validate email in format example@example.com
-      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return re.test(email);
-    },
-    async sendVerificationCode(type) {
-      try {
-        // Validate the field value before sending code
-        if (type === "email" && !this.validateEmail(this.email)) {
-          showToast.error("Por favor ingresa un correo electrónico válido");
-          return;
-        }
-
-        this.verifyingField = type;
-
-        // Base URL for the cloud function
-        const baseUrl = 'https://us-central1-rose-app-e062e.cloudfunctions.net/sendVerificationCode';
-        // Prepare parameters based on verification type
-        const params = new URLSearchParams({
+        await this.sendPhoneCode({
           id: this.userId,
           email: this.email,
           firstName: this.firstName,
           lastName: this.lastName,
-          type: type === "phoneNumber" ? "phone" : type, // Convert phoneNumber to phone for API
-          newValue: type === "email" ? this.email : this.phoneNumber
-        });
+          phoneNumber: this.phoneNumber
+        }, this.recaptchaVerifier);
+      } catch (error) {
+        console.error('Error sending phone verification code:', error);
+        showToast.error(error.message || 'Error al enviar el código de verificación. Intente nuevamente.');
+      } finally {
+        this.phoneVerificationLoading = false;
+      }
+    },
+    // Verify code (handles both email and phone)
+    async verifyCode(code) {
+      try {
+        if (this.verifyingField === 'phone') {
+          await this.verifyPhoneCode({
+            id: this.userId,
+            phoneNumber: this.phoneNumber
+          });
 
-        const response = await fetch(`${baseUrl}?${params.toString()}`);
+          // Update iu state
+          this.phoneVerified = this.isPhoneVerified;
 
-        const result = await response.json();
-
-        if (!response.ok) {
-          // Handle rate limiting
-          if (response.status === 429) {
-            throw new Error(result.message);
+          if (this.editingPhone && this.phoneNumber !== this.originalData.phoneNumber) {
+            // Update the database
+            const userRef = dbRef(db, `Users/${this.userId}`);
+            await update(userRef, {
+              phoneNumber: this.phoneNumber
+            });
           }
-          throw new Error(result.message || `Error ${response.status}: Error al enviar el código`);
-        }
 
-        if (result && result.success) {
-          this.verifyModal = new Modal(document.getElementById("verifyModal"));
-          this.verifyModal.show();
-          showToast.success("Código enviado correctamente");
-
-          // Show remaining attempts if provided
-          if (result.rateLimit?.remainingAttempts) {
-            showToast.info(`Te quedan ${result.rateLimit.remainingAttempts} intentos para hoy`);
-          }
+          // Reset editing state
+          this.editingPhone = false;
         } else {
-          throw new Error(result.message || "Error al enviar el código");
-        }
-      } catch (error) {
-        console.error("Error sending verification code:", error);
-        showToast.error(error.message || "Error al enviar el código");
-      }
-    },
+          await this.verifyEmailCode({
+            id: this.userId,
+            email: this.email
+          });
 
-    // recaptcha
-    initRecaptcha() {
-      if (this.recaptchaVerifier) {
-        this.recaptchaVerifier.clear();
-        this.recaptchaVerifier = null;
-      }
+          // Update iu state
+          this.emailVerified = this.isEmailVerified;
 
-      try {
-        this.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          'size': 'invisible',
-          'callback': () => {
-            console.log('reCAPTCHA verified');
-          },
-          'expired-callback': () => {
-            this.recaptchaVerifier = null;
-            showToast('El captcha ha expirado. Por favor, inténtelo de nuevo.', 'error');
-          },
-          'error-callback': (error) => {
-            console.error('reCAPTCHA error:', error);
-            showToast('Error en la verificación de reCAPTCHA. Por favor, recargue la página.', 'error');
-            this.recaptchaVerifier = null;
+          // If email was edited
+          if (this.editingEmail && this.email !== this.originalData.email) {
+            try {
+              // Update the database
+              const userRef = dbRef(db, `Users/${this.userId}`);
+              await update(userRef, {
+                email: this.email
+              });
+
+              // Call the cloud function to update email in Auth
+              const authUpdateResponse = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/updateUserEmail', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  uid: this.userId,
+                  newEmail: this.email
+                })
+              });
+
+              const authUpdateResult = await authUpdateResponse.json();
+
+              if (authUpdateResult.message) {
+                console.log("Auth email update:", authUpdateResult.message);
+              }
+            } catch (authError) {
+              console.error("Error updating auth email:", authError);
+            }
+
+            // Reset editing state
+            this.editingEmail = false;
           }
-        });
-
-        // Render the reCAPTCHA widget
-        this.recaptchaVerifier.render().then((widgetId) => {
-          this.recaptchaWidgetId = widgetId;
-        }).catch(error => {
-          console.error('Error rendering reCAPTCHA:', error);
-          showToast('Error al cargar el captcha. Por favor, recargue la página.', 'error');
-        });
-      } catch (error) {
-        console.error('Error initializing reCAPTCHA:', error);
-        showToast('Error al inicializar reCAPTCHA. Por favor, recargue la página.', 'error');
-      }
-    },
-
-    // Check verification status
-    async fetchVerificationStatus() {
-      try {
-        const userRef = dbRef(db, `Users/${this.userId}`);
-        const snapshot = await get(userRef);
-
-        if (snapshot.exists()) {
-          const userData = snapshot.val();
-          this.emailVerified = userData.emailVerified || false;
-          this.phoneVerified = userData.phoneVerified || false;
         }
       } catch (error) {
-        console.error("Error fetching verification status:", error);
+        console.error('Error verifying code:', error);
+        showToast.error(error.message || 'Error al verificar el código');
       }
     },
 
@@ -1441,8 +1240,12 @@ export default defineComponent({
     startEditing(field) {
       if (field === 'email') {
         this.editingEmail = true;
+        // Store the current value before editing
+        this.originalData.email = this.email;
       } else if (field === 'phone') {
         this.editingPhone = true;
+        // Store the current value before editing
+        this.originalData.phoneNumber = this.phoneNumber;
       }
     },
     cancelEditing(field) {
@@ -1452,6 +1255,37 @@ export default defineComponent({
       } else if (field === 'phone') {
         this.phoneNumber = this.originalData.phoneNumber;
         this.editingPhone = false;
+      }
+    },
+
+    initRecaptcha() {
+      if (this.recaptchaVerifier) {
+        this.recaptchaVerifier.clear();
+        this.recaptchaVerifier = null;
+      }
+
+      try {
+        const container = document.getElementById('recaptcha-container');
+
+        if (!container) {
+          console.error('reCAPTCHA container not found');
+          return;
+        }
+
+        this.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          'size': 'invisible',
+          'callback': () => {
+            console.log('reCAPTCHA verified');
+          },
+          'expired-callback': () => {
+            console.log('reCAPTCHA expired');
+            this.recaptchaVerifier = null;
+            showToast.error('El captcha ha expirado. Por favor, inténtelo de nuevo.');
+          }
+        });
+      } catch (error) {
+        console.error('Error initializing reCAPTCHA:', error);
+        showToast.error('Error al inicializar reCAPTCHA. Por favor, recargue la página.');
       }
     },
   },
@@ -1517,24 +1351,6 @@ export default defineComponent({
         return this.state && this.municipio && this.parroquia;
       }
     },
-    formattedPhoneNumber() {
-      if (!this.phoneNumber) return '';
-
-      // Handle different country codes
-      if (this.phoneNumber.startsWith('0')) {
-        // Venezuelan format (starts with 0)
-        return `+58${this.phoneNumber.substring(1)}`;
-      } else if (this.phoneNumber.startsWith('55')) {
-        // Brazilian format (starts with country code)
-        return `+${this.phoneNumber}`;
-      } else if (this.phoneNumber.startsWith('+')) {
-        // Already has + prefix
-        return this.phoneNumber;
-      } else {
-        // Default to Venezuelan format if no country code
-        return `+58${this.phoneNumber}`;
-      }
-    }
   },
   watch: {
     state(newState) {
@@ -1641,7 +1457,7 @@ export default defineComponent({
               )" :key="field.name" class="col-md-6 mb-3">
                 <label :for="field.name" class="form-label">{{
                   field.label
-                  }}</label>
+                }}</label>
                 <div class="d-flex align-items-center gap-2">
                   <input :type="field.name.includes('password') ? 'password' : 'text'" :id="field.name"
                     v-model="field.value" class="form-control" :disabled="role === 'cliente'" />
@@ -1680,26 +1496,47 @@ export default defineComponent({
                   <template v-if="role === 'cliente'">
                     <button v-if="!emailVerified" class="btn btn-outline-warning" @click="handleVerification('email')"
                       title="Verificar correo">
-                      <i class="fas fa-envelope me-1"></i>
-                      Verificar
+
+                      <span v-if="isEmailSending">
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                      </span>
+
+                      <span v-else>
+                        <i class="fas fa-envelope me-1"></i>
+                        Verificar
+                      </span>
+
                     </button>
+
                     <template v-else>
-                      <span v-if="!editingEmail" class="input-group-text bg-success border-secondary text-light">
+                      <span v-if="!editingEmail && emailVerified"
+                        class="input-group-text bg-success border-secondary text-light">
                         <i class="fas fa-check-circle"></i>
                       </span>
+
                       <button v-if="!editingEmail" class="btn btn-outline-secondary" @click="startEditing('email')"
                         title="Editar correo">
                         <i class="fas fa-edit"></i>
                       </button>
-                      <button v-else-if="email !== originalData.email" class="btn btn-outline-warning"
-                        @click="handleVerification('email')" title="Verificar nuevo correo">
-                        <i class="fas fa-envelope me-1"></i>
-                        Verificar
-                      </button>
-                      <button v-else class="btn btn-outline-danger" @click="cancelEditing('email')"
-                        title="Cancelar edición">
-                        <i class="fas fa-times"></i>
-                      </button>
+
+                      <template v-else>
+                        <button v-if="email !== originalData.email" class="btn btn-outline-warning"
+                          @click="handleVerification('email')" title="Verificar nuevo correo">
+                          <span v-if="isEmailSending">
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                          </span>
+
+                          <span v-else>
+                            <i class="fas fa-envelope me-1"></i>
+                            Verificar
+                          </span>
+                        </button>
+
+                        <!-- Always show cancel while editing -->
+                        <button class="btn btn-outline-danger" @click="cancelEditing('email')" title="Cancelar edición">
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </template>
                     </template>
                   </template>
                   <!-- Save button for affiliates and admins -->
@@ -1723,34 +1560,50 @@ export default defineComponent({
                   <template v-if="role === 'cliente'">
                     <button v-if="!phoneVerified" class="btn btn-outline-warning" @click="handleVerification('phone')"
                       title="Verificar teléfono" :disabled="phoneVerificationLoading">
-                      <i class="fas fa-sms me-1"></i>
-                      <span v-if="phoneVerificationLoading">
+
+                      <span v-if="isPhoneSending">
                         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                        Enviando...
                       </span>
-                      <span v-else>Verificar</span>
+
+                      <span v-else>
+                        <i class="fas fa-phone me-1"></i>
+                        Verificar
+                      </span>
+
                     </button>
+
                     <template v-else>
-                      <span v-if="!editingPhone" class="input-group-text bg-success border-secondary text-light">
+                      <span v-if="!editingPhone && phoneVerified"
+                        class="input-group-text bg-success border-secondary text-light">
                         <i class="fas fa-check-circle me-1"></i>
                       </span>
+
                       <button v-if="!editingPhone" class="btn btn-outline-secondary" @click="startEditing('phone')"
                         title="Editar teléfono">
                         <i class="fas fa-edit"></i>
                       </button>
-                      <button v-else-if="phoneNumber !== originalData.phoneNumber" class="btn btn-outline-warning"
-                        @click="handleVerification('phone')" title="Verificar nuevo teléfono"
-                        :disabled="phoneVerificationLoading">
-                        <i class="fas fa-sms me-1"></i>
-                        <span v-if="phoneVerificationLoading">
-                          <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                        </span>
-                        <span v-else>Verificar</span>
-                      </button>
-                      <button v-else class="btn btn-outline-danger" @click="cancelEditing('phone')"
-                        title="Cancelar edición">
-                        <i class="fas fa-times"></i>
-                      </button>
+
+                      <template v-else>
+                        <button v-if="phoneNumber !== originalData.phoneNumber" class="btn btn-outline-warning"
+                          @click="handleVerification('phone')" title="Verificar nuevo teléfono"
+                          :disabled="phoneVerificationLoading">
+
+                          <span v-if="isPhoneSending">
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                          </span>
+
+                          <span v-else>
+                            <i class="fas fa-phone me-1"></i>
+                            Verificar
+                          </span>
+
+                        </button>
+
+                        <!-- Always show cancel while editing -->
+                        <button class="btn btn-outline-danger" @click="cancelEditing('phone')" title="Cancelar edición">
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </template>
                     </template>
                   </template>
                   <!-- Save button for affiliates and admins -->
@@ -1789,7 +1642,7 @@ export default defineComponent({
               )" :key="field.name" class="col-md-4 mb-3">
                 <label :for="field.name" class="form-label">{{
                   field.label
-                  }}</label>
+                }}</label>
                 <div class="d-flex align-items-center gap-2">
                   <select v-if="field.name === 'state'" class="form-control" v-model="state"
                     :disabled="!editStates.state" @change="displayMunicipios($event.target.value)">
@@ -1880,6 +1733,25 @@ export default defineComponent({
               <i class="fas fa-handshake me-2"></i>
               Suscripción
             </h4>
+            <div v-if="isFreeSubscription" class="row">
+              <div class="col-12">
+                <div class="alert alert-info d-flex align-items-center">
+                  <i class="fas fa-info-circle me-3 fa-2x"></i>
+                  <div>
+                    <h5 class="text-black mb-1">Suscripción Gratuita</h5>
+                    <p class="mb-0">
+                      Explora nuestros planes para disfrutar de todo lo que tenemos para ti.
+                    </p>
+                    <div class="mt-2">
+                      <router-link to="/suscripciones" class="btn btn-sm btn-outline-info">
+                        <i class="fas fa-star me-1"></i>
+                        Actualizar Suscripción
+                      </router-link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div v-if="!subscriptionPlan" class="row">
               <div class="col-12">
                 <div class="alert alert-info d-flex align-items-center">
@@ -1887,7 +1759,8 @@ export default defineComponent({
                   <div>
                     <h5 class="text-black mb-1">Sin Suscripción Activa</h5>
                     <p class="mb-0">
-                      Actualmente no tienes una suscripción activa. Explora nuestros planes para disfrutar de todos los beneficios.
+                      Actualmente no tienes una suscripción activa. Explora nuestros planes para disfrutar de todos los
+                      beneficios.
                     </p>
                     <div class="mt-2">
                       <!-- TODO: Update this link to the actual subscription plans page -->
@@ -1900,12 +1773,12 @@ export default defineComponent({
                 </div>
               </div>
             </div>
-            <div v-else-if="subscriptionPlan && !hasapplicablePurchase" class="row">
+            <div v-else-if="subscriptionPlan && !isFreeSubscription && !hasapplicablePurchase" class="row">
               <div class="col-md-6">
                 <div class="d-flex align-items-center gap-2 mb-3">
                   <p class="mb-0">
                     <strong>Plan:</strong>
-                    {{ subscriptionPlan.name.toUpperCase() }}
+                    {{ subscriptionPlan.name ? subscriptionPlan?.name.toUpperCase() : 'No disponible' }}
                   </p>
                   <!-- Payment Status Badge -->
                   <span class="payment-badge" :class="{
@@ -1932,10 +1805,12 @@ export default defineComponent({
                     }}
                   </span>
                 </div>
-                <p><strong>Precio:</strong> ${{ subscriptionPlan.price }} / <small>{{ subscriptionPlan.isYearly ? 'Anual' : 'Mensual' }}</small></p>
+                <p><strong>Precio:</strong> ${{ subscriptionPlan.price }} / <small>{{ subscriptionPlan.isYearly ?
+                  'Anual' :
+                  'Mensual' }}</small></p>
                 <p>
                   <strong>Fecha de Corte:</strong>
-                  {{ formatDate(subscriptionPlan.payDay) }}
+                  {{ subscriptionPlan.payDay ? formatDate(subscriptionPlan.payDay) : 'No disponible' }}
                 </p>
                 <!-- Add subscription buttons -->
                 <div class="mt-3 d-flex gap-2 flex-wrap">
@@ -1956,7 +1831,7 @@ export default defineComponent({
                 </div>
               </div>
             </div>
-            <div v-else-if="hasapplicablePurchase && hasCurrentMonthPayment" class="row">
+            <div v-else-if="subscriptionPlan && !isFreeSubscription && hasapplicablePurchase && hasCurrentMonthPayment" class="row">
               <div class="col-12">
                 <div class="alert alert-success d-flex align-items-center">
                   <i class="fas fa-check-circle me-3 fa-2x"></i>
@@ -1969,7 +1844,7 @@ export default defineComponent({
                 </div>
               </div>
             </div>
-            <div v-else class="row">
+            <div v-if="subscriptionPlan && !isFreeSubscription && hasapplicablePurchase && !hasCurrentMonthPayment" class="row">
               <div class="col-12">
                 <div class="alert alert-warning d-flex align-items-center">
                   <i class="fas fa-exclamation-triangle me-3 fa-2x"></i>
@@ -2142,9 +2017,7 @@ export default defineComponent({
             <div class="verification-code-input">
               <label for="verificationCode" class="form-label">Código de Verificación</label>
               <input type="text" id="verificationCode"
-                class="form-control bg-dark text-light border-secondary text-center"
-                :value="verifyingField === 'email' ? emailVerificationCode : phoneVerificationCode"
-                @input="verifyingField === 'email' ? emailVerificationCode = $event.target.value : phoneVerificationCode = $event.target.value"
+                class="form-control bg-dark text-light border-secondary text-center" v-model="verificationCode"
                 placeholder="Ingresa el código de 6 dígitos" maxlength="6" autocomplete="off" />
             </div>
 
@@ -2160,12 +2033,14 @@ export default defineComponent({
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
               Cancelar
             </button>
-            <button type="button" class="btn btn-primary"
-              @click="verifyCode(userId, verifyingField === 'email' ? emailVerificationCode : phoneVerificationCode)"
-              :disabled="(verifyingField === 'email' ? !emailVerificationCode : !phoneVerificationCode) ||
-                (verifyingField === 'email' ? emailVerificationCode.length < 6 : phoneVerificationCode.length < 6)">
-              Verificar
+            <button type="button" class="btn btn-primary" @click="verifyCode(verificationCode)"
+              :disabled="!verificationCode">
+              <span v-if="isVerifying">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              </span>
+              <span v-else>Verificar</span>
             </button>
+
           </div>
         </div>
       </div>
@@ -2224,6 +2099,7 @@ export default defineComponent({
       </div>
     </div>
 
+    <!-- recaptcha container -->
     <div id="recaptcha-container"></div>
 
   </div>
@@ -2677,5 +2553,23 @@ input[type="file"]::-webkit-file-upload-button {
 .btn-primary:hover:not(:disabled) {
   background-color: #5a32a3;
   border-color: #5a32a3;
+}
+
+.recaptcha-container {
+  min-height: 78px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 10px 0;
+  overflow: visible;
+}
+
+.recaptcha-container>div {
+  display: inline-block;
+}
+
+.recaptcha-container iframe {
+  width: 100%;
+  height: 100%;
 }
 </style>

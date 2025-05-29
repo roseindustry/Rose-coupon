@@ -1,9 +1,12 @@
 import { fileURLToPath, URL } from "url";
+import path from 'path';
 
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import vueJsx from "@vitejs/plugin-vue-jsx";
 import { VitePWA } from 'vite-plugin-pwa';
+
+/// <reference types="vitest" />
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -109,7 +112,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@": path.resolve(__dirname, './src'),
     },
   },
   optimizeDeps: {
@@ -119,6 +122,23 @@ export default defineConfig({
     host: '0.0.0.0', // Listen on all local IPs
     watch: {
       usePolling: true, // Use polling to detect file changes (helpful for network file systems)
+    },
+  },
+  test: {
+    globals: true,
+    ui: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/__tests__/setup.ts'],
+    include: ['src/__tests__/**/*.{test,spec}.{js,ts,jsx,tsx}'],
+    coverage: {
+      reporter: ['text', 'json', 'html'],
+      include: ['src/**/*.{js,ts,jsx,tsx}'],
+      exclude: [
+        'src/__tests__/**',
+        'src/**/*.d.ts',
+        'src/**/*.test.{js,ts,jsx,tsx}',
+        'src/**/*.spec.{js,ts,jsx,tsx}',
+      ],
     },
   }
 });

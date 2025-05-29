@@ -1,23 +1,51 @@
 <script>
 import { defineComponent } from 'vue';
 import { useUserStore } from '@/stores/user-role';
-import { db, storage, functions } from '../firebase/init';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { ref as dbRef, get, update } from 'firebase/database';
-import { httpsCallable } from 'firebase/functions';
 import { Modal } from 'bootstrap';
-import { showToast } from '@/utils/toast';
-import { sendEmail } from '@/utils/emailService';
-import 'toastify-js/src/toastify.css'
+import { useFileUpload } from '@/composables/useFileUpload';
+import { useSubscription } from '@/composables/useSubscription';
 
 export default defineComponent({
+    setup() {
+        const { isUploading, errorMessage, processFile, uploadVerificationFiles } = useFileUpload();
+        const { 
+            subscriptionPlan, 
+            userSubscriptionId, 
+            isLoading: subscriptionLoading, 
+            error: subscriptionError, 
+            fetchSubscriptionPlan,
+            isFreeSubscription
+        } = useSubscription();
+
+        return {
+            isUploading,
+            errorMessage,
+            processFile,
+            uploadVerificationFiles,
+            subscriptionPlan,
+            userSubscriptionId,
+            subscriptionLoading,
+            subscriptionError,
+            fetchSubscriptionPlan,
+            isFreeSubscription
+        };
+    },
     data() {
         return {
-            // deferredPrompt: null,
-
             userId: '',
             userName: '',
-            userSubscriptionId: '',
+            requestedVerification: false,
+            userVerified: false,
+            verificationStatus: 'unverified',
+
+            // File Uploads
+            idFrontFile: null,
+            idBackFile: null,
+            selfieFile: null,
+            idFrontPreview: null,
+            idBackPreview: null,
+            selfiePreview: null,
+
 
             // data for portal items
             portalItems: [
@@ -52,180 +80,54 @@ export default defineComponent({
                 { title: 'Vacantes', description: 'Descubre vacantes aquí.', link: '/jobs', actionText: 'Ver más', notReady: false, bgImage: '/assets/img/rose_imgs/3.png' },
 
                 // { title: 'Compras recientes', description: 'Ver sus compras recientes.', link: '#', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/5.png' },
+                
                 // { title: 'Mis Opiniones', description: 'Aqui se muestran tus reseñas y opiniones de lo que consumes.', link: '/clients-ratings', actionText: 'Ver más', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
                 // { title: 'Encuestas', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', link: '/customer-survey', actionText: 'Tomar Encuesta', notReady: true, bgImage: '/assets/img/rose_imgs/6.png' },
-            ],
-
-            subscriptionPlan: {},
-            userVerified: false,
-            emailVerified: false,
-            phoneVerified: false,
-            verificationStatus: 'unverified', // Possible values: 'unverified', 'pending', 'verified'
-
-            idFrontFile: null,
-            idBackFile: null,
-            selfieFile: null,
-            idFrontPreview: null,
-            idBackPreview: null,
-            selfiePreview: null,
-
-            isSubmitting: false,
-            errorMessage: '',
-            verificationModal: null,
+            ],            
         };
     },
     methods: {
-        async fetchSubscriptionPlan() {
-            const userId = this.userId;
-
-            if (userId) {
-                const userRef = dbRef(db, `Users/${userId}`);
-                const snapshot = await get(userRef);
-
-                if (snapshot.exists()) {
-                    const user = snapshot.val();
-
-                    this.userVerified = user.isVerified || false;
-                    this.emailVerified = user.emailVerified || false;
-                    this.phoneVerified = user.phoneVerified || false;
-
-                    // Check if the user has a subscription plan and it's an object
-                    if (user.subscription && typeof user.subscription === 'object') {
-                        const userSubscriptionRef = dbRef(db, `Users/${this.userId}/subscription`);
-                        const subscriptionSnapshot = await get(userSubscriptionRef);
-
-                        if (subscriptionSnapshot.exists()) {
-                            const subscriptionData = subscriptionSnapshot.val();
-                            this.userSubscriptionId = subscriptionData.subscription_id;
-
-                            // Query the Suscriptions collection
-                            const subscriptionDataRef = dbRef(db, `Suscriptions/${this.userSubscriptionId}`);
-                            const userSuscriptionSnapshot = await get(subscriptionDataRef);
-
-                            if (userSuscriptionSnapshot.exists()) {
-                                const userSuscription = userSuscriptionSnapshot.val();
-
-                                this.subscriptionPlan = {
-                                    id: this.userSubscriptionId,
-                                    name: userSuscription.name || 'Sin suscripcion',
-                                    status: subscriptionData.status || 'No Status',
-                                    price: userSuscription.price || 'No Price',
-                                    payDay: subscriptionData.payDay || 'No PayDay',
-                                    isPaid: subscriptionData.isPaid || false,
-                                    paymentUploaded: subscriptionData.paymentUploaded || false,
-                                    icon: userSuscription.icon || 'fa fa-times'
-                                };
-                            }
-                        }
-
-                    } else {
-                        // Handle case where there is no subscription plan
-                        this.subscriptionPlan = {
-                            status: 'No Subscription',
-                            price: 0,
-                            payDay: 'N/A',
-                            isPaid: false
-                        };
-                    }
-                }
-            }
-        },
-
         //File uploads
-        handleFileUpload(event, type) {
+        async handleFileUpload(event, type) {
             const file = event.target.files[0];
             if (!file) return;
 
-            if (!file.type.startsWith('image/')) {
-                alert('Por favor, selecciona un archivo de imagen válido.');
-                event.target.value = ''; // Clear the invalid file
-                return;
+            const result = await this.processFile(file, type);
+            if (result) {
+                switch(type) {
+                    case 'front':
+                        this.idFrontFile = file;
+                        this.idFrontPreview = result;
+                        break;
+                    case 'back':
+                        this.idBackFile = file;
+                        this.idBackPreview = result;
+                        break;
+                    case 'selfie':
+                        this.selfieFile = file;
+                        this.selfiePreview = result;
+                        break;
+                }
             }
-
-            // Update the correct file and preview based on the side
-            if (type === 'front') {
-                this.idFrontFile = file;
-                this.idFrontPreview = URL.createObjectURL(file);
-            } else if (type === 'back') {
-                this.idBackFile = file;
-                this.idBackPreview = URL.createObjectURL(file);
-            } else if (type === 'selfie') {
-                this.selfieFile = file;
-                this.selfiePreview = URL.createObjectURL(file);
-            }
-        },
-        async uploadFile(file, type) {
-            // Define storage reference for front or back ID file
-            const fileName = `${type === 'selfie' ? 'selfie' : `${type}-ID`}.${file.name.split('.').pop()}`;
-            const fileRef = storageRef(storage, `verification-files/${this.userId}-${this.userName}/${fileName}`);
-
-            // Upload the file and get the download URL
-            await uploadBytes(fileRef, file);
-            return getDownloadURL(fileRef);
-        },
-
-        redirectToSubs(subscriptionPlan) {
-            console.log(subscriptionPlan.id);
-            this.$router.push({
-                path: '/suscripciones',
-                query: { clientSubscriptionId: subscriptionPlan.id }
-            });
-        },
+        },        
 
         // ID Verification
         async submitVerification() {
-            if (!this.idFrontFile || !this.idBackFile || !this.selfieFile) {
-                this.errorMessage = 'Ambos archivos de la identificación son requeridos.';
+            if (!this.idFrontPreview || !this.idBackPreview || !this.selfiePreview) {
+                this.errorMessage = 'Por favor, selecciona todos los archivos requeridos.';
                 return;
             }
 
             try {
-                // Show the loader
-                this.isSubmitting = true;
-                this.errorMessage = '';
-
-                // Upload both files
-                const frontUrl = await this.uploadFile(this.idFrontFile, 'front');
-                const backUrl = await this.uploadFile(this.idBackFile, 'back');
-                const selfieUrl = await this.uploadFile(this.selfieFile, 'selfie');
-
-                console.log('Files uploaded successfully:', frontUrl, backUrl, selfieUrl);
-
-                //Update user to set field user.requestedVerification = true
-                const userRef = dbRef(db, `Users/${this.userId}`);
-                await update(userRef,
-                    {
-                        'verificationFiles/Front-ID': frontUrl,
-                        'verificationFiles/Back-ID': backUrl,
-                        'verificationFiles/Selfie': selfieUrl,
-                        requestedVerification: true
-                    });
-
-                // Send an email notification to the admin through Firebase Cloud Functions				
-                const appUrl = 'https://app.rosecoupon.com';
-                const emailPayload = {
-                    to: 'roseindustry11@gmail.com',
-                    message: {
-                        subject: "Usuario solicitó verificación",
-                        text: `Hola administrador, el usuario ${this.userName} ha solicitado verificación de identidad en Roseapp.
-                        Para verificar el usuario, abre la app en el siguiente enlace: ${appUrl}`,
-                        html: `<p>Hola administrador,</p>
-               <p>El usuario <strong>${this.userName}</strong> ha solicitado verificación de identidad en Roseapp.</p>
-               <p>Para verificar el usuario, por favor <a href="${appUrl}" target="_blank">abre la app</a>.</p>`
-                    },
-                };
-
-                // Send email via the utility function
-                const result = await sendEmail(emailPayload);
+                const result = await this.uploadVerificationFiles({
+                    front: this.idFrontPreview,
+                    back: this.idBackPreview,
+                    selfie: this.selfiePreview
+                }, this.userId);
 
                 if (result.success) {
-                    console.log("Verification email sent successfully:", result.message);
-                } else {
-                    console.error("Failed to send verification email:", result.error);
+                    this.requestedVerification = true;
                 }
-
-                //Success toast
-                showToast('Archivos subidos!');
 
                 //reset the image previews
                 this.idFrontPreview = null;
@@ -238,10 +140,14 @@ export default defineComponent({
             } catch (error) {
                 console.error('Error during verification:', error);
                 this.errorMessage = 'Error al subir los archivos, por favor intente nuevamente.';
-            } finally {
-                // Hide the loader
-                this.isSubmitting = false;
             }
+        },
+
+        redirectToSubs(subscriptionPlan) {
+            this.$router.push({
+                path: '/suscripciones',
+                query: { clientSubscriptionId: subscriptionPlan.id }
+            });
         },
     },
     async mounted() {
@@ -254,14 +160,17 @@ export default defineComponent({
 
         const userStore = useUserStore();
         await userStore.fetchUser();
-        //this.role = userStore.role;
         this.userId = userStore.userId;
-        // console.log(this.userId)
         this.userName = userStore.userName;
+        this.requestedVerification = userStore.requestedVerification;
+        this.userVerified = userStore.isVerified;
+
+        // console.log(this.userId);
 
         this.verificationModal = new Modal(document.getElementById('verificationModal'));
 
-        await this.fetchSubscriptionPlan();
+        // Use the composable's fetchSubscriptionPlan
+        await this.fetchSubscriptionPlan(this.userId);
     },
 });
 
@@ -286,9 +195,11 @@ export default defineComponent({
                             </div>
                             <div class="status-info">
                                 <div class="status-name">{{ subscriptionPlan.name.toUpperCase() }}</div>
-                                <small class="status-hint fw-bold" :class="subscriptionPlan.isPaid ? 'text-success' : 'text-warning'">
+                                <small class="status-hint fw-bold" :class="subscriptionPlan.isPaid ? 'text-success' : 'text-warning'"
+                                    v-if="!isFreeSubscription">
                                     {{ subscriptionPlan.isPaid ? 'Suscripción activa' : subscriptionPlan.isPaid === false && subscriptionPlan.paymentUploaded ? 'Pago recibido. Pendiente por aprobación' : 'Pago pendiente. Recuerde estar al día' }}
                                 </small>
+                                <small class="status-hint" v-else>Haz clic para mejorar tu suscripción</small>
                             </div>
                         </div>
                         <div v-else class="status-card subscription-card-alert" @click="$router.push('/suscripciones')">
@@ -302,7 +213,7 @@ export default defineComponent({
                         </div>
 
                         <!-- Verification Badge -->
-                        <div v-if="!userVerified" class="status-card verification-card-alert mt-2"
+                        <div v-if="!userVerified && !requestedVerification" class="status-card verification-card-alert mt-2"
                             data-bs-toggle="modal" data-bs-target="#verificationModal">
                             <div class="status-icon">
                                 <i class="fa-solid fa-user-xmark"></i>
@@ -312,7 +223,16 @@ export default defineComponent({
                                 <small class="status-hint">Haz clic para verificar tu cuenta</small>
                             </div>
                         </div>
-                        <div v-else class="status-card verification-card mt-2">
+                        <div v-else-if="requestedVerification && !userVerified" class="status-card verification-card-pending mt-2">
+                            <div class="status-icon">
+                                <i class="fa-solid fa-user-clock"></i>
+                            </div>
+                            <div class="status-info">
+                                <div class="status-name">VERIFICACIÓN PENDIENTE</div>
+                                <small class="status-hint">Tu verificación está pendiente por aprobación</small>
+                            </div>
+                        </div>
+                        <div v-else-if="userVerified" class="status-card verification-card mt-2">
                             <div class="status-icon">
                                 <i class="fa-solid fa-user-check"></i>
                             </div>
@@ -433,7 +353,7 @@ export default defineComponent({
                                     <div class="col-md-4">
                                         <div class="document-upload-card">
                                             <div class="document-upload-icon">
-                                                <i class="fas fa-selfie"></i>
+                                                <i class="fas fa-id-card"></i>
                                             </div>
                                             <label for="selfie" class="form-label">Selfie con Cédula</label>
                                             <input type="file" class="form-control" id="selfie" accept="image/*"
@@ -457,8 +377,8 @@ export default defineComponent({
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                                     Cancelar
                                 </button>
-                                <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
-                                    <span v-if="!isSubmitting">
+                                <button type="submit" class="btn btn-primary" :disabled="isUploading">
+                                    <span v-if="!isUploading">
                                         <i class="fas fa-upload me-2"></i>Subir Documentos
                                     </span>
                                     <span v-else>
@@ -586,6 +506,15 @@ export default defineComponent({
 /* Verification specific styles */
 .verification-card {
     border-left: 4px solid #198754;
+}
+
+.verification-card-pending {
+    border-left: 4px solid #f0ad4e;
+}
+
+.verification-card-pending .status-icon {
+    background: rgba(240, 173, 78, 0.1);
+    color: #f0ad4e;
 }
 
 .verification-card-alert {

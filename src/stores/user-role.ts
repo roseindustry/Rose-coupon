@@ -8,7 +8,10 @@ interface UserRoleState {
   userName: string | null;
   userIdentification: string | null;
   isVerified: boolean;
+  isEmailVerified: boolean;
+  isPhoneVerified: boolean;
   isProfileCompleted: boolean;
+  requestedVerification: boolean;
 }
 
 export const useUserStore = defineStore('user-role', {
@@ -18,7 +21,10 @@ export const useUserStore = defineStore('user-role', {
     userName: null,
     userIdentification: null,
     isVerified: false,
+    isEmailVerified: false,
+    isPhoneVerified: false,
     isProfileCompleted: false,
+    requestedVerification: false,
   }),
   actions: {
     async searchUsers() {
@@ -50,7 +56,10 @@ export const useUserStore = defineStore('user-role', {
             : data.companyName;
           this.userIdentification = this.role === 'afiliado' ? `${data.rif}` : data.identification;
           this.isVerified = data.isVerified;
+          this.isEmailVerified = data.emailVerified;
+          this.isPhoneVerified = data.phoneVerified;
           this.isProfileCompleted = !!(data.state && data.municipio && data.parroquia);
+          this.requestedVerification = data.requestedVerification || false;
         } else {
           console.log("No data available");
           this.resetUser();
@@ -76,7 +85,10 @@ export const useUserStore = defineStore('user-role', {
       this.userName = null;
       this.userIdentification = null;
       this.isVerified = false;
+      this.isEmailVerified = false;
+      this.isPhoneVerified = false;
       this.isProfileCompleted = false;
+      this.requestedVerification = false;
     },
   },
   getters: {
@@ -85,6 +97,9 @@ export const useUserStore = defineStore('user-role', {
     getUserName: (state) => state.userName,
     getUserIdentification: (state) => state.userIdentification,
     getUserVerifiedStatus: (state) => state.isVerified,
+    getEmailVerifiedStatus: (state) => state.isEmailVerified,
+    getPhoneVerifiedStatus: (state) => state.isPhoneVerified,
     getProfileStatus: (state) => state.isProfileCompleted,
+    getRequestedVerification: (state) => state.requestedVerification,
   },
 });

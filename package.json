@@ -11,7 +11,11 @@
         "typecheck": "vue-tsc --noEmit -p tsconfig.vitest.json --composite false",
         "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
         "amplify-modelgen": "node amplify\\scripts\\amplify-modelgen.js",
-        "amplify-push": "node amplify\\scripts\\amplify-push.js"
+        "amplify-push": "node amplify\\scripts\\amplify-push.js",
+        "test": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "test:ui": "vitest --ui",
+        "test:watch": "vitest --watch"
     },
     "dependencies": {
         "@caohenghu/vue-colorpicker": "^1.2.4",
@@ -97,13 +101,15 @@
     },
     "devDependencies": {
         "@rushstack/eslint-patch": "^1.5.1",
+        "@testing-library/jest-dom": "^6.6.3",
+        "@testing-library/vue": "^8.1.0",
         "@types/jsdom": "^21.1.5",
         "@types/node": "^20.8.10",
         "@vitejs/plugin-vue": "^4.4.0",
         "@vitejs/plugin-vue-jsx": "^3.0.2",
         "@vue/eslint-config-prettier": "^8.0.0",
         "@vue/eslint-config-typescript": "^12.0.0",
-        "@vue/test-utils": "^2.4.1",
+        "@vue/test-utils": "^2.4.6",
         "@vue/tsconfig": "^0.4.0",
         "cypress": "^13.4.0",
         "eslint": "^8.53.0",

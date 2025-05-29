@@ -12,21 +12,18 @@ import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import * as XLSX from "xlsx";
 import venezuela from 'venezuela';
+import AddClientModal from '@/components/clients/AddClientModal.vue';
 
 const clientDetails = useClientDetails();
 const clientManagement = useClientManagement();
 const clientRequests = useClientRequests();
 
 export default {
+    components: {
+        AddClientModal
+    },
     data() {
         return {
-            client: {
-                firstName: '',
-                lastName: '',
-                identification: '',
-                email: '',
-                phoneNumber: '',
-            },
             selectedClient: {
                 firstName: '',
                 lastName: '',
@@ -228,55 +225,6 @@ export default {
             this.deleteRequests = deleteRequests.value
         },
 
-        async createClient() {
-            if (!this.client.firstName || !this.client.lastName || !this.client.identification || !this.client.email) {
-                alert('Por favor, complete todos los campos obligatorios: Nombre, Apellido, cedula o email.');
-                return;
-            }
-
-            try {
-                this.isSubmitting = true;
-
-                const userData = {
-                    firstName: this.client.firstName,
-                    lastName: this.client.lastName,
-                    identification: this.client.identification,
-                    email: this.client.email,
-                    role: 'cliente',
-                };
-
-                if (this.client.phoneNumber) {
-                    userData.phoneNumber = this.client.phoneNumber;
-                }
-
-                // Call Cloud Function to create the client via onRequest
-                const response = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/createUser', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ userData }),
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    showToast.success("Nuevo Cliente registrado con exito! Se ha enviado la contraseña al correo.");
-
-                    // Reset form
-                    this.resetForm();
-                    this.fetchClients();
-                } else {
-                    alert('Error al crear al cliente: ' + result.message);
-                }
-
-            } catch (error) {
-                console.error('Error creating client:', error);
-                alert('Error creating client.');
-            } finally {
-                this.isSubmitting = false;
-            }
-        },
         cancelEdit(client) {
             // Reset editing state
             client.isEditing = false;
@@ -495,6 +443,8 @@ export default {
             } catch (error) {
                 console.error('Error approving ID verification:', error);
                 showToast.error('Error al aprobar la verificación');
+            } finally {
+                this.isSubmitting = false;
             }
         },
         async dissapproveID(client) {
@@ -1123,6 +1073,9 @@ export default {
                                         </div>
                                         <div class="client-contact">
                                             <div class="text-secondary small">
+                                                <i class="fas fa-id-card me-2"></i>{{ client.identification }}
+                                            </div>
+                                            <div class="text-secondary small">
                                                 <i class="fas fa-envelope me-2"></i>{{ client.email }}
                                             </div>
                                             <div class="text-secondary small">
@@ -1572,96 +1525,9 @@ export default {
             </div>
         </div>
 
-        <!-- Modal for Adding New Client -->
-        <div class="modal fade" id="addClientModal" tabindex="-1" aria-labelledby="addClientModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog modal-lg modal-dialog-centered">
-                <div class="modal-content bg-dark">
-                    <div class="modal-header border-secondary">
-                        <h5 class="modal-title text-light" id="addClientModalLabel">
-                            <i class="fas fa-user-plus me-2"></i>
-                            Agregar Cliente
-                        </h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                            aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="clientFirstName" class="form-label">
-                                        Nombre <span class="text-danger">*</span>
-                                    </label>
-                                    <input type="text" class="form-control form-control-sm rounded-0"
-                                        id="clientFirstName" v-model="client.firstName" placeholder="Ingrese el nombre"
-                                        required />
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="clientLastName" class="form-label">
-                                        Apellido <span class="text-danger">*</span>
-                                    </label>
-                                    <input type="text" class="form-control form-control-sm rounded-0"
-                                        id="clientLastName" v-model="client.lastName" placeholder="Ingrese el apellido"
-                                        required />
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="clientIdentification" class="form-label">
-                                        Cédula <span class="text-danger">*</span>
-                                    </label>
-                                    <div class="input-group input-group-sm">
-                                        <span class="input-group-text bg-dark border-secondary text-light">V-</span>
-                                        <input type="text" class="form-control form-control-sm rounded-0"
-                                            id="clientIdentification" v-model="client.identification"
-                                            placeholder="Ingrese la cédula" required />
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="clientEmail" class="form-label">
-                                        Email <span class="text-danger">*</span>
-                                    </label>
-                                    <input type="email" class="form-control form-control-sm rounded-0" id="clientEmail"
-                                        v-model="client.email" placeholder="ejemplo@correo.com" required />
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <div class="form-group">
-                                    <label for="clientPhoneNumber" class="form-label">
-                                        Teléfono
-                                    </label>
-                                    <input type="tel" class="form-control form-control-sm rounded-0"
-                                        id="clientPhoneNumber" v-model="client.phoneNumber"
-                                        placeholder="XXXX-XXXXXXX" />
-                                </div>
-                            </div>
-                        </div>
-                        <div class="alert alert-secondary mt-3 py-2 rounded-0">
-                            <small>
-                                <i class="fas fa-info-circle me-2"></i>
-                                Los campos marcados con <span class="text-danger">*</span> son obligatorios
-                            </small>
-                        </div>
-                    </div>
-                    <div class="modal-footer border-secondary">
-                        <button type="button" class="btn btn-sm btn-outline-light" data-bs-dismiss="modal">
-                            <i class="fas fa-times me-2"></i>Cancelar
-                        </button>
-                        <button type="button" class="btn btn-sm btn-theme" @click="createClient()">
-                            <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
-                                aria-hidden="true"></span>
-                            <span v-else>
-                                <i class="fas fa-save me-2"></i>Guardar
-                            </span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Add Client Modal Component -->
+        <AddClientModal @client-created="fetchClients" />
+
         <!-- Modal for opening ID img -->
         <div class="modal fade" id="idImgModal" tabindex="-1" aria-labelledby="qrModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
