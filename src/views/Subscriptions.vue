@@ -1,21 +1,13 @@
 <script>
-import { db, storage, functions } from "../firebase/init";
+import { db } from "../firebase/init";
 import {
   ref as dbRef,
   update,
   get,
   query,
   orderByChild,
-  equalTo,
-  push,
-  set,
-  remove,
+  equalTo
 } from "firebase/database";
-import {
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-} from "firebase/storage";
 import copyToClipboard from "@/utils/copyToClipboard";
 import { showToast } from "@/utils/toast";
 import { sendEmail } from "@/utils/emailService";
@@ -23,8 +15,6 @@ import "toastify-js/src/toastify.css";
 import SearchInput from "@/components/app/SearchInput.vue";
 import moment from "moment";
 import { Modal } from "bootstrap";
-import Swal from 'sweetalert2'
-import 'sweetalert2/src/sweetalert2.scss'
 import { useUserStore } from "@/stores/user-role";
 import {
   CreatePlanModal,
@@ -34,6 +24,8 @@ import {
 } from "@/components/subscriptions/admin/modals";
 import AdminSubscriptionsView from "@/components/subscriptions/admin/AdminSubscriptionsView.vue";
 import UserSubscriptionsView from "@/components/subscriptions/UserSubscriptionsView.vue";
+import { useFileUpload } from '@/composables/useFileUpload';
+import { useExchange } from '@/composables/useExchange';
 
 export default {
   name: "Subscriptions",
@@ -46,12 +38,40 @@ export default {
     AdminSubscriptionsView,
     UserSubscriptionsView,
   },
+  setup() {
+    const {
+      isUploading,
+      errorMessage,
+      processFile,
+      processPayment
+    } = useFileUpload();
+
+    const {
+      exchange,
+      isLoading: exchangeLoading,
+      error: exchangeError,
+      fetchCurrentExchange
+    } = useExchange();
+
+    return {
+      isUploading,
+      errorMessage,
+      processFile,
+      processPayment,
+
+      exchange,
+      exchangeLoading,
+      exchangeError,
+      fetchCurrentExchange
+    };
+  },
   data() {
     return {
       role: null,
       userId: null,
       userName: null,
-      exchange: null,
+      userEmail: null,
+      fetchedExchange: 0,
 
       clientsSubscriptions: [],
       clientsNoSubscriptions: [],
@@ -63,7 +83,7 @@ export default {
       searchAffResults: [],
       selectedClient: null,
       selectedAffiliate: null,
-      selectedPlan: null,
+      selectedPlan: {},
 
       clientPlan: {
         order: "",
@@ -125,7 +145,7 @@ export default {
       loading: false,
       loadingPlans: false,
 
-      currentSub: null,
+      currentSub: "",
 
       amountPaid: 0,
       payDay: null,
@@ -631,48 +651,27 @@ export default {
 
     // Clients and Affiliates can contract a subscription
     async contractPlan(plan) {
-      if (
-        confirm(
-          `¿Seguro que desea cambiar su suscripción a ${plan.name.toUpperCase()}?`
-        )
-      ) {
+      if (confirm(`¿Seguro que desea cambiar su suscripción a ${plan.name.toUpperCase()}?`)) {
         const userId = this.userId;
         this.selectedPlan = plan;
 
-        if (!this.userId) {
+        if (!userId) {
           alert("Usuario no identificado.");
           return;
         }
 
-        if (!this.selectedPlan) {
+        if (!plan) {
           alert("Por favor seleccione una suscripción antes de contratar.");
           return;
         }
 
-        // Determine whether the user is a client or an affiliate
-        let user;
-        let userType = ""; // To differentiate in messages/emails
-        let userName = "";
-
-        const userRef = dbRef(db, `Users/${userId}`);
-        const userSnapshot = await get(userRef);
-        user = userSnapshot.exists() ? userSnapshot.val() : null;
-
-        if (this.role === "cliente") {
-          userType = "cliente";
-          userName = `${user.firstName} ${user.lastName}`;
-        } else if (this.role === "afiliado") {
-          userType = "afiliado";
-          userName = user.companyName;
+        // Calculate payDay
+        let payDay;
+        if (plan.isYearly) {
+          payDay = moment().add(1, "year").toISOString();
+        } else {
+          payDay = moment().add(1, "month").toISOString();
         }
-
-        if (!user) {
-          alert(`No se pudo encontrar el ${userType}.`);
-          return;
-        }
-
-        // Calculate payDay (one month from today)
-        const payDay = moment().add(1, "month").toISOString();
 
         // Prepare subscription details
         const subscriptionData = {
@@ -691,12 +690,12 @@ export default {
             // Notify user (client/affiliate)
             const appUrl = "https://app.rosecoupon.com";
             const userEmailPayload = {
-              to: user.email,
+              to: this.userEmail,
               message: {
                 subject: `Suscripción ${plan.name.toUpperCase()} activada`,
-                text: `Hola ${userName}, se le ha activado la Suscripción ${plan.name.toUpperCase()} in Roseapp.
+                text: `Hola ${this.userName}, se le ha activado la Suscripción ${plan.name.toUpperCase()} in Roseapp.
                         Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}`,
-                html: `<p>Hola ${userName}, se le ha activado la Suscripción ${plan.name} in Roseapp.</p>
+                html: `<p>Hola ${this.userName}, se le ha activado la Suscripción ${plan.name} in Roseapp.</p>
                         <p>Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}</p>`,
               },
             };
@@ -707,8 +706,8 @@ export default {
               to: "roseindustry11@gmail.com",
               message: {
                 subject: `Nuevo cliente suscrito al Plan ${plan.name.toUpperCase()}`,
-                text: `Un nuevo cliente, ${userName}, se ha suscrito al plan ${plan.name.toUpperCase()}.`,
-                html: `<p>Un nuevo cliente, ${userName}, se ha suscrito al plan ${plan.name.toUpperCase()}.</p>`,
+                text: `Un nuevo cliente, ${this.userName}, se ha suscrito al plan ${plan.name.toUpperCase()}.`,
+                html: `<p>Un nuevo cliente, ${this.userName}, se ha suscrito al plan ${plan.name.toUpperCase()}.</p>`,
               },
             };
             await this.sendNotificationEmail(adminEmailPayload);
@@ -735,158 +734,18 @@ export default {
       );
       paymentModal.show();
     },
-    async notifyPayment(plan) {
-      if (confirm("¿Seguro que desea subir el pago?")) {
-        if (!plan.paymentFile) {
-          this.errorMessage = "El archivo es requerido.";
-          return;
-        }
-
-        try {
-          this.isSubmitting = true;
-          const userId = this.userId;
-          let user;
-          let userType = "";
-          let userName = "";
-          let payDay = null;
-
-          const currentUserRef = dbRef(db, `Users/${userId}`);
-          const userSnapshot = await get(currentUserRef);
-          user = userSnapshot.exists() ? userSnapshot.val() : null;
-
-          // Calculate payDay
-          if (plan.isYearly) {
-            payDay = moment().add(1, "year").toISOString();
-          } else {
-            payDay = moment().add(1, "month").toISOString();
-          }
-
-          // Prepare subscription details
-          const subscriptionData = {
-            subscription_id: plan.planId,
-            status: false, // Set the default status as false 'Inactive' until payment approval
-            payDay: payDay,
-            isPaid: false, // Set the default as unpaid
-            paymentUploaded: true,
-            lastPaymentDate: plan.paymentDate,
-          };
-
-          if (this.role === "cliente") {
-            userType = "cliente";
-            userName = `${user.firstName} ${user.lastName}`; // Full name for clients
-          } else if (this.role === "afiliado") {
-            userType = "afiliado";
-            userName = user.companyName; // Use companyName for affiliates
-          }
-
-          // Upload capture
-          const paymentUrl = await this.uploadPaymentFile(
-            plan.paymentFile,
-            plan.paymentDate.split("T")[0],
-            userType
-          );
-          console.log("File uploaded successfully:", paymentUrl);
-
-          const paymentDetails = {
-            subscription_id: plan.planId,
-            isYearly: plan.isYearly || false,
-            client_id: userId,
-            amount: plan.amountPaid,
-            date: plan.paymentDate,
-            approved: false,
-            paymentUrl: paymentUrl,
-            type: "subscription",
-          };
-
-          // Save the payment to the payments collection
-          const paymentRef = dbRef(
-            db,
-            `Payments/${userId}-${plan.paymentDate.split("T")[0]}`
-          );
-          await set(paymentRef, paymentDetails);
-
-          // Update user collection
-          const userRef = dbRef(db, `Users/${userId}/subscription`);
-          await update(userRef, subscriptionData);
-
-          // Notify client
-          const appUrl = "https://app.rosecoupon.com";
-          const userEmailPayload = {
-            to: user.email,
-            message: {
-              subject: `Suscripción ${plan.planName.toUpperCase()} activada`,
-              text: `Hola ${userName}, se le ha activado la Suscripción ${plan.planName.toUpperCase()} in Roseapp.
-                        Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}`,
-              html: `<p>Hola ${userName}, se le ha activado la Suscripción ${plan.planName} in Roseapp.</p>
-                        <p>Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}</p>`,
-            },
-          };
-          await this.sendNotificationEmail(userEmailPayload);
-
-          // Notify Admin
-          const adminEmailPayload = {
-            to: "roseindustry11@gmail.com",
-            message: {
-              subject: `Usuario ${this.role.toUpperCase()} se ha suscrito al Plan ${plan.planName.toUpperCase()}`,
-              text: `El ${this.role.toUpperCase()}, ${userName}, se ha suscrito al plan ${plan.planName.toUpperCase()}.`,
-              html: `<p>El ${this.role.toUpperCase()}, ${userName}, se ha suscrito al plan ${plan.planName.toUpperCase()}.</p>`,
-            },
-          };
-          await this.sendNotificationEmail(adminEmailPayload);
-
-          //Success alert
-          Swal.fire({
-            title: '¡Comprobante enviado!',
-            text: 'Nuestro equipo pronto evaluará tu pago.',
-            icon: 'success',
-            confirmButtonText: 'OK'
-          })
-
-          //reset the image previews
-          this.paymentPreview = null;
-
-          // Hide the modal after submission
-          const paymentModal = Modal.getOrCreateInstance(
-            document.getElementById("notifyPaymentModal")
-          );
-          paymentModal.hide();
-
-          // Redirect to Dashboard
-          if (this.role === "cliente") {
-            this.$router.push("/client-portal");
-          } else if (this.role === "afiliado") {
-            this.$router.push("/affiliate-portal");
-          }
-        } catch (error) {
-          console.error("Error during uploading:", error);
-          this.errorMessage =
-            "Error al subir el archivo, por favor intente nuevamente.";
-        } finally {
-          // Hide the loader
-          this.isSubmitting = false;
-        }
-      }
-    },
-    async uploadPaymentFile(file, date, type) {
-      // Define storage reference for front or back ID file
-      const fileName = `${date}-capture.${file.name.split(".").pop()}`;
-      const fileRef = storageRef(
-        storage,
-        `payment-captures/${type}/${this.userId}-${this.userName}/${fileName}`
-      );
-
-      // Upload the file and get the download URL
-      await uploadBytes(fileRef, file);
-      return getDownloadURL(fileRef);
-    },
 
     //File uploads
-    handleFileUpload(file) {
+    async handleFileUpload(file) {
       if (!file) return;
 
-      this.paymentFile = file;
-      this.paymentPreview = URL.createObjectURL(file);
+      const result = await this.processFile(file);
+      if (result) {
+        this.paymentFile = file;
+        this.paymentPreview = result;
+      }
     },
+
     clearDateFilter() {
       this.filterDate = null;
     },
@@ -902,29 +761,12 @@ export default {
 
           showToast("Tasa actualizada!", "success");
 
-          // Reset form fields
+          // Update UI
           await this.fetchCurrentExchange();
         } catch (error) {
           console.error("Error setting exchange value:", error);
           alert("No se pudo editar el valor.");
         }
-      }
-    },
-    async fetchCurrentExchange() {
-      try {
-        const exchangeRef = dbRef(db, `Exchange`);
-        const exchangeSnapshot = await get(exchangeRef);
-
-        if (exchangeSnapshot.exists()) {
-          const exchangeData = exchangeSnapshot.val();
-          this.exchange = exchangeData.value;
-        } else {
-          console.log("No exchange value found.");
-          this.exchange = 0;
-        }
-      } catch (error) {
-        console.error("Error fetching current exchange value:", error);
-        this.exchange = 0;
       }
     },
 
@@ -961,66 +803,67 @@ export default {
     selectAffiliate(affiliate) {
       this.selectedAffiliate = affiliate;
     },
-    async fetchExchangeRate() {
-      try {
-        const exchangeRef = dbRef(db, `Exchange`);
-        const exchangeSnapshot = await get(exchangeRef);
 
-        if (exchangeSnapshot.exists()) {
-          const exchangeData = exchangeSnapshot.val();
-          this.exchange = parseFloat(exchangeData.value);
-        } else {
-          console.log('No exchange value found.');
-          this.exchange = 0;
-        }
-      } catch (error) {
-        console.error('Error fetching exchange rate:', error);
-        this.exchange = 0;
-      }
+    async initializeAdminView() {
+      this.activeTab = "clients";
+      await Promise.all([
+        this.fetchClients(),
+        this.fetchAffiliates(),
+        this.fetchPlans(),
+        this.fetchAffiliatePlans()
+      ]);
     },
-  },
-  async mounted() {
-    const userStore = useUserStore();
-    await userStore.fetchUser();
-    this.role = userStore.role;
-    this.userId = userStore.userId;
-    this.userName = userStore.userName;
 
-    await this.fetchCurrentExchange();
-
-    if (this.role === "admin") {
-      // this.activeTab = 'clients';
-      await this.fetchClients();
-      await this.fetchAffiliates();
-      await this.fetchPlans();
-      await this.fetchAffiliatePlans();
-    }
-
-    if (this.role === "cliente" || this.role === "afiliado") {
-      // Handle client selection from query params
-      const clientSubscriptionId = this.$route.query.clientSubscriptionId;
-
-      if (clientSubscriptionId) {
-        // this.loading = true;
-        this.currentSub = clientSubscriptionId;
-        // await this.fetchUserSubscription(clientSubscriptionId);
-      }
-    }
-
-    if (this.role === "cliente") {
+    async initializeClientView() {
       this.activeTab = "clients";
       await this.fetchPlans();
-    }
+    },
 
-    if (this.role === "afiliado") {
+    async initializeAffiliateView() {
       this.activeTab = "affiliates";
       await this.fetchAffiliatePlans();
-    }
+    },
 
-    // Make sure this is included to properly initialize Bootstrap components
-    this.$nextTick(() => {
-      // Initialize Bootstrap components if needed
-    });
+    async handleQueryParams() {
+      const clientSubscriptionId = this.$route.query.clientSubscriptionId;
+      if (clientSubscriptionId && (this.role === "cliente" || this.role === "afiliado")) {
+        this.currentSub = clientSubscriptionId;
+      }
+    }
+  },
+  async mounted() {
+
+    try {
+      const userStore = useUserStore();
+
+      // Load user details
+      this.role = userStore.role;
+      this.userId = userStore.userId;
+      this.userName = userStore.userName;
+      this.userEmail = userStore.userEmail;
+
+      await this.fetchCurrentExchange();
+      this.fetchedExchange = this.exchange;
+
+      switch (this.role) {
+        case "admin":
+          await this.initializeAdminView();
+          break;
+        case "cliente":
+          await this.initializeClientView();
+          break;
+        case "afiliado":
+          await this.initializeAffiliateView();
+          break;
+        default:
+          console.warn("Unknown role:", this.role);
+          break;
+      }
+
+      await this.handleQueryParams();
+    } catch (err) {
+      console.error("Error initializing component:", err);
+    }
   },
 };
 </script>
@@ -1051,26 +894,46 @@ export default {
 
   <div class="subscriptions-view">
     <!-- Admin View -->
-    <AdminSubscriptionsView v-if="role === 'admin'" :loading="loading" :plans="plans" :affiliate-plans="affiliatePlans"
-      :clients="clients" :affiliates="affiliates" :filtered-clients-subscriptions="filteredClientsSubscriptions"
+    <AdminSubscriptionsView v-if="role === 'admin'" 
+      :loading="loading"
+      :plans="plans" 
+      :affiliate-plans="affiliatePlans"
+      :clients="clients" 
+      :affiliates="affiliates" 
+      :filtered-clients-subscriptions="filteredClientsSubscriptions"
       :all-filtered-clients-subscriptions="allFilteredClientsSubscriptions"
-      :filtered-clients-no-subscriptions="filteredClientsNoSubscriptions" :all-filtered-clients-no-subscriptions="allFilteredClientsNoSubscriptions
-        " :filtered-affiliates-subscriptions="filteredAffiliatesSubscriptions" :all-filtered-affiliates-subscriptions="allFilteredAffiliatesSubscriptions
-          " :filtered-affiliates-no-subscriptions="filteredAffiliatesNoSubscriptions
-            " :all-filtered-affiliates-no-subscriptions="allFilteredAffiliatesNoSubscriptions
-              " :current-page="currentPage" @tab-changed="setActiveTab" @search-changed="handleSearchChange"
-      @date-filter-changed="handleDateFilterChange" @date-filter-cleared="clearDateFilter"
-      @page-changed="handlePageChange" @plans-updated="fetchPlans" @exchange-updated="handleExchangeUpdated" />
+      :filtered-clients-no-subscriptions="filteredClientsNoSubscriptions" 
+      :all-filtered-clients-no-subscriptions="allFilteredClientsNoSubscriptions" 
+      :filtered-affiliates-subscriptions="filteredAffiliatesSubscriptions" 
+      :all-filtered-affiliates-subscriptions="allFilteredAffiliatesSubscriptions" 
+      :filtered-affiliates-no-subscriptions="filteredAffiliatesNoSubscriptions" 
+      :all-filtered-affiliates-no-subscriptions="allFilteredAffiliatesNoSubscriptions" 
+      :current-page="currentPage"
+      @tab-changed="setActiveTab" 
+      @search-changed="handleSearchChange"
+      @date-filter-changed="handleDateFilterChange" 
+      @date-filter-cleared="clearDateFilter"
+      @page-changed="handlePageChange"
+      @plans-updated="fetchPlans" 
+      @exchange-updated="handleExchangeUpdated" 
+    />
 
     <!-- Client/Affiliate View -->
-    <UserSubscriptionsView v-else :loading="loadingPlans" :currentUserId="userId" :plans="sortedPlans"
-      :current-sub="currentSub" :user-type="role || 'cliente'" :exchange="exchange" @contract-plan="contractPlan"
-      @payment-submitted="notifyPayment" @file-uploaded="handleFileUpload" />
+    <UserSubscriptionsView v-else 
+      :loading="loadingPlans" 
+      :currentUserId="userId" 
+      :userName="userName || ''"
+      :userEmail="userEmail || ''" 
+      :plans="sortedPlans" 
+      :current-sub="currentSub" 
+      :user-type="role || 'cliente'"
+      :exchange="fetchedExchange" @contract-plan="contractPlan" 
+    />
 
   </div>
 
   <!-- Add this somewhere in your template -->
-  <ExchangeRateModal @exchange-updated="fetchExchangeRate" />
+  <ExchangeRateModal @exchange-updated="fetchCurrentExchange" />
 </template>
 
 <style scoped>

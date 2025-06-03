@@ -7,7 +7,8 @@
                         <i class="fas fa-id-card me-2"></i>
                         Documentos de Identidad
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" @click="handleClose"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"
+                        @click="handleClose"></button>
                 </div>
                 <div class="modal-body">
                     <!-- Front ID Upload -->
@@ -16,14 +17,9 @@
                             <i class="fas fa-id-card me-2"></i>
                             Cédula (Frente)
                         </h6>
-                        <div class="upload-area" 
-                            @dragover.prevent 
-                            @drop.prevent="handleFileDrop($event, 'front')"
+                        <div class="upload-area" @dragover.prevent @drop.prevent="handleFileDrop($event, 'front')"
                             :class="{ 'is-dragging': isDraggingFront }">
-                            <input type="file" 
-                                ref="frontInput" 
-                                class="d-none" 
-                                accept="image/*"
+                            <input type="file" ref="frontInput" class="d-none" accept="image/*"
                                 @change="handleFileSelect($event, 'front')" />
                             <div v-if="!frontImage" class="upload-placeholder">
                                 <i class="fas fa-cloud-upload-alt fa-2x mb-2"></i>
@@ -40,7 +36,7 @@
                                 </button>
                             </div>
                         </div>
-                    </div>                   
+                    </div>
 
                     <!-- Back ID Upload -->
                     <div class="upload-section">
@@ -48,14 +44,9 @@
                             <i class="fas fa-id-card me-2"></i>
                             Cédula (Reverso)
                         </h6>
-                        <div class="upload-area" 
-                            @dragover.prevent 
-                            @drop.prevent="handleFileDrop($event, 'back')"
+                        <div class="upload-area" @dragover.prevent @drop.prevent="handleFileDrop($event, 'back')"
                             :class="{ 'is-dragging': isDraggingBack }">
-                            <input type="file" 
-                                ref="backInput" 
-                                class="d-none" 
-                                accept="image/*"
+                            <input type="file" ref="backInput" class="d-none" accept="image/*"
                                 @change="handleFileSelect($event, 'back')" />
                             <div v-if="!backImage" class="upload-placeholder">
                                 <i class="fas fa-cloud-upload-alt fa-2x mb-2"></i>
@@ -74,20 +65,15 @@
                         </div>
                     </div>
 
-                     <!-- Selfie Upload -->
-                     <div class="upload-section mb-4">
+                    <!-- Selfie Upload -->
+                    <div class="upload-section mb-4">
                         <h6 class="text-light mb-3">
                             <i class="fas fa-camera me-2"></i>
                             Selfie
                         </h6>
-                        <div class="upload-area" 
-                            @dragover.prevent 
-                            @drop.prevent="handleFileDrop($event, 'selfie')"
+                        <div class="upload-area" @dragover.prevent @drop.prevent="handleFileDrop($event, 'selfie')"
                             :class="{ 'is-dragging': isDraggingSelfie }">
-                            <input type="file" 
-                                ref="selfieInput" 
-                                class="d-none" 
-                                accept="image/*"
+                            <input type="file" ref="selfieInput" class="d-none" accept="image/*"
                                 @change="handleFileSelect($event, 'selfie')" />
                             <div v-if="!selfieImage" class="upload-placeholder">
                                 <i class="fas fa-camera fa-2x mb-2"></i>
@@ -110,7 +96,7 @@
                     <button type="button" class="btn btn-outline-light" @click="skipUpload">
                         Omitir
                     </button>
-                    <button type="button" class="btn btn-theme" @click="uploadDocuments" 
+                    <button type="button" class="btn btn-theme" @click="uploadDocuments"
                         :disabled="!frontImage || !backImage || !selfieImage || isUploading">
                         <span v-if="isUploading" class="spinner-border spinner-border-sm" role="status"></span>
                         <span v-else>Subir Documentos</span>
@@ -138,12 +124,12 @@ export default {
         }
     },
     setup() {
-        const { isUploading, errorMessage, processFile, uploadVerificationFiles } = useFileUpload();
+        const { isUploading, errorMessage, processFile, processVerification } = useFileUpload();
         return {
             isUploading,
             errorMessage,
             processFile,
-            uploadVerificationFiles
+            processVerification
         };
     },
     data() {
@@ -188,7 +174,7 @@ export default {
         async handleFile(file, side) {
             const result = await this.processFile(file, side);
             if (result) {
-                switch(side) {
+                switch (side) {
                     case 'front':
                         this.frontImage = result;
                         this.$refs.frontInput.value = '';
@@ -205,7 +191,7 @@ export default {
             }
         },
         removeImage(side) {
-            switch(side) {
+            switch (side) {
                 case 'front':
                     this.frontImage = null;
                     this.$refs.frontInput.value = '';
@@ -221,8 +207,8 @@ export default {
             }
         },
         async uploadDocuments() {
-            try {                
-                const result = await this.uploadVerificationFiles({
+            try {
+                const result = await this.processVerification({
                     front: this.frontImage,
                     back: this.backImage,
                     selfie: this.selfieImage
@@ -305,13 +291,13 @@ export default {
     .modal-dialog {
         margin: 0.5rem;
     }
-    
+
     .upload-section {
         padding: 0.75rem;
     }
-    
+
     .upload-area {
         padding: 1rem;
     }
 }
-</style> 
+</style>

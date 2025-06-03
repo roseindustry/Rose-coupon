@@ -7,7 +7,7 @@ import { useSubscription } from '@/composables/useSubscription';
 
 export default defineComponent({
     setup() {
-        const { isUploading, errorMessage, processFile, uploadVerificationFiles } = useFileUpload();
+        const { isUploading, errorMessage, processFile, processVerification } = useFileUpload();
         const { 
             subscriptionPlan, 
             userSubscriptionId, 
@@ -21,7 +21,7 @@ export default defineComponent({
             isUploading,
             errorMessage,
             processFile,
-            uploadVerificationFiles,
+            processVerification,
             subscriptionPlan,
             userSubscriptionId,
             subscriptionLoading,
@@ -119,7 +119,7 @@ export default defineComponent({
             }
 
             try {
-                const result = await this.uploadVerificationFiles({
+                const result = await this.processVerification({
                     front: this.idFrontPreview,
                     back: this.idBackPreview,
                     selfie: this.selfiePreview

@@ -7,6 +7,7 @@ interface UserRoleState {
   userId: string | null;
   userName: string | null;
   userIdentification: string | null;
+  userEmail: string | null;
   isVerified: boolean;
   isEmailVerified: boolean;
   isPhoneVerified: boolean;
@@ -20,6 +21,7 @@ export const useUserStore = defineStore('user-role', {
     userId: null,
     userName: null,
     userIdentification: null,
+    userEmail: null,
     isVerified: false,
     isEmailVerified: false,
     isPhoneVerified: false,
@@ -55,6 +57,7 @@ export const useUserStore = defineStore('user-role', {
             ? `${data.firstName} ${data.lastName}` 
             : data.companyName;
           this.userIdentification = this.role === 'afiliado' ? `${data.rif}` : data.identification;
+          this.userEmail = data.email;
           this.isVerified = data.isVerified;
           this.isEmailVerified = data.emailVerified;
           this.isPhoneVerified = data.phoneVerified;
@@ -84,6 +87,7 @@ export const useUserStore = defineStore('user-role', {
       this.userId = null;
       this.userName = null;
       this.userIdentification = null;
+      this.userEmail = null;
       this.isVerified = false;
       this.isEmailVerified = false;
       this.isPhoneVerified = false;
@@ -95,6 +99,7 @@ export const useUserStore = defineStore('user-role', {
     getUserRole: (state) => state.role,
     getUserId: (state) => state.userId,
     getUserName: (state) => state.userName,
+    getUserEmail: (state) => state.userEmail,
     getUserIdentification: (state) => state.userIdentification,
     getUserVerifiedStatus: (state) => state.isVerified,
     getEmailVerifiedStatus: (state) => state.isEmailVerified,

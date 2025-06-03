@@ -1,20 +1,12 @@
 <script>
 import { defineComponent, computed } from "vue";
 import { useUserStore } from "@/stores/user-role";
-import { auth, db, storage, functions } from "../firebase/init";
-import { ref as dbRef, update, get, set, child } from "firebase/database";
-import {
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-  listAll,
-} from "firebase/storage";
+import { auth, db } from "../firebase/init";
+import { ref as dbRef, update, get, set } from "firebase/database";
 import {
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
-  PhoneAuthProvider,
-  signInWithPhoneNumber,
   RecaptchaVerifier,
 } from "firebase/auth";
 import { sendEmail } from "@/utils/emailService";
@@ -23,12 +15,12 @@ import "toastify-js/src/toastify.css";
 import Swal from 'sweetalert2';
 import 'sweetalert2/src/sweetalert2.scss';
 import { Modal } from "bootstrap";
-import moment from "moment";
 import venezuela from "venezuela";
 import NotifyPaymentModal from "@/components/subscriptions/userModals/NotifyPaymentModal.vue";
 import { useFileUpload } from '@/composables/useFileUpload';
 import { useVerification } from '@/composables/useVerification';
 import { useSubscription } from '@/composables/useSubscription';
+import { useExchange } from '@/composables/useExchange';
 import VerificationModal from '@/components/clients/VerificationModal.vue';
 
 export default defineComponent({
@@ -38,7 +30,7 @@ export default defineComponent({
   },
   setup() {
     // File Uploads
-    const { isUploading, errorMessage, processFile, uploadVerificationFiles } = useFileUpload();
+    const { isUploading, errorMessage, processFile, processVerification, processPayment } = useFileUpload();
 
     // Id Verification
     const {
@@ -70,6 +62,13 @@ export default defineComponent({
       isFreeSubscription
     } = useSubscription();
 
+    const {
+      exchange,
+      isLoading: exchangeLoading,
+      error: exchangeError,
+      fetchCurrentExchange
+    } = useExchange();
+
     const verificationCode = computed({
       get() {
         return verifyingField.value === "email"
@@ -89,8 +88,8 @@ export default defineComponent({
       isUploading,
       errorMessage,
       processFile,
-      uploadVerificationFiles,
-
+      processVerification,
+      processPayment,
       emailCode,
       phoneCode,
       isEmailSending,
@@ -115,7 +114,12 @@ export default defineComponent({
       isLoading: subscriptionLoading,
       error: subscriptionError,
       fetchSubscriptionPlan,
-      isFreeSubscription
+      isFreeSubscription,
+
+      exchange,
+      exchangeLoading,
+      exchangeError,
+      fetchCurrentExchange
     };
   },
   data() {
@@ -123,6 +127,7 @@ export default defineComponent({
       userId: "",
       role: "",
       userName: "",
+      userEmail: "",
       requestSent: "",
       userSubscriptionId: "",
       subscriptionPlan: null,
@@ -239,7 +244,6 @@ export default defineComponent({
       phoneVerificationLoading: false,
       verifyModal: null,
       recaptchaVerifier: null,
-      exchange: 0,
       originalData: {
         email: '',
         phoneNumber: '',
@@ -253,32 +257,55 @@ export default defineComponent({
   },
   async mounted() {
     const userStore = useUserStore();
-    const userId = userStore.userId;
-    const role = userStore.role;
-    this.userId = userId;
-    this.role = role;
+
+    // Load user details
+    this.userId = userStore.userId;
+    this.role = userStore.role;
     this.userName = userStore.userName;
+    this.userEmail = userStore.userEmail;
     this.userIdentification = userStore.userIdentification;
     this.userVerified = userStore.isVerified;
     this.emailVerified = userStore.isEmailVerified || false;
     this.phoneVerified = userStore.isPhoneVerified || false;
 
-    // Fetch user data first
-    this.fetchUserData(userId);
-
-    // Only set up verification for clients
-    if (role === 'cliente') {
-      await this.fetchSubscriptionPlan(this.userId);
-    } else if (role === 'afiliado') {
-      this.fetchAffiliatePlan();
+    if (!this.userId || !this.role) {
+      console.error("User ID or role is missing.");
+      return;
     }
 
-    this.checkPaymentReset();
+    // console.log('User ID: ', this.userId);
 
-    // Initialize modals and reCAPTCHA after DOM is ready
-    this.$nextTick(() => {
-      // Initialize only if elements exist and user is not admin
+    try {
+      this.initializeUserData();
+      this.initUI();
+      this.loadLocationData();
+      this.cacheOriginalData();
+      await this.checkDeletionRequest();
+    } catch (err) {
+      console.error("Error during mounted lifecycle:", err);
+    }
+  },
+  beforeUnmount() {
+    if (this.recaptchaVerifier) {
+      this.recaptchaVerifier.clear();
+    }
+  },
+  methods: {
+    initializeUserData() {
+      this.fetchUserData(this.userId);
+
       if (this.role === 'cliente') {
+        this.fetchSubscriptionPlan(this.userId);
+      } else if (this.role === 'afiliado') {
+        this.fetchAffiliatePlan();
+      }
+
+      this.checkPaymentReset();
+    },
+    initUI() {
+      this.$nextTick(() => {
+        if (this.role !== 'cliente') return;
+
         const verifyModalEl = document.getElementById("verifyModal");
         const paymentModalEl = document.getElementById("notifyPaymentModal");
 
@@ -290,47 +317,164 @@ export default defineComponent({
           this.paymentModal = new Modal(paymentModalEl);
         }
 
-        // Initialize reCAPTCHA with a delay to ensure DOM is ready
         setTimeout(() => {
           this.initRecaptcha();
         }, 1000);
+      });
+    },
+    loadLocationData() {
+      if (this.state) {
+        this.displayMunicipios(this.state);
+        if (this.municipio) {
+          this.displayParroquias(this.municipio);
+        }
       }
-    });
-
-    // Load location data if needed
-    if (this.state) {
-      this.displayMunicipios(this.state);
-      if (this.municipio) {
-        this.displayParroquias(this.municipio);
+    },
+    cacheOriginalData() {
+      this.originalData = {
+        email: this.email,
+        phoneNumber: this.phoneNumber,
+      };
+    },
+    async checkDeletionRequest() {
+      if (!this.userId) {
+        console.log('No user ID provided, skipping deletion request check');
+        return;
       }
-    }
 
-    // console.log(this.userId)
+      try {
+        const delRequestRef = dbRef(db, `deletionRequests/${this.userId}`);
+        const snapshot = await get(delRequestRef);
 
-    this.originalData = {
-      email: this.email,
-      phoneNumber: this.phoneNumber,
-      // Copy other editable fields
-    };
+        if (snapshot.exists()) {
+          const deletionRequestData = snapshot.val();
+          // console.log('Deletion request found:', deletionRequestData);
 
-    const snapshot = await get(child(dbRef(db, `deletionRequests/${this.userId}`)));
-    if (snapshot.exists() && snapshot.val().status === 'pending') {
-      this.isRequestPending = true;
-    }
-  },
-  beforeUnmount() {
-    if (this.recaptchaVerifier) {
-      this.recaptchaVerifier.clear();
-    }
-  },
-  methods: {
-    formatDate(date) {
-      const dateString = date.split("T")[0];
-      const [year, month, day] = dateString.split("-");
-      return `${day}/${month}/${year}`;
+          if (deletionRequestData.status === 'pending') {
+            // console.log('Deletion request is in pending status');
+            this.isRequestPending = true;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking deletion request:', error);
+      }
+    },
+    async checkPaymentReset() {
+      const userRef = dbRef(db, `Users/${this.userId}/subscription`);
+      const snapshot = await get(userRef);
+
+      if (snapshot.exists()) {
+        const subscriptionData = snapshot.val();
+        const payDay = new Date(subscriptionData.payDay);
+        const currentDate = new Date();
+
+        // Check both subscription payment and credit purchase payments
+        try {
+          // Check subscription payment
+          const isSubscriptionPaid = subscriptionData.isPaid || subscriptionData.paymentVerified;
+
+          // Check credit purchase payments for the current month
+          const purchasesRef = dbRef(db, `Users/${this.userId}/credit/main/purchases`);
+          const purchasesSnapshot = await get(purchasesRef);
+
+          if (purchasesSnapshot.exists()) {
+            const purchases = purchasesSnapshot.val();
+
+            // Reset flags before checking
+            this.hasapplicablePurchase = false;
+            this.hasCurrentMonthPayment = false;
+
+            // Iterate through purchases to find ongoing purchases
+            Object.values(purchases).forEach(purchase => {
+              // Check if purchase is ongoing (not all cuotas are paid)
+              const isPurchaseOngoing = purchase.cuotas && Object.values(purchase.cuotas).some(cuota => !cuota.paid);
+
+              // Check for purchases with subscription maintenance add-on
+              if (purchase.includeCuotaAddOn && isPurchaseOngoing) {
+                this.hasapplicablePurchase = true;
+
+                // Check for current month payment in ongoing purchases
+                if (purchase.cuotas) {
+                  Object.values(purchase.cuotas).forEach(cuota => {
+                    if (cuota.paid) {
+                      const cuotaDate = new Date(cuota.paymentDate);
+                      if (cuotaDate.getMonth() === currentDate.getMonth() &&
+                        cuotaDate.getFullYear() === currentDate.getFullYear()) {
+                        this.hasCurrentMonthPayment = true;
+                      }
+                    }
+                  });
+                }
+              }
+            });
+          }
+
+          // Reset if no payment was made this month (either subscription or credit purchase)
+          if (currentDate >= payDay &&
+            (!isSubscriptionPaid ||
+              (this.hasapplicablePurchase && !this.hasCurrentMonthPayment))) {
+            await update(userRef, {
+              isPaid: false, // Reset to mark unpaid month
+              status: false,
+              paymentUploaded: false,
+              paymentVerified: false,
+              paymentUrl: null,
+            });
+
+            Swal.fire({
+              title: 'Debes ponerte al día con el pago de tu suscripción.',
+              text: 'Recuerda estar solvente con el pago de tu suscripción para poder optar por compras a crédito.',
+              icon: 'info',
+              confirmButtonText: 'OK'
+            });
+          }
+
+          // console.log(this.hasapplicablePurchase, this.hasCurrentMonthPayment);
+
+          // if (this.applicablePurchase) {
+          //   console.log('Este usuario tiene una compra a credito activa');
+          // } else if (this.applicablePurchase && this.hasCurrentMonthPayment) {
+          //   console.log('Este usuario tiene una compra a credito activa Y pagó este mes');
+          // } else {
+          //   console.log('Usuario sin compra aplicable.');
+          // }
+
+        } catch (error) {
+          console.error('Error checking payment status:', error);
+        }
+      }
     },
 
     // Fetch data
+    fetchUserData(userId) {
+      const userRef = dbRef(db, `Users/${userId}`);
+
+      get(userRef)
+        .then((snapshot) => {
+          if (snapshot.exists()) {
+            const userData = snapshot.val();
+            this.requestSent = userData.requestedVerification;
+
+            // Assign user data to field values
+            for (let key in userData) {
+              if (this[key] !== undefined) {
+                this[key] = userData[key]; // Update the reactive data fields directly
+              }
+            }
+
+            // Update originalData after the data is fetched
+            this.originalData = {
+              email: this.email,
+              phoneNumber: this.phoneNumber,
+            };
+          } else {
+            console.log("No data available");
+          }
+        })
+        .catch((error) => {
+          console.error("Error fetching user data:", error);
+        });
+    },
     async fetchAffiliatePlan() {
       const userId = this.userId;
 
@@ -386,54 +530,111 @@ export default defineComponent({
         }
       }
     },
-    fetchUserData(userId) {
-      const userRef = dbRef(db, `Users/${userId}`);
 
-      get(userRef)
-        .then((snapshot) => {
-          if (snapshot.exists()) {
-            const userData = snapshot.val();
-            this.requestSent = userData.requestedVerification;
+    //Address info methods
+    displayMunicipios(state) {
+      if (!state) return;
 
-            // Assign user data to field values
-            for (let key in userData) {
-              if (this[key] !== undefined) {
-                this[key] = userData[key]; // Update the reactive data fields directly
-              }
-            }
-
-            // Update originalData after the data is fetched
-            this.originalData = {
-              email: this.email,
-              phoneNumber: this.phoneNumber,
-            };
-          } else {
-            console.log("No data available");
-          }
-        })
-        .catch((error) => {
-          console.error("Error fetching user data:", error);
-        });
-    },
-    async fetchCurrentExchange() {
-      try {
-        const exchangeRef = dbRef(db, `Exchange`);
-        const exchangeSnapshot = await get(exchangeRef);
-
-        if (exchangeSnapshot.exists()) {
-          const exchangeData = exchangeSnapshot.val();
-          this.exchange = exchangeData.value;
-        } else {
-          console.log("No exchange value found.");
-          this.exchange = 0;
-        }
-      } catch (error) {
-        console.error("Error fetching current exchange value:", error);
-        this.exchange = 0;
+      const z = venezuela.estado(state, { municipios: true });
+      const munis = z.municipios;
+      if (munis) {
+        this.municipios = munis;
+        this.showMunicipios = true;
       }
     },
+    displayParroquias(municipio) {
+      if (!municipio) return;
 
-    // Edit fields
+      const y = venezuela.municipio(municipio, { parroquias: true });
+      if (y?.parroquias) {
+        this.parroquias = y.parroquias;
+        this.showParroquias = true;
+      }
+    },
+    isAddressField(fieldName) {
+      return ["state", "municipio", "parroquia"].includes(fieldName);
+    },
+
+    // Edit fields (admins)
+    isFieldChanged(fieldName) {
+      return this[fieldName] !== this.originalData[fieldName];
+    },
+    async saveField(fieldName) {
+      try {
+        // Validate field value
+        if (fieldName === 'email' && !this.validateEmail(this.email)) {
+          showToast.error('Por favor ingresa un correo electrónico válido');
+          return;
+        }
+
+        if (fieldName === 'phoneNumber' && !this.phoneNumber) {
+          showToast.error('Por favor ingresa un número de teléfono válido');
+          return;
+        }
+
+        // Update database
+        const userRef = dbRef(db, `Users/${this.userId}`);
+        const updateData = {};
+        updateData[fieldName] = this[fieldName];
+
+        await update(userRef, updateData);
+
+        // If updating email, also update in Auth
+        if (fieldName === 'email' && this.email !== this.originalData.email) {
+          try {
+            // Call the cloud function to update email in Auth
+            const authUpdateResponse = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/updateUserEmail', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                uid: this.userId,
+                newEmail: this.email
+              })
+            });
+
+            const authUpdateResult = await authUpdateResponse.json();
+
+            if (authUpdateResult.message) {
+              console.log("Auth email update:", authUpdateResult.message);
+            }
+          } catch (authError) {
+            console.error("Error updating auth email:", authError);
+            // Continue with the flow even if auth update fails
+          }
+        }
+
+        // Update original data
+        this.originalData[fieldName] = this[fieldName];
+
+        showToast.success('Información actualizada correctamente');
+      } catch (error) {
+        console.error(`Error updating ${fieldName}:`, error);
+        showToast.error('Error al guardar los cambios. Por favor intenta de nuevo.');
+      }
+    },
+    startEditing(field) {
+      if (field === 'email') {
+        this.editingEmail = true;
+        // Store the current value before editing
+        this.originalData.email = this.email;
+      } else if (field === 'phone') {
+        this.editingPhone = true;
+        // Store the current value before editing
+        this.originalData.phoneNumber = this.phoneNumber;
+      }
+    },
+    cancelEditing(field) {
+      if (field === 'email') {
+        this.email = this.originalData.email;
+        this.editingEmail = false;
+      } else if (field === 'phone') {
+        this.phoneNumber = this.originalData.phoneNumber;
+        this.editingPhone = false;
+      }
+    },
+    // Edit fields (clients and affiliates)
     toggleEdit(fieldName) {
       // Only allow toggling edit state for address fields
       if (this.isAddressField(fieldName)) {
@@ -560,21 +761,8 @@ export default defineComponent({
         }
       }
     },
-    // for subscription payments file uploads
-    async uploadPaymentFile(file, date, role) {
-      // Define storage reference for front or back ID file
-      const fileName = `${date}-capture.${file.name.split(".").pop()}`;
-      const fileRef = storageRef(
-        storage,
-        `payment-captures/${role}/${this.userId}-${this.userName}/${fileName}`
-      );
 
-      // Upload the file and get the download URL
-      await uploadBytes(fileRef, file);
-      return getDownloadURL(fileRef);
-    },
-
-    // User verification and subscription payment logic
+    // User verification submit
     async submitVerification() {
       if (!this.idFrontFile || !this.idBackFile || !this.selfieFile) {
         this.errorMessage = "Todos los archivos de identificación son requeridos.";
@@ -585,11 +773,14 @@ export default defineComponent({
         this.isSubmitting = true;
         this.errorMessage = "";
 
-        const result = await this.uploadVerificationFiles({
-          front: this.idFrontPreview,
-          back: this.idBackPreview,
-          selfie: this.selfiePreview
-        }, this.userId);
+        const result = await this.processVerification(
+          {
+            front: this.idFrontPreview,
+            back: this.idBackPreview,
+            selfie: this.selfiePreview
+          },
+          this.userId
+        );
 
         if (result.success) {
           // Send an email notification to the admin through Firebase Cloud Functions				
@@ -632,242 +823,47 @@ export default defineComponent({
         this.isSubmitting = false;
       }
     },
-    async notifyPayment(paymentData) {
-      // Correct the timezone issue
-      const originalDate = new Date(paymentData.paymentDate);
 
-      // Adjust the date to local timezone and set to start of the day
-      const correctedDate = new Date(
-        originalDate.getFullYear(),
-        originalDate.getMonth(),
-        originalDate.getDate()
-      );
+    // // Subscription Payment submit
+    // async submitPayment(paymentData) {
+    //   if (confirm("¿Seguro que desea subir su comprobante de pago?")) {
+    //     try {
+    //       this.isUploading = true;
 
-      // Convert to ISO string
-      const paymentDate = correctedDate.toISOString();
-      const formattedDate = paymentDate.split("T")[0];
+    //       // Upload payment file
+    //       const result = await this.processPayment(
+    //         this.userId,
+    //         paymentData,
+    //         this.role,
+    //         this.userName
+    //       );
 
-      if (confirm("¿Seguro que desea subir el pago?")) {
-        try {
-          const { amountPaid, paymentFile, planId, planName, exchange, isYearly } = paymentData;
-          let payDay = null;
+    //       if (result.success) {
+    //         console.log("Payment file uploaded successfully");
+    //         // Close modal and show success message
+    //         this.$refs.paymentModal.closeModal();
+    //         // Refresh subscription data
+    //         await this.fetchClientPlan();
+    //       }
+    //     } catch (error) {
+    //       console.error("Error notifying payment:", error);
+    //       Swal.fire({
+    //         title: 'Error al subir el comprobante 😕',
+    //         text: error,
+    //         icon: 'error',
+    //         confirmButtonText: 'OK'
+    //       })
+    //     } finally {
+    //       this.isUploading = false;
+    //     }
+    //   }
+    // },
 
-          // Calculate payDay
-          if (paymentData.isYearly) {
-            payDay = moment().add(1, "year").toISOString();
-          } else {
-            payDay = moment().add(1, "month").toISOString();
-          }
-
-          if (!paymentFile) {
-            showToast.error("Por favor seleccione una captura de pago");
-            return;
-          }
-
-          // Upload payment file
-          const paymentUrl = await this.uploadPaymentFile(
-            paymentFile,
-            formattedDate,
-            this.role
-          );
-          console.log("File uploaded successfully:", paymentUrl);
-
-          // Update subscription info
-          const subscriptionData = {
-            lastPaymentDate: paymentDate,
-            paymentUploaded: true,
-            paymentVerified: false,
-            paymentUrl: paymentUrl,
-            amountPaid: amountPaid,
-            payDay: payDay,
-          };
-
-          const userSubscriptionRef = dbRef(
-            db,
-            `Users/${this.userId}/subscription`
-          );
-          await update(userSubscriptionRef, subscriptionData);
-
-          // Save the payment to the payments collection
-          const paymentDetails = {
-            subscription_id: this.userSubscriptionId,
-            isYearly: paymentData.isYearly || false,
-            client_id: this.userId,
-            amount: amountPaid,
-            date: paymentDate,
-            approved: false,
-            paymentUrl: paymentUrl,
-            type: "subscription",
-          }
-
-          const paymentRef = dbRef(
-            db,
-            `Payments/${this.userId}-${formattedDate}`
-          );
-          await set(paymentRef, paymentDetails);
-
-          // Close modal and show success message
-          this.$refs.paymentModal.closeModal();
-
-          //Success alert
-          Swal.fire({
-            title: '¡Comprobante enviado!',
-            text: 'Nuestro equipo pronto evaluará tu pago.',
-            icon: 'success',
-            confirmButtonText: 'OK'
-          })
-
-          // Refresh subscription data
-          await this.fetchClientPlan();
-        } catch (error) {
-          console.error("Error notifying payment:", error);
-          Swal.fire({
-            title: 'Error al subir el comprobante 😕',
-            text: 'Ocurrió un error al subir tu comprobante de pago. Intenta de Nuevo.',
-            icon: 'error',
-            confirmButtonText: 'OK'
-          })
-        }
-      }
-    },
-    async checkPaymentReset() {
-      const userRef = dbRef(db, `Users/${this.userId}/subscription`);
-      const snapshot = await get(userRef);
-
-      if (snapshot.exists()) {
-        const subscriptionData = snapshot.val();
-        const payDay = new Date(subscriptionData.payDay);
-        const currentDate = new Date();
-
-        // Check both subscription payment and credit purchase payments
-        try {
-          // Check subscription payment
-          const isSubscriptionPaid = subscriptionData.isPaid || subscriptionData.paymentVerified;
-
-          // Check credit purchase payments for the current month
-          const purchasesRef = dbRef(db, `Users/${this.userId}/credit/main/purchases`);
-          const purchasesSnapshot = await get(purchasesRef);
-
-          if (purchasesSnapshot.exists()) {
-            const purchases = purchasesSnapshot.val();
-
-            // Reset flags before checking
-            this.hasapplicablePurchase = false;
-            this.hasCurrentMonthPayment = false;
-
-            // Iterate through purchases to find ongoing purchases
-            Object.values(purchases).forEach(purchase => {
-              // Check if purchase is ongoing (not all cuotas are paid)
-              const isPurchaseOngoing = purchase.cuotas && Object.values(purchase.cuotas).some(cuota => !cuota.paid);
-
-              // Check for purchases with subscription maintenance add-on
-              if (purchase.includeCuotaAddOn && isPurchaseOngoing) {
-                this.hasapplicablePurchase = true;
-
-                // Check for current month payment in ongoing purchases
-                if (purchase.cuotas) {
-                  Object.values(purchase.cuotas).forEach(cuota => {
-                    if (cuota.paid) {
-                      const cuotaDate = new Date(cuota.paymentDate);
-                      if (cuotaDate.getMonth() === currentDate.getMonth() &&
-                        cuotaDate.getFullYear() === currentDate.getFullYear()) {
-                        this.hasCurrentMonthPayment = true;
-                      }
-                    }
-                  });
-                }
-              }
-            });
-          }
-
-          // Reset if no payment was made this month (either subscription or credit purchase)
-          if (currentDate >= payDay &&
-            (!isSubscriptionPaid ||
-              (this.hasapplicablePurchase && !this.hasCurrentMonthPayment))) {
-            await update(userRef, {
-              isPaid: false, // Reset to mark unpaid month
-              status: false,
-              paymentUploaded: false,
-              paymentVerified: false,
-              paymentUrl: null,
-            });
-
-            Swal.fire({
-              title: 'Debes ponerte al día con el pago de tu suscripción.',
-              text: 'Recuerda estar solvente con el pago de tu suscripción para poder optar por compras a crédito.',
-              icon: 'info',
-              confirmButtonText: 'OK'
-            });
-          }
-
-          // console.log(this.hasapplicablePurchase, this.hasCurrentMonthPayment);
-
-          // if (this.applicablePurchase) {
-          //   console.log('Este usuario tiene una compra a credito activa');
-          // } else if (this.applicablePurchase && this.hasCurrentMonthPayment) {
-          //   console.log('Este usuario tiene una compra a credito activa Y pagó este mes');
-          // } else {
-          //   console.log('Usuario sin compra aplicable.');
-          // }
-
-        } catch (error) {
-          console.error('Error checking payment status:', error);
-        }
-      }
-    },
-
-    // User payment modal logic
+    // Modal logic
     openPaymentModal() {
       this.fetchCurrentExchange();
       if (this.$refs.paymentModal) {
         this.$refs.paymentModal.openModal();
-      }
-    },
-    async fetchPaymentFiles(date) {
-      const currentUserRef = dbRef(db, `Users/${this.userId}`);
-      let currentUser = null;
-
-      try {
-        const snapshot = await get(currentUserRef);
-
-        if (snapshot.exists()) {
-          currentUser = snapshot.val();
-        } else {
-          currentUser = null;
-        }
-      } catch (error) {
-        console.error("Error fetching current user details:", error);
-      }
-
-      try {
-        const userName = `${currentUser.firstName} ${currentUser.lastName}`;
-        const folderRef = storageRef(
-          storage,
-          `payment-captures/${this.role}/${this.userId}-${userName}`
-        );
-
-        // List all files in the client's payment-captures folder
-        const fileList = await listAll(folderRef);
-
-        // Filter files by date (ignoring extension)
-        const matchingFile = fileList.items.find((fileRef) =>
-          fileRef.name.startsWith(date)
-        );
-
-        if (matchingFile) {
-          // Get the download URL for the payment file
-          const paymentUrl = await getDownloadURL(matchingFile);
-
-          // Assign the URL to the client object if it exists
-          this.paymentUrl = paymentUrl || null;
-          console.log("Payment file fetched:", paymentUrl);
-        } else {
-          console.log("No payment file found for the given date");
-          this.paymentUrl = null;
-        }
-      } catch (error) {
-        console.error("Error fetching payment file:", error.message || error);
-        this.paymentUrl = null;
       }
     },
     openImgModal() {
@@ -879,32 +875,6 @@ export default defineComponent({
         }
       }
     },
-
-    //Address info
-    displayMunicipios(state) {
-      if (!state) return;
-
-      const z = venezuela.estado(state, { municipios: true });
-      const munis = z.municipios;
-      if (munis) {
-        this.municipios = munis;
-        this.showMunicipios = true;
-      }
-    },
-    displayParroquias(municipio) {
-      if (!municipio) return;
-
-      const y = venezuela.municipio(municipio, { parroquias: true });
-      if (y?.parroquias) {
-        this.parroquias = y.parroquias;
-        this.showParroquias = true;
-      }
-    },
-    isAddressField(fieldName) {
-      return ["state", "municipio", "parroquia"].includes(fieldName);
-    },
-
-    // Field updates
     updateFieldModal(field) {
       this.updatingField = field;
 
@@ -912,6 +882,7 @@ export default defineComponent({
       modal.show();
     },
 
+    // Requests
     async requestFieldUpdate(field) {
       try {
         this.isSubmitting = true;
@@ -1169,7 +1140,7 @@ export default defineComponent({
       }
     },
 
-    // Scroll to section
+    // helpers
     scrollToSection(sectionId) {
       const element = document.getElementById(sectionId);
       if (element) {
@@ -1179,85 +1150,11 @@ export default defineComponent({
         }, 2000);
       }
     },
-    isFieldChanged(fieldName) {
-      return this[fieldName] !== this.originalData[fieldName];
+    formatDate(date) {
+      const dateString = date.split("T")[0];
+      const [year, month, day] = dateString.split("-");
+      return `${day}/${month}/${year}`;
     },
-    async saveField(fieldName) {
-      try {
-        // Validate field value
-        if (fieldName === 'email' && !this.validateEmail(this.email)) {
-          showToast.error('Por favor ingresa un correo electrónico válido');
-          return;
-        }
-
-        if (fieldName === 'phoneNumber' && !this.phoneNumber) {
-          showToast.error('Por favor ingresa un número de teléfono válido');
-          return;
-        }
-
-        // Update database
-        const userRef = dbRef(db, `Users/${this.userId}`);
-        const updateData = {};
-        updateData[fieldName] = this[fieldName];
-
-        await update(userRef, updateData);
-
-        // If updating email, also update in Auth
-        if (fieldName === 'email' && this.email !== this.originalData.email) {
-          try {
-            // Call the cloud function to update email in Auth
-            const authUpdateResponse = await fetch('https://us-central1-rose-app-e062e.cloudfunctions.net/updateUserEmail', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                uid: this.userId,
-                newEmail: this.email
-              })
-            });
-
-            const authUpdateResult = await authUpdateResponse.json();
-
-            if (authUpdateResult.message) {
-              console.log("Auth email update:", authUpdateResult.message);
-            }
-          } catch (authError) {
-            console.error("Error updating auth email:", authError);
-            // Continue with the flow even if auth update fails
-          }
-        }
-
-        // Update original data
-        this.originalData[fieldName] = this[fieldName];
-
-        showToast.success('Información actualizada correctamente');
-      } catch (error) {
-        console.error(`Error updating ${fieldName}:`, error);
-        showToast.error('Error al guardar los cambios. Por favor intenta de nuevo.');
-      }
-    },
-    startEditing(field) {
-      if (field === 'email') {
-        this.editingEmail = true;
-        // Store the current value before editing
-        this.originalData.email = this.email;
-      } else if (field === 'phone') {
-        this.editingPhone = true;
-        // Store the current value before editing
-        this.originalData.phoneNumber = this.phoneNumber;
-      }
-    },
-    cancelEditing(field) {
-      if (field === 'email') {
-        this.email = this.originalData.email;
-        this.editingEmail = false;
-      } else if (field === 'phone') {
-        this.phoneNumber = this.originalData.phoneNumber;
-        this.editingPhone = false;
-      }
-    },
-
     initRecaptcha() {
       if (this.recaptchaVerifier) {
         this.recaptchaVerifier.clear();
@@ -1831,7 +1728,8 @@ export default defineComponent({
                 </div>
               </div>
             </div>
-            <div v-else-if="subscriptionPlan && !isFreeSubscription && hasapplicablePurchase && hasCurrentMonthPayment" class="row">
+            <div v-else-if="subscriptionPlan && !isFreeSubscription && hasapplicablePurchase && hasCurrentMonthPayment"
+              class="row">
               <div class="col-12">
                 <div class="alert alert-success d-flex align-items-center">
                   <i class="fas fa-check-circle me-3 fa-2x"></i>
@@ -1844,7 +1742,8 @@ export default defineComponent({
                 </div>
               </div>
             </div>
-            <div v-if="subscriptionPlan && !isFreeSubscription && hasapplicablePurchase && !hasCurrentMonthPayment" class="row">
+            <div v-if="subscriptionPlan && !isFreeSubscription && hasapplicablePurchase && !hasCurrentMonthPayment"
+              class="row">
               <div class="col-12">
                 <div class="alert alert-warning d-flex align-items-center">
                   <i class="fas fa-exclamation-triangle me-3 fa-2x"></i>
@@ -2081,8 +1980,16 @@ export default defineComponent({
     </div>
 
     <!-- Payment Modal -->
-    <NotifyPaymentModal :user-id="userId" :role="role" :selected-plan="subscriptionPlan" :exchange="exchange"
-      ref="paymentModal" @submit-payment="notifyPayment" @close="$refs.paymentModal.closeModal()" />
+    <NotifyPaymentModal 
+      :user-id="userId"
+      :userName="userName"
+      :userEmail="userEmail"
+      :role="role"
+      :selected-plan="subscriptionPlan"
+      :exchange="exchange"
+      ref="paymentModal"
+      @close="$refs.paymentModal.closeModal()"
+    />
 
     <!-- Payment capture Modal -->
     <div class="modal fade" id="imgModal" tabindex="-1">

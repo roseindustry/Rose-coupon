@@ -23,7 +23,8 @@
                       Precio a consultar
                     </template>
                     <template v-else>
-                      ${{ plan.isYearly ? plan.yearlyPrice : plan.price }} <small>{{ plan.isYearly ? 'Anual' : 'Mensual' }}</small>
+                      ${{ plan.isYearly ? plan.yearlyPrice : plan.price }} <small>{{ plan.isYearly ? 'Anual' : 'Mensual'
+                        }}</small>
                     </template>
                   </span>
                 </div>
@@ -51,7 +52,9 @@
                   <div class="d-flex flex-column align-items-start w-100">
                     <div class="mb-1 me-sm-2">
                       <small class="d-block fw-bold text-warning">Cambio de Plan Restringido</small>
-                      <small class="text-black">Usted tiene una compra a credito activa. Debe completarla antes de poder cambiar su suscripcion. Contacte a soporte si el cambio de suscripcion es necesario.</small>
+                      <small class="text-black">Usted tiene una compra a credito activa. Debe completarla antes de poder
+                        cambiar su
+                        suscripcion. Contacte a soporte si el cambio de suscripcion es necesario.</small>
                     </div>
                   </div>
                 </div>
@@ -67,8 +70,14 @@
     </div>
 
     <!-- Payment Modal -->
-    <NotifyPaymentModal :selected-plan="selectedPlan" :exchange="exchange" :role="userType"
-      @submit-payment="handlePaymentSubmit" @file-upload="handleFileUpload" />
+    <NotifyPaymentModal 
+      :selected-plan="selectedPlan" 
+      :userId="currentUserId" 
+      :userName="userName" 
+      :userEmail="userEmail"      
+      :role="userType"
+      :exchange="exchange" 
+    />
   </div>
 </template>
 
@@ -82,7 +91,7 @@ export default {
   components: {
     NotifyPaymentModal
   },
-  emits: ['contract-plan', 'payment-submitted', 'file-uploaded'],
+  emits: ['contract-plan'],
   props: {
     loading: {
       type: Boolean,
@@ -94,12 +103,23 @@ export default {
     },
     currentUserId: {
       type: String,
-      required: true,
+      required: false,
+      default: "",
       validator: (value) => value && value.trim() !== ''
+    },
+    userName: {
+      type: String,
+      required: false,
+      default: ""
+    },
+    userEmail: {
+      type: String,
+      required: false,
+      default: ""
     },
     currentSub: {
       type: String,
-      default: null
+      default: ""
     },
     userType: {
       type: String,
@@ -108,12 +128,13 @@ export default {
     },
     exchange: {
       type: Number,
+      default: 0,
       required: true
     }
   },
   data() {
     return {
-      selectedPlan: null,
+      selectedPlan: {},
       hasapplicablePurchase: false,
       purchasesLoading: true,
       loadingError: null
@@ -156,7 +177,7 @@ export default {
           // Find first applicable ongoing purchase
           const applicablePurchase = Object.values(purchases).find(purchase => {
             // Check if purchase is ongoing (not all cuotas are paid)
-            const isPurchaseOngoing = purchase.cuotas && 
+            const isPurchaseOngoing = purchase.cuotas &&
               Object.values(purchase.cuotas).some(cuota => !cuota.paid);
 
             // Check for purchases with subscription maintenance add-on
@@ -181,12 +202,6 @@ export default {
       this.selectedPlan = plan;
       this.$emit('contract-plan', plan);
     },
-    handlePaymentSubmit(paymentData) {
-      this.$emit('payment-submitted', paymentData);
-    },
-    handleFileUpload(fileData) {
-      this.$emit('file-uploaded', fileData);
-    }
   },
   computed: {
     isAffiliate() {

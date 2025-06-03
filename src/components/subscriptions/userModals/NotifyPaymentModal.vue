@@ -120,7 +120,7 @@
                   type="file"
                   class="form-control"
                   accept="image/*"
-                  @change="handleFileUpload"
+                  @change="handleProcessFile"
                   ref="fileInput"
                 />
                 <div v-if="paymentPreview" class="preview-container mt-3">
@@ -157,16 +157,16 @@
           <button 
             type="button" 
             class="btn btn-theme" 
-            :disabled="isSubmitting || !paymentFile"
+            :disabled="isUploading || !paymentFile"
             @click="handleSubmit"
           >
             <span
-              v-if="isSubmitting"
+              v-if="isUploading"
               class="spinner-border spinner-border-sm me-2"
               role="status"
             ></span>
             <i v-else class="fas fa-upload me-2"></i>
-            {{ isSubmitting ? "Subiendo..." : "Subir" }}
+            {{ isUploading ? "Subiendo..." : "Subir" }}
           </button>
         </div>
       </div>
@@ -175,7 +175,9 @@
 </template>
 
 <script>
+import Swal from 'sweetalert2'
 import copyToClipboard from "@/utils/copyToClipboard";
+import { useFileUpload } from "@/composables/useFileUpload";
 import { Modal } from 'bootstrap';
 
 export default {
@@ -183,7 +185,16 @@ export default {
   props: {
     userId: {
       type: String,
-      required: false
+      required: false,
+      default: ""
+    },    
+    userName: {
+      type: String,
+      required: true
+    },
+    userEmail: {
+      type: String,
+      required: true
     },
     role: {
       type: String,
@@ -198,12 +209,20 @@ export default {
       required: true
     }
   },
+  setup() {
+    const { processFile, processPayment, isUploading } = useFileUpload();
+
+    return {
+      processFile,
+      processPayment,
+      isUploading
+    };
+  },
   data() {
     return {
       amountPaid: 0,
       paymentPreview: null,
       errorMessage: "",
-      isSubmitting: false,
       modal: null,
       paymentFile: null
     };
@@ -239,38 +258,27 @@ export default {
     handleCopy(text) {
       copyToClipboard(text);
     },
-    handleFileUpload(event) {
-      const file = event.target.files[0];
-      if (file) {
-        // Validate file size (e.g., max 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-          this.errorMessage = "El archivo es demasiado grande. Máximo 5MB permitido.";
-          this.$refs.fileInput.value = '';
-          return;
-        }
-        
-        // Validate file type
-        if (!file.type.startsWith('image/')) {
-          this.errorMessage = "Por favor seleccione una imagen válida.";
-          this.$refs.fileInput.value = '';
-          return;
-        }
+    async handleProcessFile(event) {
+      const file = event.target.files[0];      
+      const result = await this.processFile(file);
 
-        this.errorMessage = ""; // Clear any previous error
-        this.paymentPreview = URL.createObjectURL(file);
+      if (result) {
+        this.paymentPreview = result;
         this.paymentFile = file;
-        this.$emit('file-upload', file);
+        this.errorMessage = "";
+      } else {
+        this.paymentFile = null;
+        this.paymentPreview = null;
+        this.errorMessage = "Archivo inválido. Debe ser una imagen.";
       }
     },
-    handleSubmit() {
+    async handleSubmit() {
       if (!this.paymentFile) {
         this.errorMessage = "Por favor seleccione una captura de pago";
         return;
       }
 
-      this.isSubmitting = true;
-      
-      this.$emit("submit-payment", {
+      const plan = {
         paymentDate: new Date().toISOString(),
         exchange: this.exchange,
         planId: this.selectedPlan.id,
@@ -278,13 +286,84 @@ export default {
         isYearly: this.selectedPlan.isYearly || false,
         amountPaid: this.amountPaid,
         paymentFile: this.paymentFile
-      });
+      };
+
+      if (confirm("¿Seguro que desea subir su comprobante de pago?")) {
+        try {
+          this.isUploading = true;
+
+          // Upload payment file
+          const result = await this.processPayment(
+            this.userId,
+            plan,
+            this.role,
+            this.userName
+          );
+
+          if (result.success) {
+            // Notify client
+            const appUrl = "https://app.rosecoupon.com";
+            const userEmailPayload = {
+              to: this.userEmail,
+              message: {
+                subject: `Suscripción ${plan.planName.toUpperCase()} activada`,
+                text: `Hola ${this.userName}, se le ha activado la Suscripción ${plan.planName.toUpperCase()} in Roseapp.
+                        Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}`,
+                html: `<p>Hola ${this.userName}, se le ha activado la Suscripción ${plan.planName} in Roseapp.</p>
+                        <p>Te invitamos a chequear los beneficios que te ofrecemos. Abrir app: ${appUrl}</p>`,
+              },
+            };
+            // await this.sendNotificationEmail(userEmailPayload);
+
+            // Notify Admin
+            const adminEmailPayload = {
+              to: "roseindustry11@gmail.com",
+              message: {
+                subject: `Usuario ${this.role.toUpperCase()} se ha suscrito al Plan ${plan.planName.toUpperCase()}`,
+                text: `El ${this.role.toUpperCase()}, ${this.userName}, se ha suscrito al plan ${plan.planName.toUpperCase()}.`,
+                html: `<p>El ${this.role.toUpperCase()}, ${this.userName}, se ha suscrito al plan ${plan.planName.toUpperCase()}.</p>`,
+              },
+            };
+            // await this.sendNotificationEmail(adminEmailPayload);
+
+            //Success alert
+            Swal.fire({
+              title: '¡Comprobante enviado!',
+              text: 'Nuestro equipo pronto evaluará tu pago.',
+              icon: 'success',
+              confirmButtonText: 'OK'
+            })
+
+            //reset the image previews
+            this.paymentPreview = null;
+
+            // Hide the modal after submission
+            const paymentModal = Modal.getOrCreateInstance(
+              document.getElementById("notifyPaymentModal")
+            );
+            paymentModal.hide();
+
+            // Redirect to Dashboard
+            if (this.role === "cliente") {
+              this.$router.push("/client-portal");
+            } else if (this.role === "afiliado") {
+              this.$router.push("/affiliate-portal");
+            }
+          }
+        } catch (error) {
+          console.error("Error during uploading:", error);
+          this.errorMessage =
+            "Error al subir el archivo, por favor intente nuevamente.";
+        } finally {
+          // Hide the loader
+          this.isUploading = false;
+        }
+      }
     },
     clearPreview() {
       this.paymentPreview = null;
       this.$refs.fileInput.value = ''; // Reset the file input
       this.paymentFile = null;
-      this.$emit('file-upload', null); // Notify parent that file was removed
     },
     openModal() {
       if (this.modal) {
@@ -292,7 +371,6 @@ export default {
         this.paymentFile = null;
         this.paymentPreview = null;
         this.errorMessage = "";
-        this.isSubmitting = false;
         this.modal.show();
       }
     },
@@ -302,7 +380,6 @@ export default {
       this.paymentFile = null;
       this.paymentPreview = null;
       this.errorMessage = "";
-      this.isSubmitting = false;
     }
   },
 };
