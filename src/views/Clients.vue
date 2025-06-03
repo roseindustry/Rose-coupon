@@ -378,8 +378,8 @@ export default {
                         showToast.success("Cliente eliminado.");
 
                         // Remove the client from the UI
-                        this.fetchClients();
                         this.clients.splice(index, 1);
+                        this.fetchClients();
                     } else {
                         console.error('Error deleting client:', result.message);
                         alert('Error deleting client: ' + result.message);
