@@ -1,5 +1,5 @@
 <script>
-import { ref as dbRef,  get, update, remove } from 'firebase/database';
+import { ref as dbRef, get, update, remove } from 'firebase/database';
 import { db } from '@/firebase/init';
 import { useClientManagement } from '@/composables/Clients/useClientManagement';
 import { useClientDetails } from '@/composables/Clients/useClientDetails';
@@ -13,10 +13,6 @@ import 'toastify-js/src/toastify.css'
 import * as XLSX from "xlsx";
 import venezuela from 'venezuela';
 import AddClientModal from '@/components/clients/AddClientModal.vue';
-
-const clientDetails = useClientDetails();
-const clientManagement = useClientManagement();
-const clientRequests = useClientRequests();
 
 export default {
     components: {
@@ -45,11 +41,6 @@ export default {
             municipios: [],
             parroquias: [],
 
-            clients: [],
-            clientCoupons: {},
-            clientPreferences: {},
-            updateRequests: [],
-            deleteRequests: [],
             currentEditing: null,
             searchQuery: '',
             modalImageUrl: '',
@@ -71,69 +62,103 @@ export default {
             },
         }
     },
+    setup() {
+        const {
+            clients,
+            fetchClients,
+            loading,
+            searchQuery,
+            verificationFilter,
+            filteredUsers
+        } = useClientManagement();
+
+        const {
+            loadingStates,
+            expandedClients,
+            clientCoupons,
+            clientPreferences,
+            fetchingClientDetails,
+            togglingClientDetails,
+            isClientExpanded,
+            clearExpandedClients,
+            fetchClientCoupons,
+            fetchClientSubscription,
+            fetchClientCredit,
+            fetchClientPreferences,
+            fetchIdFiles,
+            fetchPaymentFiles
+        } = useClientDetails();
+
+        const {
+            updateRequests,
+            deleteRequests,
+            loadingRequests,
+            fetchUpdateRequests,
+            fetchDeleteRequests
+        } = useClientRequests();
+
+        return {
+            // Client Management
+            clients,
+            fetchClients,
+            loading,
+            searchQuery,
+            verificationFilter,
+            filteredUsers,
+
+            // Client Details
+            loadingStates,
+            expandedClients,
+            clientCoupons,
+            clientPreferences,
+            fetchingClientDetails,
+            togglingClientDetails,
+            isClientExpanded,
+            clearExpandedClients,
+            fetchClientCoupons,
+            fetchClientSubscription,
+            fetchClientCredit,
+            fetchClientPreferences,
+            fetchIdFiles,
+            fetchPaymentFiles,
+
+            // Client Requests
+            updateRequests,
+            deleteRequests,
+            loadingRequests,
+            fetchUpdateRequests,
+            fetchDeleteRequests
+        };
+    },
     computed: {
         filteredUsers() {
-            const { clients } = clientManagement
-            let filtered = this.clients.length ? this.clients : clients.value
-
-            // Search filter
-            const trimmedSearchQuery = this.searchQuery?.trim().toLowerCase()
-            if (trimmedSearchQuery) {
-                filtered = filtered.filter(client => {
-                    const identification = client.identification?.toString().toLowerCase() || ''
-                    const firstName = client.firstName?.toLowerCase() || ''
-                    const lastName = client.lastName?.toLowerCase() || ''
-                    const fullName = `${firstName} ${lastName}`.toLowerCase()
-                    const reversedFullName = `${lastName} ${firstName}`.toLowerCase()
-
-                    return identification.includes(trimmedSearchQuery) ||
-                        firstName.includes(trimmedSearchQuery) ||
-                        lastName.includes(trimmedSearchQuery) ||
-                        fullName.includes(trimmedSearchQuery) ||
-                        reversedFullName.includes(trimmedSearchQuery)
-                })
-            }
-
-            // Verification filter
-            if (this.verificationFilter !== 'all') {
-                filtered = filtered.filter(client => {
-                    switch (this.verificationFilter) {
-                        case 'verified': return client.isVerified === true
-                        case 'pending': return client.requestedVerification === true && client.isVerified !== true
-                        case 'unverified': return !client.requestedVerification && !client.isVerified
-                        default: return true
-                    }
-                })
-            }
-
-            return filtered
+            return this.filteredUsers;
         },
         paginatedFilteredUsers() {
-            const start = (this.currentPage - 1) * this.itemsPerPage
-            const end = this.currentPage * this.itemsPerPage
-            return this.filteredUsers.slice(start, end)
+            const start = (this.currentPage - 1) * this.itemsPerPage;
+            const end = this.currentPage * this.itemsPerPage;
+            return this.filteredUsers.slice(start, end);
         },
         totalPages() {
-            return Math.ceil(this.filteredUsers.length / this.itemsPerPage)
+            return Math.ceil(this.filteredUsers.length / this.itemsPerPage);
         },
         visiblePages() {
-            const totalPages = this.totalPages
-            const currentPage = this.currentPage
-            const maxPagesToShow = window.innerWidth < 768 ? 3 : 5
+            const totalPages = this.totalPages;
+            const currentPage = this.currentPage;
+            const maxPagesToShow = window.innerWidth < 768 ? 3 : 5;
 
-            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2))
-            let endPage = Math.min(totalPages, currentPage + Math.floor(maxPagesToShow / 2))
+            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+            let endPage = Math.min(totalPages, currentPage + Math.floor(maxPagesToShow / 2));
 
-            // Adjust the start and end if they go out of bounds
             if (endPage - startPage + 1 < maxPagesToShow) {
                 if (currentPage < totalPages / 2) {
-                    endPage = Math.min(totalPages, startPage + maxPagesToShow - 1)
+                    endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
                 } else {
-                    startPage = Math.max(1, endPage - maxPagesToShow + 1)
+                    startPage = Math.max(1, endPage - maxPagesToShow + 1);
                 }
             }
 
-            return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i)
+            return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
         },
         verificationCounts() {
             const counts = {
@@ -141,25 +166,25 @@ export default {
                 verified: 0,
                 pending: 0,
                 unverified: 0
-            }
+            };
 
             this.clients.forEach(client => {
                 if (client.isVerified) {
-                    counts.verified++
+                    counts.verified++;
                 } else if (client.requestedVerification) {
-                    counts.pending++
+                    counts.pending++;
                 } else {
-                    counts.unverified++
+                    counts.unverified++;
                 }
-            })
+            });
 
-            return counts
+            return counts;
         },
         expandedClients() {
-            return clientDetails.expandedClients.value
+            return this.expandedClients;
         },
         loadingStates() {
-            return clientDetails.loadingStates.value
+            return this.loadingStates;
         }
     },
     methods: {
@@ -175,54 +200,75 @@ export default {
             this.parroquias = y.parroquias;
         },
 
-        async fetchClients() {
-            const { fetchClients, clients } = clientManagement
-            await fetchClients()
-            this.clients = clients.value
-        },
-
         async fetchClientDetails(client) {
-            const { fetchingClientDetails } = clientDetails
             try {
-                await fetchingClientDetails(client)
+                await this.fetchingClientDetails(client)
             } catch (error) {
                 console.error('Error fetching client details:', error)
-                // Optionally show a toast or error message
                 showToast.error('No se pudieron cargar los detalles del cliente')
             }
         },
-
-        toggleClientDetails(client) {
-            const { togglingClientDetails, fetchingClientDetails } = clientDetails
-            
-            // If the client details are not loaded, fetch them first
-            if (!client._detailsLoaded) {
-                fetchingClientDetails(client).then(() => {
-                    togglingClientDetails(client)
-                }).catch(error => {
-                    console.error('Error fetching client details:', error)
-                    showToast.error('No se pudieron cargar los detalles del cliente')
-                })
-            } else {
-                togglingClientDetails(client)
+        async fetchPaymentFiles(client, date) {
+            await this.fetchPaymentFiles(client, date)
+        },
+        async loadUpdateRequests() {
+            try {
+                await this.fetchClients()
+                await this.fetchUpdateRequests(this.clients)
+            } catch (error) {
+                console.error('Error in fetchUpdateRequests:', error)
+                showToast.error('No se pudieron cargar las solicitudes de actualización')
             }
         },
-
-        async fetchPaymentFiles(client, date) {
-            const { fetchPaymentFiles } = clientDetails
-            await fetchPaymentFiles(client, date)
+        async loadDeleteRequests() {
+            try {
+                await this.fetchClients()
+                await this.fetchDeleteRequests(this.clients)
+            } catch (error) {
+                console.error('Error in fetchDeleteRequests:', error)
+                showToast.error('No se pudieron cargar las solicitudes de eliminación')
+            }
         },
+        async fetchUserDetailsForDeletion(request) {
+            try {
+                // Find the full client object
+                const client = this.clients.find(c => c.uid === request.id);
 
-        async fetchUpdateRequests() {
-            const { fetchUpdateRequests, updateRequests } = clientRequests
-            await fetchUpdateRequests(this.clients)
-            this.updateRequests = updateRequests.value
-        },
+                if (!client) {
+                    throw new Error('Cliente no encontrado');
+                }
 
-        async fetchDeleteRequests() {
-            const { fetchDeleteRequests, deleteRequests } = clientRequests
-            await fetchDeleteRequests(this.clients)
-            this.deleteRequests = deleteRequests.value
+                // Fetch additional details
+                await Promise.all([
+                    this.fetchClientCredit(client),
+                    this.fetchClientSubscription(client)
+                ]);
+
+                // Check for active purchases and outstanding payments
+                const activePurchasesDetails = await this.checkActivePurchases(client);
+
+                // Prepare user details for modal
+                this.userDetailsModal.userData = {
+                    basicInfo: {
+                        uid: client.uid,
+                        name: `${client.firstName} ${client.lastName}`,
+                        email: client.email,
+                        identification: client.identification,
+                        phoneNumber: client.phoneNumber
+                    },
+                    credit: {
+                        ...client.credit,
+                        activePurchases: activePurchasesDetails.activePurchases,
+                        totalOutstandingPayments: activePurchasesDetails.totalOutstandingPayments,
+                        canBeDeleted: activePurchasesDetails.canBeDeleted
+                    },
+                    subscription: client.subscription || {},
+                    deleteRequest: request
+                };
+            } catch (error) {
+                console.error('Error fetching user details:', error);
+                this.userDetailsModal.error = 'No se pudieron cargar los detalles del usuario';
+            }
         },
 
         cancelEdit(client) {
@@ -507,16 +553,8 @@ export default {
                 this.isSubmitting = false;
             }
         },
-        goToPage(page) {
-            if (page >= 1 && page <= this.totalPages) {
-                this.currentPage = page;
-            }
-        },
-        openImageInNewTab(url) {
-            window.open(url, '_blank');
-        },
 
-        // Export clientos to xlsx file
+        // action methods and modals
         async downloadClients() {
             if (!this.clients || !this.clients.length) {
                 alert('No hay datos para descargar.');
@@ -536,6 +574,19 @@ export default {
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Clients');
             XLSX.writeFile(workbook, 'Clients.xlsx');
+        },
+        toggleClientDetails(client) {
+            // If the client details are not loaded, fetch them first
+            if (!client._detailsLoaded) {
+                this.fetchingClientDetails(client).then(() => {
+                    this.togglingClientDetails(client)
+                }).catch(error => {
+                    console.error('Error fetching client details:', error)
+                    showToast.error('No se pudieron cargar los detalles del cliente')
+                })
+            } else {
+                this.togglingClientDetails(client)
+            }
         },
         toggleEdit(client) {
             // If already editing, cancel edit
@@ -565,6 +616,14 @@ export default {
             if (!url) return;
 
             // Open the image in a new tab
+            window.open(url, '_blank');
+        },
+        goToPage(page) {
+            if (page >= 1 && page <= this.totalPages) {
+                this.currentPage = page;
+            }
+        },
+        openImageInNewTab(url) {
             window.open(url, '_blank');
         },
 
@@ -692,48 +751,6 @@ export default {
                 this.userDetailsModal.error = 'No se pudieron cargar los detalles del usuario';
             } finally {
                 this.userDetailsModal.isLoading = false;
-            }
-        },
-
-        async fetchUserDetailsForDeletion(request) {
-            try {
-                // Find the full client object
-                const client = this.clients.find(c => c.uid === request.id);
-
-                if (!client) {
-                    throw new Error('Cliente no encontrado');
-                }
-
-                // Fetch additional details
-                await Promise.all([
-                    this.fetchClientCredit(client),
-                    this.fetchClientSubscription(client)
-                ]);
-
-                // Check for active purchases and outstanding payments
-                const activePurchasesDetails = await this.checkActivePurchases(client);
-
-                // Prepare user details for modal
-                this.userDetailsModal.userData = {
-                    basicInfo: {
-                        uid: client.uid,
-                        name: `${client.firstName} ${client.lastName}`,
-                        email: client.email,
-                        identification: client.identification,
-                        phoneNumber: client.phoneNumber
-                    },
-                    credit: {
-                        ...client.credit,
-                        activePurchases: activePurchasesDetails.activePurchases,
-                        totalOutstandingPayments: activePurchasesDetails.totalOutstandingPayments,
-                        canBeDeleted: activePurchasesDetails.canBeDeleted
-                    },
-                    subscription: client.subscription || {},
-                    deleteRequest: request
-                };
-            } catch (error) {
-                console.error('Error fetching user details:', error);
-                this.userDetailsModal.error = 'No se pudieron cargar los detalles del usuario';
             }
         },
 
@@ -896,7 +913,7 @@ export default {
                     confirmButtonColor: '#d33'
                 });
             }
-        },        
+        },
 
         initializeComposableComputed() {
             return {
@@ -939,9 +956,9 @@ export default {
     },
     created() {
         // Initial data fetch
-        this.fetchClients()
-        this.fetchUpdateRequests()
-        this.fetchDeleteRequests()
+        this.fetchClients();
+        this.loadUpdateRequests()
+        this.loadDeleteRequests()
         this.initializeComposableComputed()
     }
 }
@@ -1217,7 +1234,7 @@ export default {
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span>Rose Credit:</span>
                                                         <span class="text-success">${{ client.credit.mainCredit
-                                                            }}</span>
+                                                        }}</span>
                                                     </div>
                                                     <div class="progress" style="height: 6px;">
                                                         <div class="progress-bar bg-success"
@@ -1232,7 +1249,7 @@ export default {
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <span>Rose Credit Plus:</span>
                                                         <span class="text-primary">${{ client.credit.plusCredit
-                                                            }}</span>
+                                                        }}</span>
                                                     </div>
                                                     <div class="progress" style="height: 6px;">
                                                         <div class="progress-bar bg-primary"
@@ -1268,7 +1285,7 @@ export default {
                                                 <div class="d-flex justify-content-start gap-2 align-items-center mb-2">
                                                     <span class="fw-bold">Nivel:</span>
                                                     <span>{{ client.subscription?.name?.toUpperCase() || 'Básico'
-                                                        }}</span>
+                                                    }}</span>
                                                 </div>
                                                 <div class="d-flex justify-content-start gap-2 align-items-center mb-2">
                                                     <span class="fw-bold">Estado:</span>

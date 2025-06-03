@@ -1,7 +1,6 @@
 import { ref } from 'vue'
-import { db, storage } from '@/firebase/init'
+import { db } from '@/firebase/init'
 import { ref as dbRef, get } from 'firebase/database'
-import { ref as storageRef, listAll } from 'firebase/storage'
 import { toast as showToast } from '@/utils/toast'
 
 export function useClientRequests() {
@@ -100,6 +99,8 @@ export function useClientRequests() {
     updateRequests,
     deleteRequests,
     loadingRequests,
+
+    // Methods
     fetchUpdateRequests,
     fetchDeleteRequests
   }
