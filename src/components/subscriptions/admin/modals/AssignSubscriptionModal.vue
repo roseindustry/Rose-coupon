@@ -147,8 +147,8 @@
                       <button class="plan-button-big w-100" :class="{ selected: selectedPlan === plan.name }"
                         @click="selectPlan(plan.name)">
                         <span>{{ plan.name.toUpperCase() }}</span>
-                        <small>${{ plan.price }}/mes</small>
-                        <div class="popular-badge" v-if="plan.isHidden">
+                        <small>${{ plan.price }}/{{ plan.isYearly ? 'anual' : 'mes' }}</small>
+                        <div class="hidden-badge" v-if="plan.isHidden">
                           Oculto
                         </div>
                         <div class="popular-badge" v-if="plan.isPopular">
@@ -911,6 +911,20 @@ export default {
   top: 0.25rem;
   left: 0.25rem;
   background: purple;
+  color: white;
+  padding: 0.10rem 0.30rem;
+  border-radius: 0.75rem;
+  font-size: 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.hidden-badge {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  background: rgb(108, 100, 100);
   color: white;
   padding: 0.15rem 0.35rem;
   border-radius: 0.75rem;
