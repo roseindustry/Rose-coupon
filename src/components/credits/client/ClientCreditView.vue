@@ -1,5 +1,5 @@
 <template>
-  <div class="container py-4">
+  <div class="container">
     <div v-if="loading" class="text-center py-5">
       <div class="spinner-border text-purple" role="status">
         <span class="visually-hidden">Loading...</span>
@@ -363,6 +363,10 @@ export default {
 </script>
 
 <style scoped>
+.container {
+  padding: 0 !important;
+  margin: 0 !important;
+}
 h4 {
   color: #fff;
 }

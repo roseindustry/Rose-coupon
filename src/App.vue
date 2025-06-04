@@ -64,3 +64,11 @@ document.querySelector('body').classList.add('app-init');
 		<app-footer v-if="appOption.appFooter" />
 	</div>
 </template>
+<style>
+/* @media (max-width: 768px) {
+  .app-content {
+    padding: 0.5rem 0 !important;
+    margin: 0 !important;
+  }
+} */
+</style>

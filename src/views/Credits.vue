@@ -1675,7 +1675,7 @@ export default {
             :is-client="!selectedUser?.firstName || !selectedUser?.lastName" :is-affiliate="!!selectedUser?.companyName"
             :purchases="selectedUser?.credit?.mainPurchases || []" :sales="selectedUser?.credit?.sales || {}" />
 
-        <!-- Add this section to the client selection area -->
+        <!-- Client alert for unpaid cuotas -->
         <div v-if="selectedClient && selectedClient.hasUnpaidCuotas" class="alert alert-danger mt-3">
             <div class="d-flex align-items-start">
                 <i class="fas fa-exclamation-circle fa-2x me-2 text-danger"></i>
@@ -1695,7 +1695,7 @@ export default {
             </div>
         </div>
 
-        <!-- Update the verification code section -->
+        <!-- Client alert for verification code -->
         <div v-if="selectedClient && (!selectedClient.hasUnpaidCuotas || selectedClient.unpaidCuotasCount <= 2)"
             class="mb-3">
             <!-- Existing verification code section -->

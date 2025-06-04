@@ -133,30 +133,24 @@
         </div>
       </div>
 
-      <div class="row">
-        <div class="col-md-12 mb-3">
-          <button class="btn btn-add-client" @click.prevent="openAddClientModal">
-            <i class="fas fa-user-plus"></i>
-            Registrar Cliente Nuevo
-          </button>
-        </div>
-      </div>
-
       <!-- Main Content Area -->
       <div class="row g-4">
         <!-- Left Column: New Purchase Form -->
         <div v-if="!showHistory" class="col-lg-7">
-          <div class="card">
-            <div class="purchase-summary-header">
+          <div class="card new-purchase-card">
+            <div class="purchase-summary-header d-flex justify-content-between align-items-center">
               <h5 class="purchase-summary-title">
                 <i class="fa-solid fa-plus me-2"></i>
                 Nueva Venta
               </h5>
+              <button class="btn btn-add-client" @click.prevent="openAddClientModal" title="Registrar Cliente Nuevo">
+                <i class="fas fa-user-plus"></i>
+              </button>
             </div>
             <div class="card-body">
               <form @submit.prevent="handlePurchase">
                 <!-- Step 1: Client Selection -->
-                <div class="form-section mb-4">
+                <div class="form-section mb-2">
                   <h6 class="text-light mb-3">1. Selección del Cliente</h6>
                   <div class="row">
                     <div class="col-md-12 mb-3">
@@ -180,7 +174,7 @@
                 </div>
 
                 <!-- Step 2: Purchase Details -->
-                <div class="form-section mb-4">
+                <div class="form-section mb-2">
                   <h6 class="text-light mb-3">2. Detalles de la Compra</h6>
                   <div class="row">
                     <div class="col-md-6 mb-3">
@@ -218,7 +212,7 @@
                   </div>
                   <div class="mb-3">
                     <div class="row">
-                      <div class="col-12 col-lg-6">
+                      <div class="col-12 col-lg-6 mb-2">
                         <div class="form-check">
                           <input type="checkbox" class="form-check-input" id="includeFee" v-model="includeFee">
                           <label class="form-check-label" for="includeFee">
@@ -240,7 +234,7 @@
                 </div>
 
                 <!-- Step 3: Payment Plan -->
-                <div v-if="calc" class="form-section mb-4">
+                <div v-if="calc" class="form-section mb-2">
                   <h6 class="text-light mb-3">3. Plan de Pagos</h6>
                   <div class="row">
                     <!-- Initial Payment Options -->
@@ -439,7 +433,7 @@
 
         <!-- Right Column: New Purchase Summary -->
         <div v-if="!showHistory" class="col-lg-5">
-          <div class="purchase-summary-card">
+          <div class="card purchase-summary-card">
             <div class="purchase-summary-header">
               <h5 class="purchase-summary-title">
                 <i class="fas fa-file-invoice me-2"></i>
@@ -770,6 +764,7 @@ import 'toastify-js/src/toastify.css'
 import PurchaseDetailsModal from './modals/PurchaseDetailsModal.vue'
 import { sendEmail } from '@/utils/emailService.js'
 import { reactive } from 'vue'
+import Swal from 'sweetalert2'
 
 export default {
   name: 'AffiliateCreditView',
@@ -1677,12 +1672,23 @@ export default {
       this.selectedSale = null;
     },
     openAddClientModal() {
-      this.selectedClient = null;
-      this.showAddClientModal = true;
-      this.$nextTick(() => {
-        this.addingNewClient = true;
-        if (this.$refs.addClientModal) {
-          this.$refs.addClientModal.show();
+      Swal.fire({
+        title: '¿Desea registrar un nuevo cliente?',
+        text: 'Esta acción abrirá el formulario de registro de cliente. No podrás usar el cliente nuevo para realizar una nueva venta hasta que sea verificado por el administrador.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, registrar cliente',
+        cancelButtonText: 'Cancelar'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          this.selectedClient = null;
+          this.showAddClientModal = true;
+          this.$nextTick(() => {
+            this.addingNewClient = true;
+            if (this.$refs.addClientModal) {
+              this.$refs.addClientModal.show();
+            }
+          });
         }
       });
     },
@@ -2006,6 +2012,11 @@ export default {
   }
 }
 
+.container {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
 .alert-danger {
   background-color: rgba(220, 53, 69, 0.15);
   border-color: rgba(220, 53, 69, 0.3);
@@ -2073,12 +2084,14 @@ export default {
   color: #6f42c1;
   border: none;
   width: auto;
-  padding: 10px 20px;
+  padding: 10px 15px;
   border-radius: 20px;
 }
+
 .btn-add-client:hover {
   background-color: rgba(111, 66, 193, 0.25);
 }
+
 .btn-history-toggle {
   background-color: rgba(111, 66, 193, 0.15);
   color: #6f42c1;
@@ -2336,12 +2349,34 @@ export default {
 }
 
 @media (max-width: 768px) {
+
+  .btn-history-toggle {
+    width: 30px;
+    height: 30px;
+  }
+
+  .payment-status-count {
+    font-size: 1rem;
+  }
+
   .credit-panel {
     padding: 16px;
   }
 
   .credit-title {
-    font-size: 1.5rem;
+    font-size: 1.3rem;
+  }
+
+  .credit-title::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 0;
+    transform: translateX(0);
+    width: 60px;
+    height: 3px;
+    background-color: #6f42c1;
+    border-radius: 2px;
   }
 
   .credit-summary-card {
@@ -2363,9 +2398,17 @@ export default {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
+.new-purchase-card {
+  border-radius: 12px;
+  background: #212837;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+
 .purchase-summary-header,
 .card-header {
-  background: rgba(111, 66, 193, 0.1);
+  background: #29122f;
   padding: 12px 16px;
   display: flex;
   align-items: center;
@@ -2489,5 +2532,198 @@ export default {
 .slide-left-leave-from {
   transform: translateX(0);
   opacity: 1;
+}
+
+/* Responsive styles for sales and payment status cards */
+@media (max-width: 768px) {
+
+  .sales-card,
+  .payment-status-card {
+    margin-bottom: 1rem;
+  }
+
+  .sales-card-header,
+  .payment-status-header {
+    padding: 10px 12px;
+  }
+
+  .sales-card-title,
+  .payment-status-title {
+    font-size: 1rem;
+  }
+
+  .sales-card-badge {
+    font-size: 0.7rem;
+    padding: 3px 6px;
+  }
+
+  .sales-card-body,
+  .payment-status-body {
+    padding: 12px;
+  }
+
+  .sales-list {
+    max-height: 140px;
+  }
+
+  .sales-item {
+    padding: 8px 0;
+  }
+
+  .sales-item-client {
+    font-size: 0.9rem;
+  }
+
+  .sales-item-date {
+    font-size: 0.8rem;
+  }
+
+  .sales-item-amount {
+    font-size: 0.9rem;
+  }
+
+  .sales-item-status {
+    font-size: 0.7rem;
+    padding: 3px 6px;
+  }
+
+  .payment-status-item {
+    padding: 12px;
+  }
+
+  .payment-status-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
+    margin-right: 12px;
+  }
+
+  .payment-status-content h6 {
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+  }
+
+  .payment-status-count {
+    font-size: 1.2rem;
+  }
+}
+
+@media (max-width: 576px) {
+
+  .sales-card,
+  .payment-status-card {
+    margin-bottom: 0.75rem;
+  }
+
+  .sales-card-header,
+  .payment-status-header {
+    padding: 8px 10px;
+  }
+
+  .sales-card-title,
+  .payment-status-title {
+    font-size: 0.95rem;
+  }
+
+  .sales-card-badge {
+    font-size: 0.65rem;
+    padding: 2px 5px;
+  }
+
+  .sales-card-body,
+  .payment-status-body {
+    padding: 10px;
+  }
+
+  .sales-list {
+    max-height: 120px;
+  }
+
+  .sales-item {
+    padding: 6px 0;
+  }
+
+  .sales-item-info {
+    flex: 1;
+    min-width: 0;
+    /* Prevents flex item from overflowing */
+  }
+
+  .sales-item-client {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sales-item-date {
+    font-size: 0.75rem;
+  }
+
+  .sales-item-details {
+    flex-shrink: 0;
+    /* Prevents details from shrinking */
+  }
+
+  .sales-item-amount {
+    font-size: 0.85rem;
+    margin-right: 8px !important;
+  }
+
+  .sales-item-status {
+    font-size: 0.65rem;
+    padding: 2px 5px;
+  }
+
+  .payment-status-item {
+    padding: 10px;
+  }
+
+  .payment-status-icon {
+    width: 35px;
+    height: 35px;
+    font-size: 0.9rem;
+    margin-right: 10px;
+  }
+
+  .payment-status-content h6 {
+    font-size: 0.85rem;
+    margin-bottom: 2px;
+  }
+
+  .payment-status-count {
+    font-size: 1.1rem;
+  }
+
+  .sales-empty-state {
+    padding: 30px 0;
+  }
+
+  .sales-empty-state i {
+    font-size: 2.5rem;
+    margin-bottom: 12px;
+  }
+
+  .sales-empty-state p {
+    font-size: 0.9rem;
+  }
+}
+
+/* Add smooth transitions for hover effects */
+.sales-card,
+.payment-status-card,
+.sales-item,
+.payment-status-item {
+  transition: all 0.3s ease;
+}
+
+/* Improve touch targets on mobile */
+@media (max-width: 768px) {
+
+  .sales-item,
+  .payment-status-item {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 </style>

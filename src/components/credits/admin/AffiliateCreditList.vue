@@ -669,7 +669,8 @@ export default {
 <style scoped>
 /* Use the same styles as ClientCreditList but replace client- with affiliate- */
 .affiliate-list-container {
-  padding: 1rem;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 .affiliates-table-wrapper {
@@ -846,6 +847,41 @@ export default {
 .custom-pagination .page-item.active .page-link {
   background-color: #6f42c1;
   border-color: #6f42c1;
+}
+
+/* Add responsive styles for pagination */
+@media (max-width: 768px) {
+  .custom-pagination {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .custom-pagination .page-item {
+    margin: 0;
+  }
+
+  .custom-pagination .page-link {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+    min-width: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Hide page numbers on very small screens */
+  @media (max-width: 480px) {
+    .custom-pagination .page-item:not(.active):not(:first-child):not(:last-child) {
+      display: none;
+    }
+
+    .custom-pagination .page-link {
+      padding: 0.25rem 0.375rem;
+      font-size: 0.75rem;
+    }
+  }
 }
 
 /* Button Styles */

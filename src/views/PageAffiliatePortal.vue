@@ -3,9 +3,9 @@ import { defineComponent } from 'vue';
 import { useUserStore } from '@/stores/user-role';
 import { db } from '../firebase/init';
 import { ref as dbRef, get } from 'firebase/database';
-import { Modal } from 'bootstrap';
 
 export default defineComponent({
+    name: 'PageAffiliatePortal',
     data() {
         return {
             // data for portal items
@@ -14,8 +14,8 @@ export default defineComponent({
                 { title: 'Giftcards', description: 'Aplique tarjetas de regalo para sus clientes aquí.', link: '/giftcards', actionText: 'Acceder', icon: 'fa-solid fa-money-bill' },
                 { title: 'Suscripciones', description: 'Administre su suscripción aquí.', link: '/suscripciones', actionText: 'Acceder', icon: 'fa-solid fa-handshake', notReady: false },
                 { title: 'Empleos', description: 'Publique vacantes.', link: '/jobs', actionText: 'Acceder', icon: 'fa-solid fa-suitcase' },
-                // { title: 'Encuentas de satisfacción', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', notReady: true, link: '/customer-survey', actionText: 'Tomar Encuesta', icon: 'fa-solid fa-comment-dots' },
                 { title: 'Crédito', description: 'Aquí puedes manejar el crédito de tu negocio.', notReady: false, link: '/creditos', actionText: 'Ver más', icon: 'fa-solid fa-dollar' },
+                // { title: 'Encuentas de satisfacción', description: 'Ayudanos a mejorar tomando una pequeña encuesta.', notReady: true, link: '/customer-survey', actionText: 'Tomar Encuesta', icon: 'fa-solid fa-comment-dots' },
                 // { title: 'Soporte', description: 'Contacta con soporte aquí.', notReady: true, link: '#', actionText: 'Ver más', icon: 'fa-solid fa-phone' }
             ],
 
@@ -32,7 +32,7 @@ export default defineComponent({
                 const snapshot = await get(userRef);
 
                 if (snapshot.exists()) {
-                    const user = snapshot.val();                    
+                    const user = snapshot.val();
 
                     // Check if the user has a subscription plan and it's an object
                     if (user.subscription && typeof user.subscription === 'object') {
@@ -85,7 +85,7 @@ export default defineComponent({
     },
     async mounted() {
         const userStore = useUserStore();
-        await userStore.fetchUser();
+        userStore.fetchUser();
         //this.role = userStore.role;
         this.userId = userStore.userId;
         this.userName = userStore.userName;
@@ -116,7 +116,8 @@ export default defineComponent({
                                 <small class="subscription-hint">Haz clic para cambiar</small>
                             </div>
                         </div>
-                        <div v-else class="subscription-card subscription-card-alert" @click="$router.push('/suscripciones')">
+                        <div v-else class="subscription-card subscription-card-alert"
+                            @click="$router.push('/suscripciones')">
                             <div class="subscription-icon">
                                 <i class="fa-solid fa-exclamation-circle"></i>
                             </div>
@@ -219,7 +220,7 @@ export default defineComponent({
 .portal-header {
     padding-bottom: 1rem;
     margin-bottom: 1.5rem;
-    border-bottom: 1px solid rgba(0,0,0,0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 /* Compact subscription styles */
@@ -289,14 +290,16 @@ export default defineComponent({
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .portal-header {
+        padding-bottom: 0 !important;
+        margin-bottom: 0 !important;
         text-align: center;
     }
-    
+
     .subscription-container {
         justify-content: center;
         margin-top: 1rem;
     }
-    
+
     .subscription-card {
         width: 100%;
         max-width: 250px;
@@ -305,7 +308,7 @@ export default defineComponent({
 
 @media (max-width: 576px) {
     .row-cols-1 {
-        margin: 0 0.5rem;
+        margin: 0 !important;
     }
 }
 </style>

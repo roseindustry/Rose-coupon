@@ -13,11 +13,8 @@
     <div class="search-wrapper mb-4">
       <div class="search-container">
         <i class="fas fa-search search-icon"></i>
-        <input type="text" 
-               class="form-control search-input" 
-               v-model="filterQuery"
-               placeholder="Buscar cliente por nombre o cedula..." 
-               @input="handleFilterChange">
+        <input type="text" class="form-control search-input" v-model="filterQuery"
+          placeholder="Buscar cliente por nombre o cedula..." @input="handleFilterChange">
       </div>
     </div>
 
@@ -29,9 +26,7 @@
             <span class="client-id">CI: {{ client.identification }}</span>
           </div>
           <div class="client-status">
-            <span v-if="client.subscription" 
-                  class="status-badge"
-                  :class="{ 'active': client.subscription }">
+            <span v-if="client.subscription" class="status-badge" :class="{ 'active': client.subscription }">
               {{ client.subscription ? 'Activo' : 'Inactivo' }}
             </span>
           </div>
@@ -41,7 +36,7 @@
           <div class="credit-block">
             <div class="credit-type">
               <span class="label">Disponible</span>
-              <div class="amount" :class="{'text-success': client.credit.mainCredit}">
+              <div class="amount" :class="{ 'text-success': client.credit.mainCredit }">
                 ${{ client.credit.availableMainCredit?.toFixed(2) || '0.00' }}
               </div>
               <div class="available-amount">
@@ -61,7 +56,7 @@
           <div class="credit-block">
             <div class="credit-type">
               <span class="label">Disponible</span>
-              <div class="amount" :class="{'text-success': client.credit.plusCredit}">
+              <div class="amount" :class="{ 'text-success': client.credit.plusCredit }">
                 ${{ client.credit.availablePlusCredit?.toFixed(2) || '0.00' }}
               </div>
               <div class="available-amount">
@@ -95,28 +90,20 @@
     </div>
 
     <!-- Pagination -->
-    <nav class="my-5" v-if="totalPages > 1" aria-label="Page navigation">
+    <nav class="my-5 custom-pagination" v-if="totalPages > 1" aria-label="Page navigation">
       <ul class="pagination justify-content-center custom-pagination">
         <li class="page-item" :class="{ disabled: currentPage === 1 }">
-          <button class="page-link" 
-                  @click="handlePageChange(currentPage - 1)"
-                  :disabled="currentPage === 1">
+          <button class="page-link" @click="handlePageChange(currentPage - 1)" :disabled="currentPage === 1">
             Anterior
           </button>
         </li>
-        <li class="page-item" 
-            v-for="page in totalPages" 
-            :key="page"
-            :class="{ active: page === currentPage }">
-          <button class="page-link" 
-                  @click="handlePageChange(page)">
+        <li class="page-item" v-for="page in totalPages" :key="page" :class="{ active: page === currentPage }">
+          <button class="page-link" @click="handlePageChange(page)">
             {{ page }}
           </button>
         </li>
         <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-          <button class="page-link" 
-                  @click="handlePageChange(currentPage + 1)"
-                  :disabled="currentPage === totalPages">
+          <button class="page-link" @click="handlePageChange(currentPage + 1)" :disabled="currentPage === totalPages">
             Siguiente
           </button>
         </li>
@@ -175,7 +162,8 @@ export default {
 
 <style scoped>
 .client-list-container {
-  padding: 1rem;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 .clients-table-wrapper {
@@ -289,39 +277,42 @@ export default {
   background: #e9ecef;
   color: #2d2d2d;
 }
+
 /* Button Styles */
-.btn-outline-theme, .btn-theme {
-    border-radius: 20px;
-    font-size: 0.85rem;
-    padding: 0.375rem 0.75rem;
-    transition: all 0.2s ease;
+.btn-outline-theme,
+.btn-theme {
+  border-radius: 20px;
+  font-size: 0.85rem;
+  padding: 0.375rem 0.75rem;
+  transition: all 0.2s ease;
 }
 
-.btn-outline-danger, .btn-outline-success { 
+.btn-outline-danger,
+.btn-outline-success {
   border-radius: 20px;
 }
 
 .btn-outline-theme {
-    border-color: purple;
-    color: purple;
+  border-color: purple;
+  color: purple;
 }
 
 .btn-outline-theme:hover {
-    background-color: purple;
-    color: white;
-    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+  background-color: purple;
+  color: white;
+  box-shadow: 0 2px 5px rgba(128, 0, 128, 0.3);
 }
 
 .btn-theme {
-    background-color: purple;
-    border-color: purple;
-    color: white;
+  background-color: purple;
+  border-color: purple;
+  color: white;
 }
 
 .btn-theme:hover {
-    background-color: #8a2be2;
-    border-color: #8a2be2;
-    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
+  background-color: #8a2be2;
+  border-color: #8a2be2;
+  box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
 }
 
 .client-actions {
@@ -339,7 +330,7 @@ export default {
   border: none;
   background: transparent;
   color: #000000;
-  height: 40px;  
+  height: 40px;
 }
 
 .search-input::placeholder {
@@ -412,4 +403,48 @@ export default {
     align-self: flex-start;
   }
 }
-</style> 
+
+/* Responsive pagination styles */
+@media (max-width: 768px) {
+  .custom-pagination {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+  }
+
+  .custom-pagination .page-item {
+    margin: 0;
+  }
+
+  .custom-pagination .page-link {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .custom-pagination {
+    gap: 0.25rem;
+  }
+
+  .custom-pagination .page-link {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    min-width: 32px;
+    text-align: center;
+  }
+
+  /* Hide some page numbers on very small screens */
+  .custom-pagination .page-item:not(:first-child):not(:last-child):not(.active):not(:nth-child(2)):not(:nth-last-child(2)) {
+    display: none;
+  }
+
+  /* Show ellipsis for hidden pages */
+  .custom-pagination .page-item:nth-child(3):not(.active)::after,
+  .custom-pagination .page-item:nth-last-child(3):not(.active)::after {
+    content: '...';
+    color: #fff;
+    padding: 0 0.25rem;
+  }
+}
+</style>
