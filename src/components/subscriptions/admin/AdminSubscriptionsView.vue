@@ -4,139 +4,110 @@
     <!-- Header Section -->
     <div class="d-flex justify-content-end align-items-center mb-2">
       <div class="subscription-filters mt-3 mt-md-0">
-        <div class="btn-group" role="group">
-          <button
-            class="btn btn-sm btn-outline-theme"
-            :class="{ active: activeTab === 'clients' }"
-            @click="setActiveTab('clients')"
-          >
-            <i class="fa-solid fa-users me-2"></i>
-            <span class="d-none d-sm-inline">Clientes</span>
-          </button>
-          <button
-            class="btn btn-sm btn-outline-theme"
-            :class="{ active: activeTab === 'affiliates' }"
-            @click="setActiveTab('affiliates')"
-          >
-            <i class="fa-solid fa-store me-2"></i>
-            <span class="d-none d-sm-inline">Comercios</span>
-          </button>
-        </div>
+        <CustomNav :actions="[
+          {
+            text: 'Clientes',
+            icon: 'fa-users',
+            isActive: activeTab === 'clients',
+            onClick: () => setActiveTab('clients')
+          },
+          {
+            text: 'Comercios',
+            icon: 'fa-store',
+            isActive: activeTab === 'affiliates',
+            onClick: () => setActiveTab('affiliates')
+          }
+        ]" />
       </div>
     </div>
 
     <!-- Toggles Bar -->
-    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3 gap-sm-0 mb-2">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 gap-md-0 mb-2">
       <!-- User type Filters -->
-      <div class="subscription-filters w-100 w-sm-auto">
-        <div class="btn-group w-100 w-sm-auto">
-          <button
-            class="btn btn-outline-theme btn-sm"
-            :class="{ active: subscriptionFilter === 'with' }"
-            @click="subscriptionFilter = 'with'"
-          >
-            Con Suscripción
-            <span
-              v-if="activeTab === 'clients'"
-              class="badge badge-sm bg-theme ms-2 ms-sm-1"
-            >
-              {{ allFilteredClientsSubscriptions.length }}
-            </span>
-            <span v-else class="badge badge-sm bg-theme ms-2 ms-sm-1">
-              {{
-                subscriptionFilter === "with"
-                  ? totalAffiliatesWithSubscriptions
-                  : allFilteredAffiliatesNoSubscriptions.length
-              }}
-            </span>
-          </button>
-          <button
-            class="btn btn-outline-theme btn-sm"
-            :class="{ active: subscriptionFilter === 'without' }"
-            @click="subscriptionFilter = 'without'"
-          >
-            Sin Suscripción
-            <span
-              v-if="activeTab === 'clients'"
-              class="badge badge-sm bg-theme ms-2 ms-sm-1"
-            >
-              {{ allFilteredClientsNoSubscriptions.length }}
-            </span>
-            <span v-else class="badge badge-sm bg-theme ms-2 ms-sm-1">
-              {{ allFilteredAffiliatesNoSubscriptions.length }}
-            </span>
-          </button>
-        </div>            
+      <div class="subscription-filters w-100">
+        <CustomNav :actions="[
+          {
+            text: 'Con Suscripción',
+            icon: 'fa-solid fa-check-circle',
+            isActive: subscriptionFilter === 'with',
+            onClick: () => subscriptionFilter = 'with',
+            badge: activeTab === 'clients'
+              ? allFilteredClientsSubscriptions.length
+              : (subscriptionFilter === 'with'
+                ? totalAffiliatesWithSubscriptions
+                : allFilteredAffiliatesNoSubscriptions.length)
+          },
+          {
+            text: 'Sin Suscripción',
+            icon: 'fa-solid fa-times-circle',
+            isActive: subscriptionFilter === 'without',
+            onClick: () => subscriptionFilter = 'without',
+            badge: activeTab === 'clients'
+              ? allFilteredClientsNoSubscriptions.length
+              : allFilteredAffiliatesNoSubscriptions.length
+          },
+          {
+            text: 'Ver planes',
+            icon: 'fa-solid fa-list',
+            onClick: () => openAssignModal(),
+            class: 'nav-btn-secondary'
+          }
+        ]" />
       </div>
-
-      <!-- Plans Button -->
-      <button
-        class="btn btn-outline-theme btn-sm w-sm-auto"
-        data-bs-toggle="modal"
-        data-bs-target="#assignModal"
-      >
-        <i class="fa fa-list fa-fw me-2"></i>
-        Ver planes
-      </button>
     </div>
 
     <!-- Search and Filter Section -->
     <div class="card custom-card filter-card mb-2 py-2 px-2">
-      <h5 class="card-subtitle mb-3 text-theme px-2 py-2">
-        <i class="fa-solid fa-filter me-2"></i>Filtrar
-      </h5>
       <div class="card-body">
         <div class="row g-3">
-          <div class="col-md-4">
-            <h6 class="card-subtitle mb-3 text-white">
-              <i class="fa-solid fa-search me-2"></i>Buscar
-              {{ activeTab === "clients" ? "Cliente" : "Comercio" }}
-            </h6>
-            <input
-              v-model="searchQuery"
-              :placeholder="`Filtrar ${activeTab === 'clients' ? 'cliente' : 'comercio'} por Nombre o ${activeTab === 'clients' ? 'Cédula' : 'RIF'}...`"
-              class="form-control"
-            />
+          <div class="col-md-12 mb-3">
+            <SearchCard title="Buscar cliente" v-model="searchQuery"
+              :placeholder="`Filtrar ${activeTab === 'clients' ? 'cliente' : 'comercio'} por Nombre o ${activeTab === 'clients' ? 'Cédula' : 'RIF'}...`" />
           </div>
           <div class="col-md-4">
             <h6 class="card-subtitle mb-3 text-white">
               <i class="fa-solid fa-calendar me-2"></i>Filtrar por fecha
             </h6>
             <div class="d-flex gap-2">
-              <input type="date" v-model="filterDate" class="form-control" />
-              <button
-                class="btn btn-outline-theme"
-                @click="clearDateFilter"
-                :disabled="!filterDate"
-              >
+              <input type="date" v-model="filterDate" class="date-input form-control" />
+              <button class="btn" @click="clearDateFilter" :disabled="!filterDate">
                 <i class="fa-solid fa-xmark"></i>
               </button>
             </div>
           </div>
-          <div v-if="activeTab === 'clients'" class="col-md-2">
+          <div v-if="activeTab === 'clients'" class="col-md-4">
             <h6 class="card-subtitle mb-3 text-white">
               <i class="fa-solid fa-user-check me-2"></i>Status
             </h6>
-            <select v-model="statusFilter" class="form-select">
-              <option value="all">Todos</option>
-              <option value="verified">Verificados</option>
-              <option value="unverified">No Verificados</option>
-            </select>
+            <CustomSelect v-model="statusFilter" :options="[
+              {
+                text: 'Todos',
+                value: 'all'
+              },
+              {
+                text: 'Verificados',
+                value: 'verified'
+              },
+              {
+                text: 'No verificados',
+                value: 'unverified'
+              }
+            ]" />
           </div>
-          <div v-if="subscriptionFilter === 'with'" class="col-md-2">
+          <div v-if="subscriptionFilter === 'with'" class="col-md-4">
             <h6 class="card-subtitle mb-3 text-white">
               <i class="fa-solid fa-tag me-2"></i>Plan
             </h6>
-            <select v-model="planFilter" class="form-select">
-              <option value="all">Todos</option>
-              <option
-                v-for="plan in currentPlans"
-                :key="plan.id"
-                :value="plan.name"
-              >
-                {{ plan.name.charAt(0).toUpperCase() + plan.name.slice(1) }}
-              </option>
-            </select>
+            <CustomSelect 
+              v-model="planFilter" 
+              :options="[
+                { text: 'Todos', value: 'all' },
+                ...currentPlans.map(plan => ({
+                  text: plan.name.charAt(0).toUpperCase() + plan.name.slice(1),
+                  value: plan.name
+                }))
+              ]"
+            />
           </div>
         </div>
       </div>
@@ -148,7 +119,7 @@
         <!-- Results Info -->
         <div class="results-info text-center mb-3" v-if="!loading">
           <p v-if="activeTab === 'clients'">
-            Mostrando {{ filteredClients.length }} resultados de {{ totalFilteredResults }} 
+            Mostrando {{ filteredClients.length }} resultados de {{ totalFilteredResults }}
             <!-- {{ planFilter === 'all' ? '526' : planFilter === 'gratis' ? '341' : planFilter === 'bronce' ? '125' : planFilter === 'plata' ? '45' : planFilter === 'oro' ? '15' : '0' }} -->
             <template v-if="statusFilter !== 'all' || planFilter !== 'all'">
               <span v-if="statusFilter !== 'all'" class="text-theme">
@@ -183,10 +154,7 @@
         <!-- Clients Tables -->
         <div v-if="activeTab === 'clients'" class="table-responsive">
           <!-- Clients With Subscriptions -->
-          <table
-            v-if="subscriptionFilter === 'with'"
-            class="table text-center align-middle"
-          >
+          <table v-if="subscriptionFilter === 'with'" class="table text-center align-middle">
             <thead>
               <tr>
                 <th style="width: 10%">Status</th>
@@ -198,19 +166,14 @@
             </thead>
             <tbody>
               <tr v-for="client in filteredClients" :key="client.id">
-                <td
-                  :class="{
-                    'text-success': client.isVerified,
-                    'text-danger': !client.isVerified,
-                  }"
-                >
-                  <i
-                    :class="
-                      client.isVerified
-                        ? 'fa-solid fa-user-check'
-                        : 'fa-solid fa-user-times'
-                    "
-                  ></i>
+                <td :class="{
+                  'text-success': client.isVerified,
+                  'text-danger': !client.isVerified,
+                }">
+                  <i :class="client.isVerified
+                    ? 'fa-solid fa-user-check'
+                    : 'fa-solid fa-user-times'
+                    "></i>
                 </td>
                 <td class="text-truncate" style="max-width: 200px">
                   {{ client.firstName + " " + client.lastName }}
@@ -244,19 +207,14 @@
             </thead>
             <tbody>
               <tr v-for="client in filteredClients" :key="client.id">
-                <td
-                  :class="{
-                    'text-success': client.isVerified,
-                    'text-danger': !client.isVerified,
-                  }"
-                >
-                  <i
-                    :class="
-                      client.isVerified
-                        ? 'fa-solid fa-user-check'
-                        : 'fa-solid fa-user-times'
-                    "
-                  ></i>
+                <td :class="{
+                  'text-success': client.isVerified,
+                  'text-danger': !client.isVerified,
+                }">
+                  <i :class="client.isVerified
+                    ? 'fa-solid fa-user-check'
+                    : 'fa-solid fa-user-times'
+                    "></i>
                 </td>
                 <td class="text-truncate" style="max-width: 200px">
                   {{ client.firstName + " " + client.lastName }}
@@ -266,10 +224,7 @@
                 </td>
                 <td>{{ client.identification }}</td>
                 <td>
-                  <button
-                    class="btn btn-sm btn-assign"
-                    @click="openAssignModal(client)"
-                  >
+                  <button class="btn btn-sm btn-assign" @click="openAssignModal(client)">
                     <i class="fa-solid fa-plus me-1"></i>Asignar Plan
                   </button>
                 </td>
@@ -281,10 +236,7 @@
         <!-- Affiliates Tables -->
         <div v-else class="table-responsive">
           <!-- Affiliates With Subscriptions -->
-          <table
-            v-if="subscriptionFilter === 'with'"
-            class="table text-center align-middle"
-          >
+          <table v-if="subscriptionFilter === 'with'" class="table text-center align-middle">
             <thead>
               <tr>
                 <th style="width: 35%">Comercio</th>
@@ -334,10 +286,7 @@
                 </td>
                 <td>{{ affiliate.rif }}</td>
                 <td>
-                  <button
-                    class="btn btn-sm btn-assign"
-                    @click="openAssignModal(affiliate)"
-                  >
+                  <button class="btn btn-sm btn-assign" @click="openAssignModal(affiliate)">
                     <i class="fa-solid fa-plus me-1"></i>Asignar Plan
                   </button>
                 </td>
@@ -347,45 +296,25 @@
         </div>
 
         <!-- Pagination Controls -->
-        <nav
-          class="pagination-controls mt-4"
-          v-if="totalPages(getCurrentSection()) > 1"
-          aria-label="Page navigation"
-        >
+        <nav class="pagination-controls mt-4" v-if="totalPages(getCurrentSection()) > 1" aria-label="Page navigation">
           <ul class="pagination justify-content-center flex-wrap">
             <li class="page-item" :class="{ disabled: currentPage === 1 }">
-              <button
-                class="page-link"
-                @click="goToPage(currentPage - 1, getCurrentSection())"
-                :disabled="currentPage === 1"
-              >
+              <button class="page-link" @click="goToPage(currentPage - 1, getCurrentSection())"
+                :disabled="currentPage === 1">
                 Anterior
               </button>
             </li>
-            <li
-              v-for="page in visiblePages(getCurrentSection())"
-              :key="page"
-              class="page-item"
-              :class="{ active: page === currentPage }"
-            >
-              <button
-                class="page-link"
-                @click="goToPage(page, getCurrentSection())"
-              >
+            <li v-for="page in visiblePages(getCurrentSection())" :key="page" class="page-item"
+              :class="{ active: page === currentPage }">
+              <button class="page-link" @click="goToPage(page, getCurrentSection())">
                 {{ page }}
               </button>
             </li>
-            <li
-              class="page-item"
-              :class="{
-                disabled: currentPage === totalPages(getCurrentSection()),
-              }"
-            >
-              <button
-                class="page-link"
-                @click="goToPage(currentPage + 1, getCurrentSection())"
-                :disabled="currentPage === totalPages(getCurrentSection())"
-              >
+            <li class="page-item" :class="{
+              disabled: currentPage === totalPages(getCurrentSection()),
+            }">
+              <button class="page-link" @click="goToPage(currentPage + 1, getCurrentSection())"
+                :disabled="currentPage === totalPages(getCurrentSection())">
                 Siguiente
               </button>
             </li>
@@ -395,30 +324,27 @@
     </div>
 
     <!-- Modals -->
-    <AssignSubscriptionModal
-      ref="assignModal"
-      :active-tab="activeTab"
-      :plans="plans"
-      :affiliate-plans="affiliatePlans"
-      :clients="clients"
-      :affiliates="affiliates"
-      :selected-client="selectedClient"
-      :selected-affiliate="selectedAffiliate"
-      @plan-assigned="handlePlanAssigned"
-      @plan-updated="$emit('plans-updated')"
-      @plan-deleted="$emit('plans-updated')"
-    />
+    <AssignSubscriptionModal ref="assignModal" :active-tab="activeTab" :plans="plans" :affiliate-plans="affiliatePlans"
+      :clients="clients" :affiliates="affiliates" :selected-client="selectedClient"
+      :selected-affiliate="selectedAffiliate" @plan-assigned="handlePlanAssigned" @plan-updated="$emit('plans-updated')"
+      @plan-deleted="$emit('plans-updated')" />
   </div>
 </template>
 
 <script>
 import AssignSubscriptionModal from "./modals/AssignSubscriptionModal.vue";
+import CustomNav from '@/components/app/CustomNav.vue';
+import CustomSelect from '@/components/app/CustomSelect.vue';
+import SearchCard from "@/components/app/SearchCard.vue";
 import { Modal } from "bootstrap";
 
 export default {
   name: "AdminSubscriptionsView",
   components: {
     AssignSubscriptionModal,
+    CustomNav,
+    CustomSelect,
+    SearchCard
   },
   props: {
     loading: {
@@ -597,7 +523,7 @@ export default {
 
       return Array.from({ length: end - start + 1 }, (_, i) => start + i);
     },
-    openAssignModal(user) {
+    openAssignModal(user = null) {
       if (this.activeTab === "clients") {
         this.selectedClient = user;
         this.selectedAffiliate = null;
@@ -670,7 +596,6 @@ export default {
   },
 };
 </script>
-
 <style scoped>
 .text-theme {
   color: #6f42c1;
@@ -708,34 +633,35 @@ export default {
 }
 
 /* Button Styles */
-.btn-outline-theme, .btn-theme {
-    border-radius: 20px;
-    font-size: 0.85rem;
-    padding: 0.375rem 0.75rem;
-    transition: all 0.2s ease;
+.btn-outline-theme,
+.btn-theme {
+  border-radius: 20px;
+  font-size: 0.85rem;
+  padding: 0.375rem 0.75rem;
+  transition: all 0.2s ease;
 }
 
 .btn-outline-theme {
-    border-color: purple;
-    color: purple;
+  border-color: purple;
+  color: purple;
 }
 
 .btn-outline-theme:hover {
-    background-color: purple;
-    color: white;
-    box-shadow: 0 2px 5px rgba(128,0,128,0.3);
+  background-color: purple;
+  color: white;
+  box-shadow: 0 2px 5px rgba(128, 0, 128, 0.3);
 }
 
 .btn-theme {
-    background-color: purple;
-    border-color: purple;
-    color: white;
+  background-color: purple;
+  border-color: purple;
+  color: white;
 }
 
 .btn-theme:hover {
-    background-color: #8a2be2;
-    border-color: #8a2be2;
-    box-shadow: 0 2px 5px rgba(138,43,226,0.3);
+  background-color: #8a2be2;
+  border-color: #8a2be2;
+  box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
 }
 
 .toggle-card,
@@ -750,8 +676,64 @@ export default {
 }
 
 .subscription-filters {
-  padding: 0.5rem;
-  border-radius: 10px;
+  padding: 0;
+  border-radius: 12px;
+  background: transparent;
+}
+
+.subscription-filters :deep(.custom-nav) {
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.subscription-filters :deep(.nav-btn) {
+  font-size: 0.875rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  flex: 1;
+}
+
+.subscription-filters :deep(.nav-btn-secondary) {
+  flex: 0 0 auto;
+  background: transparent;
+  /* border: 1px solid #6f42c1;
+  color: #6f42c1; */
+}
+
+.subscription-filters :deep(.nav-btn:hover) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.subscription-filters :deep(.nav-btn-secondary:hover) {
+  background: #29122f;
+  color: #fff;
+}
+
+.subscription-filters :deep(.nav-btn.active) {
+  background: #29122f;
+  color: #fff;
+  border-color: #29122f;
+}
+
+.subscription-filters :deep(.nav-btn .badge) {
+  position: static;
+  margin-left: 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+}
+
+.subscription-filters :deep(.nav-btn.active .badge) {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .table {
@@ -773,6 +755,7 @@ export default {
   align-items: center;
   margin-top: 1rem;
 }
+
 .pagination .page-link {
   background-color: #2d2d2d;
   border-color: #444;
@@ -794,8 +777,10 @@ export default {
   border-color: #444;
   color: #666;
 }
-
-.form-select {
+.date-input, .nav-btn {
+  padding: 0.75rem 1rem;
+}
+.form-select, .date-input {
   background-color: #2d2d2d;
   border-color: #444;
   color: #fff;
@@ -834,26 +819,25 @@ export default {
     width: 100%;
   }
 
-  .btn-group {
+  .subscription-filters :deep(.custom-nav) {
+    padding: 0.75rem 1rem;
+    flex-direction: column;
+  }
+
+  .subscription-filters :deep(.nav-btn) {
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
     width: 100%;
   }
 
-  .btn-mobile-sm {
-    font-size: 0.875rem;
-    padding: 0.375rem 0.75rem;
+  .subscription-filters :deep(.nav-btn-secondary) {
+    width: 100%;
+    margin-top: 0.5rem;
   }
 
-  .card-body {
-    padding: 0.75rem;
-  }
-
-  .subscription-filters {
-    padding: 0.25rem;
-  }
-
-  .badge {
-    font-size: 0.5rem;
-    padding: 0.15em 0.3em;
+  .subscription-filters :deep(.nav-btn .badge) {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.35rem;
   }
 }
 
@@ -861,7 +845,7 @@ export default {
   .btn-group {
     display: flex;
   }
-  
+
   .btn-group .btn {
     flex: 1;
   }
@@ -881,7 +865,7 @@ export default {
   .w-sm-auto {
     width: auto !important;
   }
-  
+
   .gap-sm-0 {
     gap: 0 !important;
   }

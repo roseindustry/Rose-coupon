@@ -1,5 +1,5 @@
 <script>
-import { ref as dbRef,  get, update, remove } from 'firebase/database';
+import { ref as dbRef, get, update, remove } from 'firebase/database';
 import { db } from '@/firebase/init';
 import { useClientManagement } from '@/composables/Clients/useClientManagement';
 import { useClientDetails } from '@/composables/Clients/useClientDetails';
@@ -13,6 +13,11 @@ import 'toastify-js/src/toastify.css'
 import * as XLSX from "xlsx";
 import venezuela from 'venezuela';
 import AddClientModal from '@/components/clients/AddClientModal.vue';
+import PageHeader from '@/components/app/PageHeader.vue';
+import StatCard from '@/components/app/StatCard.vue';
+import SearchCard from '@/components/app/SearchCard.vue';
+import CustomNav from '@/components/app/CustomNav.vue';
+import CustomSelect from '@/components/app/CustomSelect.vue';
 
 const clientDetails = useClientDetails();
 const clientManagement = useClientManagement();
@@ -20,7 +25,12 @@ const clientRequests = useClientRequests();
 
 export default {
     components: {
-        AddClientModal
+        AddClientModal,
+        PageHeader,
+        StatCard,
+        SearchCard,
+        CustomNav,
+        CustomSelect,
     },
     data() {
         return {
@@ -194,7 +204,7 @@ export default {
 
         toggleClientDetails(client) {
             const { togglingClientDetails, fetchingClientDetails } = clientDetails
-            
+
             // If the client details are not loaded, fetch them first
             if (!client._detailsLoaded) {
                 fetchingClientDetails(client).then(() => {
@@ -514,6 +524,11 @@ export default {
         },
         openImageInNewTab(url) {
             window.open(url, '_blank');
+        },
+        openAddClientModal() {
+            this.resetForm();
+            const modal = new Modal(document.getElementById('addClientModal'));
+            modal.show();
         },
 
         // Export clientos to xlsx file
@@ -896,7 +911,7 @@ export default {
                     confirmButtonColor: '#d33'
                 });
             }
-        },        
+        },
 
         initializeComposableComputed() {
             return {
@@ -948,84 +963,95 @@ export default {
 </script>
 <template>
     <div class="container">
-        <!-- Header Actions -->
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="mb-0 text-primary">
-                <i class="fa fa-users me-2"></i>
-                Clientes Registrados
-            </h4>
-            <div class="d-flex gap-2">
-                <button class="btn btn-theme btn-sm" data-bs-toggle="modal" data-bs-target="#addClientModal">
-                    <i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Cliente
-                </button>
-                <button class="btn btn-theme btn-sm" @click="downloadClients()">
-                    <i class="fa fa-download fa-fw me-1"></i> Exportar clientes
-                </button>
-            </div>
-        </div>
+        <!-- Page Header -->
+        <PageHeader :isAdmin="true" title="Clientes Registrados" icon="fa fa-users" :actions="[
+            {
+                icon: 'fa fa-user-plus',
+                text: 'Agregar Cliente',
+                class: 'btn-theme',
+                modalToggle: 'modal',
+                modalTarget: '#addClientModal',
+                onClick: () => { }
+            },
+            {
+                icon: 'fa fa-download',
+                text: 'Exportar clientes',
+                class: 'btn-theme',
+                onClick: downloadClients
+            }
+        ]" />
 
         <div class="clients-wrapper">
-            <div class="search-section p-3">
-                <div class="row justify-content-between align-items-center mb-3">
-                    <div class="col-md-4 mt-3 mt-md-0">
-                        <div class="d-flex align-items-center gap-3">
-                            <span class="badge bg-dark fs-6 p-2 d-flex align-items-center">
-                                <i class="fas fa-users me-2"></i>
-                                {{ clients.length }} Clientes
-                            </span>
-                        </div>
+            <div class="search-section p-4">
+                <!-- Header with stats and actions -->
+                <div class="row justify-content-between align-items-center g-3">
+                    <div class="col-md-4">
+                        <StatCard title="Total de Clientes" icon="fa-users" :value="clients.length" />
                     </div>
-                    <!-- Client's requests buttons -->
-                    <div class="col-md-8 mt-3 mt-md-0 d-flex justify-content-end gap-3">
-                        <div class="btn-group" role="group" aria-label="Client Requests">
-                            <button class="btn btn-sm"
-                                :class="displayRequests === false ? 'btn-theme' : 'btn-outline-secondary'"
-                                @click="displayRequests = false">
-                                <i class="fas fa-list me-2"></i>Clientes
-                            </button>
-                            <button class="btn btn-sm"
-                                :class="displayRequests === 'update' ? 'btn-theme' : 'btn-outline-secondary'"
-                                @click="displayRequests = 'update'">
-                                <span class="d-flex align-items-center">
-                                    <i class="fas fa-sync me-2"></i>
-                                    Actualizar ({{ updateRequests.length }})
-                                </span>
-                            </button>
-                            <button class="btn btn-sm"
-                                :class="displayRequests === 'delete' ? 'btn-theme' : 'btn-outline-secondary'"
-                                @click="displayRequests = 'delete'">
-                                <span class="d-flex align-items-center">
-                                    <i class="fas fa-trash me-2"></i>
-                                    Eliminar ({{ deleteRequests.length }})
-                                </span>
-                            </button>
-                        </div>
+                    <!-- Search bar -->
+                    <div class="col-md-8">
+                        <SearchCard title="Buscar cliente" v-model="searchQuery"
+                            placeholder="Buscar por nombre o cedula..." />
                     </div>
                 </div>
-                <div class="row align-items-center">
-                    <!-- Search bar -->
-                    <div class="col-md-9 mb-3">
-                        <label class="form-label">Buscar cliente</label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-dark border-secondary">
-                                <i class="fas fa-search text-light"></i>
-                            </span>
-                            <input v-model="searchQuery"
-                                class="form-control form-control-sm bg-dark text-light border-secondary"
-                                placeholder="Buscar por nombre o cédula...">
-                        </div>
+
+                <!-- Search and filters -->
+                <div class="row client-options mt-md-3">
+                    <!-- Client's requests buttons -->
+                    <div class="col-md-9">
+                        <CustomNav :actions="[
+                            {
+                                text: 'Clientes',
+                                icon: 'fa-list',
+                                isActive: displayRequests === false,
+                                onClick: () => displayRequests = false
+                            },
+                            {
+                                text: 'Actualizar',
+                                icon: 'fa-sync',
+                                badge: updateRequests.length,
+                                isActive: displayRequests === 'update',
+                                onClick: () => displayRequests = 'update'
+                            },
+                            {
+                                text: 'Eliminar',
+                                icon: 'fa-trash',
+                                badge: deleteRequests.length,
+                                isActive: displayRequests === 'delete',
+                                onClick: () => displayRequests = 'delete'
+                            },
+                        ]" />
                     </div>
                     <!-- Filter by verification -->
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label">Filtrar por verificación</label>
-                        <select class="form-select form-select-sm bg-dark text-light border-secondary"
-                            v-model="verificationFilter">
-                            <option value="all">Todos los clientes ({{ verificationCounts.all }})</option>
-                            <option value="verified">Verificados ({{ verificationCounts.verified }})</option>
-                            <option value="pending">Pendientes de verificación ({{ verificationCounts.pending }})
-                            </option>
-                            <option value="unverified">No verificados ({{ verificationCounts.unverified }})</option>
-                        </select>
+                    <div class="col-md-3">
+                        <div class="filter-card">
+                            <label class="form-label">
+                                <i class="fas fa-filter me-2"></i>
+                                Estado de verificación
+                            </label>
+                            <CustomSelect v-model="verificationFilter" :options="[
+                                {
+                                    text: 'Todos',
+                                    value: 'all',
+                                    count: verificationCounts.all
+                                },
+                                {
+                                    text: 'Verificados',
+                                    value: 'verified',
+                                    count: verificationCounts.verified
+                                },
+                                {
+                                    text: 'Pendientes',
+                                    value: 'pending',
+                                    count: verificationCounts.pending
+                                },
+                                {
+                                    text: 'No verificados',
+                                    value: 'unverified',
+                                    count: verificationCounts.unverified
+                                }
+                            ]" />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1055,21 +1081,16 @@ export default {
                         <div class="client-header" @click="!client.isEditing && toggleClientDetails(client)">
                             <div class="client-info">
                                 <div class="d-flex align-items-center gap-3">
+                                    <!-- avatar -->
                                     <div class="client-avatar">
                                         <i class="fas fa-user"></i>
                                     </div>
-                                    <div>
+
+                                    <!-- info -->
+                                    <div class="client-info-content">
                                         <div class="d-flex align-items-center">
                                             <h6 class="mb-0">{{ client.firstName }} {{ client.lastName }}</h6>
                                             <!-- <h6>{{ client.uid }}</h6> -->
-                                            <span v-if="client.isVerified" class="ms-2 badge bg-success"
-                                                title="Cliente verificado">
-                                                <i class="fas fa-check-circle"></i>
-                                            </span>
-                                            <span v-else-if="client.requestedVerification" class="ms-2 badge bg-warning"
-                                                title="Verificación pendiente">
-                                                <i class="fas fa-clock"></i>
-                                            </span>
                                         </div>
                                         <div class="client-contact">
                                             <div class="text-secondary small">
@@ -1085,20 +1106,28 @@ export default {
                                     </div>
                                 </div>
                             </div>
-                            <div class="client-actions-group">
-                                <div class="client-actions">
-                                    <button class="btn btn-sm btn-outline-primary me-2" @click.stop="toggleEdit(client)"
-                                        :title="client.isEditing ? 'Cancelar edición' : 'Editar cliente'">
-                                        <i :class="client.isEditing ? 'fas fa-times' : 'fas fa-edit'"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger"
-                                        @click.stop="deleteClient(client, index)" title="Eliminar cliente">
-                                        <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
-                                            aria-hidden="true"></span>
-                                        <i class="fas fa-trash" v-else></i>
-                                    </button>
-                                </div>
+                            <div class="client-status">
+                                <span
+                                    :class="['status-badge badge', client.isVerified ? 'bg-success' : client.requestedVerification ? 'bg-warning' : 'bg-danger']"
+                                    :title="client.isVerified ? 'Cliente verificado' : client.requestedVerification ? 'Verificación pendiente' : 'No verificado'">
+                                    <i
+                                        :class="client.isVerified ? 'fas fa-check-circle' : client.requestedVerification ? 'fas fa-clock' : 'fas fa-times-circle'"></i>
+                                </span>
                             </div>
+
+                        </div>
+
+                        <div class="client-actions">
+                            <button class="btn btn-sm btn-outline-primary me-2" @click.stop="toggleEdit(client)"
+                                :title="client.isEditing ? 'Cancelar edición' : 'Editar cliente'">
+                                <i :class="client.isEditing ? 'fas fa-times' : 'fas fa-edit'"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @click.stop="deleteClient(client, index)"
+                                title="Eliminar cliente">
+                                <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
+                                    aria-hidden="true"></span>
+                                <i class="fas fa-trash" v-else></i>
+                            </button>
                         </div>
 
                         <!-- Edit Form -->
@@ -1582,19 +1611,21 @@ export default {
                                         <div class="details-list">
                                             <div class="detail-item">
                                                 <strong>Nombre:</strong>
-                                                {{ userDetailsModal.userData.basicInfo.name }}
+                                                <span>{{ userDetailsModal.userData.basicInfo.name }}</span>
                                             </div>
                                             <div class="detail-item scrollable-row">
                                                 <strong>Email:</strong>
-                                                {{ userDetailsModal.userData.basicInfo.email }}
+                                                <span>{{ userDetailsModal.userData.basicInfo.email }}</span>
                                             </div>
                                             <div class="detail-item">
                                                 <strong>Cédula:</strong>
-                                                {{ userDetailsModal.userData.basicInfo.identification }}
+                                                <span>{{ userDetailsModal.userData.basicInfo.identification }}</span>
                                             </div>
                                             <div class="detail-item">
                                                 <strong>Teléfono:</strong>
-                                                {{ userDetailsModal.userData.basicInfo.phoneNumber || 'No disponible' }}
+                                                <span>{{ userDetailsModal.userData.basicInfo.phoneNumber || `No
+                                                    disponible`
+                                                }}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1609,19 +1640,21 @@ export default {
                                         <div class="details-list">
                                             <div class="detail-item">
                                                 <strong>Crédito Principal:</strong>
-                                                ${{ userDetailsModal.userData.credit.mainCredit || 0 }}
+                                                <span>${{ userDetailsModal.userData.credit.mainCredit || 0 }}</span>
                                             </div>
                                             <div class="detail-item">
                                                 <strong>Crédito Principal Disponible:</strong>
-                                                ${{ userDetailsModal.userData.credit.availableMainCredit || 0 }}
+                                                <span>${{ userDetailsModal.userData.credit.availableMainCredit || 0
+                                                    }}</span>
                                             </div>
                                             <div class="detail-item">
                                                 <strong>Crédito Plus:</strong>
-                                                ${{ userDetailsModal.userData.credit.plusCredit || 0 }}
+                                                <span>${{ userDetailsModal.userData.credit.plusCredit || 0 }}</span>
                                             </div>
                                             <div class="detail-item">
                                                 <strong>Crédito Plus Disponible:</strong>
-                                                ${{ userDetailsModal.userData.credit.availablePlusCredit || 0 }}
+                                                <span>${{ userDetailsModal.userData.credit.availablePlusCredit || 0
+                                                    }}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1674,7 +1707,8 @@ export default {
                                         <div class="details-list">
                                             <div class="detail-item">
                                                 <strong>Nivel de Suscripción:</strong>
-                                                {{ userDetailsModal.userData.subscription.name || 'No disponible' }}
+                                                <span>{{ userDetailsModal.userData.subscription.name || 'No disponible'
+                                                    }}</span>
                                             </div>
                                             <div class="detail-item">
                                                 <strong>Estado de Pago:</strong>
@@ -1687,7 +1721,9 @@ export default {
                                             <div v-if="userDetailsModal.userData.subscription.lastPaymentDate"
                                                 class="detail-item">
                                                 <strong>Último Pago:</strong>
-                                                {{ formatDate(userDetailsModal.userData.subscription.lastPaymentDate) }}
+                                                <span>{{
+                                                    formatDate(userDetailsModal.userData.subscription.lastPaymentDate)
+                                                    }}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1703,7 +1739,8 @@ export default {
                                     <div class="details-list">
                                         <div class="detail-item">
                                             <strong>Fecha de Solicitud:</strong>
-                                            {{ formatDate(userDetailsModal.userData.deleteRequest.createdAt) }}
+                                            <span>{{ formatDate(userDetailsModal.userData.deleteRequest.createdAt)
+                                                }}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1737,55 +1774,6 @@ export default {
                 </div>
             </div>
         </div>
-
-        <!-- Modal for validating payment -->
-        <!-- <div class="modal fade" id="validateModal" tabindex="-1" aria-labelledby="validateModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="validateModalLabel">Captura de Pago de Suscripción</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body text-center">
-                        <div class="text-muted mb-3">
-                            <strong>Nota:</strong> Las imágenes pueden tardar unos
-                            segundos en
-                            cargar. Por favor, espere...
-                        </div>
-                        <div class="card h-100 border-0 shadow-sm">
-                            <div class="card-header">
-                                <h5 class="card-title text-black">Realizado el día:
-                                    {{ formatDate(this.paymentClient.subscription?.lastPaymentDate) ||
-                                        'Fecha no disponible' }}</h5>
-                            </div>
-                            <div class="card-body text-center">
-                                <img :src="this.paymentClient.paymentUrl" class="img-fluid rounded" alt="comprobante"
-                                    v-if="this.paymentClient.paymentUrl"
-                                    @click="openImageInNewTab(this.paymentClient.paymentUrl)"
-                                    style="cursor: pointer; max-height: 200px;">
-
-                                <p v-else class="text-muted">No se encontró
-                                    captura de pago.</p>
-                            </div>
-                            <span class="text-muted">Click en la imagen para ampliar</span>
-                            <div class="card-footer text-end">
-                                <button v-if="!this.paymentClient.subscription?.isPaid" class="btn btn-outline-success"
-                                    @click.prevent="approvePayment(this.paymentClient)" :disabled="isSubmitting">
-                                    <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
-                                        aria-hidden="true">
-                                    </span>
-                                    <span v-else>
-                                        <i class="fa-solid fa-check"></i>
-                                        Aprobar pago
-                                    </span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div> -->
     </div>
 </template>
 <style scoped>
@@ -1840,13 +1828,22 @@ export default {
     margin-top: 0.25rem;
 }
 
+.client-status {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+}
+
 .status-badge {
-    padding: 0.4rem 1rem;
+    padding: 0.4rem 0.5rem;
     border-radius: 20px;
     font-size: 0.85rem;
     font-weight: 500;
-    background: #e9ecef;
-    color: #666;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease;
 }
 
 .status-badge.active {
@@ -1862,6 +1859,8 @@ export default {
     justify-content: space-between;
     align-items: flex-start;
     gap: 1rem;
+    position: relative;
+    padding-top: 0.5rem;
 }
 
 .client-actions-group,
@@ -1902,7 +1901,6 @@ export default {
 
 .btn-outline-theme,
 .btn-theme {
-    border-radius: 20px;
     font-size: 0.85rem;
     padding: 0.375rem 0.75rem;
     transition: all 0.2s ease;
@@ -1931,6 +1929,30 @@ export default {
     box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
 }
 
+.clients-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.admin-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.admin-actions .btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+}
+
+.admin-actions .btn i {
+    font-size: 1rem;
+}
+
 /* Mobile Styles */
 @media (max-width: 768px) {
     .client-header {
@@ -1938,9 +1960,7 @@ export default {
     }
 
     .client-actions-group {
-        width: 100%;
-        flex-direction: column;
-        align-items: flex-end;
+        margin-top: 1rem;
     }
 
     .verification-status {
@@ -1950,6 +1970,22 @@ export default {
     .btn-theme.btn-sm {
         padding: 0.25rem 0.5rem;
         font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .clients-header {
+        flex-direction: row;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .admin-actions {
+        margin-left: auto;
+    }
+
+    .admin-actions .btn {
+        padding: 0.375rem;
     }
 }
 
@@ -2085,14 +2121,6 @@ export default {
 @media (max-width: 768px) {
     .document-card {
         margin-bottom: 1rem;
-    }
-
-    .search-section {
-        padding: 1rem;
-    }
-
-    .row.align-items-center {
-        row-gap: 0.5rem;
     }
 
     .d-flex.justify-content-between.align-items-center.mb-4 {
@@ -2315,7 +2343,6 @@ export default {
     /* Optional for Chrome */
 }
 
-
 .user-details .detail-item {
     display: flex;
     justify-content: space-between;
@@ -2350,5 +2377,66 @@ export default {
         margin-right: 0;
         margin-bottom: 0.25rem;
     }
+
+    .client-options {
+        gap: 2rem;
+    }
+}
+
+.filter-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 1.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.search-actions {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-icon {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #adb5bd;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
+.form-select {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    height: 48px;
+    font-size: 1rem;
+}
+
+.form-select:focus {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: #6f42c1;
+    box-shadow: 0 0 0 0.25rem rgba(111, 66, 193, 0.25);
+}
+
+.form-label {
+    color: #adb5bd;
+    font-size: 0.875rem;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
 }
 </style>

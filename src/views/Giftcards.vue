@@ -1,16 +1,17 @@
 <script>
 import { ref as dbRef, query, orderByChild, equalTo, set, get, push, update, remove } from 'firebase/database';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '@/firebase/init';
 import { Modal } from 'bootstrap';
 import { showToast } from '@/utils/toast';
 import 'toastify-js/src/toastify.css'
 import { useUserStore } from "@/stores/user-role";
 import SearchInput from '@/components/app/SearchInput.vue';
+import PageHeader from '@/components/app/PageHeader.vue';
 
 export default {
     components: {
-        SearchInput
+        SearchInput,
+        PageHeader
     },
     data() {
         return {
@@ -565,83 +566,82 @@ export default {
 }
 </script>
 <template>
-    <h2 class="mb-4 text-center text-uppercase fw-bold">
-        Giftcards
-    </h2>
+    <div class="container">
 
-    <div v-if="this.role === 'admin'" class="container">
-        <div class="d-flex justify-content-end align-items-center">
-            <a href="#" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#createGiftcardModal"
-                style="margin: 14px;">
-                <i class="fa fa-plus-circle fa-fw me-1"></i> Crear Giftcard
-            </a>
-        </div>
+        <PageHeader :isAdmin="this.role === 'admin' ? true : false" title="Giftcards" icon="fa fa-gift" :actions="[
+            {
+                icon: 'fa fa-plus-circle',
+                text: 'Nueva Giftcard',
+                class: 'btn-theme',
+                modalToggle: 'modal',
+                modalTarget: '#createGiftcardModal',
+                onClick: () => { }
+            }
+        ]" />
 
-        <div class="container-fluid">
+        <div v-if="this.role === 'admin'">
             <div class="row">
-                <div v-if="giftcards.length === 0" class="d-flex justify-content-center align-items-center">
-                    <div class="d-flex justify-content-center align-items-center">
-                        <div class="text-center">
-                            <div class="mb-3 mt-n5">
-                                <i class="fa-solid fa-money-bill text-body text-opacity-25" style="font-size: 5em"></i>
-                            </div>
-                            <h5>No hay Giftcards registradas.</h5>
+                <div v-if="giftcards.length === 0" class="d-flex justify-content-center align-items-center vh-100">
+                    <div class="text-center">
+                        <div class="mb-3">
+                            <i class="fa-solid fa-money-bill text-body text-opacity-25" style="font-size: 5em"></i>
                         </div>
+                        <h5>No hay Giftcards registradas.</h5>
                     </div>
                 </div>
                 <div v-else>
-                    <div class="row">
-                        <div v-for="(giftcard, index) in giftcards" :key="giftcard.id" class="col-12 col-md-6 mb-4">
-                            <div class="card p-4 shadow-sm border-0 rounded-lg">
-                                <!-- Edit and Delete Icons -->
-                                <div class="d-flex justify-content-end">
-                                    <button class="btn btn-sm btn-outline-info me-2" @click="editGiftcard(giftcard)"
-                                        title="Edit Gift Card">
-                                        <i class="fa-solid fa-pencil-alt"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger"
-                                        @click="deleteGiftcard(giftcard.id, index)" title="Delete Gift Card">
-                                        <i class="fa-solid fa-trash-alt"></i>
-                                    </button>
+                    <div v-for="(giftcard, index) in giftcards" :key="giftcard.id" class="col-12 col-md-6 mb-4">
+                        <div class="card p-4 shadow-sm border-0 rounded-lg">
+                            <!-- Edit and Delete Icons -->
+                            <div class="d-flex justify-content-end">
+                                <button class="btn btn-sm btn-outline-info me-2" @click="editGiftcard(giftcard)"
+                                    title="Edit Gift Card">
+                                    <i class="fa-solid fa-pencil-alt"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger"
+                                    @click="deleteGiftcard(giftcard.id, index)" title="Delete Gift Card">
+                                    <i class="fa-solid fa-trash-alt"></i>
+                                </button>
+                            </div>
+
+                            <!-- Gift Card Content -->
+                            <div class="d-flex flex-column align-items-start">
+                                <!-- Gift Card Name -->
+                                <h5 class="text-light fw-bold">{{ giftcard.name || 'Gift Card' }}</h5>
+
+                                <!-- Gift Card Code -->
+                                <div class="mt-2 d-flex align-items-center">
+                                    <span class="badge bg-secondary text-dark p-2 fs-6 me-2">{{ giftcard.code
+                                    }}</span>
+                                    <small class="text-muted ms-2">Código</small>
                                 </div>
 
-                                <!-- Gift Card Content -->
-                                <div class="d-flex flex-column align-items-start">
-                                    <!-- Gift Card Name -->
-                                    <h5 class="text-light fw-bold">{{ giftcard.name || 'Gift Card' }}</h5>
-
-                                    <!-- Gift Card Code -->
-                                    <div class="mt-2 d-flex align-items-center">
-                                        <span class="badge bg-secondary text-dark p-2 fs-6 me-2">{{ giftcard.code
-                                            }}</span>
-                                        <small class="text-muted ms-2">Código</small>
-                                    </div>
-
-                                    <!-- Gift Card Balance -->
-                                    <div class="mt-2 d-flex align-items-center">
-                                        <span class="badge bg-secondary text-dark p-2 fs-6 me-2">${{ giftcard.balance
-                                            }}</span>
-                                        <small class="text-muted ms-2">Balance</small>
-                                    </div>
-
-                                    <!-- Expiration Date -->
-                                    <div class="d-flex mt-3 align-items-center text-muted">
-                                        <i class="far fa-calendar-alt text-primary me-2"></i>
-                                        <span>Válido hasta: {{ formatDate(giftcard.expiration) || 'Ilimitado' }}</span>
-                                    </div>
+                                <!-- Gift Card Balance -->
+                                <div class="mt-2 d-flex align-items-center">
+                                    <span class="badge bg-secondary text-dark p-2 fs-6 me-2">${{
+                                        giftcard.balance
+                                    }}</span>
+                                    <small class="text-muted ms-2">Balance</small>
                                 </div>
-                                <!-- Paid button -->
-                                <div v-if="!giftcard.paid" class="d-flex justify-content-end">
-                                    <button class="btn btn-sm btn-outline-success me-2"
-                                        @click="payGiftcard(giftcard.id)" title="Pay Gift Card">
-                                        Marcar pagada
-                                    </button>
+
+                                <!-- Expiration Date -->
+                                <div class="d-flex mt-3 align-items-center text-muted">
+                                    <i class="far fa-calendar-alt text-primary me-2"></i>
+                                    <span>Válido hasta: {{ formatDate(giftcard.expiration) || 'Ilimitado'
+                                    }}</span>
                                 </div>
-                                <div v-else class="d-flex justify-content-end">
-                                    <button disabled class="btn btn-sm btn-outline-success me-2">
-                                        Pagada
-                                    </button>
-                                </div>
+                            </div>
+                            <!-- Paid button -->
+                            <div v-if="!giftcard.paid" class="d-flex justify-content-end">
+                                <button class="btn btn-sm btn-outline-success me-2" @click="payGiftcard(giftcard.id)"
+                                    title="Pay Gift Card">
+                                    Marcar pagada
+                                </button>
+                            </div>
+                            <div v-else class="d-flex justify-content-end">
+                                <button disabled class="btn btn-sm btn-outline-success me-2">
+                                    Pagada
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -664,138 +664,139 @@ export default {
                     </ul>
                 </nav>
             </div>
-        </div>
 
-        <!-- Modals -->
-        <!-- Create Giftcard Modal -->
-        <div class="modal fade" id="createGiftcardModal" tabindex="-1" aria-labelledby="createGiftcardModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Nueva Giftcard</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"
-                            @click="resetForm()"></button>
+            <!-- Modals -->
+            <!-- Create Giftcard Modal -->
+            <div class="modal fade" id="createGiftcardModal" tabindex="-1" aria-labelledby="createGiftcardModalLabel"
+                aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Nueva Giftcard</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"
+                                @click="resetForm()"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <label class="form-label">Código <span class="text-danger">*</span></label>
+                                    <input v-model="formattedCode" type="text"
+                                        class="form-control form-control-lg fs-15px" required />
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label for="giftcardBalance">Balance <span class="text-danger">*</span></label>
+                                    <div class="input-group mt-2">
+                                        <span class="input-group-text text-wrap" id="quote-addon">$</span>
+                                        <input id="giftcardBalance" type="number" class="form-control"
+                                            v-model="giftcard.balance" aria-label="giftcardBalance"
+                                            aria-describedby="quote-addon" required />
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label class="form-label">Nombre</label>
+                                    <input v-model="giftcard.name" type="text"
+                                        class="form-control form-control-lg fs-15px" />
+                                </div>
+                                <div class="mb-3">
+                                    <div class="form-check mt-4">
+                                        <input type="checkbox" class="form-check-input" id="giftcardexpiration"
+                                            v-model="addExpiration" />
+                                        <label class="form-check-label" for="giftcardexpiration">Agregar fecha de
+                                            expiración</label>
+                                    </div>
+                                </div>
+                                <div v-if="addExpiration" class="col-6 mb-3">
+                                    <label class="form-label">Válido Hasta</label>
+                                    <input v-model="giftcard.expiration" type="date" class="form-control" />
+                                </div>
+                                <div class="mb-3">
+                                    <div class="form-check mt-4">
+                                        <input type="checkbox" class="form-check-input" id="giftcardStatus"
+                                            v-model="giftcard.status" />
+                                        <label class="form-check-label" for="giftcardStatus">Activo</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                                @click="resetForm()">Cerrar</button>
+                            <button type="button" class="btn btn-theme" @click="createGiftcard()">Guardar</button>
+                        </div>
                     </div>
-                    <div class="modal-body">
-                        <div class="row">
+                </div>
+            </div>
+
+            <!-- Edit Plan Modal -->
+            <div class="modal fade" id="editGiftcardModal" tabindex="-1" aria-labelledby="editGiftcardModalLabel"
+                aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="editJobModalLabel">Editar Giftcard</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
                             <div class="col-6 mb-3">
                                 <label class="form-label">Código <span class="text-danger">*</span></label>
-                                <input v-model="formattedCode" type="text" class="form-control form-control-lg fs-15px"
-                                    required />
+                                <input v-model="formattedEditCode" type="text"
+                                    class="form-control form-control-lg fs-15px" required />
                             </div>
                             <div class="col-6 mb-3">
-                                <label for="giftcardBalance">Balance <span class="text-danger">*</span></label>
+                                <label for="editGiftcardBalance">Balance <span class="text-danger">*</span></label>
                                 <div class="input-group mt-2">
-                                    <span class="input-group-text text-wrap" id="quote-addon">$</span>
-                                    <input id="giftcardBalance" type="number" class="form-control"
-                                        v-model="giftcard.balance" aria-label="giftcardBalance"
+                                    <span class="input-group-text text-wrap" id="editQuote-addon">$</span>
+                                    <input id="editGiftcardBalance" type="number" class="form-control"
+                                        v-model="editGiftcardData.balance" aria-label="editGiftcardBalance"
                                         aria-describedby="quote-addon" required />
                                 </div>
                             </div>
                             <div class="col-6 mb-3">
                                 <label class="form-label">Nombre</label>
-                                <input v-model="giftcard.name" type="text"
+                                <input v-model="editGiftcardData.name" type="text"
                                     class="form-control form-control-lg fs-15px" />
                             </div>
-                            <div class="mb-3">
-                                <div class="form-check mt-4">
-                                    <input type="checkbox" class="form-check-input" id="giftcardexpiration"
-                                        v-model="addExpiration" />
-                                    <label class="form-check-label" for="giftcardexpiration">Agregar fecha de
-                                        expiración</label>
+                            <div class="col-6 mb-3">
+                                <label class="form-label">Válido Hasta</label>
+                                <div class="d-flex align-items-center">
+                                    <input v-model="editGiftcardData.expiration" type="date"
+                                        class="form-control me-2" />
+
+                                    <button class="btn p-0 text-danger" @click="removeExpField" title="Remove Date">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
                                 </div>
                             </div>
-                            <div v-if="addExpiration" class="col-6 mb-3">
-                                <label class="form-label">Válido Hasta</label>
-                                <input v-model="giftcard.expiration" type="date" class="form-control" />
-                            </div>
                             <div class="mb-3">
                                 <div class="form-check mt-4">
-                                    <input type="checkbox" class="form-check-input" id="giftcardStatus"
-                                        v-model="giftcard.status" />
+                                    <input type="checkbox" class="form-check-input" id="editGiftcardStatus"
+                                        v-model="editGiftcardData.status" />
                                     <label class="form-check-label" for="giftcardStatus">Activo</label>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
-                            @click="resetForm()">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="createGiftcard()">Guardar</button>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                            <button type="button" class="btn btn-theme"
+                                @click="updateGiftcard(editGiftcardData.id)">Guardar
+                                cambios</button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Edit Plan Modal -->
-        <div class="modal fade" id="editGiftcardModal" tabindex="-1" aria-labelledby="editGiftcardModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="editJobModalLabel">Editar Giftcard</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="col-6 mb-3">
-                            <label class="form-label">Código <span class="text-danger">*</span></label>
-                            <input v-model="formattedEditCode" type="text" class="form-control form-control-lg fs-15px"
-                                required />
-                        </div>
-                        <div class="col-6 mb-3">
-                            <label for="editGiftcardBalance">Balance <span class="text-danger">*</span></label>
-                            <div class="input-group mt-2">
-                                <span class="input-group-text text-wrap" id="editQuote-addon">$</span>
-                                <input id="editGiftcardBalance" type="number" class="form-control"
-                                    v-model="editGiftcardData.balance" aria-label="editGiftcardBalance"
-                                    aria-describedby="quote-addon" required />
-                            </div>
-                        </div>
-                        <div class="col-6 mb-3">
-                            <label class="form-label">Nombre</label>
-                            <input v-model="editGiftcardData.name" type="text"
-                                class="form-control form-control-lg fs-15px" />
-                        </div>
-                        <div class="col-6 mb-3">
-                            <label class="form-label">Válido Hasta</label>
-                            <div class="d-flex align-items-center">
-                                <input v-model="editGiftcardData.expiration" type="date" class="form-control me-2" />
+        <div v-if="this.role === 'afiliado'">
+            <nav style="--bs-breadcrumb-divider: '>';" aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><router-link to="/affiliate-portal">Portal de Afiliados</router-link>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ currentPageName }}</li>
+                </ol>
+            </nav>
 
-                                <button class="btn p-0 text-danger" @click="removeExpField" title="Remove Date">
-                                    <i class="fa-solid fa-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <div class="form-check mt-4">
-                                <input type="checkbox" class="form-check-input" id="editGiftcardStatus"
-                                    v-model="editGiftcardData.status" />
-                                <label class="form-check-label" for="giftcardStatus">Activo</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                        <button type="button" class="btn btn-theme" @click="updateGiftcard(editGiftcardData.id)">Guardar
-                            cambios</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div v-if="this.role === 'afiliado'" class="container">
-        <nav style="--bs-breadcrumb-divider: '>';" aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><router-link to="/affiliate-portal">Portal de Afiliados</router-link></li>
-                <li class="breadcrumb-item active" aria-current="page">{{ currentPageName }}</li>
-            </ol>
-        </nav>
-
-        <div class="row">
-            <div class="mb-5">
-                <div class="row justify-content-center mb-4">
+            <div class="row">
+                <div class="giftcard-container justify-content-center mb-4">
                     <div class="col-12 col-md-6">
                         <div class="card custom-card h-100 shadow-sm border-0 rounded-lg">
                             <div class="card-body text-center py-4">
@@ -830,8 +831,6 @@ export default {
                         </div>
                     </div>
                 </div>
-
-                <hr class="mt-5">
 
                 <!-- Options -->
                 <div class="mb-3 form-check form-check-inline">
@@ -900,6 +899,13 @@ export default {
     </div>
 </template>
 <style>
+.giftcard-container {
+    display: row;
+    justify-content: center;
+    align-items: center;
+    border-bottom: 1px solid #ccc;
+}
+
 .btn-theme {
     background-color: purple;
     border-color: purple;

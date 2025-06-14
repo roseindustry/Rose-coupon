@@ -8,6 +8,16 @@
       ".git",
       "firebase-debug.log",
       "firebase-debug.*.log"
-    ]
+    ],
+    "env": {
+      "EMAIL_USER": {
+        "description": "Email account for sending notifications",
+        "secret": true
+      },
+      "EMAIL_PASS": {
+        "description": "Email account password",
+        "secret": true
+      }
+    }
   }
 }

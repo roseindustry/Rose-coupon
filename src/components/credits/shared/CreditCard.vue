@@ -9,7 +9,7 @@
 </template>
 <script>
 export default {
-  name: 'CreditManagement',
+  name: 'CreditCard',
   props: {
     title: {
       type: String,

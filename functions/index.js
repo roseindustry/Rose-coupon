@@ -10,19 +10,16 @@
 // require('dotenv').config();
 // const { defineSecret } = require("firebase-functions/params");
 
-const { onCall } = require("firebase-functions/v2/https");
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
-const cors = require("cors")({ origin: true });
+const getDatabase = () => admin.database();
 const functions = require("firebase-functions");
-const { user } = require("firebase-functions/v1/auth");
+
+const EMAIL_USER = functions.config().email.user;
+const EMAIL_PASS = functions.config().email.pass;
 
 admin.initializeApp();
-
-// Access email credentials (temporarily)
-const EMAIL_USER = "admin@rosecoupon.com";
-const EMAIL_PASS = "Huawei.1705";
 
 // Nodemailer transporter (using Hostgators TITAN SMTP)
 const transporter = nodemailer.createTransport({
@@ -318,8 +315,6 @@ exports.getAllUsers = onRequest(
     }
   }
 );
-
-const getDatabase = () => admin.database();
 
 exports.verifyCode = onRequest(
   {

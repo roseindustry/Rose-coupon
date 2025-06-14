@@ -28,6 +28,7 @@ import CreditDetailsModal from '@/components/credits/admin/modals/CreditDetailsM
 import AppCreditModal from '@/components/credits/admin/modals/AppCreditModal.vue';
 import ClientCreditView from '@/components/credits/client/ClientCreditView.vue'
 import AffiliateCreditView from '@/components/credits/affiliate/AffiliateCreditView.vue'
+import PageHeader from "@/components/app/PageHeader.vue";
 
 export default {
     name: 'Credits',
@@ -42,7 +43,8 @@ export default {
         CreditDetailsModal,
         AppCreditModal,
         ClientCreditView,
-        AffiliateCreditView
+        AffiliateCreditView,
+        PageHeader
     },
     data() {
         return {
@@ -1611,20 +1613,17 @@ export default {
     <div class="container">
         <!-- Admin View -->
         <template v-if="role === 'admin'">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h4 class="mb-0 fw-500 text-theme">
-                    <i class="fas fa-credit-card me-2"></i>
-                    Administración de Créditos
-                </h4>
-                <a href="#" class="btn btn-sm btn-theme w-auto" @click="openLevelsModal">
-                    <i class="fa-solid fa-layer-group me-1"></i>
-                    Administrar Niveles
-                </a>
-            </div>
+            <PageHeader :isAdmin="true" title="Administración de Créditos" icon="fa fa-credit-card" :actions="[
+                {
+                    icon: 'fa fa-layer-group',
+                    text: 'Administrar Niveles',
+                    class: 'btn-theme',
+                    onClick: () => openLevelsModal()
+                }
+            ]" />
 
             <AppCreditStats :main-capital="Number(totalMainCapital)" :plus-capital="Number(totalPlusCapital)"
-                :affiliate-capital="Number(totalAffiliateMainCapital)" :alkosto-capital="Number(totalAlkostoCapital)"
-                @manage="openAppCreditModal" />
+                :affiliate-capital="Number(totalAffiliateMainCapital)" @manage="openAppCreditModal" />
 
             <CreditBreakdown :main-credit-used="mainCreditUsed" :main-credit-available="mainCreditAvailable"
                 :main-assigned-capital="mainAssignedCapital" :main-available-to-assign="mainAvailableToAssign"

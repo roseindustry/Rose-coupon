@@ -4,7 +4,7 @@
     <div class="row g-3 mb-4">
       <h6 class="ps-2 text-muted fw-500 mb-2">Línea Rose Credit Principal</h6>
       <div v-for="stat in mainLineStats" :key="stat.title" class="col-12 col-sm-6 col-md-3">
-        <CreditManagement :title="stat.title" :amount="stat.amount" />
+        <CreditCard :title="stat.title" :amount="stat.amount" />
       </div>
     </div>
 
@@ -12,7 +12,7 @@
     <div class="row g-3 mb-4">
       <h6 class="ps-2 text-muted fw-500 mb-2">Línea Rose Credit Plus</h6>
       <div v-for="stat in plusLineStats" :key="stat.title" class="col-12 col-sm-6 col-md-3">
-        <CreditManagement :title="stat.title" :amount="stat.amount" />
+        <CreditCard :title="stat.title" :amount="stat.amount" />
       </div>
     </div>
 
@@ -20,19 +20,19 @@
     <div class="row g-3 mb-4">
       <h6 class="ps-2 text-muted fw-500 mb-2">Línea para Comercios</h6>
       <div v-for="stat in affiliateLineStats" :key="stat.title" class="col-12 col-sm-6 col-md-3">
-        <CreditManagement :title="stat.title" :amount="stat.amount" />
+        <CreditCard :title="stat.title" :amount="stat.amount" />
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import CreditManagement from '../shared/CreditManagement.vue'
+import CreditCard from '../shared/CreditCard.vue'
 
 export default {
   name: 'CreditBreakdown',
   components: {
-    CreditManagement
+    CreditCard
   },
   props: {
     // Main line stats

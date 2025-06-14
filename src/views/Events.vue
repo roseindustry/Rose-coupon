@@ -1,5 +1,5 @@
 <script>
-import { ref as dbRef, query, orderByChild, equalTo, set, get, push, update, remove, onValue } from 'firebase/database';
+import { ref as dbRef, query, orderByChild, equalTo, set, get, push, update, remove } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/firebase/init';
 import { Modal } from 'bootstrap';
@@ -9,8 +9,13 @@ import 'toastify-js/src/toastify.css'
 import { useUserStore } from "@/stores/user-role";
 import { isAfter, parseISO, format } from "date-fns";
 import { es } from "date-fns/locale";
+import PageHeader from '@/components/app/PageHeader.vue';
 
 export default {
+	name: 'Events',
+	components: {
+		PageHeader
+	},
 	data() {
 		return {
 			// Logged User data
@@ -274,6 +279,14 @@ export default {
 			} catch (error) {
 				console.error("Error fetching affiliates:", error);
 			}
+		},
+
+		handleCreateEvent(){
+			this.fetchAffiliates();
+			this.getNextEventOrder();
+
+			const modal = new Modal(document.getElementById('createEventModal'));
+			modal.show();
 		},
 
 		//CRUD methods for events
@@ -918,7 +931,7 @@ export default {
 	},
 	async mounted() {
 		const userStore = useUserStore();
-		await userStore.fetchUser();
+		userStore.fetchUser();
 		this.role = userStore.role;
 		this.userId = userStore.userId;
 		this.userName = userStore.userName;
@@ -932,17 +945,14 @@ export default {
 <template>
 	<div class="container">
 		<!-- Header -->
-		<div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="mb-0 text-primary">
-                <i class="fa-solid fa-calendar-days me-2"></i>
-                Eventos
-            </h4>
-            <div v-if="this.role === 'admin'" class="d-flex gap-2">
-                <button class="btn btn-theme btn-sm" data-bs-toggle="modal" data-bs-target="#createEventModal" @click.prevent="fetchAffiliates(), getNextEventOrder()">
-                <i class="fa fa-plus-circle fa-fw me-1"></i> Crear Evento
-                </button>
-            </div>
-        </div>
+		<PageHeader :isAdmin="this.role === 'admin' ? true : false" title="Eventos" icon="fa fa-calendar-days" :actions="[
+            {
+                icon: 'fa fa-plus-circle',
+                text: 'Nuevo Evento',
+                class: 'btn-theme',
+                onClick: () => handleCreateEvent()
+            }
+        ]" />
 
 		<!-- Admin view -->
 		<div v-if="this.role === 'admin'">

@@ -425,7 +425,7 @@ import CouponCard from './CouponCard.vue';
 import SearchInput from '@/components/app/SearchInput.vue';
 import { Modal } from 'bootstrap';
 import { db } from '../../../firebase/init';
-import { ref as dbRef, get, query, orderByChild, equalTo } from 'firebase/database';
+import { ref as dbRef, get } from 'firebase/database';
 
 export default {
     name: 'AssignCoupons',

@@ -20,8 +20,12 @@ import { Modal } from "bootstrap";
 import { showToast } from "@/utils/toast";
 import "toastify-js/src/toastify.css";
 import { useUserStore } from "@/stores/user-role";
+import PageHeader from '@/components/app/PageHeader.vue';
 
 export default {
+  components: {
+    PageHeader
+  },
   data() {
     return {
       // Logged User data
@@ -54,7 +58,7 @@ export default {
   },
   async mounted() {
     const userStore = useUserStore();
-    await userStore.fetchUser();
+    userStore.fetchUser();
     this.role = userStore.role;
     this.userId = userStore.userId;
 
@@ -357,28 +361,28 @@ export default {
         }
       }
     },
+
+    handleCreateGiveaway() {
+      this.fetchAffiliates();
+      this.fetchSubscriptions();
+
+      const modal = new Modal(document.getElementById('createGiveawayModal'));
+      modal.show();
+    },
   },
 };
 </script>
 <template>
   <div class="container">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h4 class="mb-0 text-primary">
-        <i class="fa-solid fa-gift me-2"></i>
-        Sorteos
-      </h4>
-      <div v-if="this.role === 'admin'" class="d-flex gap-2">
-        <button
-          class="btn btn-theme btn-sm"
-          data-bs-toggle="modal"
-          data-bs-target="#createGiveawayModal"
-          @click.prevent="fetchAffiliates(), fetchSubscriptions()"
-        >
-          <i class="fa fa-plus-circle fa-fw me-1"></i> Crear Sorteo
-        </button>
-      </div>
-    </div>
+    <PageHeader :isAdmin="this.role === 'admin' ? true : false" title="Sorteos" icon="fa fa-gift" :actions="[
+      {
+        icon: 'fa fa-plus-circle',
+        text: 'Nuevo Sorteo',
+        class: 'btn-theme',
+        onClick: () => handleCreateGiveaway()
+      }
+    ]" />
 
     <div v-if="this.role === 'admin'">
       <!-- Loading State -->
@@ -391,31 +395,20 @@ export default {
       <!-- Empty State -->
       <div v-else-if="giveaways.length === 0" class="text-center py-5">
         <div class="mb-3">
-          <i
-            class="fa fa-gift text-secondary opacity-25"
-            style="font-size: 5em"
-          ></i>
+          <i class="fa fa-gift text-secondary opacity-25" style="font-size: 5em"></i>
         </div>
         <h5 class="text-secondary">No hay sorteos disponibles</h5>
       </div>
 
       <!-- Giveaways List -->
       <div v-else class="row">
-        <div
-          v-for="(giveaway, index) in giveaways"
-          :key="giveaway.id"
-          class="col-12 col-sm-6 col-md-4 mb-4"
-        >
+        <div v-for="(giveaway, index) in giveaways" :key="giveaway.id" class="col-12 col-sm-6 col-md-4 mb-4">
           <div class="card h-100 position-relative shadow-sm">
             <!-- Participating Subscriptions -->
             <div v-if="giveaway.subs" class="text-center p-3">
               <h6><strong>Suscripciones que participan</strong></h6>
               <div class="row">
-                <div
-                  v-for="sub in giveaway.subs"
-                  :key="sub.id"
-                  class="col-4 mb-2"
-                >
+                <div v-for="sub in giveaway.subs" :key="sub.id" class="col-4 mb-2">
                   <div class="badge bg-success text-white px-2 py-1">
                     {{ sub.name.toUpperCase() }}
                   </div>
@@ -425,30 +418,18 @@ export default {
 
             <!-- Image Display -->
             <div class="img-container position-relative">
-              <div
-                v-if="!giveaway.isEditing"
-                class="img"
-                :style="{
-                  backgroundImage: 'url(' + giveaway.image + ')',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  height: '200px',
-                }"
-              ></div>
+              <div v-if="!giveaway.isEditing" class="img" :style="{
+                backgroundImage: 'url(' + giveaway.image + ')',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                height: '200px',
+              }"></div>
               <div v-if="giveaway.isEditing">
                 <div v-if="giveaway.updatedImagePreview" class="mt-2">
-                  <img
-                    :src="giveaway.updatedImagePreview"
-                    class="img-thumbnail"
-                    alt="preview"
-                    style="max-height: 200px"
-                  />
+                  <img :src="giveaway.updatedImagePreview" class="img-thumbnail" alt="preview"
+                    style="max-height: 200px" />
                 </div>
-                <input
-                  type="file"
-                  @change="(event) => previewUpdatedImage(event, giveaway)"
-                  class="form-control"
-                />
+                <input type="file" @change="(event) => previewUpdatedImage(event, giveaway)" class="form-control" />
               </div>
             </div>
 
@@ -464,29 +445,18 @@ export default {
                 <strong>Comercios Afiliados:</strong>
               </p>
               <div class="row">
-                <div
-                  v-for="affiliate in giveaway.affiliates"
-                  :key="affiliate.id"
-                  class="col-6 mb-3"
-                >
-                  <div
-                    class="affiliate-logo"
-                    style="max-width: 80px; margin: 0 auto"
-                  >
+                <div v-for="affiliate in giveaway.affiliates" :key="affiliate.id" class="col-6 mb-3">
+                  <div class="affiliate-logo" style="max-width: 80px; margin: 0 auto">
                     <!-- Affiliate Image -->
-                    <div
-                      v-if="affiliate.image"
-                      class="img-thumbnail p-1"
-                      :style="{
-                        backgroundImage: 'url(' + affiliate.image + ')',
-                        backgroundSize: 'contain',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat',
-                        height: '50px',
-                        width: '50px',
-                        borderRadius: '50%',
-                      }"
-                    ></div>
+                    <div v-if="affiliate.image" class="img-thumbnail p-1" :style="{
+                      backgroundImage: 'url(' + affiliate.image + ')',
+                      backgroundSize: 'contain',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat',
+                      height: '50px',
+                      width: '50px',
+                      borderRadius: '50%',
+                    }"></div>
                     <!-- Affiliate Info -->
                     <div class="mt-2">
                       <h6 class="small">
@@ -503,10 +473,7 @@ export default {
                                                 @click="editGiveaway(), fetchAffiliates()">
                                                 <i class="fa-solid fa-pencil"></i>
                                             </button> -->
-                <button
-                  class="btn btn-sm btn-outline-danger"
-                  @click="deleteGiveaway(giveaway.id, index)"
-                >
+                <button class="btn btn-sm btn-outline-danger" @click="deleteGiveaway(giveaway.id, index)">
                   <i class="fa-solid fa-trash"></i>
                 </button>
               </div>
@@ -516,25 +483,15 @@ export default {
       </div>
 
       <!-- Modal for creating new event -->
-      <div
-        class="modal fade"
-        id="createGiveawayModal"
-        tabindex="-1"
-        aria-labelledby="createGiveawayModalLabel"
-        aria-hidden="true"
-      >
+      <div class="modal fade" id="createGiveawayModal" tabindex="-1" aria-labelledby="createGiveawayModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog modal-lg">
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title" id="createGiveawayModalLabel">
                 Crear Sorteo
               </h5>
-              <button
-                type="button"
-                class="btn-close"
-                data-bs-dismiss="modal"
-                aria-label="Close"
-              ></button>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
               <div class="container">
@@ -542,34 +499,23 @@ export default {
                 <div class="row">
                   <!-- Select Affiliates for the giveaway -->
                   <div class="col-lg-6 col-md-6 col-sm-12 mb-3">
-                    <label for="giveawayAffiliate" class="form-label"
-                      >Comercios Afiliados para el Sorteo</label
-                    >
+                    <label for="giveawayAffiliate" class="form-label">Comercios Afiliados para el Sorteo</label>
                     <div class="dropdown">
-                      <button
-                        class="btn btn-secondary dropdown-toggle"
-                        type="button"
-                        id="dropdownMenuCategory"
-                        data-bs-toggle="dropdown"
-                        data-bs-auto-close="false"
-                        aria-expanded="false"
-                      >
+                      <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuCategory"
+                        data-bs-toggle="dropdown" data-bs-auto-close="false" aria-expanded="false">
                         {{
                           selectedAffiliateIds.length > 0
                             ? selectedAffiliateIds
-                                .map(
-                                  (id) =>
-                                    affiliates.find((aff) => aff.id === id)
-                                      .companyName
-                                )
-                                .join(", ")
+                              .map(
+                                (id) =>
+                                  affiliates.find((aff) => aff.id === id)
+                                    .companyName
+                              )
+                              .join(", ")
                             : "Seleccione..."
                         }}
                       </button>
-                      <ul
-                        class="dropdown-menu"
-                        aria-labelledby="dropdownMenuButton"
-                      >
+                      <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
                         <li v-if="affiliates.length === 0">
                           <p style="margin: 10px">
                             No hay afiliados registrados.
@@ -577,17 +523,9 @@ export default {
                         </li>
                         <li v-for="aff in affiliates" :key="aff.id">
                           <div class="form-check" style="margin: 10px">
-                            <input
-                              type="checkbox"
-                              class="form-check-input"
-                              :id="'dropdownCheck_' + aff.id"
-                              :value="aff.id"
-                              v-model="selectedAffiliateIds"
-                            />
-                            <label
-                              class="form-check-label"
-                              :for="'dropdownCheck_' + aff.id"
-                            >
+                            <input type="checkbox" class="form-check-input" :id="'dropdownCheck_' + aff.id"
+                              :value="aff.id" v-model="selectedAffiliateIds" />
+                            <label class="form-check-label" :for="'dropdownCheck_' + aff.id">
                               {{ aff.companyName }}
                             </label>
                           </div>
@@ -597,34 +535,23 @@ export default {
                   </div>
                   <!-- Select Subscriptions for the giveaway -->
                   <div class="col-lg-6 col-md-6 col-sm-12 mb-3">
-                    <label for="giveawaySubscriptions" class="form-label"
-                      >Suscripciones permitidas</label
-                    >
+                    <label for="giveawaySubscriptions" class="form-label">Suscripciones permitidas</label>
                     <div class="dropdown">
-                      <button
-                        class="btn btn-secondary dropdown-toggle"
-                        type="button"
-                        id="dropdownSubscriptions"
-                        data-bs-toggle="dropdown"
-                        data-bs-auto-close="false"
-                        aria-expanded="false"
-                      >
+                      <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownSubscriptions"
+                        data-bs-toggle="dropdown" data-bs-auto-close="false" aria-expanded="false">
                         {{
                           selectedSubscriptionsIds.length > 0
                             ? selectedSubscriptionsIds
-                                .map((id) =>
-                                  subscriptions
-                                    .find((sub) => sub.id === id)
-                                    .name.toUpperCase()
-                                )
-                                .join(", ")
+                              .map((id) =>
+                                subscriptions
+                                  .find((sub) => sub.id === id)
+                                  .name.toUpperCase()
+                              )
+                              .join(", ")
                             : "Seleccione..."
                         }}
                       </button>
-                      <ul
-                        class="dropdown-menu"
-                        aria-labelledby="dropdownMenuButton"
-                      >
+                      <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
                         <li v-if="subscriptions.length === 0">
                           <p style="margin: 10px">
                             No hay suscripciones registradas.
@@ -632,17 +559,9 @@ export default {
                         </li>
                         <li v-for="sub in subscriptions" :key="sub.id">
                           <div class="form-check" style="margin: 10px">
-                            <input
-                              type="checkbox"
-                              class="form-check-input"
-                              :id="'dropdownCheck_' + sub.id"
-                              :value="sub.id"
-                              v-model="selectedSubscriptionsIds"
-                            />
-                            <label
-                              class="form-check-label"
-                              :for="'dropdownCheck_' + sub.id"
-                            >
+                            <input type="checkbox" class="form-check-input" :id="'dropdownCheck_' + sub.id"
+                              :value="sub.id" v-model="selectedSubscriptionsIds" />
+                            <label class="form-check-label" :for="'dropdownCheck_' + sub.id">
                               {{ sub.name.toUpperCase() }}
                             </label>
                           </div>
@@ -657,70 +576,36 @@ export default {
                   <!-- Name -->
                   <div class="col-lg-6 col-md-6 col-sm-12 mb-3">
                     <label for="giveawayName" class="form-label">Nombre</label>
-                    <input
-                      type="text"
-                      class="form-control"
-                      id="giveawayName"
-                      v-model="giveaway.name"
-                    />
+                    <input type="text" class="form-control" id="giveawayName" v-model="giveaway.name" />
                   </div>
                   <!-- Descripcion -->
                   <div class="col-lg-6 col-md-6 col-sm-12 mb-3">
-                    <label for="giveawayDesc" class="form-label"
-                      >Descripción</label
-                    >
-                    <textarea
-                      class="form-control"
-                      id="giveawayDesc"
-                      v-model="giveaway.desc"
-                    ></textarea>
+                    <label for="giveawayDesc" class="form-label">Descripción</label>
+                    <textarea class="form-control" id="giveawayDesc" v-model="giveaway.desc"></textarea>
                   </div>
 
                   <!-- Fecha -->
                   <div class="col-lg-6 col-md-6 col-sm-12 mb-3">
                     <label for="giveawayDate" class="form-label">Fecha</label>
-                    <input
-                      type="date"
-                      v-model="giveaway.date"
-                      class="form-control"
-                      style="width: auto"
-                    />
+                    <input type="date" v-model="giveaway.date" class="form-control" style="width: auto" />
                   </div>
                 </div>
 
                 <!-- Third Row -->
                 <div class="row">
                   <!-- giveaway Status -->
-                  <div
-                    class="col-lg-6 col-md-6 col-sm-12 mb-3 d-flex align-items-center"
-                  >
+                  <div class="col-lg-6 col-md-6 col-sm-12 mb-3 d-flex align-items-center">
                     <div class="form-check">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="giveawayStatus"
-                        v-model="giveaway.status"
-                      />
-                      <label class="form-check-label" for="giveawayStatus"
-                        >Activo</label
-                      >
+                      <input type="checkbox" class="form-check-input" id="giveawayStatus" v-model="giveaway.status" />
+                      <label class="form-check-label" for="giveawayStatus">Activo</label>
                     </div>
                   </div>
 
                   <!-- Upload Image Checkbox -->
-                  <div
-                    class="col-lg-6 col-md-6 col-sm-12 mb-3 d-flex align-items-center"
-                  >
+                  <div class="col-lg-6 col-md-6 col-sm-12 mb-3 d-flex align-items-center">
                     <div class="form-check">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="uploadImageCheckbox"
-                        v-model="uploadImage"
-                      />
-                      <label class="form-check-label" for="uploadImageCheckbox"
-                        >Subir imagen</label
-                      >
+                      <input type="checkbox" class="form-check-input" id="uploadImageCheckbox" v-model="uploadImage" />
+                      <label class="form-check-label" for="uploadImageCheckbox">Subir imagen</label>
                     </div>
                   </div>
                 </div>
@@ -729,46 +614,23 @@ export default {
                 <div class="row" v-if="uploadImage">
                   <div class="col-lg-12 col-md-12 col-sm-12 mb-3">
                     <label for="menuItemImg" class="form-label">Imagen</label>
-                    <input
-                      type="file"
-                      class="form-control"
-                      id="menuItemImg"
-                      @change="previewImage"
-                      accept="image/*"
-                    />
+                    <input type="file" class="form-control" id="menuItemImg" @change="previewImage" accept="image/*" />
                     <div v-if="imagePreview" class="mt-2">
-                      <img
-                        :src="imagePreview"
-                        class="img-thumbnail"
-                        alt="preview"
-                        style="max-height: 200px"
-                      />
+                      <img :src="imagePreview" class="img-thumbnail" alt="preview" style="max-height: 200px" />
                     </div>
                   </div>
                 </div>
               </div>
             </div>
             <div class="modal-footer">
-              <button
-                type="button"
-                class="btn btn-secondary"
-                data-bs-dismiss="modal"
-              >
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                 Cerrar
               </button>
-              <button
-                type="button"
-                class="btn btn-theme"
-                @click="createGiveaway()"
-                :disabled="isSubmitting"
-              >
+              <button type="button" class="btn btn-theme" @click="createGiveaway()" :disabled="isSubmitting">
                 Crear
               </button>
               <!-- Loader Spinner -->
-              <div
-                v-if="isSubmitting"
-                class="d-flex justify-content-center my-3"
-              >
+              <div v-if="isSubmitting" class="d-flex justify-content-center my-3">
                 <div class="spinner-border text-primary" role="status">
                   <span class="visually-hidden">Cargando...</span>
                 </div>
@@ -791,86 +653,65 @@ export default {
         <!-- Empty State -->
         <div v-else-if="filteredGiveaways.length === 0" class="text-center py-5">
           <div class="mb-3">
-            <i
-              class="fa fa-gift text-secondary opacity-25"
-              style="font-size: 5em"
-            ></i>
+            <i class="fa fa-gift text-secondary opacity-25" style="font-size: 5em"></i>
           </div>
           <h5 class="text-secondary">No hay sorteos disponibles</h5>
         </div>
 
         <!-- Giveaways List -->
         <div v-else class="row">
-            <div
-              v-for="giveaway in filteredGiveaways"
-              :key="giveaway.id"
-              class="col-12 col-sm-6 col-md-4 mb-4"
-            >
-              <div class="card h-100 position-relative">
-                <div class="img-container position-relative">
-                  <!-- Image Display -->
-                  <div
-                    class="img"
-                    :style="{
-                      backgroundImage: 'url(' + giveaway.image + ')',
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                      height: '200px',
-                    }"
-                  ></div>
-                </div>
+          <div v-for="giveaway in filteredGiveaways" :key="giveaway.id" class="col-12 col-sm-6 col-md-4 mb-4">
+            <div class="card h-100 position-relative">
+              <div class="img-container position-relative">
+                <!-- Image Display -->
+                <div class="img" :style="{
+                  backgroundImage: 'url(' + giveaway.image + ')',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  height: '200px',
+                }"></div>
+              </div>
 
-                <div class="card-body d-flex flex-column">
-                  <h5 class="card-title text-truncate">{{ giveaway.name }}</h5>
-                  <p class="card-text">
-                    <strong>Fecha: </strong>{{ formatDate(giveaway.date) }}
-                  </p>
+              <div class="card-body d-flex flex-column">
+                <h5 class="card-title text-truncate">{{ giveaway.name }}</h5>
+                <p class="card-text">
+                  <strong>Fecha: </strong>{{ formatDate(giveaway.date) }}
+                </p>
 
-                  <!-- giveaway's Affiliates -->
-                  <p class="card-text">
-                    <strong>Comercios Afiliados:</strong>
-                  </p>
-                  <div class="row">
-                    <div
-                      v-for="affiliate in giveaway.affiliates"
-                      :key="affiliate.id"
-                      class="col-6 mb-3"
-                    >
-                      <div
-                        class="affiliate-logo"
-                        style="max-width: 80px; margin: 0 auto"
-                      >
-                        <!-- Affiliate Image -->
-                        <div
-                          v-if="affiliate.image"
-                          class="img-thumbnail p-1"
-                          :style="{
-                            backgroundImage: 'url(' + affiliate.image + ')',
-                            backgroundSize: 'contain',
-                            backgroundPosition: 'center',
-                            backgroundRepeat: 'no-repeat',
-                            height: '50px',
-                            width: '50px',
-                            borderRadius: '50%',
-                          }"
-                        ></div>
-                        <!-- Affiliate Info -->
-                        <div class="mt-2">
-                          <h6 class="small">
-                            <strong>{{ affiliate.companyName }}</strong>
-                          </h6>
-                        </div>
+                <!-- giveaway's Affiliates -->
+                <p class="card-text">
+                  <strong>Comercios Afiliados:</strong>
+                </p>
+                <div class="row">
+                  <div v-for="affiliate in giveaway.affiliates" :key="affiliate.id" class="col-6 mb-3">
+                    <div class="affiliate-logo" style="max-width: 80px; margin: 0 auto">
+                      <!-- Affiliate Image -->
+                      <div v-if="affiliate.image" class="img-thumbnail p-1" :style="{
+                        backgroundImage: 'url(' + affiliate.image + ')',
+                        backgroundSize: 'contain',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
+                        height: '50px',
+                        width: '50px',
+                        borderRadius: '50%',
+                      }"></div>
+                      <!-- Affiliate Info -->
+                      <div class="mt-2">
+                        <h6 class="small">
+                          <strong>{{ affiliate.companyName }}</strong>
+                        </h6>
                       </div>
                     </div>
                   </div>
                 </div>
-                <!-- <div class="card-footer text-center">
+              </div>
+              <!-- <div class="card-footer text-center">
                                         <button class="btn btn-theme">
                                             Participar
                                         </button>
                                     </div> -->
-              </div>
             </div>
+          </div>
         </div>
       </div>
     </div>

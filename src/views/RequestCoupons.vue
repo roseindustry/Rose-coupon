@@ -648,6 +648,7 @@ export default {
 .badge-text {
     font-size: 0.8rem;
     line-height: 1.2;
+    color: #ffffff;
 }
 
 .img {

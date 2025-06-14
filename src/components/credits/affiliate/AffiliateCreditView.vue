@@ -941,9 +941,9 @@ export default {
       if (this.searchSales) {
         const searchTerm = this.searchSales.toLowerCase();
         filtered = filtered.filter(sale =>
-          sale.clientName.toLowerCase().includes(searchTerm) ||
-          sale.productName.toLowerCase().includes(searchTerm) ||
-          sale.purchaseDate.includes(searchTerm)
+          sale?.clientName?.toLowerCase().includes(searchTerm) ||
+          sale?.productName?.toLowerCase().includes(searchTerm) ||
+          sale?.purchaseDate?.includes(searchTerm)
         );
       }
 

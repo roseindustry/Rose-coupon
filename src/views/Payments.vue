@@ -5,7 +5,6 @@ import {
   orderByChild,
   equalTo,
   get,
-  push,
   set,
   update,
   remove,
@@ -14,18 +13,24 @@ import {
   ref as storageRef,
   listAll,
   getDownloadURL,
-  deleteObject,
 } from "firebase/storage";
-import { db, storage, functions } from "@/firebase/init";
-import { useUserStore } from "@/stores/user-role";
+import { db, storage } from "@/firebase/init";
 import { Modal } from "bootstrap";
 import { showToast } from "@/utils/toast";
 import { sendEmail } from "@/utils/emailService";
 import "toastify-js/src/toastify.css";
 import Swal from 'sweetalert2';
 import 'sweetalert2/src/sweetalert2.scss';
+import CustomNav from "@/components/app/CustomNav.vue";
+import CustomSelect from "@/components/app/CustomSelect.vue";
+import SearchCard from "@/components/app/SearchCard.vue";
 
 export default {
+  components: {
+    CustomNav,
+    CustomSelect,
+    SearchCard
+  },
   data() {
     return {
       clients: [],
@@ -1325,7 +1330,6 @@ export default {
       return this.dateRange.from || this.dateRange.to;
     },
   },
-
   watch: {
     approvedClientPayments: {
       handler() {
@@ -1349,7 +1353,6 @@ export default {
       this.filterHistoryByType(this.historyFilter);
     },
   },
-
   computed: {
     displayedPayments() {
       // If viewing credit-cuota payments
@@ -1383,69 +1386,69 @@ export default {
         Pagos
       </h4>
       <div class="payment-filters">
-        <div class="btn-group" role="group">
-          <button class="btn btn-outline-theme" :class="{ active: activeFilter === 'subscriptions' }" @click="
-            (activeFilter = 'subscriptions'), fetchPayments('subscriptions')
-            ">
-            <i class="fas fa-handshake me-2"></i>
-            <span class="d-none d-sm-inline">Suscripciones</span>
-            <span class="d-sm-none ms-1">Susc.</span>
-          </button>
-
-          <button class="btn btn-outline-theme" :class="{ active: activeFilter === 'installments' }" @click="
-            (activeFilter = 'installments'), fetchPayments('credit-cuota')
-            ">
-            <i class="fas fa-credit-card me-2"></i>
-            <span class="d-none d-sm-inline">Cuotas a Crédito</span>
-            <span class="d-sm-none ms-1">Cuotas</span>
-          </button>
-          <button class="btn btn-outline-theme" :class="{ active: activeFilter === 'history' }"
-            @click="activeFilter = 'history'">
-            <i class="fas fa-history me-2"></i>
-            <span class="d-none d-sm-inline">Historial</span>
-            <span class="d-sm-none ms-1">Hist.</span>
-          </button>
-        </div>
+        <CustomNav :actions="[
+          {
+            text: 'Suscripciones',
+            icon: 'fa-handshake',
+            isActive: activeFilter === 'subscriptions',
+            onClick: () => {
+              activeFilter = 'subscriptions';
+              this.fetchPayments('subscriptions');
+            }
+          },
+          {
+            text: 'Cuotas a Crédito',
+            icon: 'fa-credit-card',
+            isActive: activeFilter === 'installments',
+            onClick: () => {
+              activeFilter = 'installments';
+              this.fetchPayments('credit-cuota');
+            }
+          },
+          {
+            text: 'Historial',
+            icon: 'fa-history',
+            isActive: activeFilter === 'history',
+            onClick: () => {
+              activeFilter = 'history';
+            }
+          }
+        ]" />
       </div>
     </div>
 
     <!-- Subscription Section -->
     <div v-show="activeFilter === 'subscriptions'" class="payment-section">
-      <div class="card mb-4">
+      <div class="card">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-4">
             <h5 class="card-title mb-0">
               <i class="fas fa-users me-2"></i>
               Pendientes por Aprobación
             </h5>
-            <div class="d-flex gap-3">
-              <div class="filter-select-container">
-                <div class="select-wrapper">
-                  <i class="fas fa-filter filter-icon"></i>
-                  <select class="form-select form-select-sm" v-model="sortOrder">
-                    <option value="newest">Más recientes</option>
-                    <option value="oldest">Más antiguos</option>
-                  </select>
-                </div>
+            <div class="filter-wrap d-flex gap-3">
+              <div class="select-wrapper">
+                <CustomSelect v-model="sortOrder" :options="[
+                  { text: 'Más recientes', value: 'newest' },
+                  { text: 'Más antiguos', value: 'oldest' }
+                ]" />
               </div>
-              <div class="btn-group">
-                <button class="btn btn-sm btn-outline-theme" :class="{ active: userType === 'clients' }"
-                  @click="userType = 'clients'">
-                  <i class="fas fa-users me-sm-2"></i>
-                  <span class="d-none d-sm-inline">Clientes</span>
-                  <span v-if="pendingClientPayments.length" class="badge bg-theme ms-1">
-                    {{ pendingClientPayments.length || 0 }}
-                  </span>
-                </button>
-                <button class="btn btn-sm btn-outline-theme" :class="{ active: userType === 'affiliates' }"
-                  @click="userType = 'affiliates'">
-                  <i class="fas fa-store me-sm-2"></i>
-                  <span class="d-none d-sm-inline">Comercios</span>
-                  <span class="badge bg-theme ms-1">
-                    {{ pendingAffiliatePayments.length || 0 }}
-                  </span>
-                </button>
-              </div>
+              <CustomNav :actions="[
+                {
+                  text: 'Clientes',
+                  icon: 'fa-users',
+                  badge: pendingClientPayments.length,
+                  isActive: userType === 'clients',
+                  onClick: () => userType = 'clients'
+                },
+                {
+                  text: 'Comercios',
+                  icon: 'fa-store',
+                  badge: pendingAffiliatePayments.length,
+                  isActive: userType === 'affiliates',
+                  onClick: () => userType = 'affiliates'
+                }
+              ]" />
             </div>
           </div>
 
@@ -1495,7 +1498,7 @@ export default {
                             <span class="info-label">Suscripción:</span>
                             <span class="info-value">{{
                               getSubscriptionData(payment.subscription_id, 'clients').name.toUpperCase()
-                              }}</span>
+                            }}</span>
                           </div>
                           <div class="info-item">
                             <span class="info-label">Monto en USD:</span>
@@ -1516,7 +1519,7 @@ export default {
                             <span class="info-label">Fecha:</span>
                             <span class="info-value">{{
                               formatDate(payment.date)
-                              }}</span>
+                            }}</span>
                           </div>
                         </div>
                       </div>
@@ -1666,7 +1669,7 @@ export default {
 
     <!-- Installments Section -->
     <div v-show="activeFilter === 'installments'" class="payment-section">
-      <div class="card mb-4">
+      <div class="card">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-4">
             <h5 class="card-title mb-0">
@@ -1675,11 +1678,10 @@ export default {
             </h5>
             <div class="filter-select-container">
               <div class="select-wrapper">
-                <i class="fas fa-filter filter-icon"></i>
-                <select class="form-select form-select-sm" v-model="sortOrder">
-                  <option value="newest">Más recientes</option>
-                  <option value="oldest">Más antiguos</option>
-                </select>
+                <CustomSelect v-model="sortOrder" :options="[
+                  { text: 'Más recientes', value: 'newest' },
+                  { text: 'Más antiguos', value: 'oldest' }
+                ]" />
               </div>
             </div>
           </div>
@@ -1799,13 +1801,13 @@ export default {
                             <span class="info-label">Fecha límite de Pago:</span>
                             <span class="info-value">{{
                               formatDate(getCuotaData(payment).date)
-                              }}</span>
+                            }}</span>
                           </div>
                           <div class="info-item">
                             <span class="info-label">Fecha de Pago:</span>
                             <span class="info-value">{{
                               formatDate(payment.date)
-                              }}</span>
+                            }}</span>
                           </div>
                         </div>
                       </div>
@@ -1851,97 +1853,98 @@ export default {
 
     <!-- History Section -->
     <div v-show="activeFilter === 'history'" class="payment-section">
-      <div class="card mb-4">
+      <div class="card">
         <div class="card-body">
           <!-- Header with filters -->
           <div class="history-header">
-            <!-- Title and User Type Filter -->
+            <!-- User Type toggle -->
             <div class="header-main py-3 rounded-3">
               <div class="d-flex flex-wrap align-items-center gap-3">
-                <h6 class="mb-0 text-theme">
-                  <i class="fas fa-user me-2"></i>Tipo de Usuario
-                </h6>
+                <h5 class="card-title">
+                  Tipo de Usuario
+                </h5>
                 <div class="ms-auto d-flex gap-3 align-items-center">
                   <div class="user-filter">
-                    <div class="btn-group btn-group-sm">
-                      <button class="btn btn-outline-theme" :class="{ active: userType === 'clients' }"
-                        @click="userType = 'clients'">
-                        <i class="fas fa-users me-2 d-none d-sm-inline"></i>
-                        Clientes
-                      </button>
-                      <button class="btn btn-outline-theme" :class="{ active: userType === 'affiliates' }"
-                        @click="userType = 'affiliates'">
-                        <i class="fas fa-store me-2 d-none d-sm-inline"></i>
-                        Comercios
-                      </button>
-                    </div>
+                    <CustomNav :actions="[
+                      {
+                        text: 'Clientes',
+                        icon: 'fa-users',
+                        isActive: userType === 'clients',
+                        onClick: () => {
+                          userType = 'clients'
+                        }
+                      },
+                      {
+                        text: 'Comercios',
+                        icon: 'fa-store',
+                        isActive: userType === 'affiliates',
+                        onClick: () => {
+                          userType = 'affiliates'
+                        }
+                      }
+                    ]" />
                   </div>
                 </div>
               </div>
             </div>
 
             <!-- Payment Type Filters -->
-            <div class="payment-filters py-3 rounded-3">
+            <div class="header-main py-3 rounded-3">
               <div class="d-flex flex-wrap align-items-center gap-3">
-                <h6 class="mb-0 text-theme">
-                  <i class="fas fa-credit-card me-2"></i>Tipo de Pago
-                </h6>
+                <h5 class="card-title">
+                  Tipo de Pago
+                </h5>
                 <div class="ms-auto d-flex gap-3 align-items-center">
                   <div class="user-filter">
-                    <div class="btn-group btn-group-sm">
-                      <button class="btn btn-sm btn-outline-theme" :class="{
-                        active: historyFilter === 'subscriptions',
-                      }" @click="
-                        setHistoryFilter('subscriptions'),
-                        filterHistoryByType('subscriptions')
-                        ">
-                        <i class="fas fa-handshake me-2"></i>Suscripciones
-                      </button>
-                      <button class="btn btn-sm btn-outline-theme" :class="{ active: historyFilter === 'credit-cuota' }"
-                        @click="
-                          setHistoryFilter('credit-cuota'),
-                          filterHistoryByType('credit-cuota')
-                          ">
-                        <i class="fas fa-credit-card me-2"></i>Cuotas
-                      </button>
-                    </div>
+                    <CustomNav :actions="[
+                      {
+                        text: 'Suscripciones',
+                        icon: 'fa-handshake',
+                        isActive: historyFilter === 'subscriptions',
+                        onClick: () => {
+                          this.setHistoryFilter('subscriptions'),
+                          this.filterHistoryByType('subscriptions')
+                        }
+                      },
+                      {
+                        text: 'Cuotas',
+                        icon: 'fa-credit-card',
+                        isActive: historyFilter === 'credit-cuota',
+                        onClick: () => {
+                          this.setHistoryFilter('credit-cuota'),
+                          this.filterHistoryByType('credit-cuota')
+                        }
+                      }
+                    ]" />
                   </div>
                 </div>
               </div>
             </div>
 
             <!-- Search and Filter Section -->
-            <div class="card filters-section py-3 rounded-3">
-              <h5 class="card-subtitle mb-3 text-theme px-2 py-2">
-                <i class="fa-solid fa-filter me-2"></i>Filtrar
-              </h5>
+            <div class="filters-section py-3 rounded-3">
               <div class="card-body">
-                <div class="row g-3">
+                <div class="row justify-content-center g-3">
                   <!-- Search Filter -->
-                  <div class="col-12 col-md-6">
-                    <h6 class="card-subtitle mb-2 text-white py-1">
-                      <i class="fa-solid fa-search me-2"></i>Buscar
-                    </h6>
-                    <div class="input-group">
-                      <input type="text" class="form-control" v-model="searchQuery"
-                        placeholder="Buscar por nombre o identificación..." @input="filterDisplayedPayments()" />
-                    </div>
+                  <div class="col-12">
+                    <SearchCard title="Buscar cliente" v-model="searchQuery"
+                      placeholder="Buscar por nombre o cedula..." @input="filterDisplayedPayments()" />
                   </div>
 
                   <!-- Date Range Filter -->
-                  <div class="col-12 col-md-6">
+                  <div class="col-6">
                     <h6 class="card-subtitle mb-2 text-white py-1">
                       <i class="fa-solid fa-calendar me-2"></i>Filtrar por fecha
                     </h6>
                     <div class="d-flex gap-2">
                       <div class="input-group">
                         <span class="input-group-text">Desde</span>
-                        <input type="date" class="form-control" v-model="dateRange.from"
+                        <input type="date" class="date-input form-control" v-model="dateRange.from"
                           @change="filterPaymentsByDate" />
                       </div>
                       <div class="input-group">
                         <span class="input-group-text">Hasta</span>
-                        <input type="date" class="form-control" v-model="dateRange.to" @change="filterPaymentsByDate" />
+                        <input type="date" class="date-input form-control" v-model="dateRange.to" @change="filterPaymentsByDate" />
                       </div>
                       <button class="btn btn-outline-theme clear-date-filter w-auto" @click="clearDateFilter"
                         :disabled="!hasActiveFilters">
@@ -2024,11 +2027,13 @@ export default {
                       <div v-if="payment.type === 'subscription'" class="info-group">
                         <div class="info-item">
                           <span class="info-label">Suscripción:</span>
-                          <span class="info-value">{{ getSubscriptionData(payment.subscription_id, userType).name.toUpperCase() }}</span>
+                          <span class="info-value">{{ getSubscriptionData(payment.subscription_id,
+                            userType).name.toUpperCase() }}</span>
                         </div>
                         <div class="info-item">
                           <span class="info-label">Monto en USD:</span>
-                          <span class="info-value">${{ getSubscriptionData(payment.subscription_id, userType).price }}</span>
+                          <span class="info-value">${{ getSubscriptionData(payment.subscription_id, userType).price
+                          }}</span>
                         </div>
                       </div>
 
@@ -2130,10 +2135,12 @@ export default {
 </template>
 
 <style lang="scss" scoped>
+/* Base Layout */
 .payments-view {
   min-height: 100vh;
 }
 
+/* Theme Colors */
 .text-theme {
   color: purple;
 }
@@ -2180,6 +2187,7 @@ export default {
   box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
 }
 
+/* Card Styles */
 .card.custom-card {
   border: none;
   background-color: #29122f;
@@ -2211,12 +2219,39 @@ export default {
   border-radius: 15px;
 }
 
+/* Payment Filters */
 .payment-filters {
-  background: transparent;
-  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  width: 70%;
 }
 
+.payment-filters :deep(.custom-nav) {
+  padding: 1rem;
+  background: transparent;
+  border: none;
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  justify-content: center;
+}
+
+.filter-wrap {
+  width: 50%;
+}
+
+.filter-wrap :deep(.custom-nav) {
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  justify-content: center;
+}
+
+/* Icon Styles */
 .icon-circle {
   width: 60px;
   height: 60px;
@@ -2233,6 +2268,7 @@ export default {
   font-size: 1.5rem;
 }
 
+/* Payment Card Component */
 .payment-card {
   background: #29122f;
   border: none;
@@ -2246,6 +2282,7 @@ export default {
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
   }
 
+  /* Card Header */
   .card-header-custom {
     padding: 1rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -2281,6 +2318,7 @@ export default {
     }
   }
 
+  /* Card Content */
   .payment-details,
   .date-details {
     padding: 1rem;
@@ -2319,6 +2357,7 @@ export default {
     }
   }
 
+  /* Card Actions */
   .payment-actions {
     padding: 1rem;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -2342,89 +2381,7 @@ export default {
   }
 }
 
-.form-select {
-  border-radius: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border: 1px solid purple;
-  padding: 8px;
-  color: purple;
-}
-
-.form-select option {
-  color: white;
-}
-
-// Responsive styles
-@media (max-width: 768px) {
-  .payment-section {
-
-    .form-select,
-    .btn-group {
-      margin-top: 1rem;
-    }
-  }
-
-  .payment-card {
-    .card-header-custom {
-      padding: 0.75rem;
-
-      .icon-wrapper {
-        width: 32px;
-        height: 32px;
-        margin-bottom: 0.75rem;
-
-        i {
-          font-size: 1rem;
-        }
-      }
-
-      .card-title {
-        font-size: 0.9rem;
-      }
-    }
-
-    .payment-details {
-      padding: 0.75rem;
-
-      .info-group {
-        padding: 0.5rem;
-
-        .info-item {
-          font-size: 0.8rem;
-        }
-      }
-    }
-
-    .payment-actions {
-      padding: 0.75rem;
-
-      .btn-outline-theme {
-        font-size: 0.875rem;
-        padding: 0.375rem 0.75rem;
-        width: auto;
-      }
-    }
-  }
-}
-
-// Dark theme enhancements
-.payment-card {
-  background: linear-gradient(145deg, #2d1433 0%, #29122f 100%);
-
-  &:hover {
-    background: linear-gradient(145deg, #321637 0%, #2d1433 100%);
-  }
-
-  .info-group {
-    background: rgba(255, 255, 255, 0.03);
-  }
-
-  .badge {
-    background: #6f42c1;
-    color: white;
-  }
-}
-
+/* History Header Component */
 .history-header {
   .header-main {
     background: transparent;
@@ -2476,30 +2433,151 @@ export default {
   }
 }
 
-// Responsive adjustments
+/* Select Wrapper Component */
+.select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+.select-wrapper :deep(.form-select) {
+  min-width: 160px;
+}
+.date-input {
+  padding: 0.75rem 1rem;
+}
+.date-input {
+  background-color: #2d2d2d !important;
+  border-color: #444;
+  color: #fff;
+}
+/* Dark Theme Enhancements */
+.payment-card {
+  background: linear-gradient(145deg, #2d1433 0%, #29122f 100%);
+
+  &:hover {
+    background: linear-gradient(145deg, #321637 0%, #2d1433 100%);
+  }
+
+  .info-group {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .badge {
+    background: #6f42c1;
+    color: white;
+  }
+}
+
+/* Responsive Styles */
 @media (max-width: 768px) {
+
+  /* Payment Section */
+  .payment-section {
+
+    .form-select,
+    .btn-group {
+      margin-top: 1rem;
+      width: 100%;
+    }
+  }
+
+  /* Form Elements */
+  .form-select {
+    width: 100%;
+    padding: 0.95rem 0.75rem !important;
+  }
+
+  .select-wrapper {
+    display: flex;
+    align-items: center;
+  }
+
+  .select-wrapper :deep(.form-select) {
+    text-align: center;
+  }
+
+  .filter-wrap {
+    margin-top: 1.5rem;
+    width: 100%;
+  }
+
+  /* Payment Filters */
+  .payment-filters {
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .payment-filters :deep(.custom-nav) {
+    flex-direction: row !important;
+    padding: 1rem !important;
+    margin: 0 !important;
+    gap: 0.5rem !important;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .filter-wrap :deep(.custom-nav) {
+    flex-direction: row !important;
+    padding: 1rem !important;
+    margin: 0 !important;
+    gap: 0.5rem !important;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .payment-filters :deep(.nav-btn) {
+    width: auto !important;
+    padding: 0.75rem 1rem !important;
+    font-size: 0.875rem !important;
+    white-space: nowrap !important;
+    flex: 1;
+    min-width: fit-content;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .payment-filters :deep(.nav-btn i) {
+    margin-right: 0.5rem !important;
+  }
+
+  /* History Header */
   .history-header {
     .header-main {
       .user-filter {
         width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
 
         .btn-group {
           width: 100%;
+          display: flex;
+          gap: 0.5rem;
 
           .btn {
             flex: 1;
+            white-space: nowrap;
+            text-align: center;
           }
         }
       }
     }
 
     .filters-section {
+      width: 100%;
+
       .d-flex.gap-2 {
-        gap: 0.5rem !important;
+        gap: 1rem !important;
+        flex-wrap: wrap;
       }
 
       .input-group {
         width: 100%;
+        flex: 1;
+        min-width: 200px;
       }
 
       .btn-outline-theme {
@@ -2516,6 +2594,49 @@ export default {
       justify-content: center;
     }
   }
+
+  .payment-filters,
+  .filter-wrap {
+    width: 100%;
+  }
+
+  .select-wrapper {
+    width: 100%;
+    justify-content: flex-end;
+    margin-top: 1rem;
+  }
+
+  .select-wrapper :deep(.form-select) {
+    width: auto;
+    min-width: 140px;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .d-flex {
+    flex-wrap: wrap;
+    gap: 1rem !important;
+
+    .input-group {
+      flex: 1 1 100%;
+      min-width: 100%;
+    }
+
+    .clear-date-filter {
+      width: 100% !important;
+      flex: 1 1 100%;
+      margin-top: 0.5rem;
+    }
+  }
+
+  .payment-filters :deep(.nav-btn) {
+    padding: 0.75rem !important;
+    font-size: 0.8rem !important;
+  }
+
+  .payment-filters :deep(.nav-btn i) {
+    margin-right: 0.25rem !important;
+  }
 }
 
 @media (min-width: 769px) {
@@ -2527,83 +2648,6 @@ export default {
     .input-group {
       flex: 1;
     }
-  }
-}
-
-@media (max-width: 575.98px) {
-  .d-flex {
-    flex-wrap: wrap;
-
-    .input-group {
-      flex: 1 1 auto;
-      min-width: 140px;
-      /* Minimum width for date inputs */
-    }
-
-    .clear-date-filter {
-      width: auto !important;
-      /* Force auto width on mobile */
-      flex: 0 0 auto;
-      /* Prevent flex growth/shrink */
-    }
-  }
-}
-
-/* Add these styles */
-.filter-select-container {
-  position: relative;
-  display: inline-block;
-}
-
-.select-wrapper {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.filter-icon {
-  position: absolute;
-  left: 12px;
-  color: purple;
-  font-size: 0.875rem;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.form-select {
-  border-radius: 20px;
-  padding: 6px 36px;
-  font-size: 0.875rem;
-  border: 1px solid purple;
-  color: purple;
-  background-color: transparent;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='purple'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  background-size: 16px;
-}
-
-.form-select:focus {
-  box-shadow: 0 0 0 2px rgba(128, 0, 128, 0.2);
-  border-color: purple;
-  outline: none;
-}
-
-.form-select option {
-  background-color: #1a1a1a;
-  color: white;
-  padding: 8px;
-}
-
-/* Responsive styles */
-@media (max-width: 768px) {
-  .form-select {
-    width: 100%;
-    min-width: 160px;
   }
 }
 </style>

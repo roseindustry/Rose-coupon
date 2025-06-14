@@ -97,19 +97,19 @@ export default defineComponent({
 <template>
     <div class="container">
         <!-- Header Section -->
-        <div class="portal-header mb-4">
+        <div class="portal-header">
             <div class="row align-items-center">
                 <div class="col-md-7">
                     <h2 class="fw-bold mb-0">Portal de Afiliados</h2>
                     <p class="text-muted small mb-0">Herramientas para gestionar tu negocio</p>
                 </div>
                 <div class="col-md-5">
-                    <!-- Subscription Badge (Improved) -->
+                    <!-- Subscription Badge -->
                     <div class="subscription-container">
                         <div v-if="subscriptionPlan && subscriptionPlan.status && subscriptionPlan.name"
                             class="subscription-card" @click="redirectToSubs(subscriptionPlan)">
                             <div class="subscription-icon">
-                                <i :class="subscriptionPlan.icon"></i>
+                                <i class="fa-solid fa-crown"></i>
                             </div>
                             <div class="subscription-info">
                                 <div class="subscription-name">{{ subscriptionPlan.name.toUpperCase() }}</div>
@@ -160,7 +160,7 @@ export default defineComponent({
     </div>
 </template>
 <style scoped>
-/* Keep existing button styles */
+/* Base styles */
 .btn-theme {
     background-color: purple;
     border-color: purple;
@@ -173,57 +173,14 @@ export default defineComponent({
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Improved icon circle */
-.icon-circle {
-    background-color: white;
-    color: #000;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.25rem;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    flex-shrink: 0;
-}
-
-/* Card styling improvements */
-.portal-card {
-    overflow: hidden;
-    transition: all 0.3s ease;
-    border: none;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.portal-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
-}
-
-/* Improved ribbon */
-.ribbon {
-    position: absolute;
-    top: 15px;
-    right: -30px;
-    background: #8c042c;
-    color: #fff;
-    padding: 5px 30px;
-    font-size: 0.75rem;
-    font-weight: bold;
-    transform: rotate(45deg);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-    z-index: 10;
-}
-
-/* Compact header styles */
+/* Header Section */
 .portal-header {
     padding-bottom: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-/* Compact subscription styles */
+/* Subscription Card Styles */
 .subscription-container {
     display: flex;
     justify-content: flex-end;
@@ -240,6 +197,7 @@ export default defineComponent({
     transition: all 0.2s ease;
     border-left: 4px solid #198754;
     max-width: 250px;
+    width: 100%;
 }
 
 .subscription-card:hover {
@@ -287,28 +245,124 @@ export default defineComponent({
     margin-top: 1px;
 }
 
-/* Responsive adjustments */
+/* Portal Card Styles */
+.portal-card {
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    height: 100%;
+}
+
+.portal-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* Icon Circle Styles */
+.icon-circle {
+    background-color: white;
+    color: #000;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
+}
+
+/* Ribbon Styles */
+.ribbon {
+    position: absolute;
+    top: 15px;
+    right: -30px;
+    background: #8c042c;
+    color: #fff;
+    padding: 5px 30px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    transform: rotate(45deg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+}
+
+/* Responsive Styles */
 @media (max-width: 768px) {
     .portal-header {
-        padding-bottom: 0 !important;
-        margin-bottom: 0 !important;
         text-align: center;
+        padding-bottom: 0.5rem;
+        margin-bottom: 0.5rem;
     }
 
     .subscription-container {
         justify-content: center;
         margin-top: 1rem;
+        margin-bottom: 0.5rem;
     }
 
     .subscription-card {
-        width: 100%;
-        max-width: 250px;
+        max-width: 200px;
+        padding: 6px 10px;
+    }
+
+    .subscription-icon {
+        width: 24px;
+        height: 24px;
+        font-size: 0.8rem;
+        margin-right: 8px;
+    }
+
+    .subscription-name {
+        font-size: 0.7rem;
+    }
+
+    .subscription-hint {
+        font-size: 0.65rem;
+    }
+
+    .icon-circle {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
     }
 }
 
 @media (max-width: 576px) {
-    .row-cols-1 {
-        margin: 0 !important;
+    .portal-header {
+        margin-bottom: 0.5rem;
+    }
+
+    .subscription-container {
+        margin-top: 0.75rem;
+    }
+
+    .subscription-card {
+        max-width: 180px;
+        padding: 4px 8px;
+    }
+
+    .subscription-icon {
+        width: 20px;
+        height: 20px;
+        font-size: 0.7rem;
+        margin-right: 6px;
+    }
+
+    .subscription-name {
+        font-size: 0.65rem;
+    }
+
+    .subscription-hint {
+        font-size: 0.6rem;
+    }
+
+    .icon-circle {
+        width: 36px;
+        height: 36px;
+        font-size: 0.9rem;
     }
 }
 </style>

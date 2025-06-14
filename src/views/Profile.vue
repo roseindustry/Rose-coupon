@@ -251,6 +251,7 @@ export default defineComponent({
       editingEmail: false,
       editingPhone: false,
       isRequestPending: false,
+      isSendingRequest: false,
       hasapplicablePurchase: false,
       hasCurrentMonthPayment: false
     };
@@ -939,6 +940,7 @@ export default defineComponent({
       }
 
       this.isRequestPending = true;
+      this.isSendingRequest = true;
 
       try {
         const requestRef = dbRef(db, `deletionRequests/${this.userId}`);
@@ -1009,9 +1011,25 @@ export default defineComponent({
         console.error("Error submitting request:", error);
         showToast.error("Error al enviar la solicitud. Por favor intenta de nuevo.");
       } finally {
-        this.isRequestPending = false;
+        this.isSendingRequest = false;
       }
     },
+    // async testSendEmail() {
+    //   const emailPayload = {
+    //     to: "joselinq38@gmail.com",
+    //     message: {
+    //       subject: "Test email",
+    //       text: "FUNCIONA",
+    //       html: "<p>FUNCIONA</p>"
+    //     }
+    //   };
+    //   const result = await sendEmail(emailPayload);
+    //   if (result.success) {
+    //     console.log("Email sent successfully:", result.message);
+    //   } else {
+    //     console.error("Failed to send email:", result.error);
+    //   }
+    // },
 
     // Email input validation
     validateEmail(email) {
@@ -1734,7 +1752,7 @@ export default defineComponent({
                 <div class="alert alert-success d-flex align-items-center">
                   <i class="fas fa-check-circle me-3 fa-2x"></i>
                   <div>
-                    <h5 class="mb-1">Suscripción Activa</h5>
+                    <h5 class="text-black mb-1">Suscripción Activa</h5>
                     <p class="mb-0">Estás al día con el pago de cuotas de tu compra más reciente. Tu suscripción está
                       activa.
                     </p>
@@ -1886,12 +1904,12 @@ export default defineComponent({
     </div>
 
     <!-- Request delete account -->
-    <div class="mt-3 d-flex flex-wrap">
+    <div class="d-flex flex-wrap">
       <button class="btn btn-danger" @click="requestDeleteAccount" :disabled="isRequestPending">
-        <span v-if="isRequestPending" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        <span v-if="isRequestPending">Solicitud enviada</span>
+        <span v-else-if="isSendingRequest" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
         <span v-else>Solicitar eliminar cuenta</span>
       </button>
-      <!-- <p class="text-danger" v-if="isRequestPending">Tu solicitud ha sido enviada.</p> -->
     </div>
 
     <!-- Verification Modal -->

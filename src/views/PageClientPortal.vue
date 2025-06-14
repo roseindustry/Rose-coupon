@@ -396,7 +396,7 @@ export default defineComponent({
     </div>
 </template>
 <style scoped>
-/* Keep existing button color */
+/* Base styles */
 .btn-theme {
     background-color: purple;
     border-color: purple;
@@ -409,63 +409,19 @@ export default defineComponent({
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Card styling improvements */
-.portal-card {
-    overflow: hidden;
-    transition: all 0.3s ease;
-    border: none;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    height: 100%;
-}
-
-.portal-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
-}
-
-.card-body {
-    position: relative;
-    height: 100%;
-}
-
-.card-content {
-    background-color: transparent;
-    border-radius: 8px;
-    padding: 0.5rem;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-
-/* Improved ribbon */
-.ribbon {
-    position: absolute;
-    top: 15px;
-    right: -30px;
-    background: #8c042c;
-    color: #fff;
-    padding: 5px 30px;
-    font-size: 0.75rem;
-    font-weight: bold;
-    transform: rotate(45deg);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-    z-index: 10;
-}
-
-/* Compact header styles */
+/* Header Section */
 .portal-header {
     padding-bottom: 1rem;
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-/* Status badges container */
+/* Status Badges */
 .badges-container {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
 }
 
-/* Status card styles (for both subscription and verification) */
 .status-card {
     display: flex;
     align-items: center;
@@ -484,54 +440,6 @@ export default defineComponent({
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
-/* Subscription specific styles */
-.subscription-card {
-    border-left: 4px solid #198754;
-}
-
-.subscription-card-alert {
-    border-left: 4px solid #dc3545;
-}
-
-.subscription-icon {
-    background: rgba(25, 135, 84, 0.1);
-    color: #198754;
-}
-
-.subscription-card-alert .status-icon {
-    background: rgba(220, 53, 69, 0.1);
-    color: #dc3545;
-}
-
-/* Verification specific styles */
-.verification-card {
-    border-left: 4px solid #198754;
-}
-
-.verification-card-pending {
-    border-left: 4px solid #f0ad4e;
-}
-
-.verification-card-pending .status-icon {
-    background: rgba(240, 173, 78, 0.1);
-    color: #f0ad4e;
-}
-
-.verification-card-alert {
-    border-left: 4px solid #dc3545;
-}
-
-.verification-card .status-icon {
-    background: rgba(25, 135, 84, 0.1);
-    color: #198754;
-}
-
-.verification-card-alert .status-icon {
-    background: rgba(220, 53, 69, 0.1);
-    color: #dc3545;
-}
-
-/* Common status icon styles */
 .status-icon {
     width: 32px;
     height: 32px;
@@ -561,35 +469,104 @@ export default defineComponent({
     margin-top: 1px;
 }
 
-/* Warning message styles */
+/* Subscription Card Variants */
+.subscription-card {
+    border-left: 4px solid #198754;
+}
+
+.subscription-card-alert {
+    border-left: 4px solid #dc3545;
+}
+
+.subscription-icon {
+    background: rgba(25, 135, 84, 0.1);
+    color: #198754;
+}
+
+.subscription-card-alert .status-icon {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+/* Verification Card Variants */
+.verification-card {
+    border-left: 4px solid #198754;
+}
+
+.verification-card-pending {
+    border-left: 4px solid #f0ad4e;
+}
+
+.verification-card-pending .status-icon {
+    background: rgba(240, 173, 78, 0.1);
+    color: #f0ad4e;
+}
+
+.verification-card-alert {
+    border-left: 4px solid #dc3545;
+}
+
+.verification-card .status-icon {
+    background: rgba(25, 135, 84, 0.1);
+    color: #198754;
+}
+
+.verification-card-alert .status-icon {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+/* Portal Cards */
+.portal-card {
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    height: 100%;
+}
+
+.portal-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+}
+
+.card-body {
+    position: relative;
+    height: 100%;
+}
+
+.card-content {
+    background-color: transparent;
+    border-radius: 8px;
+    padding: 0.5rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Ribbon */
+.ribbon {
+    position: absolute;
+    top: 15px;
+    right: -30px;
+    background: #8c042c;
+    color: #fff;
+    padding: 5px 30px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    transform: rotate(45deg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+}
+
+/* Warning Messages */
 .warning-message {
     background-color: rgba(255, 255, 255, 0.9);
     border-radius: 4px;
     padding: 0.5rem;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .portal-header {
-        text-align: center;
-    }
-
-    .badges-container {
-        align-items: center;
-        margin-top: 1rem;
-    }
-
-    .status-card {
-        max-width: 250px;
-    }
-}
-
-@media (max-width: 576px) {
-    .row-cols-1 {
-        margin: 0 0.5rem;
-    }
-}
-
+/* Verification Modal */
 .verification-modal .modal-content {
     background-color: #2d2d2d;
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -621,6 +598,7 @@ export default defineComponent({
     margin-bottom: 0;
 }
 
+/* Document Upload Section */
 .document-upload-section {
     padding: 1.5rem;
 }
@@ -675,6 +653,7 @@ export default defineComponent({
     padding: 1rem 1.5rem;
 }
 
+/* Modal Buttons */
 .btn-primary {
     background-color: #6f42c1;
     border-color: #6f42c1;
@@ -693,7 +672,46 @@ export default defineComponent({
     color: #aaa;
 }
 
+/* Responsive Styles */
 @media (max-width: 768px) {
+    .portal-header {
+        text-align: center;
+    }
+
+    .badges-container {
+        flex-direction: row;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .status-card {
+        max-width: 200px;
+        padding: 6px 10px;
+        margin: 0;
+    }
+
+    .status-icon {
+        width: 24px;
+        height: 24px;
+        font-size: 0.8rem;
+        margin-right: 8px;
+    }
+
+    .status-name {
+        font-size: 0.7rem;
+    }
+
+    .status-hint {
+        font-size: 0.65rem;
+    }
+
+    .mt-2 {
+        margin-top: 0 !important;
+    }
+
     .modal-dialog {
         margin: 1.75rem 0.5rem;
     }
@@ -708,6 +726,34 @@ export default defineComponent({
 
     .document-upload-icon {
         font-size: 2.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .badges-container {
+        flex-direction: row;
+        justify-content: center;
+        gap: 0.25rem;
+    }
+
+    .status-card {
+        max-width: 180px;
+        padding: 4px 8px;
+    }
+
+    .status-icon {
+        width: 20px;
+        height: 20px;
+        font-size: 0.7rem;
+        margin-right: 6px;
+    }
+
+    .status-name {
+        font-size: 0.65rem;
+    }
+
+    .status-hint {
+        font-size: 0.6rem;
     }
 }
 </style>

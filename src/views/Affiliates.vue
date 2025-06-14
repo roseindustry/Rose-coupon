@@ -4,6 +4,11 @@ import AddCategoryModal from "@/components/affiliates/AddCategoryModal.vue";
 import ManageSubcategoriesModal from "@/components/affiliates/ManageSubcategoriesModal.vue";
 import AddSubcategoryModal from "@/components/affiliates/AddSubcategoryModal.vue";
 import AddNewAffiliate from "@/components/affiliates/AddNewAffiliate.vue";
+import AffiliatesList from "@/components/affiliates/AffiliatesList.vue";
+import PageHeader from "@/components/app/PageHeader.vue";
+import StatCard from '@/components/app/StatCard.vue';
+import SearchCard from '@/components/app/SearchCard.vue';
+import CustomSelect from '@/components/app/CustomSelect.vue';
 import {
   ref as dbRef,
   query,
@@ -21,14 +26,13 @@ import {
   getDownloadURL,
   deleteObject,
 } from "firebase/storage";
-import { db, storage, functions } from "@/firebase/init";
-import { httpsCallable } from "firebase/functions";
+import { db, storage } from "@/firebase/init";
 import { Modal } from "bootstrap";
 import { toast } from "@/utils/toast";
 import "toastify-js/src/toastify.css";
 import { useUserStore } from "@/stores/user-role";
 import venezuela from "venezuela";
-import AffiliatesList from "@/components/affiliates/AffiliatesList.vue";
+
 
 export default {
   components: {
@@ -38,6 +42,10 @@ export default {
     AddSubcategoryModal,
     AddNewAffiliate,
     AffiliatesList,
+    PageHeader,
+    StatCard,
+    SearchCard,
+    CustomSelect
   },
   data() {
     return {
@@ -178,7 +186,9 @@ export default {
 
       // Apply category filter if active
       if (this.selectedCategory) {
+        console.log('category: ', this.selectedCategory)
         result = result.filter(affiliate => affiliate.category_id === this.selectedCategory.id);
+        console.log('resultados: ', result);
       }
 
       // Apply search filter if there's a search query
@@ -220,6 +230,31 @@ export default {
       }
 
       return "No hay Comercios Afiliados registrados.";
+    },
+
+    stateOptions() {
+      return this.venezuelanStates.map(state => ({
+        value: state,
+        text: state,
+      }));
+    },
+    municipioOptions() {
+      return this.municipios.map(municipio => ({
+        value: municipio,
+        text: municipio,
+      }));
+    },
+    parroquiaOptions() {
+      return this.parroquias.map(parroquia => ({
+        value: parroquia,
+        text: parroquia,
+      }));
+    },
+    categoryOptions(){
+      return this.categories.map(category => ({
+        value: category.id,
+        text: category.name,
+      }));
     }
   },
   async mounted() {
@@ -319,18 +354,6 @@ export default {
     },
 
     // Filter affiliates
-    habilitateFilters() {
-      if (this.filterAffiliates) {
-        this.filterAffiliates = false;
-        this.showMunicipios = false;
-        this.showParroquias = false;
-        this.showCategories = false;
-        this.clearFilter();
-      } else {
-        this.filterAffiliates = true;
-        this.showCategories = true;
-      }
-    },
     displayMunicipios(state) {
       try {
         const stateData = venezuela.estado(state, { municipios: true });
@@ -359,89 +382,55 @@ export default {
         this.parroquias = [];
       }
     },
-    onStateChange(newState) {
-      this.affiliate.state = newState;
-      this.displayMunicipios(newState); // Call existing logic to update municipios
-    },
-    onMunicipioChange(newMunicipio) {
-      this.affiliate.municipio = newMunicipio;
-      this.displayParroquias(newMunicipio); // Call existing logic to update parroquias
-    },
-    onParroquiaChange(newParroquia) {
-      this.affiliate.parroquia = newParroquia;
-    },
-
-    filterByState(state) {
-      this.filteredAffiliates = this.affiliates.filter(
-        (affiliate) => affiliate.state === state
-      );
-      this.sortAffiliatesByOrder();
-    },
-    filterByMunicipio(municipio) {
-      this.filteredAffiliates = this.affiliates.filter(
-        (affiliate) => affiliate.municipio === municipio
-      );
-      this.sortAffiliatesByOrder();
-    },
-    filterByParroquia(parroquia) {
-      this.filteredAffiliates = this.affiliates.filter(
-        (affiliate) => affiliate.parroquia === parroquia
-      );
-      this.sortAffiliatesByOrder();
-    },
-    filterByCategory(category) {
-      this.filteredAffiliates = this.affiliates.filter(
-        (affiliate) => affiliate.category_id === category.id
-      );
-      this.sortAffiliatesByOrder();
-    },
-
-    // Select options
-    setSelectedState(state) {
-      this.selectedState = state;
-    },
-    setSelectedMunicipio(municipio) {
-      this.selectedMunicipio = municipio;
-    },
-    setSelectedParroquia(parroquia) {
-      this.selectedParroquia = parroquia;
-    },
     setSelectedCategory(category) {
       this.selectedCategory = category;
     },
-
     handleStateSelect(state) {
-      this.setSelectedState(state);
-      this.filterByState(state);
-      this.displayMunicipios(state);
+      if (!state) {
+        this.clearAllFilters();
+        return;
+      }
+      this.selectedState = state;
+      this.selectedMunicipio = null;
+      this.selectedParroquia = null;
       this.showMunicipios = true;
       this.showParroquias = false;
-    },
 
+      // Load municipios for the selected state
+      this.loadMunicipios(state);
+    },
     handleMunicipioSelect(municipio) {
-      this.setSelectedMunicipio(municipio);
-      this.filterByMunicipio(municipio);
-      this.displayParroquias(municipio);
+      if (!municipio) {
+        this.selectedMunicipio = null;
+        this.selectedParroquia = null;
+        this.showParroquias = false;
+        return;
+      }
+      this.selectedMunicipio = municipio;
+      this.selectedParroquia = null;
       this.showParroquias = true;
-    },
 
+      // Load parroquias for the selected municipio
+      this.loadParroquias(municipio);
+    },
     handleParroquiaSelect(parroquia) {
-      this.setSelectedParroquia(parroquia);
-      this.filterByParroquia(parroquia);
+      if (!parroquia) {
+        this.selectedParroquia = null;
+        return;
+      }
+      this.selectedParroquia = parroquia;
     },
-
-    handleCategorySelect(category) {
-      this.setSelectedCategory(category);
-      this.filterByCategory(category);
-    },
-
-    clearFilter() {
-      this.selectedState = "";
-      this.selectedMunicipio = "";
-      this.selectedParroquia = "";
-      this.selectedCategory = "";
-      this.filterAffiliates = false;
-      this.filteredAffiliates = this.affiliates;
+    handleCategorySelect(categoryId) {
+      console.log(categoryId)
+      if (!categoryId) {
+        this.selectedCategory = null;
+        return;
+      }
+      // Find the full category object from categories array
+      const selectedCategory = this.categories.find(cat => cat.id === categoryId);
+      if (selectedCategory) {
+        this.selectedCategory = selectedCategory;
+      }
     },
 
     // Edit affiliate
@@ -1111,52 +1100,6 @@ export default {
       affiliate.imageFile = null;
     },
 
-    handleSearch() {
-      this.filterAffiliates = false;
-      this.filteredAffiliates = [];
-
-      if (!this.searchQuery) {
-        return;
-      }
-
-      const query = this.searchQuery.toLowerCase();
-      this.filteredAffiliates = this.affiliates.filter(
-        (affiliate) =>
-          affiliate.companyName?.toLowerCase().includes(query) ||
-          affiliate.state?.toLowerCase().includes(query) ||
-          affiliate.municipio?.toLowerCase().includes(query) ||
-          affiliate.parroquia?.toLowerCase().includes(query)
-      );
-    },
-
-    // Add this method to handle state changes in the modal
-    handleStateChangeInModal(state) {
-      try {
-        const stateData = venezuela.estado(state, { municipios: true });
-        if (stateData && stateData.municipios) {
-          // We'll pass this to the modal component
-          return stateData.municipios;
-        }
-      } catch (error) {
-        console.error('Error loading municipios:', error);
-        return [];
-      }
-    },
-
-    // Add this method to handle municipio changes in the modal
-    handleMunicipioChangeInModal(municipio) {
-      try {
-        const municipioData = venezuela.municipio(municipio, { parroquias: true });
-        if (municipioData && municipioData.parroquias) {
-          // We'll pass this to the modal component
-          return municipioData.parroquias;
-        }
-      } catch (error) {
-        console.error('Error loading parroquias:', error);
-        return [];
-      }
-    },    
-
     // Sort affiliates by order
     sortByOrder(affiliates) {
       return [...affiliates].sort((a, b) => {
@@ -1193,38 +1136,6 @@ export default {
       this.showParroquias = false;
       this.showCategories = false;
       this.filterAffiliates = false;
-    },
-
-    // Handle state selection
-    handleStateSelect(state) {
-      this.selectedState = state;
-      this.selectedMunicipio = null;
-      this.selectedParroquia = null;
-      this.showMunicipios = true;
-      this.showParroquias = false;
-
-      // Load municipios for the selected state
-      this.loadMunicipios(state);
-    },
-
-    // Handle municipio selection
-    handleMunicipioSelect(municipio) {
-      this.selectedMunicipio = municipio;
-      this.selectedParroquia = null;
-      this.showParroquias = true;
-
-      // Load parroquias for the selected municipio
-      this.loadParroquias(municipio);
-    },
-
-    // Handle parroquia selection
-    handleParroquiaSelect(parroquia) {
-      this.selectedParroquia = parroquia;
-    },
-
-    // Handle category selection
-    handleCategorySelect(category) {
-      this.selectedCategory = category;
     },
 
     // Load municipios for a state
@@ -1279,132 +1190,93 @@ export default {
 </script>
 <template>
   <div class="container">
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h4 class="mb-0 text-primary">
-        <i class="fa fa-building me-2"></i>
-        Comercios Afiliados
-      </h4>
-      <!-- Admin Header Actions -->
-      <div v-if="this.role === 'admin'" class="d-flex gap-2">
-        <button class="btn btn-theme btn-sm" @click="manageCategories()">
-          <i class="fa fa-list fa-fw me-1"></i> Administrar categorias
-        </button>
-        <button class="btn btn-theme btn-sm" @click="handleAddAffiliate" data-bs-toggle="modal"
-          data-bs-target="#addAffiliateModal">
-          <i class="fa fa-plus-circle fa-fw me-1"></i> Agregar Afiliado
-        </button>
-      </div>
-    </div>
+    <!-- Page Header -->
+    <PageHeader :isAdmin="this.role === 'admin'" title="Comercios Afiliados" icon="fa fa-building" :actions="[
+      {
+        icon: 'fa fa-user-plus',
+        text: 'Agregar Afiliado',
+        class: 'btn-theme',
+        modalToggle: 'modal',
+        modalTarget: '#addAffiliateModal',
+        onClick: () => { }
+      },
+      {
+        icon: 'fa fa-list',
+        text: 'Administrar categorias',
+        class: 'btn-theme',
+        onClick: () => manageCategories()
+      }
+    ]" />
 
     <div class="affiliates-wrapper">
-      <div class="filters-wrapper p-3">
-        <!-- Total Affiliates -->
-        <div class="row align-items-center mb-3">
-          <div class="col-md-4 mt-3 mt-md-0">
-            <span class="badge bg-dark fs-6 p-2">
-              {{ displayedAffiliates.length }} Comercios Afiliados
-            </span>
-          </div>
-        </div>
-        <!-- Search and Filters Row -->
-        <div class="row align-items-center">
-          <!-- Search Bar -->
-          <div class="col-md-6">
-            <label class="form-label">Buscar comercios</label>
-            <div class="input-group">
-              <span class="input-group-text bg-dark border-secondary">
-                <i class="fas fa-search text-light"></i>
-              </span>
-              <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary"
-                v-model="searchQuery" placeholder="Buscar comercios..." />
-            </div>
+      <div class="filters-wrapper p-4">
+        <!-- Header with stats and actions -->
+        <div class="row justify-content-between align-items-center g-3">
+          <div class="col-md-4">
+            <StatCard title="Total de Afiliados" icon="fa-users" :value="affiliates.length" />
           </div>
 
+          <!-- Search Bar -->
+          <div class="col-md-8">
+            <SearchCard title="Buscar comercios" v-model="searchQuery" placeholder="Buscar por nombre o RIF..." />
+          </div>
+        </div>
+        <!-- Filters Row -->
+        <div class="row mt-3">
           <!-- Filters -->
-          <div class="col-md-6">
-            <label class="d-flex justify-content-end flex-wrap form-label">Filtrar comercios</label>
-            <div class="d-flex justify-content-end flex-wrap">
-              <div v-if="!filterAffiliates" class="btn btn-theme btn-sm me-2 mb-2" @click.prevent="toggleFilters">
-                <i class="fa-solid fa-filter"></i>
-                Activar filtros
-              </div>
-              <div v-if="filterAffiliates" class="btn btn-theme btn-sm me-2 mb-2" @click.prevent="clearAllFilters">
-                <i class="fa-solid fa-filter"></i>
-                Limpiar filtros
+          <div class="col-md-12">
+            <div class="filter-card">
+              <div class="custom-select-wrapper">
+                <button v-if="!filterAffiliates" class="btn btn-theme" @click.prevent="toggleFilters">
+                  <i class="fa-solid fa-filter"></i>
+                  Activar filtros
+                </button>
+                <button v-if="filterAffiliates" class="btn btn-theme" @click.prevent="clearAllFilters">
+                  <i class="fa-solid fa-eraser"></i>
+                  Limpiar filtros
+                </button>
               </div>
 
               <!-- State Filter -->
-              <div v-if="filterAffiliates" class="dropdown mb-2 me-2">
-                <button class="btn btn-theme btn-sm dropdown-toggle me-2 w-100 w-md-auto" type="button"
-                  id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                  <i class="fa-solid fa-filter"></i>
-                  {{ selectedState ? selectedState : 'Filtrar por Estado' }}
-                </button>
-                <ul class="dropdown-menu" aria-labelledby="filterDropdown" style="max-height: 200px; overflow-y: auto;">
-                  <li v-for="state in venezuelanStates" :key="state">
-                    <a class="dropdown-item" href="#" @click.prevent="handleStateSelect(state)">
-                      {{ state }}
-                    </a>
-                  </li>
-                  <li>
-                    <a class="dropdown-item" href="#" @click.prevent="clearAllFilters">Ver todos</a>
-                  </li>
-                </ul>
+              <div v-if="filterAffiliates" class="custom-select-wrapper">
+                <label class="form-label mb-1">Estado</label>
+                <CustomSelect
+                  v-model="selectedState"
+                  class="me-2"
+                  :options="stateOptions"
+                  placeholder="Seleccionar estado"
+                  @change="handleStateSelect(selectedState)"
+                />
               </div>
-
-              <!-- Municipio Filter -->
-              <div v-if="showMunicipios" class="dropdown mb-2 me-2">
-                <button class="btn btn-theme btn-sm dropdown-toggle me-2 w-100 w-md-auto" type="button"
-                  id="filterMunicipios" data-bs-toggle="dropdown" aria-expanded="false">
-                  <i class="fa-solid fa-filter"></i>
-                  {{ selectedMunicipio ? selectedMunicipio : 'Filtrar por Municipio' }}
-                </button>
-                <ul class="dropdown-menu" aria-labelledby="filterMunicipios"
-                  style="max-height: 200px; overflow-y: auto;">
-                  <li v-for="municipio in municipios" :key="municipio">
-                    <a class="dropdown-item" href="#" @click.prevent="handleMunicipioSelect(municipio)">
-                      {{ municipio }}
-                    </a>
-                  </li>
-                </ul>
+              <div v-if="showMunicipios" class="custom-select-wrapper">
+                <label class="form-label mb-1">Municipio</label>
+                <CustomSelect
+                  v-model="selectedMunicipio"
+                  class="me-2"
+                  :options="municipioOptions"
+                  placeholder="Seleccionar municipio"
+                  @change="handleMunicipioSelect(selectedMunicipio)"
+                />
               </div>
-
-              <!-- Parroquia Filter -->
-              <div v-if="showParroquias" class="dropdown mb-2 me-2">
-                <button class="btn btn-theme btn-sm dropdown-toggle me-2 w-100 w-md-auto" type="button"
-                  id="filterParroquias" data-bs-toggle="dropdown" aria-expanded="false">
-                  <i class="fa-solid fa-filter"></i>
-                  {{ selectedParroquia ? selectedParroquia : 'Filtrar por Parroquia' }}
-                </button>
-                <ul class="dropdown-menu" aria-labelledby="filterParroquias"
-                  style="max-height: 200px; overflow-y: auto;">
-                  <li v-for="parroquia in parroquias" :key="parroquia">
-                    <a class="dropdown-item" href="#" @click.prevent="handleParroquiaSelect(parroquia)">
-                      {{ parroquia }}
-                    </a>
-                  </li>
-                </ul>
+              <div v-if="showParroquias" class="custom-select-wrapper">
+                <label class="form-label mb-1">Parroquia</label>
+                <CustomSelect
+                  v-model="selectedParroquia"
+                  class="me-2"
+                  :options="parroquiaOptions"
+                  placeholder="Seleccionar parroquia"
+                  @change="handleParroquiaSelect(selectedParroquia)"
+                />
               </div>
-
-              <!-- Category Filter -->
-              <div v-if="showCategories" class="dropdown mb-2 me-2">
-                <button class="btn btn-theme btn-sm dropdown-toggle me-2 w-100 w-md-auto" type="button"
-                  id="filterCategories" data-bs-toggle="dropdown" aria-expanded="false">
-                  <i class="fa-solid fa-filter"></i>
-                  {{ selectedCategory ? selectedCategory.name : 'Filtrar por Categoria' }}
-                </button>
-                <ul class="dropdown-menu" aria-labelledby="filterCategories"
-                  style="max-height: 200px; overflow-y: auto;">
-                  <li v-for="category in categories" :key="category.id">
-                    <a class="dropdown-item" href="#" @click.prevent="handleCategorySelect(category)">
-                      {{ category.name }}
-                    </a>
-                  </li>
-                  <li>
-                    <a class="dropdown-item" href="#" @click.prevent="clearAllFilters">Ver todos</a>
-                  </li>
-                </ul>
+              <div v-if="showCategories" class="custom-select-wrapper">
+                <label class="form-label mb-1">Categoría</label>
+                <CustomSelect
+                  v-model="selectedCategory"
+                  class="me-2"
+                  :options="categoryOptions"
+                  placeholder="Seleccionar categoría"
+                  @change="handleCategorySelect(selectedCategory)"
+                />
               </div>
             </div>
           </div>
@@ -1654,29 +1526,13 @@ export default {
       <!-- Add New Subcategory -->
       <add-subcategory-modal @submit-subcategory="submitSubcategory"></add-subcategory-modal>
     </template>
-
-
   </div>
 </template>
 
 <style scoped>
-.container .affiliates-wrapper {
-  padding: 0;
-}
-
-.affiliates-wrapper {
-  background: #29122f;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.filters-wrapper {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
+/* Base Container Styles */
 .btn-outline-theme,
 .btn-theme {
-  border-radius: 20px;
   font-size: 0.85rem;
   padding: 0.375rem 0.75rem;
   transition: all 0.2s ease;
@@ -1705,6 +1561,267 @@ export default {
   box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
 }
 
+.container .affiliates-wrapper {
+  padding: 0;
+}
+
+.affiliates-wrapper {
+  background: #29122f;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.filters-wrapper {
+  background: linear-gradient(to bottom, rgba(41, 18, 47, 0.95), rgba(41, 18, 47, 0.98));
+  border-radius: 16px;
+  padding: 1.5rem !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Stats Card Styles */
+.stats-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stats-card:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.stats-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(128, 0, 128, 0.1);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stats-icon i {
+  font-size: 1.5rem;
+  color: purple;
+}
+
+.stats-info {
+  flex: 1;
+}
+
+.stats-label {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+
+.stats-value {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Search Card Styles */
+
+.search-actions {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+/* Filter Card Styles */
+.filter-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.filter-card .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.filter-card .btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.filter-card .btn i {
+  font-size: 0.875rem;
+  color: purple;
+}
+
+.filter-card .dropdown {
+  display: inline-block;
+}
+
+/* Dropdown Styles */
+.dropdown-menu {
+  background: #2d2d2d;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.dropdown-item {
+  color: rgba(255, 255, 255, 0.8);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.dropdown-item:active {
+  background: purple;
+  color: white;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+  .filters-wrapper {
+    padding: 1rem !important;
+  }
+
+  .search-card {
+    padding: 1rem;
+  }
+
+  .filter-card {
+    flex-direction: column;
+    padding: 1rem;
+  }
+
+  .filter-card .btn,
+  .filter-card .dropdown {
+    width: 100%;
+  }
+
+  .filter-card .dropdown .btn {
+    justify-content: space-between;
+  }
+
+  .stats-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .stats-icon i {
+    font-size: 1.25rem;
+  }
+
+  .stats-value {
+    font-size: 1.25rem;
+  }
+
+  .search-input-wrapper .form-control {
+    height: 39px;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .filters-wrapper {
+    padding: 0.75rem !important;
+  }
+
+  .search-input-wrapper .form-control {
+    font-size: 0.875rem;
+    height: 40px;
+  }
+}
+
+/* Header Styles */
+.affiliates-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-actions .btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+}
+
+.admin-actions .btn i {
+  font-size: 1rem;
+}
+
+@media (max-width: 576px) {
+  .affiliates-header {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .admin-actions {
+    margin-left: auto;
+  }
+
+  .admin-actions .btn {
+    padding: 0.375rem;
+  }
+}
+
+/* Image and Logo Styles */
 .img {
   position: relative;
   background-size: cover;
@@ -1714,15 +1831,11 @@ export default {
   border-radius: 5px;
 }
 
-/* Edit button just for images */
 .edit-button {
   position: absolute;
   top: 10px;
-  /* Adjust this value to control vertical spacing */
   right: 10px;
-  /* Adjust this value to control horizontal spacing */
   z-index: 1;
-  /* Ensure the button is above the image */
 }
 
 .w-100px {
@@ -1734,16 +1847,6 @@ export default {
   height: 200px;
   background-color: #1a1a1a;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.affiliate-logo {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  border-radius: 8px;
-  background-color: #1a1a1a;
-  overflow: visible;
-  /* Changed from hidden to allow file input to show below */
 }
 
 .logo-container {
@@ -1760,6 +1863,7 @@ export default {
   padding: 0.5rem;
 }
 
+/* Image Edit Container Styles */
 .edit-image-container {
   position: relative;
   width: 100%;
@@ -1803,25 +1907,24 @@ export default {
   z-index: 2;
 }
 
-/* Update header spacing for larger logo */
+/* Affiliate Header and Info Styles */
 .affiliate-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  /* Changed from center to better align with larger logo */
   margin-bottom: 1rem;
   gap: 1.5rem;
 }
 
 .affiliate-info .d-flex {
   gap: 1.5rem;
-  /* Increased from 0.5rem */
 }
 
 .min-vh-50 {
   min-height: 50vh;
 }
 
+/* Social Links Styles */
 .social-links a {
   transition: all 0.3s ease;
 }
@@ -1830,18 +1933,15 @@ export default {
   transform: translateY(-2px);
 }
 
+/* Card Styles */
 .card {
   transition: transform 0.2s ease;
+  background-color: #2d2d2d;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .card:hover {
   transform: translateY(-5px);
-}
-
-/* Dark theme adjustments */
-.card {
-  background-color: #2d2d2d;
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .card-body {
@@ -1852,6 +1952,7 @@ export default {
   color: #adb5bd !important;
 }
 
+/* Affiliate List Styles */
 .affiliates-list-wrapper {
   background: #29122f;
   border-radius: 12px;
@@ -1881,6 +1982,7 @@ export default {
   margin-top: 0.25rem;
 }
 
+/* Status Badge Styles */
 .status-badge {
   padding: 0.4rem 1rem;
   border-radius: 20px;
@@ -1895,6 +1997,7 @@ export default {
   color: #155724;
 }
 
+/* Affiliate Social and Actions Styles */
 .affiliate-social {
   margin: 1rem 0;
 }
@@ -1904,158 +2007,61 @@ export default {
   justify-content: flex-end;
 }
 
-.btn-outline-primary,
-.btn-outline-danger {
-  border-width: 1px;
+/* Custom Select Styles */
+.filter-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  padding: 1.5rem;
+}
+
+.filter-card .custom-select-wrapper {
+  flex: 1;
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.filter-card .form-label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.filter-card .btn-theme {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  transition: all 0.2s ease;
+}
+
+.filter-card .btn-theme:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.filter-card .btn-theme i {
+  font-size: 0.875rem;
+  color: purple;
 }
 
 @media (max-width: 768px) {
-  .affiliate-header {
+  .filter-card {
     flex-direction: column;
-    gap: 1rem;
-  }
-
-  .affiliate-info .d-flex {
-    width: 100%;
-    flex-direction: row;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .affiliate-logo {
-    width: 90px;
-    height: 90px;
-    flex-shrink: 0;
-  }
-
-  .affiliate-status {
-    align-self: flex-start;
-    margin-top: 0.5rem;
-  }
-
-  .affiliate-social {
-    flex-wrap: wrap;
-  }
-
-  .affiliate-actions {
-    margin-top: 1rem;
-  }
-
-  .file-input-wrapper {
-    width: 100%;
-    max-width: 250px;
-  }
-}
-
-@media (max-width: 480px) {
-  .affiliate-item {
     padding: 1rem;
   }
 
-  .affiliate-info .d-flex {
-    gap: 0.75rem;
-  }
-
-  .affiliate-logo {
-    width: 70px;
-    height: 70px;
-  }
-
-  .status-badge {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.8rem;
-  }
-
-  .affiliate-social .btn {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
-  }
-}
-
-/* Add these responsive styles to the bottom of your <style> section */
-
-/* Responsive styles */
-@media (max-width: 992px) {
-  .affiliates-wrapper {
-    border-radius: 8px;
-  }
-
-  .filters-wrapper {
-    padding: 1.25rem;
-  }
-
-  .row.align-items-center {
-    row-gap: 0.75rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .d-flex.justify-content-end.flex-wrap {
-    justify-content: flex-start !important;
-  }
-
-  .filters-wrapper .form-label {
-    margin-bottom: 0.25rem;
-  }
-
-  .dropdown-menu {
-    max-height: 180px;
-  }
-
-  .btn-theme.btn-sm {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-  }
-
-  .badge.fs-6 {
-    font-size: 0.875rem !important;
-  }
-}
-
-@media (max-width: 576px) {
-  .filters-wrapper {
-    padding: 1rem;
-  }
-
-  .row.align-items-center {
-    row-gap: 0.5rem;
-  }
-
-  .d-flex.justify-content-between.align-items-center.mb-4 {
-    flex-direction: column;
-    align-items: flex-start !important;
-    gap: 1rem;
-  }
-
-  .d-flex.justify-content-between.align-items-center.mb-4 .btn-group {
+  .filter-card .custom-select-wrapper {
     width: 100%;
-    justify-content: center;
-  }
-
-  .dropdown-menu {
-    max-height: 150px;
-    width: 100%;
-  }
-
-  .btn-theme.dropdown-toggle {
-    width: 100% !important;
-    margin-right: 0 !important;
-    text-align: left;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .btn-theme.dropdown-toggle::after {
-    margin-left: auto;
-  }
-
-  .badge.fs-6 {
-    font-size: 0.75rem !important;
-    display: inline-block;
-    width: auto;
-    text-align: center;
-    margin-bottom: 0.5rem;
+    max-width: none;
   }
 }
 </style>

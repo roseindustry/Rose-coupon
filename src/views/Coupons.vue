@@ -15,6 +15,7 @@ import datepicker from 'vue3-datepicker';
 import 'vue-datepicker-next/index.css';
 import { Modal } from 'bootstrap';
 import { useUserStore } from "@/stores/user-role";
+import OptionsRadioNav from '@/components/app/OptionsRadioNav.vue'
 
 export default {
     components: {
@@ -25,7 +26,8 @@ export default {
         AssignCoupons,
         ConfirmDeleteCoupons,
         AppliedCouponsHistory,
-        PendingCoupons
+        PendingCoupons,
+        OptionsRadioNav
     },
     data() {
         return {
@@ -1275,11 +1277,16 @@ export default {
         },
         handleCouponReload(couponId) {
             this.coupons = this.coupons.filter(coupon => coupon.id !== couponId);
+        },
+        handleOptionChange(value) {
+            if (value === 'option1') {
+                this.loadCoupons()
+            }
         }
     },
     async mounted() {
         const userStore = useUserStore();
-        await userStore.fetchUser();
+        userStore.fetchUser();
         this.role = userStore.role;
         this.userId = userStore.userId;
 
@@ -1367,30 +1374,34 @@ export default {
         <!-- Admin view -->
         <div v-if="this.role === 'admin'">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header options-header">
                     <!-- Options -->
-                    <div class="options-container d-flex justify-content-center">
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="couponOptions" id="inlineRadio1"
-                                value="option1" v-model="selectedCouponOption" @click="loadCoupons()">
-                            <label class="form-check-label" for="inlineRadio1">Asignar cupón</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="couponOptions" id="inlineRadio2"
-                                value="option2" v-model="selectedCouponOption">
-                            <label class="form-check-label" for="inlineRadio2">Registrar cupón</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="couponOptions" id="inlineRadio3"
-                                value="option3" v-model="selectedCouponOption">
-                            <label class="form-check-label" for="inlineRadio3">Administrar Pagos</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="couponOptions" id="inlineRadio4"
-                                value="option4" v-model="selectedCouponOption">
-                            <label class="form-check-label" for="inlineRadio4">Aplicados</label>
-                        </div>
-                    </div>
+                    <OptionsRadioNav
+                        v-model="selectedCouponOption"
+                        :options="[
+                            {
+                                text: 'Asignar cupón',
+                                value: 'option1',
+                                icon: 'fa-ticket-alt'
+                            },
+                            {
+                                text: 'Registrar cupón',
+                                value: 'option2',
+                                icon: 'fa-plus-circle'
+                            },
+                            {
+                                text: 'Administrar Pagos',
+                                value: 'option3',
+                                icon: 'fa-money-bill-wave'
+                            },
+                            {
+                                text: 'Aplicados',
+                                value: 'option4',
+                                icon: 'fa-check-circle'
+                            }
+                        ]"
+                        @change="handleOptionChange"
+                    />
                 </div>
                 <div v-if="selectedCouponOption" class="card-body">
                     <div class="text-center" v-if="loading">
@@ -1455,7 +1466,7 @@ export default {
                                                 </label>
                                                 <div class="input-group">
                                                     <span class="input-group-text">{{ couponType === 'saldo' ? '$' : '%'
-                                                    }}</span>
+                                                        }}</span>
                                                     <input type="number" class="form-control" id="couponAmount"
                                                         v-model="couponAmount">
                                                 </div>
@@ -1549,7 +1560,7 @@ export default {
                                                 <div class="client-info">
                                                     <span class="client-name">{{ getClientFullName(clientId) }}</span>
                                                     <span class="client-id">V-{{ getClientIdentification(clientId)
-                                                    }}</span>
+                                                        }}</span>
                                                 </div>
                                                 <button @click="deselectClient(clientId)"
                                                     class="btn btn-icon btn-outline-danger btn-sm">
@@ -1747,7 +1758,7 @@ export default {
                                                             <div class="detail-item">
                                                                 <span class="detail-label">{{ coupon.type === 'saldo' ?
                                                                     'Saldo' : 'Porcentaje'
-                                                                }}:</span>
+                                                                    }}:</span>
                                                                 <span class="detail-value">{{ coupon.type === 'saldo' ?
                                                                     '$' : '%' }}{{
                                                                         coupon.balance }}</span>
@@ -1756,7 +1767,7 @@ export default {
                                                             <div class="detail-item">
                                                                 <span class="detail-label">Número de usos:</span>
                                                                 <span class="detail-value">{{ coupon.redeemCount
-                                                                }}</span>
+                                                                    }}</span>
                                                             </div>
 
                                                             <div class="detail-item">
@@ -1911,7 +1922,7 @@ export default {
                                                         <div class="client-info-item">
                                                             <span class="info-label">Cédula:</span>
                                                             <span class="info-value">{{ selectedClient.identification
-                                                            }}</span>
+                                                                }}</span>
                                                         </div>
                                                     </div>
                                                     <div class="col-md-6">
@@ -1924,7 +1935,7 @@ export default {
                                                         <div class="client-info-item">
                                                             <span class="info-label">Teléfono:</span>
                                                             <span class="info-value">{{ selectedClient.phoneNumber
-                                                            }}</span>
+                                                                }}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -2083,7 +2094,7 @@ export default {
     background-color: transparent;
     border-color: purple;
     color: purple;
-    border-radius: 20px;
+    border-radius: 12px;
     font-size: 0.85rem;
     padding: 0.375rem 0.75rem;
     transition: all 0.2s ease;
@@ -2395,6 +2406,10 @@ export default {
     color: #212529;
 }
 
+.options-header {
+    background-color: #1a1a1a;
+}
+
 .options-container {
     display: flex;
     justify-content: center;
@@ -2409,7 +2424,7 @@ export default {
 .options-container .form-check-inline {
     margin-right: 0;
     margin-bottom: 5px;
-    background-color: transparent;
+    background-color: white;
     border-radius: 30px;
     padding: 10px 29px;
     transition: all 0.3s ease;
@@ -2514,9 +2529,8 @@ export default {
 /* Make buttons more consistent */
 .btn-outline-theme,
 .btn-theme {
-    border-radius: 20px;
     font-size: 0.85rem;
-    padding: 0.375rem 0.75rem;
+    padding: 0.5rem;
     transition: all 0.2s ease;
 }
 

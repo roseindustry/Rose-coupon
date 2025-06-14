@@ -24,7 +24,7 @@
 
             <template v-else>
                 <div class="affiliate-item" v-for="(affiliate, index) in displayedAffiliates" :key="affiliate.id">
-                    <div class="affiliate-header">
+                    <div class="affiliate-header justify-content-between">
                         <div class="affiliate-info">
                             <div class="d-flex align-items-center gap-3">
                                 <!-- Logo -->
@@ -283,13 +283,38 @@ export default {
 .affiliate-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start; /* Changed from center to better align with larger logo */
+    align-items: flex-start;
     margin-bottom: 1rem;
     gap: 1.5rem;
+    position: relative;
 }
 
 .affiliate-info .d-flex {
-    gap: 1.5rem; /* Increased from 0.5rem */
+    gap: 1.5rem;
+}
+
+.affiliate-status {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 1;
+}
+
+.status-badge {
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease;
+}
+
+.status-badge.active {
+    background: rgba(40, 167, 69, 0.2);
+    color: #28a745;
+    border-color: rgba(40, 167, 69, 0.3);
 }
 
 .min-vh-50 {
@@ -354,20 +379,6 @@ export default {
     margin-top: 0.25rem;
 }
 
-.status-badge {
-    padding: 0.4rem 1rem;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    font-weight: 500;
-    background: #e9ecef;
-    color: #666;
-}
-
-.status-badge.active {
-    background: #d4edda;
-    color: #155724;
-}
-
 .affiliate-social {
     margin: 1rem 0;
 }
@@ -401,8 +412,9 @@ export default {
     }
 
     .affiliate-status {
-        align-self: flex-start;
-        margin-top: 0.5rem;
+        position: absolute;
+        top: 0;
+        right: 0;
     }
 
     .affiliate-social {

@@ -24,6 +24,7 @@ import {
 } from "@/components/subscriptions/admin/modals";
 import AdminSubscriptionsView from "@/components/subscriptions/admin/AdminSubscriptionsView.vue";
 import UserSubscriptionsView from "@/components/subscriptions/UserSubscriptionsView.vue";
+import PageHeader from "@/components/app/PageHeader.vue";
 import { useFileUpload } from '@/composables/useFileUpload';
 import { useExchange } from '@/composables/useExchange';
 
@@ -37,6 +38,7 @@ export default {
     AssignSubscriptionModal,
     AdminSubscriptionsView,
     UserSubscriptionsView,
+    PageHeader
   },
   setup() {
     const {
@@ -869,66 +871,36 @@ export default {
 </script>
 <template>
   <!-- Page Header -->
-  <header class="page-header responsive-margin">
-    <div class="container">
-      <div class="header-content">
-        <div class="header-title">
-          <h4 class="mb-0 fw-bold text-theme">
-            <i class="fa-solid fa-handshake me-2"></i>
-            Suscripciones
-          </h4>
-        </div>
-        <!-- Exchange Rate Button - Only for Admin -->
-        <div v-if="role === 'admin'" class="header-actions">
-          <button class="btn btn-glass" data-bs-toggle="modal" data-bs-target="#setExchange">
-            <i class="fa-solid fa-money-bill-transfer me-2"></i>
-            Tasa de cambio
-            <span class="exchange-badge" v-if="exchange">
-              {{ exchange }}$
-            </span>
-          </button>
-        </div>
-      </div>
-    </div>
-  </header>
+  <PageHeader :isAdmin="this.role === 'admin' ? true : false" title="Suscripciones" icon="fa fa-handshake" :actions="[
+    {
+      icon: 'fa fa-money-bill-transfer',
+      text: 'Tasa de cambio',
+      class: 'btn-glass',
+      modalToggle: 'modal',
+      modalTarget: '#setExchange',
+      onClick: () => { }
+    }
+  ]" />
 
   <div class="subscriptions-view">
     <!-- Admin View -->
-    <AdminSubscriptionsView v-if="role === 'admin'" 
-      :loading="loading"
-      :plans="plans" 
-      :affiliate-plans="affiliatePlans"
-      :clients="clients" 
-      :affiliates="affiliates" 
-      :filtered-clients-subscriptions="filteredClientsSubscriptions"
+    <AdminSubscriptionsView v-if="role === 'admin'" :loading="loading" :plans="plans" :affiliate-plans="affiliatePlans"
+      :clients="clients" :affiliates="affiliates" :filtered-clients-subscriptions="filteredClientsSubscriptions"
       :all-filtered-clients-subscriptions="allFilteredClientsSubscriptions"
-      :filtered-clients-no-subscriptions="filteredClientsNoSubscriptions" 
-      :all-filtered-clients-no-subscriptions="allFilteredClientsNoSubscriptions" 
-      :filtered-affiliates-subscriptions="filteredAffiliatesSubscriptions" 
-      :all-filtered-affiliates-subscriptions="allFilteredAffiliatesSubscriptions" 
-      :filtered-affiliates-no-subscriptions="filteredAffiliatesNoSubscriptions" 
-      :all-filtered-affiliates-no-subscriptions="allFilteredAffiliatesNoSubscriptions" 
-      :current-page="currentPage"
-      @tab-changed="setActiveTab" 
-      @search-changed="handleSearchChange"
-      @date-filter-changed="handleDateFilterChange" 
-      @date-filter-cleared="clearDateFilter"
-      @page-changed="handlePageChange"
-      @plans-updated="fetchPlans" 
-      @exchange-updated="handleExchangeUpdated" 
-    />
+      :filtered-clients-no-subscriptions="filteredClientsNoSubscriptions"
+      :all-filtered-clients-no-subscriptions="allFilteredClientsNoSubscriptions"
+      :filtered-affiliates-subscriptions="filteredAffiliatesSubscriptions"
+      :all-filtered-affiliates-subscriptions="allFilteredAffiliatesSubscriptions"
+      :filtered-affiliates-no-subscriptions="filteredAffiliatesNoSubscriptions"
+      :all-filtered-affiliates-no-subscriptions="allFilteredAffiliatesNoSubscriptions" :current-page="currentPage"
+      @tab-changed="setActiveTab" @search-changed="handleSearchChange" @date-filter-changed="handleDateFilterChange"
+      @date-filter-cleared="clearDateFilter" @page-changed="handlePageChange" @plans-updated="fetchPlans"
+      @exchange-updated="handleExchangeUpdated" />
 
     <!-- Client/Affiliate View -->
-    <UserSubscriptionsView v-else 
-      :loading="loadingPlans" 
-      :currentUserId="userId" 
-      :userName="userName || ''"
-      :userEmail="userEmail || ''" 
-      :plans="sortedPlans" 
-      :current-sub="currentSub" 
-      :user-type="role || 'cliente'"
-      :exchange="fetchedExchange" @contract-plan="contractPlan" 
-    />
+    <UserSubscriptionsView v-else :loading="loadingPlans" :currentUserId="userId" :userName="userName || ''"
+      :userEmail="userEmail || ''" :plans="sortedPlans" :current-sub="currentSub" :user-type="role || 'cliente'"
+      :exchange="fetchedExchange" @contract-plan="contractPlan" />
 
   </div>
 
@@ -945,8 +917,7 @@ export default {
   z-index: 1;
 }
 
-.header-title h2 {
-  color: white;
+.header-title h4 {
   font-size: 1.5rem;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
@@ -990,16 +961,10 @@ export default {
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .page-header {
-    padding: 1rem 0;
+    padding: 0.5rem 0;
   }
 
-  .header-content {
-    flex-direction: column;
-    gap: 1rem;
-    text-align: center;
-  }
-
-  .header-title h2 {
+  .header-title h4 {
     font-size: 1.5rem;
   }
 

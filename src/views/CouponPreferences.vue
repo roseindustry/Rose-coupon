@@ -170,34 +170,28 @@ export default {
 
 </script>
 <template>
-    <div class="coupon-preferences container py-5">
+    <div class="container">
+        <div class="preferences-header mb-3">
+            <div class="d-flex align-items-center mb-4">
+                <h4 class="mb-0 fw-bold text-theme">
+                    <i class="fa-solid fa-heart me-2"></i>
+                    Categorías de Interés
+                </h4>                
+            </div>
+            
+            <div class="alert alert-soft-info p-3 rounded-3 border-0 shadow-sm" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="fa-solid fa-info-circle me-3 text-primary fs-4"></i>
+                    <p class="text-light mb-0">
+                        Selecciona las categorías que más te interesan para recibir cupones personalizados.
+                    </p>
+                </div>
+            </div>
+        </div>
         <div class="row justify-content-center">
             <div class="col-12 col-md-10 col-lg-8 col-xl-6">
-                <div class="preferences-header mb-5">
-                    <div class="d-flex align-items-center mb-4">
-                        <div class="flex-shrink-0 me-3">
-                            <span class="icon-wrapper bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center">
-                                <i class="fa-solid fa-heart fs-4"></i>
-                            </span>
-                        </div>
-                        <div>
-                            <h3 class="text-light mb-2 fw-bold">Tus Preferencias de Cupones</h3>
-                            <p class="text-muted mb-0">Personaliza tus intereses para recibir cupones relevantes</p>
-                        </div>
-                    </div>
-
-                    <div class="alert alert-soft-info p-3 rounded-3 border-0 shadow-sm" role="alert">
-                        <div class="d-flex align-items-center">
-                            <i class="fa-solid fa-info-circle me-3 text-primary fs-4"></i>
-                            <p class="text-light mb-0">
-                                Selecciona las categorías que más te interesan para recibir cupones personalizados.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="preferences-card card border-0 shadow-lg rounded-4 overflow-hidden">
-                    <div class="card-header bg-dark text-white py-4 text-center">
+                    <div class="card-header text-white py-4 text-center">
                         <h4 class="mb-0 fw-bold">
                             <i class="fa-solid fa-tags me-2"></i>
                             Categorías de Interés
@@ -211,50 +205,29 @@ export default {
                         </div>
 
                         <div class="list-group list-group-flush">
-                            <div 
-                                v-for="category in categories" 
-                                :key="category.id" 
-                                class="list-group-item list-group-item-action px-4 py-3"
-                            >
+                            <div v-for="category in categories" :key="category.id"
+                                class="list-group-item list-group-item-action px-4 py-3">
                                 <div class="d-flex align-items-center">
                                     <div class="form-check flex-grow-1">
-                                        <input 
-                                            type="checkbox" 
-                                            class="form-check-input category-checkbox" 
-                                            :id="'category_' + category.id"
-                                            :value="category.id" 
-                                            @change="toggleSubcategories(category.id)"
-                                            v-model="selectedCategoriesIds"
-                                        >
-                                        <label 
-                                            class="form-check-label fw-bold text-light" 
-                                            :for="'category_' + category.id"
-                                        >
+                                        <input type="checkbox" class="form-check-input category-checkbox"
+                                            :id="'category_' + category.id" :value="category.id"
+                                            @change="toggleSubcategories(category.id)" v-model="selectedCategoriesIds">
+                                        <label class="form-check-label fw-bold text-light"
+                                            :for="'category_' + category.id">
                                             {{ category.name }}
                                         </label>
                                     </div>
                                 </div>
 
-                                <div 
-                                    v-if="category.subcategories && category.subcategories.length > 0" 
-                                    class="subcategories-container mt-3 ps-4"
-                                >
-                                    <div 
-                                        v-for="subcategory in category.subcategories" 
-                                        :key="subcategory.id" 
-                                        class="form-check mb-2"
-                                    >
-                                        <input 
-                                            type="checkbox" 
-                                            class="form-check-input subcategory-checkbox" 
-                                            :id="'subcategory_' + subcategory.id" 
-                                            :value="subcategory.id"
-                                            v-model="selectedSubcategoriesIds"
-                                        >
-                                        <label 
-                                            class="form-check-label text-light" 
-                                            :for="'subcategory_' + subcategory.id"
-                                        >
+                                <div v-if="category.subcategories && category.subcategories.length > 0"
+                                    class="subcategories-container mt-3 ps-4">
+                                    <div v-for="subcategory in category.subcategories" :key="subcategory.id"
+                                        class="form-check mb-2">
+                                        <input type="checkbox" class="form-check-input subcategory-checkbox"
+                                            :id="'subcategory_' + subcategory.id" :value="subcategory.id"
+                                            v-model="selectedSubcategoriesIds">
+                                        <label class="form-check-label text-light"
+                                            :for="'subcategory_' + subcategory.id">
                                             {{ subcategory.name }}
                                         </label>
                                     </div>
@@ -272,9 +245,7 @@ export default {
                                 </small>
                             </div>
                             <div class="w-auto text-end">
-                                <button 
-                                    class="btn btn-theme btn-sm w-100" 
-                                    @click="savePreferences()"
+                                <button class="btn btn-theme btn-sm w-100" @click="savePreferences()"
                                     :disabled="selectedCategoriesIds.length === 0">
                                     <i class="fa-solid fa-save me-2"></i>
                                     Guardar
@@ -290,12 +261,9 @@ export default {
 
 <style scoped>
 .btn-theme {
-	background-color: purple;
-	border-color: purple;
+    background-color: purple;
+    border-color: purple;
     border-radius: 20px;
-}
-.coupon-preferences {
-    min-height: 100vh;
 }
 
 .icon-wrapper {
@@ -306,9 +274,15 @@ export default {
 .preferences-card {
     transition: all 0.3s ease;
 }
+.preferences-card .card-header {
+    background-color: #29122f ;
+}
+.preferences-card .list-group-item {
+    background-color: #212837;
+}
 
-.category-checkbox:checked + label,
-.subcategory-checkbox:checked + label {
+.category-checkbox:checked+label,
+.subcategory-checkbox:checked+label {
     color: #ffffff !important;
     font-weight: 700;
 }
@@ -322,10 +296,6 @@ export default {
 }
 
 @media (max-width: 768px) {
-    .coupon-preferences {
-        padding: 1rem !important;
-    }
-
     .preferences-header .icon-wrapper {
         width: 40px;
         height: 40px;

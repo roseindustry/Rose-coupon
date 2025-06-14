@@ -1,17 +1,18 @@
 <script>
-import { db, functions, storage } from '@/firebase/init';
+import { db } from '@/firebase/init';
 import { ref as dbRef, get, update, orderByChild, query, equalTo } from 'firebase/database';
-import { ref as storageRef, deleteObject } from 'firebase/storage';
-import { httpsCallable } from 'firebase/functions';
 import { useUserStore } from "@/stores/user-role";
 import { Modal } from 'bootstrap';
 import { toast as showToast } from '@/utils/toast';
 import { sendEmail } from '@/utils/emailService';
 import 'toastify-js/src/toastify.css'
 import moment from 'moment';
-import { useRouter } from 'vue-router';
+import DashboardCard from '@/components/app/DashboardCard.vue';
 
 export default {
+	components: {
+		DashboardCard
+	},
 	data() {
 		return {
 			userName: '',
@@ -844,21 +845,14 @@ export default {
 			<div class="row g-3">
 				<!-- Total Clients Card -->
 				<div class="col-12 col-sm-6 col-lg-4">
-					<div class="dashboard-card">
-						<div class="icon-container">
-							<i class="fa fa-user"></i>
-						</div>
-						<h6 class="card-title text-white mb-2">Total de Clientes</h6>
-						<div class="mt-1">
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
-							<h4 v-else class="fw-bold mb-2">{{ clients.length || 0 }}</h4>
-						</div>
-						<div class="mt-2">
-							<router-link to="/clientes" class="btn btn-theme btn-sm">
-								Ir a clientes
-							</router-link>
-						</div>
-					</div>
+					<DashboardCard :loading="loading" title="Total de Clientes" icon="fa-user" :value="clients.length"
+						:actions="[
+							{
+								text: 'Ir a Clientes',
+								isRoute: true,
+								route: '/clientes'
+							}
+						]" />
 				</div>
 
 				<!-- Clientes registrados el dia... -->
@@ -880,95 +874,58 @@ export default {
 
 				<!-- Clientes verificados -->
 				<div class="col-12 col-sm-6 col-lg-4">
-					<div class="dashboard-card">
-						<div class="icon-container">
-							<i class="fa fa-check-circle"></i>
-						</div>
-						<h6 class="card-title text-white mb-2">Clientes Verificados</h6>
-						<div class="mt-1">
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
-							<h4 v-else class="fw-bold mb-2">{{ verifiedClients.length || 0 }}</h4>
-							<!-- <h4 v-else class="fw-bold mb-2">223</h4> -->
-						</div>
-						<div class="mt-2">
-							<router-link to="/clientes" class="btn btn-theme btn-sm">
-								Ir a clientes
-							</router-link>
-						</div>
-					</div>
+					<DashboardCard :loading="loading" title="Clientes Verificados" icon="fa-check-circle"
+						:value="verifiedClients.length" :actions="[
+							{
+								text: 'Ir a Clientes',
+								isRoute: true,
+								route: '/clientes'
+							}
+						]" />
 				</div>
 
-				<!-- Afiliados -->
+				<!-- Comercios Afiliados -->
 				<div class="col-12 col-sm-6 col-lg-4">
-					<div class="dashboard-card">
-						<div class="icon-container">
-							<i class="fa fa-store"></i>
-						</div>
-						<h6 class="card-title text-white mb-2">Comercios Afiliados</h6>
-						<div class="mt-1">
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
-							<h4 v-else class="fw-bold mb-2">{{ affiliates.length || 0 }}</h4>
-						</div>
-						<div class="mt-2">
-							<router-link to="/comercios-afiliados" class="btn btn-theme btn-sm">
-								Ir a comercios
-							</router-link>
-						</div>
-					</div>
+					<DashboardCard :loading="loading" title="Comercios Afiliados" icon="fa-store"
+						:value="affiliates.length" :actions="[
+							{
+								text: 'Ir a Comercios',
+								isRoute: true,
+								route: '/comercios-afiliados'
+							}
+						]" />
 				</div>
 
 				<!-- Cupones aplicados -->
 				<div class="col-12 col-sm-6 col-lg-4">
-					<div class="dashboard-card">
-						<div class="icon-container">
-							<i class="fa fa-ticket-alt"></i>
-						</div>
-						<h6 class="card-title text-white mb-2">Cupones Aplicados</h6>
-						<div class="mt-1">
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
-							<h4 v-else class="fw-bold mb-2">{{ appliedCoupons || 0 }}</h4>
-						</div>
-					</div>
+					<DashboardCard :loading="loading" title="Cupones Aplicados" icon="fa-ticket-alt"
+						:value="appliedCoupons" />
 				</div>
 
 				<!-- Solicitudes de cupones -->
 				<div class="col-12 col-sm-6 col-lg-4">
-					<div class="dashboard-card">
-						<div class="icon-container">
-							<i class="fa fa-bell"></i>
-						</div>
-						<h6 class="card-title text-white mb-2">Solicitudes de Cupones</h6>
-						<div class="mt-1">
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
-							<h4 v-else class="fw-bold mb-2">{{ clientsWithRequests.length || 0 }}</h4>
-						</div>
-						<div class="mt-2">
-							<a href="#" class="btn btn-theme btn-sm"
-								@click.prevent="openRequestsModal('couponRequests')">
-								Ver solicitudes
-							</a>
-						</div>
-					</div>
+					<DashboardCard :loading="loading" title="Solicitudes de Cupones" icon="fa-bell"
+						:value="clientsWithRequests.length" :actions="[
+							{
+								text: 'Ver solicitudes',
+								isButton: true,
+								class: 'btn-theme btn-sm',
+								onClick: () => openRequestsModal('couponRequests')
+							}
+						]" />
 				</div>
 
 				<!-- Verification Requests Card -->
 				<div class="col-12 col-sm-6 col-lg-4">
-					<div class="dashboard-card">
-						<div class="icon-container">
-							<i class="fa fa-id-card"></i>
-						</div>
-						<h6 class="card-title text-white mb-2">Solicitudes de Verificación</h6>
-						<div class="mt-1">
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
-							<h4 v-else class="fw-bold mb-2">{{ clientsVerifyRequests.length || 0 }}</h4>
-						</div>
-						<div class="mt-2">
-							<a href="#" class="btn btn-theme btn-sm"
-								@click.prevent="openRequestsModal('verificationRequests')">
-								Ver solicitudes
-							</a>
-						</div>
-					</div>
+					<DashboardCard :loading="loading" title="Solicitudes de Verificación" icon="fa-id-card"
+						:value="clientsVerifyRequests.length" :actions="[
+							{
+								text: 'Ver solicitudes',
+								isButton: true,
+								class: 'btn-theme btn-sm',
+								onClick: () => openRequestsModal('verificationRequests')
+							}
+						]" />
 				</div>
 			</div>
 		</div>
@@ -979,7 +936,7 @@ export default {
 			<div class="dashboard-header mb-4">
 				<div class="row align-items-center">
 					<div class="col-md-8">
-						<h2 class="fw-bold mb-0">Hola, {{ userName }} 🎉</h2>
+						<h2 class="fw-bold mb-0">Hola, trabajador 🎉</h2>
 						<p class="text-muted small mb-0">Aquí está un resumen de tu actividad</p>
 					</div>
 				</div>
@@ -999,7 +956,7 @@ export default {
 						</div>
 						<div class="mt-2">
 							<h6 class="text-muted">Rol</h6>
-							<span class="badge bg-info px-3 py-2">
+							<span class="badge bg-success px-3 py-2 fs-5">
 								{{ this.role.charAt(0).toUpperCase() + this.role.slice(1) }}
 							</span>
 						</div>
@@ -1008,22 +965,16 @@ export default {
 
 				<!-- Clientes Referidos -->
 				<div class="col-12 col-sm-6 col-lg-3">
-					<div class="dashboard-card">
-						<div class="icon-container">
-							<i class="fa fa-users"></i>
-						</div>
-						<h6 class="card-title text-white mb-2">Clientes Referidos</h6>
-						<div class="mt-1">
-							<span v-if="loading" class="spinner-border spinner-border-sm" role="status"></span>
-							<h4 v-else class="fw-bold mb-2">{{ this.referralClients.length || 0 }}</h4>
-						</div>
-						<div class="mt-2">
-							<a href="#" class="btn btn-theme btn-sm"
-								@click.prevent="openClientsModal('referralClients')">
-								Ver lista
-							</a>
-						</div>
-					</div>
+					<DashboardCard :loading="loading" title="Clientes Referidos" icon="fa-users"
+						:value="referralClients.length" 
+						:actions="[
+							{
+								text: 'Ver lista',
+								isButton: true,
+								class: 'btn-theme btn-sm',
+								onClick: () => openClientsModal('referralClients')
+							}
+						]" />
 				</div>
 
 				<!-- Clientes Referidos el día -->
@@ -1199,7 +1150,8 @@ export default {
 													<i class="fas fa-inbox mb-3"></i>
 													<h6 class="mb-1">No hay solicitudes</h6>
 													<p class="text-muted mb-0">
-														{{ searchQuery ? `No se encontraron resultados` : `No hay solicitudes pendientes` }}
+														{{ searchQuery ? `No se encontraron resultados` : `No hay
+														solicitudes pendientes` }}
 													</p>
 												</div>
 											</td>
@@ -1253,7 +1205,8 @@ export default {
 									<i class="fas fa-inbox mb-3"></i>
 									<h6 class="mb-1">No hay solicitudes</h6>
 									<p class="text-muted mb-0">
-										{{ searchQuery ? `No se encontraron resultados` : `No hay solicitudes pendientes` }}
+										{{ searchQuery ? `No se encontraron resultados` : `No hay solicitudes
+										pendientes` }}
 									</p>
 								</div>
 							</div>
@@ -1384,39 +1337,7 @@ export default {
 	</div>
 </template>
 <style scoped>
-/* Keep existing button color */
-.btn-outline-theme,
-.btn-theme {
-	border-radius: 20px;
-	font-size: 0.85rem;
-	padding: 0.375rem 0.75rem;
-	transition: all 0.2s ease;
-}
-
-.btn-outline-theme {
-	border-color: purple;
-	color: purple;
-}
-
-.btn-outline-theme:hover {
-	background-color: purple;
-	color: white;
-	box-shadow: 0 2px 5px rgba(128, 0, 128, 0.3);
-}
-
-.btn-theme {
-	background-color: purple;
-	border-color: purple;
-	color: white;
-}
-
-.btn-theme:hover {
-	background-color: #8a2be2;
-	border-color: #8a2be2;
-	box-shadow: 0 2px 5px rgba(138, 43, 226, 0.3);
-}
-
-/* Improved icon circle */
+/* icon circle */
 .icon-circle {
 	width: 64px;
 	height: 64px;
@@ -1480,11 +1401,6 @@ export default {
 .dashboard-card h4 {
 	font-size: 1.5rem;
 	margin-bottom: 0.75rem;
-}
-
-.dashboard-card .btn-sm {
-	padding: 0.25rem 0.75rem;
-	font-size: 0.75rem;
 }
 
 /* Date filter styling */
@@ -1559,16 +1475,6 @@ export default {
 	background-color: #333;
 	border: none;
 	padding: 1rem;
-}
-
-/* Button Styles */
-.btn-sm {
-	padding: 0.4rem 0.8rem;
-	font-size: 0.875rem;
-	border-radius: 6px;
-	display: inline-flex;
-	align-items: center;
-	gap: 0.5rem;
 }
 
 /* Card Styles for Mobile */
