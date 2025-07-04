@@ -2,7 +2,6 @@
 import { slideToggle } from '@/composables/slideToggle.js';
 import { useAppOptionStore } from '@/stores/app-option';
 import { useUserStore } from '@/stores/user-role';
-// import { useTenancyStore } from '@/stores/tenancy';
 import { useRouter, RouterLink } from 'vue-router';
 import { auth, db } from '@/firebase/init';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
@@ -11,9 +10,6 @@ import { Dropdown } from 'bootstrap';
 
 export default {
 	name: 'HeaderComponent',
-	components: {
-		RouterLink,
-	},
 	data() {
 		return {
 			userName: '',
@@ -47,14 +43,12 @@ export default {
 					this.isLoading = false;
 				});
 		},
-
 		capitalizeWords(str) {
 			if (!str) return '';
 			return str.split(' ')
 				.map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
 				.join(' ');
 		},
-
 		async signOutUser() {
 			try {
 				await signOut(auth);
@@ -62,8 +56,7 @@ export default {
 			} catch (error) {
 				console.error('Error signing out:', error.message);
 			}
-		},
-		
+		},		
 		toggleAppSidebarMinify() {
 			if (!(this.appOption.appTopNav && this.appOption.appSidebarHide)) {
 				this.appOption.appSidebarMinified = !this.appOption.appSidebarMinified;
@@ -141,36 +134,31 @@ export default {
 	}
 };
 </script>
-
 <template>
 	<div v-if="isUserLoggedIn">
 		<div id="header" class="app-header">
-			<!-- BEGIN mobile-toggler -->
-			<div class="mobile-toggler">
-				<button type="button" class="menu-toggler" @click="toggleAppSidebarMobileToggled" 
-						:class="{ 'active': showMobileMenu }" aria-label="Toggle menu">
-					<span class="bar"></span>
-					<span class="bar"></span>
-				</button>
-			</div>
-			<!-- END mobile-toggler -->
-
-			<!-- BEGIN brand -->
-			<div class="col brand">
+			<!-- BEGIN left-section: mobile-toggler + logo -->
+			<div class="header-left">
+				<div class="mobile-toggler">
+					<button type="button" class="menu-toggler" @click="toggleAppSidebarMobileToggled" 
+							:class="{ 'active': showMobileMenu }" aria-label="Toggle menu">
+						<span class="bar"></span>
+						<span class="bar"></span>
+					</button>
+				</div>
+				<div class="logo-container">
+					<RouterLink to="/" class="logo-link">
+						<img src="/assets/img/rose-logo.png" alt="Rose Logo" id="logo" class="site-logo" />
+					</RouterLink>
+				</div>
 				<div class="desktop-toggler">
 					<button type="button" class="menu-toggler" @click="toggleAppSidebarMinify" aria-label="Toggle sidebar">
 						<span class="bar"></span>
 						<span class="bar"></span>
 					</button>
 				</div>
-
-				<div class="logo-container">
-					<RouterLink to="/" class="logo-link">
-						<img src="/assets/img/rose-logo.png" alt="Rose Logo" id="logo" class="site-logo" />
-					</RouterLink>
-				</div>
 			</div>
-			<!-- END brand -->
+			<!-- END left-section -->
 
 			<div class="col menu">
 				<!-- BEGIN notifications menu -->
@@ -248,107 +236,59 @@ export default {
 		</div>
 	</div>
 </template>
-
 <style scoped>
+.app-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	padding: 0 16px;
+	background: #29122f;
+}
+.header-left {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.mobile-toggler {
+	display: none;
+}
+.desktop-toggler {
+	display: flex;
+	align-items: center;
+}
 .logo-container {
-	flex: 1;
-	max-width: 60px;
-	min-width: 60px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	transition: transform 0.2s ease;
+	max-width: 48px;
+	min-width: 36px;
+	min-height: 36px;
+	margin: 0 0 0 4px;
+	transition: transform 0.2s, max-width 0.2s, min-width 0.2s;
 }
-
-.logo-container:hover {
-	transform: scale(1.05);
-}
-
 .logo-link {
-	display: block;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
 	line-height: 0;
 }
-
 .site-logo {
+	display: block;
 	width: 100%;
 	height: auto;
+	min-width: 32px;
+	min-height: 32px;
+	max-width: 100%;
+	max-height: 100%;
 	border-radius: 50%;
 	filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+	object-fit: contain;
 }
 
-/* Menu toggler improvements */
-.menu-toggler {
-	position: relative;
-	transition: all 0.2s ease;
-	border: none;
-	background: transparent;
-	padding: 10px;
-	outline: none;
-}
-
-.menu-toggler:hover {
-	transform: scale(1.1);
-}
-
-.menu-toggler:focus {
-	outline: none;
-}
-
-.menu-toggler .bar {
-	transition: all 0.3s ease;
-}
-
-.menu-toggler.active .bar:first-child {
-	transform: rotate(45deg) translate(2px, 2px);
-}
-
-.menu-toggler.active .bar:last-child {
-	transform: rotate(-45deg) translate(2px, -2px);
-}
-
-/* Menu item improvements */
-.menu-item {
-	position: relative;
-}
-
-.menu-link {
-	transition: all 0.2s ease;
-	border-radius: 4px;
-	padding: 6px 10px;
-}
-
-.menu-link:hover {
-	background-color: rgba(255, 255, 255, 0.1);
-}
-
-.menu-icon {
-	position: relative;
-}
-
-.menu-label {
-	position: absolute;
-	top: -5px;
-	right: -5px;
-	background-color: #dc3545;
-	color: white;
-	border-radius: 50%;
-	min-width: 18px;
-	height: 18px;
-	font-size: 10px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-weight: bold;
-	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.menu-img {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	position: relative;
-}
-
+/* --- User Avatar Online Indicator --- */
 .menu-img.online::after {
 	content: '';
 	position: absolute;
@@ -361,109 +301,7 @@ export default {
 	border: 2px solid #2d2d2d;
 }
 
-.menu-text {
-	margin-left: 8px;
-	font-weight: 500;
-	max-width: 150px;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-/* Dropdown improvements */
-.dropdown-menu {
-	border-radius: 8px;
-	overflow: hidden;
-	box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	padding: 8px 0;
-}
-
-.dropdown-header {
-	font-weight: 600;
-	padding: 8px 16px;
-}
-
-.dropdown-item {
-	padding: 10px 16px;
-	transition: all 0.2s ease;
-}
-
-.dropdown-item:hover {
-	background-color: rgba(111, 66, 193, 0.1);
-}
-
-.dropdown-item-text {
-	flex: 1;
-}
-
-.dropdown-divider {
-	margin: 4px 0;
-	opacity: 0.1;
-}
-
-/* Notification dropdown */
-.dropdown-notification {
-	width: 300px;
-	max-height: 400px;
-	overflow-y: auto;
-}
-
-.dropdown-notification-item {
-	display: flex;
-	align-items: center;
-	padding: 10px 16px;
-	text-decoration: none;
-	color: inherit;
-	transition: all 0.2s ease;
-}
-
-.dropdown-notification-item:hover {
-	background-color: rgba(111, 66, 193, 0.1);
-}
-
-.dropdown-notification-icon {
-	width: 36px;
-	height: 36px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background-color: rgba(111, 66, 193, 0.1);
-	border-radius: 50%;
-	margin-right: 12px;
-	flex-shrink: 0;
-}
-
-.dropdown-notification-info {
-	flex: 1;
-	min-width: 0;
-}
-
-.dropdown-notification-info .title {
-	font-weight: 500;
-	margin-bottom: 2px;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.dropdown-notification-info .time {
-	font-size: 12px;
-	opacity: 0.7;
-}
-
-.dropdown-notification-arrow {
-	margin-left: 8px;
-	opacity: 0.5;
-}
-
-.empty-notification {
-	color: #6c757d;
-	justify-content: center;
-	padding: 20px;
-}
-
-/* Loading state */
+/* --- Loading State --- */
 .loading-placeholder {
 	display: inline-flex;
 	align-items: center;
@@ -471,152 +309,54 @@ export default {
 	min-width: 60px;
 }
 
-/* Responsive adjustments */
-@media (max-width: 992px) {
-	.app-header {
-		padding: 0 15px;
-	}
-	
-	.menu-text {
-		max-width: 120px;
-	}
-	
-	.dropdown-notification {
-		width: 280px;
-		max-height: 350px;
-	}
+/* --- Empty Notification Message --- */
+.empty-notification {
+	color: #6c757d;
+	justify-content: center;
+	padding: 20px;
 }
 
+/* --- Responsive Tweaks --- */
+@media (max-width: 992px) {
+	.logo-container {
+		max-width: 40px;
+		min-width: 32px;
+		min-height: 32px;
+	}
+}
 @media (max-width: 768px) {
 	.app-header {
-		padding: 0 10px;
+		flex-direction: row;
+		align-items: center;
+		padding: 0 8px;
 	}
-	
-	.menu-text {
-		max-width: 100px;
+	.header-left {
+		gap: 6px;
 	}
-	
-	.menu-item {
-		margin-left: 5px !important;
-	}
-	
-	.menu-link {
-		padding: 5px 8px;
-	}
-	
-	.dropdown-notification {
-		width: 260px;
-		right: -70px;
-		position: fixed;
-	}
-	
-	.dropdown-menu-lg-end {
-		right: -10px;
-	}
-}
-
-@media (max-width: 576px) {
-	.logo-container {
-		max-width: 50px;
-		min-width: 50px;
-	}
-	
-	.menu-text {
-		max-width: 80px;
-	}
-	
-	.menu-item.dropdown {
-		position: static;
-	}
-	
-	.dropdown-notification {
-		width: calc(100vw - 30px);
-		left: 15px;
-		right: 15px;
-		position: fixed;
-		top: 60px;
-	}
-	
-	.dropdown-menu-lg-end {
-		width: 200px;
-	}
-	
-	.menu-img.online::after {
-		width: 6px;
-		height: 6px;
-	}
-}
-
-/* Improved mobile menu toggle */
-@media (max-width: 767.98px) {
-	.menu-toggler {
-		padding: 8px;
-	}
-	
-	.menu-toggler .bar {
-		width: 20px;
-		height: 2px;
-	}
-	
 	.mobile-toggler {
-		margin-right: 5px;
+		display: flex;
+		align-items: center;
+		margin-right: 0;
 	}
-	
 	.desktop-toggler {
 		display: none;
 	}
-}
-
-/* Fix for very small screens */
-@media (max-width: 360px) {
-	.menu-text {
-		max-width: 60px;
-	}
-	
-	.menu-icon {
-		font-size: 14px;
-	}
-	
-	.menu-label {
-		min-width: 16px;
-		height: 16px;
-		font-size: 9px;
+	.logo-container {
+		max-width: 36px;
+		min-width: 32px;
+		min-height: 32px;
+		margin: 0 0 0 2px;
 	}
 }
-
-/* Better touch targets for mobile */
-@media (max-width: 767.98px) {
-	.dropdown-item {
-		padding: 12px 16px;
+@media (max-width: 480px) {
+	.logo-container {
+		max-width: 32px;
+		min-width: 28px;
+		min-height: 28px;
 	}
-	
-	.menu-link {
-		padding: 10px;
-	}
-	
-	.dropdown-notification-item {
-		padding: 12px 16px;
-	}
-	
-	.btn-close {
-		padding: 10px;
-	}
-}
-
-/* Dropdown header wrapper */
-.dropdown-header-wrapper {
-	padding: 8px 16px;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Fix for iOS Safari */
-@supports (-webkit-touch-callout: none) {
-	.dropdown-menu {
-		transform: translate3d(0, 0, 0);
-	}
-	
-	.menu-link:active {
-		background-color: rgba(111, 66, 193, 0.2);
+	.site-logo {
+		min-width: 24px;
+		min-height: 24px;
 	}
 }
 </style>

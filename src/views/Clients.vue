@@ -58,16 +58,12 @@ export default {
             clients: [],
             clientCoupons: {},
             clientPreferences: {},
-            updateRequests: [],
-            deleteRequests: [],
             currentEditing: null,
             searchQuery: '',
             modalImageUrl: '',
             paymentUrl: null,
             isSubmitting: false,
             loading: false,
-            loadingRequests: false,
-
             currentPage: 1,
             itemsPerPage: 10,
             paymentClient: '',
@@ -170,7 +166,16 @@ export default {
         },
         loadingStates() {
             return clientDetails.loadingStates.value
-        }
+        },
+        updateRequests() {
+            return clientRequests.updateRequests.value;
+        },
+        deleteRequests() {
+            return clientRequests.deleteRequests.value;
+        },
+        loadingRequests() {
+            return clientRequests.loadingRequests.value;
+        },
     },
     methods: {
         displayMunicipios(state) {
@@ -190,7 +195,6 @@ export default {
             await fetchClients()
             this.clients = clients.value
         },
-
         async fetchClientDetails(client) {
             const { fetchingClientDetails } = clientDetails
             try {
@@ -201,7 +205,6 @@ export default {
                 showToast.error('No se pudieron cargar los detalles del cliente')
             }
         },
-
         toggleClientDetails(client) {
             const { togglingClientDetails, fetchingClientDetails } = clientDetails
 
@@ -217,22 +220,17 @@ export default {
                 togglingClientDetails(client)
             }
         },
-
         async fetchPaymentFiles(client, date) {
             const { fetchPaymentFiles } = clientDetails
             await fetchPaymentFiles(client, date)
         },
-
-        async fetchUpdateRequests() {
-            const { fetchUpdateRequests, updateRequests } = clientRequests
-            await fetchUpdateRequests(this.clients)
-            this.updateRequests = updateRequests.value
+        async hanldeFetchUpdateRequests() {
+            const { fetchUpdateRequests } = clientRequests;
+            await fetchUpdateRequests(this.clients);
         },
-
-        async fetchDeleteRequests() {
-            const { fetchDeleteRequests, deleteRequests } = clientRequests
-            await fetchDeleteRequests(this.clients)
-            this.deleteRequests = deleteRequests.value
+        async hanldeFetchDeleteRequests() {
+            const { fetchDeleteRequests } = clientRequests;
+            await fetchDeleteRequests(this.clients);
         },
 
         cancelEdit(client) {
@@ -595,7 +593,7 @@ export default {
                     if (requestSnapshot.exists()) {
                         await update(requestsRef, { status: 'approved' });
                         showToast.success('Solicitud aprobada');
-                        await this.fetchUpdateRequests();
+                        await this.hanldeFetchUpdateRequests();
                     } else {
                         console.error('Solicitud no encontrada.');
                     }
@@ -678,7 +676,7 @@ export default {
                     });
 
                 // Refresh the delete requests list
-                await this.fetchDeleteRequests();
+                await this.hanldeFetchDeleteRequests();
                 await this.fetchClients();
 
                 showToast.success('Solicitud de eliminación procesada');
@@ -952,12 +950,12 @@ export default {
             }
         },
     },
-    created() {
+    async created() {
         // Initial data fetch
-        this.fetchClients()
-        this.fetchUpdateRequests()
-        this.fetchDeleteRequests()
-        this.initializeComposableComputed()
+        await this.fetchClients();
+        await this.hanldeFetchUpdateRequests();
+        await this.hanldeFetchDeleteRequests();
+        this.initializeComposableComputed();
     }
 }
 </script>
@@ -1462,7 +1460,7 @@ export default {
                                         </div>
                                         <div>
                                             <div class="d-flex align-items-center">
-                                                <h6 class="mb-0">{{ request.userName }}</h6>
+                                                <h6 class="mb-0">{{ request?.userName }}</h6>
                                             </div>
                                             <div class="client-contact">
                                                 <div class="text-secondary fs-5">
