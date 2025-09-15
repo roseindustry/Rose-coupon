@@ -273,7 +273,7 @@ export default defineComponent({
       return;
     }
 
-    // console.log('User ID: ', this.userId);
+    console.log('User ID: ', this.userId);
 
     try {
       this.initializeUserData();
@@ -1276,7 +1276,7 @@ export default defineComponent({
     <h4 class="mb-3 text-theme">
       <i class="fas fa-wrench me-2"></i>
       Perfil
-    </h4>
+    </h4> 
     <div class="row">
       <div class="col-12">
         <!-- Profile Completion Warning for Affiliates -->

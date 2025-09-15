@@ -1,5 +1,13 @@
 {
   "projects": {
+<<<<<<< HEAD
     "default": "rose-app-e062e"
   }
+=======
+    "default": "rose-app-e062e",
+  },
+  "targets": {},
+  "etags": {},
+  "dataconnectEmulatorConfig": {}
+>>>>>>> a9c359f1e5bdea7ecd3bd2e62a23f5120a7e4719
 }
