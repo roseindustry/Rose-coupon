@@ -165,7 +165,7 @@ export default defineComponent({
         this.requestedVerification = userStore.requestedVerification;
         this.userVerified = userStore.isVerified;
 
-        // console.log(this.userId);
+        console.log('User ID: ', this.userId);
 
         this.verificationModal = new Modal(document.getElementById('verificationModal'));
 
