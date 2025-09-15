@@ -1,9 +1,5 @@
 {
   "projects": {
-    "default": "restaurant-app-f69da",
-    "rose-app": "rose-app-e062e"
-  },
-  "targets": {},
-  "etags": {},
-  "dataconnectEmulatorConfig": {}
+    "default": "rose-app-e062e"
+  }
 }

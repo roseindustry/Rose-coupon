@@ -310,6 +310,8 @@
                             <label class="text-secondary">Frecuencia</label>
                             <select v-model="frequency" @change="calcs(selectedClient)"
                               class="form-select bg-dark text-light border-secondary">
+                              
+                              <option :value="3">Semanal</option>
                               <option :value="2">Quincenal</option>
                               <option :value="1">Mensual</option>
                             </select>
@@ -570,7 +572,7 @@
                   <div class="d-flex justify-content-between">
                     <span class="summary-label">Frecuencia:</span>
                     <span class="summary-value">
-                      {{ frequency === 2 ? 'Quincenal' : 'Mensual' }}
+                      {{ frequency === 3 ? 'Semanal' : (frequency === 2 ? 'Quincenal' : 'Mensual') }}
                     </span>
                   </div>
                 </div>
@@ -1451,7 +1453,11 @@ export default {
           let maintenancePeriod;
           let monthlyQuotes;
 
-          if (this.frequency === 2) {  // Bi-weekly
+          if (this.frequency === 3) {  // Weekly
+            // Convert weekly terms to monthly (approx 4 weeks per month)
+            monthlyQuotes = Math.ceil(this.newPurchase.terms / 4);
+            maintenancePeriod = Math.min(monthlyQuotes, 12);
+          } else if (this.frequency === 2) {  // Bi-weekly
             // Convert bi-weekly terms to monthly
             monthlyQuotes = Math.ceil(this.newPurchase.terms / 2);
             maintenancePeriod = Math.min(monthlyQuotes, 12);
@@ -1496,7 +1502,10 @@ export default {
 
         // Set the first payment date based on frequency
         // First, advance the date by the frequency period
-        if (frequency === 2) {
+        if (frequency === 3) {
+          // Weekly: Add 7 days for the first payment
+          currentDate.setDate(currentDate.getDate() + 7);
+        } else if (frequency === 2) {
           // Bi-weekly: Add 14 days for the first payment
           currentDate.setDate(currentDate.getDate() + 14);
         } else {
@@ -1510,7 +1519,10 @@ export default {
           dates.push(currentDate.toISOString().split('T')[0]);
 
           // Move to the next payment date
-          if (frequency === 2) {
+          if (frequency === 3) {
+            // Weekly: Add 7 days for each subsequent payment
+            currentDate.setDate(currentDate.getDate() + 7);
+          } else if (frequency === 2) {
             // Bi-weekly: Add 14 days for each subsequent payment
             currentDate.setDate(currentDate.getDate() + 14);
           } else {
